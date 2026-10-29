@@ -2,8 +2,11 @@ import { Container } from "@/components/store/container"
 import { Wordmark } from "@/components/store/wordmark"
 import { listCategories } from "@lib/data/categories"
 import { listCollections } from "@lib/data/collections"
+import { getLocale } from "@lib/data/locale-actions"
+import { listLocales } from "@lib/data/locales"
 import { listRegions } from "@lib/data/regions"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { LanguageSelect } from "./language-select"
 import { RegionSelect } from "./region-select"
 
 const help = [
@@ -44,10 +47,12 @@ function Column({
 }
 
 export async function Footer() {
-  const [regions, categories, { collections }] = await Promise.all([
+  const [regions, categories, { collections }, locales, currentLocale] = await Promise.all([
     listRegions().catch(() => []),
     listCategories({ fields: "id,name,handle,parent_category_id" }).catch(() => []),
     listCollections({ fields: "id,handle,title" }).catch(() => ({ collections: [], count: 0 })),
+    listLocales().catch(() => null),
+    getLocale().catch(() => null),
   ])
 
   return (
@@ -59,6 +64,7 @@ export async function Footer() {
             Clothing and everyday essentials, chosen with care.
           </p>
           <RegionSelect regions={regions} id="footer-region-select" />
+          {locales && locales.length > 1 && <LanguageSelect locales={locales} current={currentLocale} />}
         </div>
         <div className="grid grid-cols-2 gap-10 sm:grid-cols-4 lg:col-span-8">
           <Column

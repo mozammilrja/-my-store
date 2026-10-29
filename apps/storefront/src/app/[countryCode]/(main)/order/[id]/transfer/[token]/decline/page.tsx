@@ -1,41 +1,15 @@
-import { declineTransferRequest } from "@lib/data/orders"
-import { Heading, Text } from "@modules/common/components/ui"
-import TransferImage from "@modules/order/components/transfer-image"
+import { redirect } from "next/navigation"
 
-export default async function TransferPage({
+/**
+ * Old email links pointed here. Accepting or declining changes order
+ * ownership, so it must never happen on a GET (link prefetchers and email
+ * scanners follow links). Send the customer to the page that asks first.
+ */
+export default async function TransferShortcut({
   params,
 }: {
-  params: Promise<{ id: string; token: string }>
+  params: Promise<{ countryCode: string; id: string; token: string }>
 }) {
-  const { id, token } = await params
-
-  const { success, error } = await declineTransferRequest(id, token)
-
-  return (
-    <div className="flex flex-col gap-y-4 items-start w-2/5 mx-auto mt-10 mb-20">
-      <TransferImage />
-      <div className="flex flex-col gap-y-6">
-        {success && (
-          <>
-            <Heading level="h1" className="text-xl text-zinc-900">
-              Order transfer declined!
-            </Heading>
-            <Text className="text-zinc-600">
-              Transfer of order {id} has been successfully declined.
-            </Text>
-          </>
-        )}
-        {!success && (
-          <>
-            <Text className="text-zinc-600">
-              There was an error declining the transfer. Please try again.
-            </Text>
-            {error && (
-              <Text className="text-red-500">Error message: {error}</Text>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  )
+  const { countryCode, id, token } = await params
+  redirect(`/${countryCode}/order/${encodeURIComponent(id)}/transfer/${encodeURIComponent(token)}`)
 }

@@ -80,7 +80,7 @@ export async function Footer() {
       </Container>
       <Container className="flex flex-col gap-2 border-t py-6 text-xs text-muted-foreground sm:flex-row sm:justify-between">
         <span>&copy; {new Date().getFullYear()} My Store. All rights reserved.</span>
-        <span>Prices include the taxes shown at checkout.</span>
+        <span>Prices are shown in your region&apos;s currency.</span>
       </Container>
     </footer>
   )

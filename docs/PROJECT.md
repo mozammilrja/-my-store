@@ -122,3 +122,4 @@ None of these block the app today; all were seen during the first run.
 - **Node version:** the root `package.json` asks for Node 22.23.4 or newer; the machine runs 22.22.2 without errors.
 - **Next.js warning:** the `middleware` file convention is deprecated in Next.js 16; migrate to `proxy` with `npx @next/codemod@canary middleware-to-proxy .`
 - **Port docs:** `AGENTS.md` lists the storefront on 8000, but `npm run dev` uses 8001.
+  

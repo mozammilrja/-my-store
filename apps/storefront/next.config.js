@@ -8,6 +8,42 @@ checkEnvVariables()
 const S3_HOSTNAME = process.env.MEDUSA_CLOUD_S3_HOSTNAME
 const S3_PATHNAME = process.env.MEDUSA_CLOUD_S3_PATHNAME
 
+const isProd = process.env.NODE_ENV === "production"
+const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+
+/**
+ * Content Security Policy. Next.js injects inline bootstrap scripts into
+ * statically rendered pages, and nonces would force every page to be dynamic,
+ * so scripts allow 'unsafe-inline'. Everything else is limited to this site,
+ * the Medusa backend, product image hosts and Stripe (used only when a Stripe
+ * payment provider is enabled on the backend).
+ */
+const csp = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} https://js.stripe.com`,
+  "style-src 'self' 'unsafe-inline'",
+  `img-src 'self' data: blob: ${BACKEND_URL} https://*.amazonaws.com`,
+  "font-src 'self' data:",
+  `connect-src 'self' ${BACKEND_URL} https://api.stripe.com${isProd ? "" : " ws: wss:"}`,
+  "frame-src https://js.stripe.com https://hooks.stripe.com",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  ...(isProd ? ["upgrade-insecure-requests"] : []),
+].join("; ")
+
+const securityHeaders = [
+  { key: "Content-Security-Policy", value: csp },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\")" },
+  ...(isProd
+    ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }]
+    : []),
+]
+
 /**
  * @type {import('next').NextConfig}
  */
@@ -17,7 +53,10 @@ const nextConfig = {
     return [
       {
         source: "/:path*",
-        headers: [{ key: "Link", value: '</.well-known/ucp>; rel="ucp"' }],
+        headers: [
+          { key: "Link", value: '</.well-known/ucp>; rel="ucp"' },
+          ...securityHeaders,
+        ],
       },
       {
         source: "/:countryCode/products/:handle",
@@ -45,11 +84,13 @@ const nextConfig = {
       fullUrl: true,
     },
   },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  poweredByHeader: false,
   images: {
-    unoptimized: true,
+    formats: ["image/avif", "image/webp"],
+    qualities: [50, 75],
+    // Product images uploaded to a local Medusa backend live on localhost,
+    // which the optimizer refuses by default. Allow it in development only.
+    dangerouslyAllowLocalIP: !isProd,
     remotePatterns: [
       {
         protocol: "http",

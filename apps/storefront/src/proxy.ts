@@ -14,9 +14,8 @@ async function getRegionMap(cacheId: string) {
   const { regionMap, regionMapUpdated } = regionMapCache
 
   if (!BACKEND_URL) {
-    throw new Error(
-      "Middleware.ts: Error fetching regions. Did you set up regions in your Medusa Admin and define a NEXT_PUBLIC_MEDUSA_BACKEND_URL environment variable."
-    )
+    console.error("proxy.ts: NEXT_PUBLIC_MEDUSA_BACKEND_URL is not set; using the default region.")
+    return regionMap
   }
 
   if (
@@ -85,9 +84,10 @@ async function getCountryCode(
 }
 
 /**
- * Middleware to handle region selection and onboarding status.
+ * Region routing: every storefront URL starts with a country code.
+ * (Next.js 16 calls this file `proxy.ts`; it was `middleware.ts` before.)
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname.includes(".")) {
     return NextResponse.next()
   }
@@ -95,7 +95,13 @@ export async function middleware(request: NextRequest) {
   const cacheIdCookie = request.cookies.get("_medusa_cache_id")
   const cacheId = cacheIdCookie?.value || crypto.randomUUID()
 
-  const regionMap = await getRegionMap(cacheId)
+  // If the backend is unreachable, keep routing with the last known regions
+  // (or the default region) so pages can render their own error states
+  // instead of every request failing here.
+  const regionMap = await getRegionMap(cacheId).catch((error) => {
+    console.error("proxy.ts: could not load regions:", error)
+    return regionMapCache.regionMap
+  })
   const countryCode = await getCountryCode(request, regionMap)
 
   // if the country code is available, use it, otherwise use the default region
@@ -112,6 +118,10 @@ export async function middleware(request: NextRequest) {
     if (!cacheIdCookie) {
       response.cookies.set("_medusa_cache_id", cacheId, {
         maxAge: 60 * 60 * 24,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
       })
     }
     return response

@@ -62,7 +62,7 @@ test("agent checkout hands off to the shopper and stops exposing their details",
 test("a checkout link asks before replacing a filled bag", async ({ page, request }) => {
   const id = await variantId(page)
   await page.getByTestId("add-product-button").click()
-  await expect(page.getByTestId("nav-cart-count").first()).not.toHaveText("(0)")
+  await expect(page.getByTestId("nav-cart-count").first()).not.toHaveText("0")
 
   const session = await createSession(request, id)
   await page.goto(session.continue_url, { waitUntil: "domcontentloaded" })

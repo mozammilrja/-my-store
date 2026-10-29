@@ -22,12 +22,13 @@ test.describe("shopping journey", () => {
     const options = page.getByTestId("product-options")
     await expect(options.first()).toBeVisible()
 
-    await page.getByText("White", { exact: true }).click()
-    await page.getByText("XL", { exact: true }).click()
+    const form = page.getByTestId("product-actions")
+    await form.getByText("White", { exact: true }).click()
+    await form.getByText("XL", { exact: true }).click()
     await expect(page).toHaveURL(/v_id=variant_/)
     const first = new URL(page.url()).searchParams.get("v_id")
 
-    await page.getByText("M", { exact: true }).click()
+    await form.getByText("M", { exact: true }).click()
     await expect.poll(() => new URL(page.url()).searchParams.get("v_id")).not.toBe(first)
     await expect(page.getByTestId("product-availability")).toContainText(/In stock|Out of stock/)
   })
@@ -64,6 +65,18 @@ test.describe("shopping journey", () => {
     await page.getByRole("button", { name: "M", exact: true }).first().click()
     await expect(page).toHaveURL(/refinementList/)
     await expect(page.getByTestId("products-list")).toBeVisible()
+  })
+
+  test("quick add from a product card adds one item", async ({ page }) => {
+    await page.goto(`/${COUNTRY}`, { waitUntil: "domcontentloaded" })
+    const card = page.getByTestId("product-wrapper").filter({ has: page.getByTestId("quick-add") }).first()
+    await card.scrollIntoViewIfNeeded()
+    const before = await bagCount(page)
+    await card.hover()
+    const size = card.getByTestId("quick-add").getByRole("button", { name: /^Add size/ }).filter({ hasNot: page.locator("[disabled]") }).first()
+    await expect(size).toBeVisible()
+    await size.click()
+    await expect.poll(() => bagCount(page)).toBe(before + 1)
   })
 
   test("unknown product shows not found", async ({ page }) => {

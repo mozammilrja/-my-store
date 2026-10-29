@@ -5,9 +5,12 @@ const PAGES = ["", "/store", "/categories/shirts", "/products/t-shirt", "/cart",
 
 test("mobile menu opens, navigates and closes", async ({ page }) => {
   await page.goto(`/${COUNTRY}`, { waitUntil: "domcontentloaded" })
-  await page.getByTestId("nav-menu-button").click()
   const menu = page.getByRole("dialog")
-  await expect(menu).toBeVisible()
+  // The button only works once React has hydrated; retry the click until then.
+  await expect(async () => {
+    await page.getByTestId("nav-menu-button").click()
+    await expect(menu).toBeVisible({ timeout: 1000 })
+  }).toPass({ timeout: 20_000 })
   await menu.getByRole("link", { name: "Shop all" }).click()
   await expect(page).toHaveURL(/\/store/)
   await expect(page.getByRole("dialog")).toHaveCount(0)

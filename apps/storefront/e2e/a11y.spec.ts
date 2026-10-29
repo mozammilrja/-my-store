@@ -33,7 +33,7 @@ test("keyboard: skip to content and visible focus on header controls", async ({ 
 test("no WCAG 2.2 A/AA violations on checkout", async ({ page }) => {
   await page.goto(`/${COUNTRY}/products/t-shirt`, { waitUntil: "domcontentloaded" })
   await page.getByTestId("add-product-button").click()
-  await expect(page.getByTestId("nav-cart-count").first()).not.toHaveText("(0)")
+  await expect(page.getByTestId("nav-cart-count").first()).not.toHaveText("0")
   await page.goto(`/${COUNTRY}/checkout?step=address`, { waitUntil: "domcontentloaded" })
   await page.waitForTimeout(1500)
   const results = await axe(page)

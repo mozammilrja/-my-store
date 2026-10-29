@@ -11,7 +11,7 @@ test("guest checkout reaches order confirmation", async ({ page }) => {
 
   await page.goto(`/${COUNTRY}/products/t-shirt`, { waitUntil: "domcontentloaded" })
   await page.getByTestId("add-product-button").click()
-  await expect(page.getByTestId("nav-cart-count").first()).not.toHaveText("(0)")
+  await expect(page.getByTestId("nav-cart-count").first()).not.toHaveText("0")
 
   await page.goto(`/${COUNTRY}/checkout?step=address`, { waitUntil: "domcontentloaded" })
   await page.getByTestId("shipping-first-name-input").fill("Test")

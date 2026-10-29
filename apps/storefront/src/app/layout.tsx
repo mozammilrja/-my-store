@@ -43,7 +43,6 @@ export default function RootLayout(props: { children: React.ReactNode }) {
       className={`${displaySans.variable} ${body.variable}`}
     >
       <head>
-        <link rel="ucp" href="/.well-known/ucp" />
       </head>
       <body>
         <TooltipProvider>

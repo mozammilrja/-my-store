@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { addToCart } from "@lib/data/cart"
+import { addToCart } from "@lib/data/shop"
 import { notifyCartUpdated } from "@lib/util/cart-events"
 import { Loader2Icon, PlusIcon } from "lucide-react"
 import { useParams } from "next/navigation"
@@ -49,8 +49,8 @@ export function QuickAdd({
       await addToCart({ variantId: variant.id, quantity: 1, countryCode })
       notifyCartUpdated()
       toast.success(`${title}${size ? `, size ${size}` : ""} added to your bag`)
-    } catch {
-      toast.error("We couldn't add this to your bag. Please try again.")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "We couldn't add this to your bag. Please try again.")
     } finally {
       lock.current = false
       setPending(null)

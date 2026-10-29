@@ -1,6 +1,6 @@
 import { Container } from "@/components/store/container"
 import { ProductCard } from "@/components/store/product-card"
-import { HttpTypes } from "@medusajs/types"
+import type { Product } from "@lib/api/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { ArrowRightIcon } from "lucide-react"
 
@@ -16,7 +16,7 @@ export function ProductRow({
   id: string
   title: string
   eyebrow?: string
-  products: HttpTypes.StoreProduct[]
+  products: Product[]
   href: string
   linkLabel: string
 }) {

@@ -27,15 +27,13 @@ test("guest checkout reaches order confirmation", async ({ page }) => {
   await page.getByTestId("delivery-option-radio").first().click()
   await page.getByTestId("submit-delivery-option-button").click()
 
-  await expect(page).toHaveURL(/step=payment/)
-  await page.getByText(/manual payment/i).first().click()
-  await page.getByTestId("submit-payment-button").click()
-
   await expect(page).toHaveURL(/step=review/)
+  await expect(page.getByTestId("payment-method-summary")).toContainText("Cash on delivery")
   await page.getByTestId("submit-order-button").click()
 
-  await expect(page).toHaveURL(/\/order\/order_[A-Z0-9]+\/confirmed/, { timeout: 60_000 })
-  await expect(page.getByText(/thank you|order/i).first()).toBeVisible()
+  await expect(page).toHaveURL(/\/order\/order_[0-9a-z]+\/confirmed/, { timeout: 60_000 })
+  await expect(page.getByRole("heading", { name: "Thank you!" })).toBeVisible()
+  await expect(page.getByTestId("payment-method")).toHaveText("Cash on delivery")
 
   // The bag is empty after the order.
   await page.goto(`/${COUNTRY}/cart`, { waitUntil: "domcontentloaded" })

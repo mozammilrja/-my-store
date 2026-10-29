@@ -1,25 +1,21 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { HttpTypes } from "@medusajs/types"
+import type { Product } from "@lib/api/types"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 
-const imagesFor = (product: HttpTypes.StoreProduct, variantId?: string | null) => {
-  const all = product.images ?? []
-  const variant = variantId ? product.variants?.find((v) => v.id === variantId) : undefined
-  if (!variant?.images?.length) return all
-  const ids = new Set(variant.images.map((i) => i.id))
-  const filtered = all.filter((i) => ids.has(i.id))
-  return filtered.length ? filtered : all
+const imagesFor = (product: Product, variantId?: string | null) => {
+  const variant = variantId ? product.variants.find((v) => v.id === variantId) : undefined
+  return variant?.images.length ? variant.images : product.images
 }
 
 /**
  * Product images, 4:5. Shows the images of the variant chosen with `?v_id=`;
  * the page is static, so the variant filter applies after hydration.
  */
-export function Gallery({ product }: { product: HttpTypes.StoreProduct }) {
+export function Gallery({ product }: { product: Product }) {
   const searchParams = useSearchParams()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -27,8 +23,7 @@ export function Gallery({ product }: { product: HttpTypes.StoreProduct }) {
 
   const images = useMemo(() => {
     const list = imagesFor(product, variantId)
-    if (list.length) return list
-    return product.thumbnail ? [{ id: "thumbnail", url: product.thumbnail }] : []
+    return list.length ? list : product.thumbnail ? [product.thumbnail] : []
   }, [product, variantId])
 
   const [active, setActive] = useState(0)
@@ -47,7 +42,7 @@ export function Gallery({ product }: { product: HttpTypes.StoreProduct }) {
     <div className="flex flex-col gap-3 lg:flex-row-reverse lg:gap-4" data-testid="product-gallery">
       <div className="relative aspect-[4/5] flex-1 overflow-hidden bg-muted">
         <Image
-          src={current.url}
+          src={current}
           alt={`${product.title}${images.length > 1 ? `, image ${active + 1} of ${images.length}` : ""}`}
           fill
           preload
@@ -60,7 +55,7 @@ export function Gallery({ product }: { product: HttpTypes.StoreProduct }) {
       {images.length > 1 && (
         <ul className="flex gap-2 overflow-x-auto lg:w-20 lg:flex-col lg:overflow-visible" aria-label="Product images">
           {images.map((image, index) => (
-            <li key={image.id} className="shrink-0">
+            <li key={image} className="shrink-0">
               <button
                 type="button"
                 onClick={() => setActive(index)}
@@ -71,7 +66,7 @@ export function Gallery({ product }: { product: HttpTypes.StoreProduct }) {
                   index === active ? "ring-1 ring-foreground" : "opacity-70 hover:opacity-100"
                 )}
               >
-                <Image src={image.url} alt="" fill sizes="80px" className="object-cover" />
+                <Image src={image} alt="" fill sizes="80px" className="object-cover" />
               </button>
             </li>
           ))}

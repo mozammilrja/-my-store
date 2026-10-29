@@ -1,6 +1,6 @@
 import { Metadata } from "next"
 
-import { getStorePolicies } from "@lib/data/store-policies"
+import { getStorePolicies } from "@lib/data/catalog"
 import { PoliciesUnavailable, PolicyPage } from "@modules/policies/templates"
 
 export const dynamic = "force-static"

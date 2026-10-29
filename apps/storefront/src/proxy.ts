@@ -1,143 +1,45 @@
-import { HttpTypes } from "@medusajs/types"
 import { NextRequest, NextResponse } from "next/server"
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL
-const PUBLISHABLE_API_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
-const DEFAULT_REGION = process.env.NEXT_PUBLIC_DEFAULT_REGION || "dk"
+const API_URL = process.env.EVERWEAR_API_URL ?? "http://localhost:9100"
+const DEFAULT_REGION = (process.env.NEXT_PUBLIC_DEFAULT_REGION || "dk").toLowerCase()
+const REFRESH_MS = 60 * 60 * 1000
 
-const regionMapCache = {
-  regionMap: new Map<string, HttpTypes.StoreRegion>(),
-  regionMapUpdated: Date.now(),
-}
+/** Country codes the store ships to, refreshed hourly; the last good list survives outages. */
+const cache = { codes: new Set<string>(), updatedAt: 0 }
 
-async function getRegionMap(cacheId: string) {
-  const { regionMap, regionMapUpdated } = regionMapCache
-
-  if (!BACKEND_URL) {
-    console.error("proxy.ts: NEXT_PUBLIC_MEDUSA_BACKEND_URL is not set; using the default region.")
-    return regionMap
+async function countryCodes() {
+  if (cache.codes.size && Date.now() - cache.updatedAt < REFRESH_MS) return cache.codes
+  try {
+    const res = await fetch(`${API_URL}/store/regions`, { next: { revalidate: 3600 } })
+    if (!res.ok) throw new Error(`API returned ${res.status}`)
+    const { regions } = (await res.json()) as { regions: { countries: { code: string }[] }[] }
+    cache.codes = new Set(regions.flatMap((r) => r.countries.map((c) => c.code.toLowerCase())))
+    cache.updatedAt = Date.now()
+  } catch (error) {
+    // Keep routing with what we had (or the default) so pages can show their own errors.
+    console.error("proxy.ts: could not load regions:", error)
   }
-
-  if (
-    !regionMap.keys().next().value ||
-    regionMapUpdated < Date.now() - 3600 * 1000
-  ) {
-    // Fetch regions from Medusa. We can't use the JS client here because middleware is running on Edge and the client needs a Node environment.
-    const response = await fetch(`${BACKEND_URL}/store/regions`, {
-      method: "GET",
-      headers: {
-        "x-publishable-api-key": PUBLISHABLE_API_KEY!,
-      },
-      next: {
-        revalidate: 3600,
-        tags: [`regions-${cacheId}`],
-      },
-      cache: "force-cache",
-    })
-
-    if (!response.ok) {
-      throw new Error(`Backend returned ${response.status}`)
-    }
-
-    const json = await response.json()
-
-    const { regions } = json
-
-    if (!regions?.length) {
-      return new Map<string, HttpTypes.StoreRegion>()
-    }
-
-    // Create a map of country codes to regions.
-    regions.forEach((region: HttpTypes.StoreRegion) => {
-      region.countries?.forEach((c) => {
-        regionMapCache.regionMap.set(c.iso_2 ?? "", region)
-      })
-    })
-
-    regionMapCache.regionMapUpdated = Date.now()
-  }
-
-  return regionMapCache.regionMap
-}
-
-/**
- * Resolves the country code from the URL, falling back to the store default.
- * Not IP-based, so crawlers and AI agents get a stable redirect.
- */
-async function getCountryCode(
-  request: NextRequest,
-  regionMap: Map<string, HttpTypes.StoreRegion | number>
-) {
-  let countryCode
-
-  const urlCountryCode = request.nextUrl.pathname.split("/")[1]?.toLowerCase()
-
-  if (urlCountryCode && regionMap.has(urlCountryCode)) {
-    countryCode = urlCountryCode
-  } else if (regionMap.has(DEFAULT_REGION)) {
-    countryCode = DEFAULT_REGION
-  } else if (regionMap.keys().next().value) {
-    countryCode = regionMap.keys().next().value
-  }
-
-  return countryCode
+  return cache.codes
 }
 
 /**
  * Region routing: every storefront URL starts with a country code.
- * (Next.js 16 calls this file `proxy.ts`; it was `middleware.ts` before.)
+ * Not IP-based, so crawlers and AI agents get a stable result.
  */
 export async function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname.includes(".")) {
-    return NextResponse.next()
-  }
+  const { pathname, search, origin } = request.nextUrl
+  if (pathname.includes(".")) return NextResponse.next()
 
-  const cacheIdCookie = request.cookies.get("_medusa_cache_id")
-  const cacheId = cacheIdCookie?.value || crypto.randomUUID()
+  const codes = await countryCodes()
+  const first = pathname.split("/")[1]?.toLowerCase()
+  if (first && codes.has(first)) return NextResponse.next()
 
-  // If the backend is unreachable, keep routing with the last known regions
-  // (or the default region) so pages can render their own error states
-  // instead of every request failing here.
-  const regionMap = await getRegionMap(cacheId).catch((error) => {
-    console.error("proxy.ts: could not load regions:", error)
-    return regionMapCache.regionMap
-  })
-  const countryCode = await getCountryCode(request, regionMap)
-
-  // if the country code is available, use it, otherwise use the default region
-  const country = countryCode || DEFAULT_REGION
-  const firstPathSegment = request.nextUrl.pathname.split("/")[1]?.toLowerCase()
-  const urlHasCountry = firstPathSegment === country.toLowerCase()
-
-  // Serve the default region at "/" instead of redirecting, so agents and
-  // crawlers get the storefront content directly from the root URL.
-  if (urlHasCountry || request.nextUrl.pathname === "/") {
-    const response = urlHasCountry
-      ? NextResponse.next()
-      : NextResponse.rewrite(new URL(`/${country}`, request.url))
-    if (!cacheIdCookie) {
-      response.cookies.set("_medusa_cache_id", cacheId, {
-        maxAge: 60 * 60 * 24,
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-      })
-    }
-    return response
-  }
-
-  // if the url doesn't have the country, redirect to it
-  const redirectPath =
-    request.nextUrl.pathname === "/" ? "" : request.nextUrl.pathname
-  const queryString = request.nextUrl.search || ""
-  const redirectUrl = `${request.nextUrl.origin}/${country}${redirectPath}${queryString}`
-
-  return NextResponse.redirect(redirectUrl, 307)
+  const country = codes.has(DEFAULT_REGION) ? DEFAULT_REGION : (codes.values().next().value ?? DEFAULT_REGION)
+  // Serve the default country at "/" directly so the root URL has content.
+  if (pathname === "/") return NextResponse.rewrite(new URL(`/${country}`, request.url))
+  return NextResponse.redirect(`${origin}/${country}${pathname}${search}`, 307)
 }
 
 export const config = {
-  matcher: [
-    "/((?!api|ucp|buy|_next/static|_next/image|favicon.ico|images|assets|png|svg|jpg|jpeg|gif|webp).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|images|assets|png|svg|jpg|jpeg|gif|webp).*)"],
 }

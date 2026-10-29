@@ -1,49 +1,27 @@
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { listProducts } from "@lib/data/products"
-import { getRegion, listRegions } from "@lib/data/regions"
-import { ProductTemplate } from "@modules/product/template"
-import { getStorePolicies } from "@lib/data/store-policies"
-import { HttpTypes } from "@medusajs/types"
-import { isVariantInStock } from "@lib/util/inventory"
-import {
-  buildProductStructuredData,
-  getPricedVariants,
-  toJsonLd,
-} from "@lib/util/product-structured-data"
+
+import type { Product, Region } from "@lib/api/types"
+import { getProduct, getRegion, listCategories, listCollections, listRegions } from "@lib/data/catalog"
+import { buildProductStructuredData, toJsonLd } from "@lib/util/product-structured-data"
 import { getSiteOrigin, listCountryCodes, STORE_NAME } from "@lib/util/site"
+import { ProductTemplate } from "@modules/product/template"
 
 type Props = {
   params: Promise<{ countryCode: string; handle: string }>
 }
 
-const PRODUCT_FIELDS =
-  "*variants.calculated_price,+variants.inventory_quantity,*variants.images,*variants.options,+metadata,+tags,*categories,*collection,*type"
-
 export const dynamic = "force-static"
 export const revalidate = 60
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
-  const params = await props.params
-  const { handle } = params
-  const region = await getRegion(params.countryCode)
-
-  if (!region) {
-    notFound()
-  }
-
-  const product = await listProducts({
-    countryCode: params.countryCode,
-    queryParams: { handle, fields: PRODUCT_FIELDS },
-  }).then(({ response }) => response.products[0])
-
-  if (!product) {
-    notFound()
-  }
+  const { countryCode, handle } = await props.params
+  const [region, product] = await Promise.all([getRegion(countryCode), getProduct(handle, countryCode)])
+  if (!region || !product) notFound()
 
   const [origin, regions] = await Promise.all([getSiteOrigin(), listRegions()])
   const path = `/products/${product.handle}`
-  const productUrl = `${origin}/${params.countryCode}${path}`
+  const productUrl = `${origin}/${countryCode}${path}`
   const description = product.description || product.title
 
   return {
@@ -51,12 +29,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     description,
     alternates: {
       canonical: productUrl,
-      languages: Object.fromEntries(
-        listCountryCodes(regions).map((code) => [
-          `en-${code.toUpperCase()}`,
-          `${origin}/${code}${path}`,
-        ])
-      ),
+      languages: Object.fromEntries(listCountryCodes(regions).map((code) => [`en-${code.toUpperCase()}`, `${origin}/${code}${path}`])),
       types: { "text/markdown": `${productUrl}.md` },
     },
     openGraph: {
@@ -68,26 +41,13 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   }
 }
 
-const ProductMetaTags = ({
-  product,
-  region,
-}: {
-  product: HttpTypes.StoreProduct
-  region: HttpTypes.StoreRegion
-}) => {
-  const variants = getPricedVariants(product)
-  const cheapest = variants.reduce<HttpTypes.StoreProductVariant | undefined>(
-    (min, v) =>
-      !min ||
-      v.calculated_price!.calculated_amount! <
-        min.calculated_price!.calculated_amount!
-        ? v
-        : min,
-    undefined
-  )
-  const currency = region.currency_code.toUpperCase()
-  const amount = cheapest?.calculated_price?.calculated_amount?.toFixed(2)
+const ZERO_DECIMAL = new Set(["jpy", "krw", "vnd", "clp", "isk", "huf"])
 
+/** Open Graph product price and availability tags, from catalog data only. */
+const ProductMetaTags = ({ product, region }: { product: Product; region: Region }) => {
+  const min = product.priceRange?.min
+  const amount = min === undefined ? null : (min / (ZERO_DECIMAL.has(region.currency) ? 1 : 100)).toFixed(2)
+  const currency = region.currency.toUpperCase()
   return (
     <>
       <meta property="og:type" content="product" />
@@ -99,54 +59,35 @@ const ProductMetaTags = ({
           <meta property="og:price:currency" content={currency} />
         </>
       )}
-      <meta
-        property="product:availability"
-        content={variants.some(isVariantInStock) ? "in stock" : "out of stock"}
-      />
+      <meta property="product:availability" content={product.variants.some((v) => v.inStock) ? "in stock" : "out of stock"} />
     </>
   )
 }
 
 export default async function ProductPage(props: Props) {
-  const params = await props.params
-  const region = await getRegion(params.countryCode)
+  const { countryCode, handle } = await props.params
+  const [region, product] = await Promise.all([getRegion(countryCode), getProduct(handle, countryCode)])
+  if (!region || !product) notFound()
 
-  if (!region) {
-    notFound()
-  }
-
-  const pricedProduct = await listProducts({
-    countryCode: params.countryCode,
-    queryParams: { handle: params.handle, fields: PRODUCT_FIELDS },
-  }).then(({ response }) => response.products[0])
-
-  if (!pricedProduct) {
-    notFound()
-  }
-
-  const [origin, policies] = await Promise.all([
-    getSiteOrigin(),
-    getStorePolicies(params.countryCode).catch(() => null),
-  ])
+  const [origin, categories, collections] = await Promise.all([getSiteOrigin(), listCategories(), listCollections()])
   const structuredData = buildProductStructuredData({
-    product: pricedProduct,
+    product,
     region,
-    countryCode: params.countryCode,
-    productUrl: `${origin}/${params.countryCode}/products/${pricedProduct.handle}`,
+    countryCode,
+    productUrl: `${origin}/${countryCode}/products/${product.handle}`,
   })
 
   return (
     <>
-      <ProductMetaTags product={pricedProduct} region={region} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: toJsonLd(structuredData) }}
-      />
+      <ProductMetaTags product={product} region={region} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: toJsonLd(structuredData) }} />
       <ProductTemplate
-        product={pricedProduct}
-        countryCode={params.countryCode}
-        policies={policies?.current ?? null}
-        currencyCode={region.currency_code}
+        product={product}
+        category={categories.find((c) => product.categoryIds.includes(c.id)) ?? null}
+        collection={collections.find((c) => c.id === product.collectionId) ?? null}
+        countryCode={countryCode}
+        policies={region.policies}
+        currencyCode={region.currency}
       />
     </>
   )

@@ -1,5 +1,4 @@
-import { listProducts } from "@lib/data/products"
-import { getRegion } from "@lib/data/regions"
+import { getProduct } from "@lib/data/catalog"
 import { renderProductMarkdown } from "@lib/util/product-markdown"
 import { getRequestOrigin } from "@lib/util/site"
 
@@ -15,24 +14,14 @@ export async function GET(
   { params }: { params: Promise<{ countryCode: string; handle: string }> }
 ) {
   const { countryCode, handle } = await params
-  const region = await getRegion(countryCode)
-  const product = region
-    ? await listProducts({ countryCode, queryParams: { handle } })
-        .then(({ response }) => response.products[0])
-        .catch(() => undefined)
-    : undefined
+  const product = await getProduct(handle, countryCode).catch(() => null)
 
-  if (!region || !product) {
+  if (!product) {
     return new Response("# Product not found\n", { status: 404, headers: HEADERS })
   }
 
   return new Response(
-    renderProductMarkdown({
-      product,
-      region,
-      origin: getRequestOrigin(request),
-      countryCode,
-    }),
+    renderProductMarkdown(product, `${getRequestOrigin(request)}/${countryCode}/products/${product.handle}`),
     { headers: HEADERS }
   )
 }

@@ -8,8 +8,7 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Container } from "@/components/store/container"
-import { StorePolicies } from "@lib/util/store-policies"
-import { HttpTypes } from "@medusajs/types"
+import type { Category, Collection, Product, RegionPolicies } from "@lib/api/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { Suspense } from "react"
 import { Details } from "./details"
@@ -19,16 +18,19 @@ import { Related } from "./related"
 
 export function ProductTemplate({
   product,
+  category,
+  collection,
   countryCode,
   policies,
   currencyCode,
 }: {
-  product: HttpTypes.StoreProduct
+  product: Product
+  category: Category | null
+  collection: Collection | null
   countryCode: string
-  policies: StorePolicies | null
+  policies: RegionPolicies | null
   currencyCode: string
 }) {
-  const category = product.categories?.[0]
 
   return (
     <>
@@ -67,12 +69,12 @@ export function ProductTemplate({
         <div className="lg:col-span-5">
           <div className="flex flex-col gap-8 lg:sticky lg:top-28">
             <div className="flex flex-col gap-3">
-              {product.collection && (
+              {collection && (
                 <LocalizedClientLink
-                  href={`/collections/${product.collection.handle}`}
+                  href={`/collections/${collection.handle}`}
                   className="w-fit text-xs font-semibold tracking-widest uppercase text-primary hover:underline"
                 >
-                  {product.collection.title}
+                  {collection.title}
                 </LocalizedClientLink>
               )}
               <h1 className="font-display-tight text-5xl sm:text-6xl" data-testid="product-title">

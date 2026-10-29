@@ -33,18 +33,10 @@ export const getSiteOrigin = async (): Promise<string> => {
   return originFromHeaders((name) => requestHeaders.get(name)) || "http://localhost:8000"
 }
 
-export const listCountryCodes = (
-  regions: { countries?: { iso_2?: string | null }[] | null }[]
-): string[] =>
-  regions.flatMap((region) =>
-    (region.countries ?? [])
-      .map((country) => country.iso_2?.toLowerCase())
-      .filter((code): code is string => Boolean(code))
-  )
+export const listCountryCodes = (regions: { countries: { code: string }[] }[]): string[] =>
+  regions.flatMap((region) => region.countries.map((country) => country.code.toLowerCase()))
 
-export const getDefaultCountryCode = (
-  regions: { countries?: { iso_2?: string | null }[] | null }[]
-) => {
+export const getDefaultCountryCode = (regions: { countries: { code: string }[] }[]) => {
   const codes = listCountryCodes(regions)
   return codes.includes(DEFAULT_COUNTRY_CODE) ? DEFAULT_COUNTRY_CODE : codes[0]
 }

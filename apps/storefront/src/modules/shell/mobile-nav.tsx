@@ -10,7 +10,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { Wordmark } from "@/components/store/wordmark"
-import { HttpTypes } from "@medusajs/types"
+import type { Region } from "@lib/api/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { MenuIcon } from "lucide-react"
 import { usePathname } from "next/navigation"
@@ -25,7 +25,7 @@ export function MobileNav({
   regions,
 }: {
   links: NavLink[]
-  regions: HttpTypes.StoreRegion[]
+  regions: Region[]
 }) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()

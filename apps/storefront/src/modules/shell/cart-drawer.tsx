@@ -12,9 +12,9 @@ import {
 } from "@/components/ui/sheet"
 import { formatMoney } from "@/components/store/money"
 import { cn } from "@/lib/utils"
-import { deleteLineItem, retrieveCart } from "@lib/data/cart"
+import { deleteLineItem, retrieveCart } from "@lib/data/shop"
 import { CART_UPDATED_EVENT, notifyCartUpdated } from "@lib/util/cart-events"
-import { HttpTypes } from "@medusajs/types"
+import type { Cart } from "@lib/api/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { Loader2Icon, ShoppingBagIcon } from "lucide-react"
 import Image from "next/image"
@@ -22,8 +22,8 @@ import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
-const countItems = (cart?: HttpTypes.StoreCart | null) =>
-  cart?.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0
+const countItems = (cart?: Cart | null) =>
+  cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0
 
 /**
  * Cart indicator and slide-over bag. Statically rendered pages can't read the
@@ -31,7 +31,7 @@ const countItems = (cart?: HttpTypes.StoreCart | null) =>
  * mutation dispatches the cart-updated event.
  */
 export function CartDrawer() {
-  const [cart, setCart] = useState<HttpTypes.StoreCart | null>(null)
+  const [cart, setCart] = useState<Cart | null>(null)
   const [open, setOpen] = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
   const knownCount = useRef<number | null>(null)
@@ -64,17 +64,16 @@ export function CartDrawer() {
   useEffect(() => setOpen(false), [pathname])
 
   const count = countItems(cart)
-  const items = [...(cart?.items ?? [])].sort((a, b) =>
-    (a.created_at ?? "") > (b.created_at ?? "") ? -1 : 1
-  )
+  // Newest first: the API keeps items in the order they were added.
+  const items = [...(cart?.items ?? [])].reverse()
 
   const remove = async (lineId: string) => {
     setRemoving(lineId)
     try {
       await deleteLineItem(lineId)
       notifyCartUpdated()
-    } catch {
-      toast.error("Couldn't remove that item. Please try again.")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't remove that item. Please try again.")
     } finally {
       setRemoving(null)
     }
@@ -126,7 +125,7 @@ export function CartDrawer() {
             {items.map((item) => (
               <li key={item.id} className="flex gap-4 py-4" data-testid="cart-item">
                 <LocalizedClientLink
-                  href={`/products/${item.product_handle}`}
+                  href={`/products/${item.productHandle}`}
                   className="relative aspect-[4/5] w-20 shrink-0 overflow-hidden bg-muted"
                 >
                   {item.thumbnail && (
@@ -136,18 +135,18 @@ export function CartDrawer() {
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <div className="flex items-start justify-between gap-3">
                     <LocalizedClientLink
-                      href={`/products/${item.product_handle}`}
+                      href={`/products/${item.productHandle}`}
                       className="truncate text-sm font-medium hover:underline"
                       data-testid="product-link"
                     >
-                      {item.product_title ?? item.title}
+                      {item.productTitle}
                     </LocalizedClientLink>
                     <span className="text-sm tabular-nums">
-                      {formatMoney(item.total, cart!.currency_code)}
+                      {formatMoney(item.total, cart!.currency)}
                     </span>
                   </div>
-                  {item.variant_title && (
-                    <span className="text-xs text-muted-foreground">{item.variant_title}</span>
+                  {item.variantTitle && (
+                    <span className="text-xs text-muted-foreground">{item.variantTitle}</span>
                   )}
                   <span className="text-xs text-muted-foreground" data-testid="cart-item-quantity">
                     Qty {item.quantity}
@@ -160,7 +159,7 @@ export function CartDrawer() {
                     data-testid="cart-item-remove-button"
                   >
                     {removing === item.id && <Loader2Icon className="size-3 animate-spin" aria-hidden />}
-                    Remove<span className="sr-only"> {item.product_title}</span>
+                    Remove<span className="sr-only"> {item.productTitle}</span>
                   </button>
                 </div>
               </li>
@@ -175,7 +174,7 @@ export function CartDrawer() {
                 Subtotal <span className="text-muted-foreground">(excl. shipping)</span>
               </span>
               <span className="text-base font-semibold tabular-nums" data-testid="cart-subtotal">
-                {formatMoney(cart.item_subtotal ?? cart.subtotal, cart.currency_code)}
+                {formatMoney(cart.totals.itemSubtotal, cart.currency)}
               </span>
             </div>
             <Button asChild size="lg" className="w-full">

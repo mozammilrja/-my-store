@@ -1,5 +1,5 @@
-import { retrieveCart } from "@lib/data/cart"
-import { retrieveCustomer } from "@lib/data/customer"
+import { retrieveCustomer } from "@lib/data/account"
+import { retrieveCart } from "@lib/data/shop"
 import { BagTemplate } from "@modules/bag/template"
 import { Metadata } from "next"
 
@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 }
 
 const ERRORS: Record<string, string> = {
-  order_failed: "We couldn't complete your order. Your bag is still here, so you can try checkout again. If you see a charge without an order confirmation, please contact us.",
-  payment_failed: "Your payment didn't go through. Please try again or use another payment method.",
+  order_failed: "We couldn't complete your order. Your bag is still here, so you can try checkout again.",
+  add_failed: "We couldn't add that item to your bag. It may be out of stock.",
 }
 
 export default async function CartPage(props: {

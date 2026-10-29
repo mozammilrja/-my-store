@@ -1,72 +1,30 @@
-import { sdk } from "@lib/config"
-import { listRegions } from "@lib/data/regions"
-import { getSiteOrigin, listCountryCodes } from "@lib/util/site"
+import { listCategories, listCollections, listProducts, listRegions } from "@lib/data/catalog"
+import { getDefaultCountryCode, getSiteOrigin, listCountryCodes } from "@lib/util/site"
 import type { MetadataRoute } from "next"
 
-const STATIC_PATHS = [
-  "",
-  "/store",
-  "/shipping",
-  "/returns",
-  "/terms",
-  "/privacy",
-  "/contact",
-]
-const PAGE_SIZE = 200
-
-type Page<T> = { items: T[]; count: number }
-
-async function listAll<T>(fetchPage: (offset: number) => Promise<Page<T>>) {
-  const all: T[] = []
-  for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { items, count } = await fetchPage(offset)
-    all.push(...items)
-    if (offset + PAGE_SIZE >= count || !items.length) {
-      return all
-    }
-  }
-}
-
-type Entry = { handle?: string | null; updated_at?: string | Date | null }
+const STATIC_PATHS = ["", "/store", "/shipping", "/returns", "/terms", "/privacy", "/contact"]
+const PAGE_SIZE = 100
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const query = { fields: "handle,updated_at", limit: PAGE_SIZE }
+  const [origin, regions, categories, collections] = await Promise.all([getSiteOrigin(), listRegions(), listCategories(), listCollections()])
+  const country = getDefaultCountryCode(regions)
+  if (!country) return []
 
-  const [origin, regions, products, categories, collections] = await Promise.all([
-    getSiteOrigin(),
-    listRegions(),
-    listAll<Entry>((offset) =>
-      sdk.store.product
-        .list({ ...query, offset })
-        .then((res) => ({ items: res.products, count: res.count }))
-    ),
-    listAll<Entry>((offset) =>
-      sdk.store.category
-        .list({ ...query, offset })
-        .then((res) => ({ items: res.product_categories, count: res.count }))
-    ),
-    listAll<Entry>((offset) =>
-      sdk.store.collection
-        .list({ ...query, offset })
-        .then((res) => ({ items: res.collections, count: res.count }))
-    ),
-  ])
+  // Product handles are the same in every region; list them once.
+  const products: { handle: string }[] = []
+  for (let page = 1; ; page++) {
+    const result = await listProducts({ country, page, limit: PAGE_SIZE, sort: "newest" })
+    products.push(...result.products)
+    if (page >= result.pages) break
+  }
 
-  const toEntries = (base: string, prefix: string, items: Entry[]) =>
-    items
-      .filter((item) => item.handle)
-      .map((item) => ({
-        url: `${base}/${prefix}/${item.handle}`,
-        lastModified: item.updated_at ? new Date(item.updated_at) : undefined,
-      }))
-
-  return listCountryCodes(regions).flatMap((countryCode) => {
-    const base = `${origin}/${countryCode}`
+  return listCountryCodes(regions).flatMap((code) => {
+    const base = `${origin}/${code}`
     return [
       ...STATIC_PATHS.map((path) => ({ url: `${base}${path}` })),
-      ...toEntries(base, "products", products),
-      ...toEntries(base, "categories", categories),
-      ...toEntries(base, "collections", collections),
+      ...products.map((p) => ({ url: `${base}/products/${p.handle}` })),
+      ...categories.map((c) => ({ url: `${base}/categories/${c.handle}` })),
+      ...collections.map((c) => ({ url: `${base}/collections/${c.handle}` })),
     ]
   })
 }

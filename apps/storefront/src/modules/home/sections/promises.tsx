@@ -1,21 +1,19 @@
 import { Container } from "@/components/store/container"
 import { formatMoney } from "@/components/store/money"
-import { StorePolicies, formatDayRange } from "@lib/util/store-policies"
+import type { RegionPolicies } from "@lib/api/types"
+import { deliveryDays } from "@lib/util/policies"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { MessageCircleIcon, RotateCcwIcon, TruckIcon } from "lucide-react"
 
 /** Service facts for the visitor's region, from the region's policy data. */
-export function Promises({ policies, currencyCode }: { policies: StorePolicies | null; currencyCode: string }) {
+export function Promises({ policies, currencyCode }: { policies: RegionPolicies | null; currencyCode: string }) {
   if (!policies) return null
 
   const items = [
     {
       icon: TruckIcon,
       title: "Delivery",
-      body: `${formatDayRange({
-        min: policies.handlingDays.min + policies.transitDays.min,
-        max: policies.handlingDays.max + policies.transitDays.max,
-      })} business days, from ${formatMoney(policies.shippingRate, currencyCode)}`,
+      body: `${deliveryDays(policies)} business days, from ${formatMoney(policies.shippingRate, currencyCode)}`,
       href: "/shipping",
     },
     {

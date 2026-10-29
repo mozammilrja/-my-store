@@ -2,30 +2,24 @@ const checkEnvVariables = require("./check-env-variables")
 
 checkEnvVariables()
 
-/**
- * Medusa Cloud-related environment variables
- */
-const S3_HOSTNAME = process.env.MEDUSA_CLOUD_S3_HOSTNAME
-const S3_PATHNAME = process.env.MEDUSA_CLOUD_S3_PATHNAME
-
 const isProd = process.env.NODE_ENV === "production"
-const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+/** Public address of the Everwear API; product images are served from its /uploads. */
+const API_PUBLIC_URL = process.env.NEXT_PUBLIC_API_PUBLIC_URL || process.env.EVERWEAR_API_URL || "http://localhost:9100"
+const api = new URL(API_PUBLIC_URL)
 
 /**
  * Content Security Policy. Next.js injects inline bootstrap scripts into
  * statically rendered pages, and nonces would force every page to be dynamic,
- * so scripts allow 'unsafe-inline'. Everything else is limited to this site,
- * the Medusa backend, product image hosts and Stripe (used only when a Stripe
- * payment provider is enabled on the backend).
+ * so scripts allow 'unsafe-inline'. The browser only talks to this site;
+ * images may also come from the API's upload folder.
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} https://js.stripe.com`,
+  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${BACKEND_URL} https://*.amazonaws.com`,
+  `img-src 'self' data: blob: ${api.origin}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${BACKEND_URL} https://api.stripe.com${isProd ? "" : " ws: wss:"}`,
-  "frame-src https://js.stripe.com https://hooks.stripe.com",
+  `connect-src 'self'${isProd ? "" : " ws: wss:"}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -38,10 +32,8 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Frame-Options", value: "DENY" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\")" },
-  ...(isProd
-    ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }]
-    : []),
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+  ...(isProd ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }] : []),
 ]
 
 /**
@@ -49,19 +41,11 @@ const securityHeaders = [
  */
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
   async headers() {
     return [
-      {
-        source: "/:path*",
-        headers: [
-          { key: "Link", value: '</.well-known/ucp>; rel="ucp"' },
-          ...securityHeaders,
-        ],
-      },
-      {
-        source: "/:countryCode/products/:handle",
-        headers: [{ key: "Vary", value: "Accept" }],
-      },
+      { source: "/:path*", headers: securityHeaders },
+      { source: "/:countryCode/products/:handle", headers: [{ key: "Vary", value: "Accept" }] },
     ]
   },
   async rewrites() {
@@ -79,40 +63,19 @@ const nextConfig = {
       ],
     }
   },
-  logging: {
-    fetches: {
-      fullUrl: true,
-    },
-  },
-  poweredByHeader: false,
+  logging: { fetches: { fullUrl: true } },
   images: {
     formats: ["image/avif", "image/webp"],
     qualities: [50, 75],
-    // Product images uploaded to a local Medusa backend live on localhost,
-    // which the optimizer refuses by default. Allow it in development only.
+    // The API runs on localhost in development, which the optimizer refuses by default.
     dangerouslyAllowLocalIP: !isProd,
     remotePatterns: [
       {
-        protocol: "http",
-        hostname: "localhost",
+        protocol: api.protocol.replace(":", ""),
+        hostname: api.hostname,
+        ...(api.port ? { port: api.port } : {}),
+        pathname: "/uploads/**",
       },
-      {
-        protocol: "https",
-        hostname: "*.s3.*.amazonaws.com",
-      },
-      {
-        protocol: "https",
-        hostname: "*.s3.amazonaws.com",
-      },
-      ...(S3_HOSTNAME && S3_PATHNAME
-        ? [
-            {
-              protocol: "https",
-              hostname: S3_HOSTNAME,
-              pathname: S3_PATHNAME,
-            },
-          ]
-        : []),
     ],
   },
 }

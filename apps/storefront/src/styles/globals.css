@@ -3,8 +3,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Legacy Tailwind v3 config (Medusa ui-preset) kept while old modules are replaced. */
-@config "../../tailwind.config.js";
 
 @layer utilities {
   /* Chrome, Safari and Opera */
@@ -21,14 +19,6 @@
     scrollbar-width: none; /* Firefox */
   }
 
-  input:focus ~ label,
-  input:not(:placeholder-shown) ~ label {
-    @apply -translate-y-2 text-xsmall-regular;
-  }
-
-  input:focus ~ label {
-    @apply left-0;
-  }
 
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
@@ -39,9 +29,8 @@
   select:-webkit-autofill,
   select:-webkit-autofill:hover,
   select:-webkit-autofill:focus {
-    border: 1px solid #212121;
-    -webkit-text-fill-color: #212121;
-    -webkit-box-shadow: 0 0 0px 1000px #fff inset;
+    -webkit-text-fill-color: var(--foreground);
+    -webkit-box-shadow: 0 0 0px 1000px var(--card) inset;
     transition: background-color 5000s ease-in-out 0s;
   }
 
@@ -51,66 +40,6 @@
   input[type="search"]::-webkit-search-results-decoration {
     -webkit-appearance: none;
   }
-}
-
-@utility content-container {
-  @apply max-w-[1440px] w-full mx-auto px-6;
-}
-
-@utility contrast-btn {
-  @apply px-4 py-2 border border-black rounded-full hover:bg-black hover:text-white transition-colors duration-200 ease-in;
-}
-
-@utility text-xsmall-regular {
-  @apply text-[10px] leading-4 font-normal;
-}
-
-@utility text-small-regular {
-  @apply text-xs leading-5 font-normal;
-}
-
-@utility text-small-semi {
-  @apply text-xs leading-5 font-semibold;
-}
-
-@utility text-base-regular {
-  @apply text-sm leading-6 font-normal;
-}
-
-@utility text-base-semi {
-  @apply text-sm leading-6 font-semibold;
-}
-
-@utility text-large-regular {
-  @apply text-base leading-6 font-normal;
-}
-
-@utility text-large-semi {
-  @apply text-base leading-6 font-semibold;
-}
-
-@utility text-xl-regular {
-  @apply text-2xl leading-[36px] font-normal;
-}
-
-@utility text-xl-semi {
-  @apply text-2xl leading-[36px] font-semibold;
-}
-
-@utility text-2xl-regular {
-  @apply text-[30px] leading-[48px] font-normal;
-}
-
-@utility text-2xl-semi {
-  @apply text-[30px] leading-[48px] font-semibold;
-}
-
-@utility text-3xl-regular {
-  @apply text-[32px] leading-[44px] font-normal;
-}
-
-@utility text-3xl-semi {
-  @apply text-[32px] leading-[44px] font-semibold;
 }
 
 /* Everwear brand tokens. Bold fashion palette: white, ink, volt accent. Light theme only. Contrast checked to WCAG AA. */
@@ -218,57 +147,7 @@
   }
 }
 
-/*
- * Bridge for legacy screens that still use Medusa ui-preset classes
- * (checkout steps, account, order). Maps their variables onto the Everwear
- * tokens so every page shares one palette. Remove with the last legacy module.
- */
-:root {
-  --fg-base: var(--foreground);
-  --fg-subtle: var(--muted-foreground);
-  --fg-muted: var(--muted-foreground);
-  --fg-disabled: #9a968d;
-  --fg-interactive: var(--primary);
-  --fg-interactive-hover: var(--brand-deep);
-  --fg-error: var(--destructive-foreground);
-  --fg-on-color: #ffffff;
-  --fg-on-inverted: var(--invert-foreground);
-  --bg-base: var(--card);
-  --bg-base-hover: var(--muted);
-  --bg-base-pressed: var(--secondary);
-  --bg-subtle: var(--muted);
-  --bg-subtle-hover: var(--secondary);
-  --bg-subtle-pressed: var(--secondary);
-  --bg-component: var(--card);
-  --bg-component-hover: var(--muted);
-  --bg-component-pressed: var(--secondary);
-  --bg-field: var(--card);
-  --bg-field-hover: var(--muted);
-  --bg-field-component: var(--card);
-  --bg-field-component-hover: var(--muted);
-  --bg-interactive: var(--primary);
-  --bg-highlight: var(--accent);
-  --bg-highlight-hover: var(--accent);
-  --bg-disabled: var(--muted);
-  --border-base: var(--border);
-  --border-strong: var(--input);
-  --border-interactive: var(--primary);
-  --border-error: var(--destructive);
-  --border-danger: var(--destructive);
-  --button-inverted: var(--primary);
-  --button-inverted-hover: var(--brand-deep);
-  --button-inverted-pressed: var(--brand-deep);
-  --button-neutral: var(--card);
-  --button-neutral-hover: var(--muted);
-  --button-neutral-pressed: var(--secondary);
-  --elevation-card-rest: 0 0 0 1px var(--border);
-  --elevation-card-hover: 0 0 0 1px var(--input);
-  --elevation-flyout: 0 0 0 1px var(--border), 0 8px 24px -8px rgb(22 23 27 / 0.12);
-}
 
-[class*="txt-"] {
-  font-family: inherit;
-}
 
 /* Heavy condensed display type: headlines, wordmark, banners. */
 @utility font-display-tight {

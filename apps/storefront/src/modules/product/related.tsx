@@ -1,40 +1,35 @@
 import { Container } from "@/components/store/container"
 import { ProductCard } from "@/components/store/product-card"
-import { listProducts } from "@lib/data/products"
-import { HttpTypes } from "@medusajs/types"
+import type { Product } from "@lib/api/types"
+import { listCollections, listProducts } from "@lib/data/catalog"
 
 /**
- * Up to four products from the same collection, then the same category.
- * Falls back to the newest products when neither has others.
+ * Up to four products from the same collection, then the same category,
+ * falling back to the newest products.
  */
-export async function Related({
-  product,
-  countryCode,
-}: {
-  product: HttpTypes.StoreProduct
-  countryCode: string
-}) {
-  const fetch = (query: HttpTypes.StoreProductListParams) =>
-    listProducts({ countryCode, queryParams: { limit: 5, ...query } })
-      .then((r) => r.response.products.filter((p) => p.id !== product.id))
-      .catch(() => [] as HttpTypes.StoreProduct[])
+export async function Related({ product, countryCode }: { product: Product; countryCode: string }) {
+  const find = (query: Parameters<typeof listProducts>[0]) =>
+    listProducts({ ...query, exclude: [product.id], limit: 4 })
+      .then((r) => r.products)
+      .catch(() => [] as Product[])
 
-  const categoryIds = (product.categories ?? []).map((c) => c.id)
-  let related: HttpTypes.StoreProduct[] = []
+  let related: Product[] = []
   let title = "You may also like"
 
-  if (product.collection_id) {
-    related = await fetch({ collection_id: [product.collection_id] })
-    if (related.length) title = `More from ${product.collection?.title ?? "this collection"}`
+  if (product.collectionId) {
+    related = await find({ country: countryCode, collection: [product.collectionId] })
+    if (related.length) {
+      const collection = (await listCollections()).find((c) => c.id === product.collectionId)
+      title = `More from ${collection?.title ?? "this collection"}`
+    }
   }
-  if (related.length < 2 && categoryIds.length) {
-    related = await fetch({ category_id: categoryIds })
+  if (related.length < 2 && product.categoryIds.length) {
+    related = await find({ country: countryCode, category: product.categoryIds })
   }
   if (related.length < 2) {
-    related = await fetch({ order: "-created_at" })
+    related = await find({ country: countryCode, sort: "newest" })
     title = "New in"
   }
-
   if (related.length === 0) return null
 
   return (
@@ -43,8 +38,8 @@ export async function Related({
         <h2 id="related-title" className="font-display-tight text-5xl">
           {title}
         </h2>
-        <ul className="grid grid-cols-2 gap-x-4 gap-y-10 lg:grid-cols-4 lg:gap-x-6">
-          {related.slice(0, 4).map((p) => (
+        <ul className="grid grid-cols-2 gap-x-3 gap-y-10 sm:gap-x-4 lg:grid-cols-4">
+          {related.map((p) => (
             <li key={p.id}>
               <ProductCard product={p} />
             </li>

@@ -16,12 +16,11 @@ test("mobile menu opens, navigates and closes", async ({ page }) => {
   await expect(page.getByRole("dialog")).toHaveCount(0)
 })
 
-test("filters open in a sheet on mobile", async ({ page }) => {
+test("filters open in a panel on mobile", async ({ page }) => {
   await page.goto(`/${COUNTRY}/store`, { waitUntil: "domcontentloaded" })
-  await page.getByRole("button", { name: "Filters" }).click()
-  await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible()
-  await page.getByRole("button", { name: "Show results" }).click()
-  await expect(page.getByRole("dialog")).toHaveCount(0)
+  const panel = page.locator("details").filter({ hasText: "Filters" })
+  await panel.locator("summary").click()
+  await expect(panel.getByTestId("option-refinement").first()).toBeVisible()
 })
 
 for (const width of [360, 390, 768]) {

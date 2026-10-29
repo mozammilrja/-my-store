@@ -1,8 +1,7 @@
 import { Badge } from "@/components/reui/badge"
 import { cn } from "@/lib/utils"
-import { getProductPrice } from "@lib/util/get-product-price"
-import { isVariantInStock } from "@lib/util/inventory"
-import { HttpTypes } from "@medusajs/types"
+import type { Product } from "@lib/api/types"
+import { formatMoney } from "@lib/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
 import { QuickAdd, QuickVariant } from "./quick-add"
@@ -22,7 +21,7 @@ const SWATCHES: Record<string, string> = {
 }
 
 type ProductCardProps = {
-  product: HttpTypes.StoreProduct
+  product: Product
   /** Load the image eagerly (above-the-fold cards). */
   priority?: boolean
   sizes?: string
@@ -31,19 +30,8 @@ type ProductCardProps = {
   headingLevel?: "h2" | "h3"
 }
 
-const quickVariants = (product: HttpTypes.StoreProduct): QuickVariant[] => {
-  const titles = new Map((product.options ?? []).map((o) => [o.id, o.title]))
-  return (product.variants ?? []).map((v) => ({
-    id: v.id,
-    inStock: isVariantInStock(v),
-    options: Object.fromEntries(
-      (v.options ?? []).flatMap((o) => {
-        const title = o.option_id ? titles.get(o.option_id) : undefined
-        return title ? [[title, o.value]] : []
-      })
-    ),
-  }))
-}
+const quickVariants = (product: Product): QuickVariant[] =>
+  product.variants.map((v) => ({ id: v.id, inStock: v.inStock && v.price !== null, options: v.options }))
 
 /**
  * Product tile: packshot on a light surface, quick add on hover, colour
@@ -58,19 +46,14 @@ export function ProductCard({
   headingLevel = "h3",
 }: ProductCardProps) {
   const Heading = headingLevel
-  const { cheapestPrice } = getProductPrice({ product })
-  const amounts = new Set(
-    (product.variants ?? [])
-      .map((v) => v.calculated_price?.calculated_amount)
-      .filter((a): a is number => typeof a === "number")
-  )
-  const onSale =
-    !!cheapestPrice && cheapestPrice.calculated_price_number < cheapestPrice.original_price_number
-  const isNew = product.tags?.some((t) => t.value === "new-arrival")
-  const image = product.thumbnail ?? product.images?.[0]?.url
-  const second = product.images?.find((i) => i.url !== image)?.url
-  const colors = product.options?.find((o) => o.title.toLowerCase() === "color")?.values?.map((v) => v.value) ?? []
-  const sizeCount = product.options?.find((o) => o.title.toLowerCase() === "size")?.values?.length ?? 0
+  const range = product.priceRange
+  const cheapest = range ? product.variants.find((v) => v.price === range.min) : undefined
+  const onSale = !!cheapest?.compareAtPrice
+  const isNew = product.tags.includes("new-arrival")
+  const image = product.thumbnail ?? product.images[0]
+  const second = product.images.find((url) => url !== image)
+  const colors = product.options.find((o) => o.title.toLowerCase() === "color")?.values ?? []
+  const sizeCount = product.options.find((o) => o.title.toLowerCase() === "size")?.values.length ?? 0
   const href = `/products/${product.handle}`
 
   return (
@@ -125,15 +108,15 @@ export function ProductCard({
             {product.title}
           </LocalizedClientLink>
         </Heading>
-        {cheapestPrice ? (
+        {range && cheapest ? (
           <p className="flex items-baseline gap-2 text-sm tabular-nums" data-testid="price">
             <span className={cn("font-bold", onSale && "text-destructive-foreground")}>
-              {amounts.size > 1 && <span className="font-normal text-muted-foreground">From </span>}
-              {cheapestPrice.calculated_price}
+              {range.max > range.min && <span className="font-normal text-muted-foreground">From </span>}
+              {formatMoney(range.min, product.currency)}
             </span>
-            {onSale && (
+            {onSale && cheapest.compareAtPrice !== null && (
               <span className="text-xs text-muted-foreground line-through" data-testid="original-price">
-                {cheapestPrice.original_price}
+                {formatMoney(cheapest.compareAtPrice, product.currency)}
               </span>
             )}
           </p>

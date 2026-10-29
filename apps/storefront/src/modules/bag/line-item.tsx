@@ -2,9 +2,9 @@
 
 import { formatMoney } from "@/components/store/money"
 import { cn } from "@/lib/utils"
-import { deleteLineItem, updateLineItem } from "@lib/data/cart"
+import { deleteLineItem, updateLineItem } from "@lib/data/shop"
 import { notifyCartUpdated } from "@lib/util/cart-events"
-import { HttpTypes } from "@medusajs/types"
+import type { CartItem } from "@lib/api/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { Loader2Icon, MinusIcon, PlusIcon } from "lucide-react"
 import Image from "next/image"
@@ -13,12 +13,6 @@ import { toast } from "sonner"
 
 const MAX_PER_LINE = 10
 
-const maxFor = (item: HttpTypes.StoreCartLineItem) => {
-  const v = item.variant
-  // Stock isn't always in the cart payload; the backend rejects over-stock updates anyway.
-  if (!v?.manage_inventory || v.allow_backorder || v.inventory_quantity == null) return MAX_PER_LINE
-  return Math.max(item.quantity, Math.min(MAX_PER_LINE, v.inventory_quantity))
-}
 
 /** One bag line with quantity controls. Totals always come back from the server. */
 export function LineItem({
@@ -26,13 +20,12 @@ export function LineItem({
   currencyCode,
   editable = true,
 }: {
-  item: HttpTypes.StoreCartLineItem
+  item: CartItem
   currencyCode: string
   editable?: boolean
 }) {
   const [pending, setPending] = useState<"update" | "remove" | null>(null)
   const busy = useRef(false)
-  const max = maxFor(item)
 
   const run = async (kind: "update" | "remove", fn: () => Promise<unknown>) => {
     if (busy.current) return
@@ -54,24 +47,24 @@ export function LineItem({
 
   return (
     <li className={cn("grid grid-cols-[6rem_1fr] gap-4 py-6 sm:grid-cols-[8rem_1fr]", pending && "opacity-70")} data-testid="product-row">
-      <LocalizedClientLink href={`/products/${item.product_handle}`} className="relative aspect-[4/5] overflow-hidden bg-muted">
+      <LocalizedClientLink href={`/products/${item.productHandle}`} className="relative aspect-[4/5] overflow-hidden bg-muted">
         {item.thumbnail && <Image src={item.thumbnail} alt="" fill sizes="128px" className="object-cover" />}
       </LocalizedClientLink>
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 flex-col gap-1">
             <LocalizedClientLink
-              href={`/products/${item.product_handle}`}
+              href={`/products/${item.productHandle}`}
               className="font-medium hover:underline hover:underline-offset-4"
               data-testid="product-title"
             >
-              {item.product_title ?? item.title}
+              {item.productTitle}
             </LocalizedClientLink>
-            {item.variant_title && (
-              <span className="text-sm text-muted-foreground" data-testid="product-variant">{item.variant_title}</span>
+            {item.variantTitle && (
+              <span className="text-sm text-muted-foreground" data-testid="product-variant">{item.variantTitle}</span>
             )}
             <span className="text-sm text-muted-foreground tabular-nums">
-              {formatMoney(item.unit_price, currencyCode)} each
+              {formatMoney(item.unitPrice, currencyCode)} each
             </span>
           </div>
           <span className="tabular-nums" data-testid="product-price">{formatMoney(item.total, currencyCode)}</span>
@@ -79,7 +72,7 @@ export function LineItem({
 
         {editable ? (
           <div className="mt-auto flex items-center justify-between gap-4">
-            <div className="flex h-10 items-center border" role="group" aria-label={`Quantity for ${item.product_title}`}>
+            <div className="flex h-10 items-center border" role="group" aria-label={`Quantity for ${item.productTitle}`}>
               <button
                 type="button"
                 onClick={() => setQuantity(item.quantity - 1)}
@@ -95,7 +88,7 @@ export function LineItem({
               <button
                 type="button"
                 onClick={() => setQuantity(item.quantity + 1)}
-                disabled={item.quantity >= max || !!pending}
+                disabled={item.quantity >= MAX_PER_LINE || !!pending}
                 className="flex h-full w-10 items-center justify-center disabled:opacity-40"
                 aria-label="Increase quantity"
               >
@@ -110,7 +103,7 @@ export function LineItem({
               data-testid="product-delete-button"
             >
               {pending === "remove" ? "Removing" : "Remove"}
-              <span className="sr-only"> {item.product_title}</span>
+              <span className="sr-only"> {item.productTitle}</span>
             </button>
           </div>
         ) : (

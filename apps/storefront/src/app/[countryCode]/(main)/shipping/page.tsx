@@ -1,6 +1,6 @@
 import { Metadata } from "next"
 
-import { getStorePolicies } from "@lib/data/store-policies"
+import { getStorePolicies } from "@lib/data/catalog"
 import {
   PoliciesUnavailable,
   PolicyPage,
@@ -19,7 +19,7 @@ export default async function ShippingPage(props: {
   params: Promise<{ countryCode: string }>
 }) {
   const { countryCode } = await props.params
-  const { current, currencyCode } = await getStorePolicies(countryCode)
+  const { current, currency } = await getStorePolicies(countryCode)
 
   return (
     <PolicyPage title="Shipping information">
@@ -29,8 +29,8 @@ export default async function ShippingPage(props: {
             Orders to {countryCode.toUpperCase()} ship with the following rates
             and delivery times.
           </p>
-          <ShippingSummary policies={current} currencyCode={currencyCode} />
-          <p className="text-ui-fg-subtle">
+          <ShippingSummary policies={current} currency={currency} />
+          <p className="text-muted-foreground">
             Available shipping methods and final costs are shown at checkout.
           </p>
         </>

@@ -1,107 +1,52 @@
-import { HttpTypes } from "@medusajs/types"
-import { isVariantInStock } from "./inventory"
+import type { Product, Region } from "@lib/api/types"
+import { buildReturnPolicy, buildShippingDetails } from "./policies"
 import { STORE_NAME } from "./site"
-import {
-  buildReturnPolicy,
-  buildShippingDetails,
-  getRegionPolicies,
-} from "./store-policies"
 
-const SCHEMA_IN_STOCK = "https://schema.org/InStock"
-const SCHEMA_OUT_OF_STOCK = "https://schema.org/OutOfStock"
+const ZERO_DECIMAL = new Set(["jpy", "krw", "vnd", "clp", "isk", "huf"])
 
-export const getPricedVariants = (product: HttpTypes.StoreProduct) =>
-  (product.variants ?? []).filter(
-    (variant) => variant.calculated_price?.calculated_amount != null
-  )
+/** Serializes JSON-LD safely for a <script> tag (no closing-tag injection). */
+export const toJsonLd = (data: unknown) => JSON.stringify(data).replace(/</g, "\\u003c")
 
-export const buildProductStructuredData = ({
+/** schema.org Product with one Offer per priced variant, from catalog data only. */
+export function buildProductStructuredData({
   product,
   region,
   countryCode,
   productUrl,
 }: {
-  product: HttpTypes.StoreProduct
-  region: HttpTypes.StoreRegion
+  product: Product
+  region: Region
   countryCode: string
   productUrl: string
-}) => {
-  const currency = region.currency_code.toUpperCase()
-  const images = (product.images ?? [])
-    .map((image) => image.url)
-    .filter(Boolean)
-  if (!images.length && product.thumbnail) {
-    images.push(product.thumbnail)
-  }
-  const description = product.description || product.title
-  const brand = { "@type": "Brand", name: STORE_NAME }
-  const policies = getRegionPolicies(region)
-  const optionTitles = new Map(
-    (product.options ?? []).map((option) => [option.id, option.title])
-  )
-
-  const buildOffer = (variant: HttpTypes.StoreProductVariant, url: string) => ({
-    "@type": "Offer",
-    url,
-    sku: variant.sku || undefined,
-    price: variant.calculated_price!.calculated_amount!.toFixed(2),
-    priceCurrency: currency,
-    availability: isVariantInStock(variant)
-      ? SCHEMA_IN_STOCK
-      : SCHEMA_OUT_OF_STOCK,
-    itemCondition: "https://schema.org/NewCondition",
-    ...(policies
-      ? {
-          shippingDetails: buildShippingDetails(policies, countryCode, currency),
-          hasMerchantReturnPolicy: buildReturnPolicy(policies, countryCode),
-        }
-      : {}),
-  })
-
-  const variants = getPricedVariants(product)
-
-  if (variants.length <= 1) {
-    return {
-      "@context": "https://schema.org",
-      "@type": "Product",
-      name: product.title,
-      description,
-      image: images,
-      brand,
-      sku: variants[0]?.sku || undefined,
-      url: productUrl,
-      offers: variants[0] ? buildOffer(variants[0], productUrl) : undefined,
-    }
-  }
+}) {
+  const divisor = ZERO_DECIMAL.has(region.currency) ? 1 : 100
+  const offers = product.variants
+    .filter((v) => v.price !== null)
+    .map((v) => ({
+      "@type": "Offer",
+      sku: v.sku ?? v.id,
+      url: `${productUrl}?v_id=${v.id}`,
+      price: (v.price! / divisor).toFixed(divisor === 1 ? 0 : 2),
+      priceCurrency: region.currency.toUpperCase(),
+      availability: v.inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+      ...(region.policies
+        ? {
+            shippingDetails: buildShippingDetails(region.policies, countryCode, region.currency),
+            hasMerchantReturnPolicy: buildReturnPolicy(region.policies, countryCode),
+          }
+        : {}),
+    }))
 
   return {
     "@context": "https://schema.org",
-    "@type": "ProductGroup",
+    "@type": "Product",
     name: product.title,
-    description,
-    image: images,
-    brand,
+    ...(product.description ? { description: product.description } : {}),
     url: productUrl,
-    productGroupID: product.id,
-    variesBy: (product.options ?? []).map((option) => option.title),
-    hasVariant: variants.map((variant) => {
-      const variantUrl = `${productUrl}?v_id=${variant.id}`
-      return {
-        "@type": "Product",
-        name: `${product.title} - ${variant.title}`,
-        sku: variant.sku || undefined,
-        image: variant.images?.[0]?.url || images[0],
-        additionalProperty: (variant.options ?? []).map((value) => ({
-          "@type": "PropertyValue",
-          name: optionTitles.get(value.option_id ?? ""),
-          value: value.value,
-        })),
-        offers: buildOffer(variant, variantUrl),
-      }
-    }),
+    image: product.images.length ? product.images : product.thumbnail ? [product.thumbnail] : undefined,
+    brand: { "@type": "Brand", name: STORE_NAME },
+    ...(product.material ? { material: product.material } : {}),
+    offers,
   }
 }
-
-/** Serializes JSON-LD for a `<script>` tag without allowing `</script>` breakouts. */
-export const toJsonLd = (data: unknown) =>
-  JSON.stringify(data).replace(/</g, "\\u003c")

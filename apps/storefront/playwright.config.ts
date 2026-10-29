@@ -3,7 +3,7 @@ import { defineConfig } from "@playwright/test"
 const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8001"
 
 /**
- * End-to-end tests against a running storefront and Medusa backend.
+ * End-to-end tests against a running storefront and Everwear API.
  * Uses the locally installed Google Chrome, so no browser download is needed.
  * Start both apps first: `npm run dev` from the repo root.
  */

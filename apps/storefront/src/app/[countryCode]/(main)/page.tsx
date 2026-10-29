@@ -1,7 +1,6 @@
 import { Metadata } from "next"
 
-import { getStorePolicies } from "@lib/data/store-policies"
-import { getRegion, listRegions } from "@lib/data/regions"
+import { getRegion, getStorePolicies, listRegions } from "@lib/data/catalog"
 import { getHomeData } from "@modules/home/data"
 import { CategoryChips } from "@modules/home/sections/category-chips"
 import { CategoryTiles } from "@modules/home/sections/category-tiles"
@@ -14,7 +13,7 @@ import { Promises } from "@modules/home/sections/promises"
 import { notFound } from "next/navigation"
 import { toJsonLd } from "@lib/util/product-structured-data"
 import { getSiteOrigin, listCountryCodes, STORE_NAME } from "@lib/util/site"
-import { buildRegionsReturnPolicies } from "@lib/util/store-policies"
+import { buildReturnPolicy } from "@lib/util/policies"
 
 export const dynamic = "force-static"
 export const revalidate = 60
@@ -71,7 +70,7 @@ export default async function Home(props: {
 
   const [origin, regions] = await Promise.all([getSiteOrigin(), listRegions()])
   const homeUrl = `${origin}/${countryCode}`
-  const returnPolicies = buildRegionsReturnPolicies(regions)
+  const returnPolicies = regions.flatMap((r) => (r.policies ? r.countries.map((c) => buildReturnPolicy(r.policies!, c.code)) : []))
   const structuredData = [
     {
       "@context": "https://schema.org",
@@ -127,7 +126,7 @@ export default async function Home(props: {
       <CollectionBand collections={home.collections} />
       <Promises
         policies={policies?.current ?? null}
-        currencyCode={policies?.currencyCode ?? region.currency_code}
+        currencyCode={policies?.currency || region.currency}
       />
     </>
   )

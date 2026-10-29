@@ -1,5 +1,5 @@
-import { getStorePolicies } from "@lib/data/store-policies"
-import { formatDayRange } from "@lib/util/store-policies"
+import { getStorePolicies } from "@lib/data/catalog"
+import { deliveryDays } from "@lib/util/policies"
 
 /**
  * One line of verified store policy for the visitor's region. Renders nothing
@@ -12,10 +12,7 @@ export async function Announcement({ countryCode }: { countryCode: string }) {
     return null
   }
 
-  const delivery = formatDayRange({
-    min: current.handlingDays.min + current.transitDays.min,
-    max: current.handlingDays.max + current.transitDays.max,
-  })
+  const delivery = deliveryDays(current)
 
   return (
     <div className="bg-invert text-invert-foreground">

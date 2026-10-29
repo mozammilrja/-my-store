@@ -1,16 +1,16 @@
 import { Button } from "@/components/ui/button"
 import { Container } from "@/components/store/container"
-import { HttpTypes } from "@medusajs/types"
+import type { Cart, Customer } from "@lib/api/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { ArrowRightIcon } from "lucide-react"
 import { LineItem } from "./line-item"
 import { PromoCode } from "./promo-code"
 import { Totals } from "./totals"
 
-const checkoutStep = (cart: HttpTypes.StoreCart) => {
-  if (!cart.shipping_address?.address_1 || !cart.email) return "address"
-  if (!cart.shipping_methods?.length) return "delivery"
-  return "payment"
+const checkoutStep = (cart: Cart) => {
+  if (!cart.shippingAddress || !cart.email) return "address"
+  if (!cart.shippingOptionId) return "delivery"
+  return "review"
 }
 
 export function BagTemplate({
@@ -18,11 +18,12 @@ export function BagTemplate({
   customer,
   error,
 }: {
-  cart: HttpTypes.StoreCart | null
-  customer: HttpTypes.StoreCustomer | null
+  cart: Cart | null
+  customer: Customer | null
   error?: string
 }) {
-  const items = [...(cart?.items ?? [])].sort((a, b) => ((a.created_at ?? "") > (b.created_at ?? "") ? -1 : 1))
+  // Newest first: the API keeps items in the order they were added.
+  const items = [...(cart?.items ?? [])].reverse()
 
   return (
     <Container className="py-12 lg:py-16" data-testid="cart-container">
@@ -56,7 +57,7 @@ export function BagTemplate({
             )}
             <ul className="divide-y border-b" data-testid="items-table">
               {items.map((item) => (
-                <LineItem key={item.id} item={item} currencyCode={cart.currency_code} />
+                <LineItem key={item.id} item={item} currencyCode={cart.currency} />
               ))}
             </ul>
           </div>
@@ -64,7 +65,7 @@ export function BagTemplate({
             <div className="flex flex-col gap-6 border bg-card p-6 lg:sticky lg:top-28">
               <h2 className="font-display-tight text-3xl">Summary</h2>
               <PromoCode cart={cart} />
-              <Totals totals={cart} />
+              <Totals totals={cart.totals} currency={cart.currency} shippingChosen={!!cart.shippingOptionId} />
               <Button asChild size="lg" className="w-full">
                 <LocalizedClientLink href={`/checkout?step=${checkoutStep(cart)}`} data-testid="checkout-button">
                   Checkout <ArrowRightIcon data-icon="inline-end" aria-hidden />

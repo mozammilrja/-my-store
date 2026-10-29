@@ -5,8 +5,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { formatMoney } from "@/components/store/money"
-import { StorePolicies, formatDayRange } from "@lib/util/store-policies"
-import { HttpTypes } from "@medusajs/types"
+import type { Product, RegionPolicies } from "@lib/api/types"
+import { formatDayRange } from "@lib/util/policies"
 
 /** Description, product facts and region policies. Facts the backend doesn't hold are omitted. */
 export function Details({
@@ -14,21 +14,14 @@ export function Details({
   policies,
   currencyCode,
 }: {
-  product: HttpTypes.StoreProduct
-  policies: StorePolicies | null
+  product: Product
+  policies: RegionPolicies | null
   currencyCode: string
 }) {
   const facts = [
     ["Material", product.material],
-    ["Country of origin", product.origin_country?.toUpperCase()],
+    ["Country of origin", product.originCountry?.toUpperCase()],
     ["Weight", product.weight ? `${product.weight} g` : null],
-    [
-      "Dimensions",
-      product.length && product.width && product.height
-        ? `${product.length} × ${product.width} × ${product.height} cm`
-        : null,
-    ],
-    ["Type", product.type?.value],
   ].filter((f): f is [string, string] => Boolean(f[1]))
 
   return (

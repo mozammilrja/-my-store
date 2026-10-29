@@ -2,18 +2,18 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { applyPromotions } from "@lib/data/cart"
+import { applyPromotions } from "@lib/data/shop"
 import { notifyCartUpdated } from "@lib/util/cart-events"
-import { HttpTypes } from "@medusajs/types"
+import type { Cart } from "@lib/api/types"
 import { XIcon } from "lucide-react"
 import { FormEvent, useState } from "react"
 
 /** Add or remove promotion codes; the backend validates every code. */
-export function PromoCode({ cart }: { cart: HttpTypes.StoreCart }) {
+export function PromoCode({ cart }: { cart: Cart }) {
   const [code, setCode] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
-  const applied = (cart.promotions ?? []).filter((p) => p.code).map((p) => p.code!)
+  const applied = cart.promoCodes
 
   const apply = async (codes: string[]) => {
     setPending(true)

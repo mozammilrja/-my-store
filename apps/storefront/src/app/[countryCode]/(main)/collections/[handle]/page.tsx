@@ -1,26 +1,21 @@
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 
-import { getCollectionByHandle } from "@lib/data/collections"
+import { getCollection } from "@lib/data/catalog"
 import { getSiteOrigin } from "@lib/util/site"
 import { CatalogHeader } from "@modules/catalog/catalog-header"
-import { parsePage, parseSort, ProductListing } from "@modules/catalog/product-listing"
+import { parseListing, type ListingParams } from "@modules/catalog/params"
+import { ProductListing } from "@modules/catalog/product-listing"
 
 type Props = {
   params: Promise<{ handle: string; countryCode: string }>
-  searchParams: Promise<{ sortBy?: string; page?: string }>
+  searchParams: Promise<ListingParams>
 }
-
-const findCollection = (handle: string) => getCollectionByHandle(handle).catch(() => null)
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const { handle, countryCode } = await props.params
-  const collection = await findCollection(handle)
-
-  if (!collection) {
-    notFound()
-  }
-
+  const collection = await getCollection(handle)
+  if (!collection) notFound()
   const origin = await getSiteOrigin()
   return {
     title: collection.title,
@@ -31,12 +26,8 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 
 export default async function CollectionPage(props: Props) {
   const { handle, countryCode } = await props.params
-  const { sortBy, page } = await props.searchParams
-  const collection = await findCollection(handle)
-
-  if (!collection) {
-    notFound()
-  }
+  const collection = await getCollection(handle)
+  if (!collection) notFound()
 
   return (
     <>
@@ -44,9 +35,8 @@ export default async function CollectionPage(props: Props) {
       <ProductListing
         countryCode={countryCode}
         path={`/collections/${handle}`}
-        query={{ collection_id: [collection.id] }}
-        sortBy={parseSort(sortBy)}
-        page={parsePage(page)}
+        listing={parseListing(await props.searchParams)}
+        collectionIds={[collection.id]}
       />
     </>
   )

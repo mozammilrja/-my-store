@@ -1,41 +1,43 @@
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 
-import { getRegion } from "@lib/data/regions"
+import { getRegion, listCategories } from "@lib/data/catalog"
 import { getSiteOrigin } from "@lib/util/site"
-import { Browse } from "@modules/catalog/browse"
 import { CatalogHeader } from "@modules/catalog/catalog-header"
+import { parseListing, type ListingParams } from "@modules/catalog/params"
+import { ProductListing } from "@modules/catalog/product-listing"
 
-export async function generateMetadata(props: {
+type Props = {
   params: Promise<{ countryCode: string }>
-}): Promise<Metadata> {
+  searchParams: Promise<ListingParams>
+}
+
+export async function generateMetadata(props: Props): Promise<Metadata> {
   const { countryCode } = await props.params
   const origin = await getSiteOrigin()
   return {
     title: "Shop all",
-    description: "Every product at Everwear. Filter by size, colour, category and price.",
+    description: "Every product at Everwear. Filter by size, colour, material and category.",
     alternates: { canonical: `${origin}/${countryCode}/store` },
   }
 }
 
-export default async function StorePage(props: {
-  params: Promise<{ countryCode: string }>
-}) {
+export default async function StorePage(props: Props) {
   const { countryCode } = await props.params
   const region = await getRegion(countryCode)
+  if (!region) notFound()
 
-  if (!region) {
-    notFound()
-  }
+  const categories = (await listCategories()).filter((c) => !c.parentId)
 
   return (
     <>
       <CatalogHeader eyebrow="Shop" title="All products" />
-      {/* The faceted listing renders in the browser; reserving a screen of
-          height keeps the footer from jumping when results arrive. */}
-      <div className="min-h-[100svh]">
-        <Browse currencyCode={region.currency_code} />
-      </div>
+      <ProductListing
+        countryCode={countryCode}
+        path="/store"
+        listing={parseListing(await props.searchParams)}
+        categories={categories}
+      />
     </>
   )
 }

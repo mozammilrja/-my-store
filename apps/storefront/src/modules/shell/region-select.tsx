@@ -7,8 +7,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { updateRegion } from "@lib/data/cart"
-import { HttpTypes } from "@medusajs/types"
+import type { Region } from "@lib/api/types"
+import { changeRegion } from "@lib/data/shop"
 import { useParams, usePathname } from "next/navigation"
 import { useMemo, useTransition } from "react"
 
@@ -19,7 +19,7 @@ export function RegionSelect({
   regions,
   id = "region-select",
 }: {
-  regions: HttpTypes.StoreRegion[]
+  regions: Region[]
   id?: string
 }) {
   const { countryCode } = useParams<{ countryCode: string }>()
@@ -31,9 +31,9 @@ export function RegionSelect({
       regions
         .flatMap((region) =>
           (region.countries ?? []).map((c) => ({
-            country: c.iso_2 ?? "",
-            label: c.display_name ?? c.iso_2?.toUpperCase() ?? "",
-            currency: region.currency_code.toUpperCase(),
+            country: c.code,
+            label: c.name || c.code.toUpperCase(),
+            currency: region.currency.toUpperCase(),
           }))
         )
         .filter((o): o is CountryOption => Boolean(o.country))
@@ -52,7 +52,7 @@ export function RegionSelect({
         value={countryCode}
         disabled={pending}
         onValueChange={(country) =>
-          startTransition(() => updateRegion(country, currentPath))
+          startTransition(() => changeRegion(country, currentPath))
         }
       >
         <SelectTrigger id={id} size="sm" className="w-56" data-testid="region-select">

@@ -4,8 +4,7 @@ import { notFound } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Container } from "@/components/store/container"
 import { ProductCard } from "@/components/store/product-card"
-import { listProducts } from "@lib/data/products"
-import { getRegion } from "@lib/data/regions"
+import { getRegion, listProducts } from "@lib/data/catalog"
 import { SearchIcon } from "lucide-react"
 
 const RESULT_LIMIT = 24
@@ -38,9 +37,7 @@ export default async function SearchPage(props: Props) {
   }
 
   const result = query
-    ? await listProducts({ countryCode, queryParams: { q: query, limit: RESULT_LIMIT } })
-        .then((r) => r.response)
-        .catch(() => null)
+    ? await listProducts({ country: countryCode, q: query, limit: RESULT_LIMIT }).catch(() => null)
     : { products: [], count: 0 }
 
   return (

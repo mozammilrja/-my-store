@@ -44,8 +44,9 @@ test.describe("shopping journey", () => {
     await page.waitForTimeout(1500)
     expect(await bagCount(page)).toBe(before + 1)
 
-    await page.goto(`/${COUNTRY}/cart`, { waitUntil: "domcontentloaded" })
-    const row = page.getByTestId("product-row").filter({ hasText: "Medusa T-Shirt" }).first()
+    // The quantity buttons only work once the page has hydrated.
+    await page.goto(`/${COUNTRY}/cart`, { waitUntil: "networkidle" })
+    const row = page.getByTestId("product-row").filter({ hasText: "Everwear T-Shirt" }).first()
     await expect(row).toBeVisible()
     const qty = row.getByTestId("product-quantity")
     const start = Number(await qty.textContent())
@@ -56,14 +57,14 @@ test.describe("shopping journey", () => {
     await expect(total).not.toHaveAttribute("data-value", "0")
 
     await row.getByTestId("product-delete-button").click()
-    await expect(page.getByTestId("product-row").filter({ hasText: "Medusa T-Shirt" })).toHaveCount(0)
+    await expect(page.getByTestId("product-row").filter({ hasText: "Everwear T-Shirt" })).toHaveCount(0)
   })
 
   test("store listing filters and sorts", async ({ page }) => {
     await page.goto(`/${COUNTRY}/store`, { waitUntil: "domcontentloaded" })
     await expect(page.getByTestId("products-list")).toBeVisible()
-    await page.getByRole("button", { name: "M", exact: true }).first().click()
-    await expect(page).toHaveURL(/refinementList/)
+    await page.getByTestId("option-refinement").filter({ hasText: /^M\d+$/ }).first().click()
+    await expect(page).toHaveURL(/option=Size%3AM/)
     await expect(page.getByTestId("products-list")).toBeVisible()
   })
 

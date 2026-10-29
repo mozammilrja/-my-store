@@ -15,7 +15,7 @@ export function CatalogHeader({
       {eyebrow && (
         <p className="text-xs font-semibold tracking-widest uppercase text-primary">{eyebrow}</p>
       )}
-      <h1 className="font-display text-5xl tracking-tight sm:text-6xl" data-testid="store-page-title">
+      <h1 className="font-display-tight text-6xl sm:text-7xl" data-testid="store-page-title">
         {title}
       </h1>
       {description && <p className="max-w-2xl text-base text-muted-foreground">{description}</p>}

@@ -26,7 +26,7 @@ export function BagTemplate({
 
   return (
     <Container className="py-12 lg:py-16" data-testid="cart-container">
-      <h1 className="font-display text-5xl tracking-tight sm:text-6xl">Your bag</h1>
+      <h1 className="font-display-tight text-6xl sm:text-7xl">Your bag</h1>
 
       {error && (
         <p role="alert" className="mt-6 border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive-foreground" data-testid="cart-error">
@@ -62,7 +62,7 @@ export function BagTemplate({
           </div>
           <aside className="lg:col-span-5" aria-label="Order summary">
             <div className="flex flex-col gap-6 border bg-card p-6 lg:sticky lg:top-28">
-              <h2 className="font-display text-2xl tracking-tight">Summary</h2>
+              <h2 className="font-display-tight text-3xl">Summary</h2>
               <PromoCode cart={cart} />
               <Totals totals={cart} />
               <Button asChild size="lg" className="w-full">

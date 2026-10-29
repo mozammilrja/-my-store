@@ -113,45 +113,47 @@
   @apply text-[32px] leading-[44px] font-semibold;
 }
 
-/* Everwear brand tokens. Light theme only. Contrast checked to WCAG AA. */
+/* Everwear brand tokens. Bold fashion palette: white, ink, volt accent. Light theme only. Contrast checked to WCAG AA. */
 :root {
   --radius: 0rem;
 
-  --background: #f6f3ec; /* ivory */
-  --foreground: #16171b; /* ink */
-  --card: #fbfaf6; /* paper */
-  --card-foreground: #16171b;
-  --popover: #fbfaf6;
-  --popover-foreground: #16171b;
-  --primary: #2440d6; /* cobalt */
+  --background: #ffffff;
+  --foreground: #0b0b0c;
+  --card: #ffffff;
+  --card-foreground: #0b0b0c;
+  --popover: #ffffff;
+  --popover-foreground: #0b0b0c;
+  --primary: #0b0b0c;
   --primary-foreground: #ffffff;
-  --secondary: #ece7dc;
-  --secondary-foreground: #16171b;
-  --muted: #ede9e0;
-  --muted-foreground: #5e5c57;
-  --accent: #e7eafb;
-  --accent-foreground: #1a2fa3;
-  --destructive: #b42318;
-  --destructive-foreground: #8f1d14;
-  --border: #e3ded3;
-  --input: #d6d0c3;
+  --secondary: #f4f4f2;
+  --secondary-foreground: #0b0b0c;
+  --muted: #f4f4f2;
+  --muted-foreground: #636363;
+  --accent: #d4f53c;
+  --accent-foreground: #0b0b0c;
+  --destructive: #c8291d;
+  --destructive-foreground: #b42318;
+  --border: #e6e6e3;
+  --input: #cfcfcb;
   --ring: #2440d6;
 
-  --success: #1f7a4d;
-  --success-foreground: #14532f;
+  --success: #15803d;
+  --success-foreground: #15803d;
   --info: #2440d6;
   --info-foreground: #1a2fa3;
   --warning: #b7791f;
   --warning-foreground: #7a4a00;
-  --invert: #16171b;
-  --invert-foreground: #f6f3ec;
+  --invert: #0b0b0c;
+  --invert-foreground: #ffffff;
 
-  --brand-deep: #1a2fa3;
+  --brand-deep: #2b2b2e;
+  --sale: #c8291d;
+  --surface: #f4f4f2;
 }
 
 @theme inline {
   --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display-serif), ui-serif, Georgia, serif;
+  --font-display: var(--font-display-sans), ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -181,6 +183,8 @@
   --color-invert: var(--invert);
   --color-invert-foreground: var(--invert-foreground);
   --color-brand-deep: var(--brand-deep);
+  --color-sale: var(--sale);
+  --color-surface: var(--surface);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -264,4 +268,15 @@
 
 [class*="txt-"] {
   font-family: inherit;
+}
+
+/* Heavy condensed display type: headlines, wordmark, banners. */
+@utility font-display-tight {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-stretch: 75%;
+  font-variation-settings: "wdth" 75;
+  letter-spacing: -0.005em;
+  line-height: 0.92;
+  text-transform: uppercase;
 }

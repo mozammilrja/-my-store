@@ -54,7 +54,7 @@ export function MobileNav({
               <li key={link.href}>
                 <LocalizedClientLink
                   href={link.href}
-                  className="block py-3 font-display text-3xl tracking-tight hover:text-primary"
+                  className="block py-2 font-display-tight text-5xl hover:text-muted-foreground"
                 >
                   {link.label}
                 </LocalizedClientLink>

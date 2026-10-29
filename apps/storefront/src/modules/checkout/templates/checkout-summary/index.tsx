@@ -10,7 +10,7 @@ const CheckoutSummary = ({ cart }: { cart: HttpTypes.StoreCart }) => {
 
   return (
     <aside aria-label="Order summary" className="flex flex-col gap-6 border bg-card p-6 lg:sticky lg:top-8">
-      <h2 className="font-display text-2xl tracking-tight">Order summary</h2>
+      <h2 className="font-display-tight text-3xl">Order summary</h2>
       <ul className="flex max-h-80 flex-col gap-4 overflow-y-auto" data-testid="items-table">
         {items.map((item) => (
           <li key={item.id} className="grid grid-cols-[4rem_1fr_auto] gap-3 text-sm" data-testid="product-row">

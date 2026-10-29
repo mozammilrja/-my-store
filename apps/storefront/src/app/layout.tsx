@@ -3,13 +3,14 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { getBaseURL } from "@lib/util/env"
 import { STORE_NAME } from "@lib/util/site"
 import { Metadata, Viewport } from "next"
-import { Fraunces, Inter_Tight } from "next/font/google"
+import { Archivo, Inter_Tight } from "next/font/google"
 import "styles/globals.css"
 
-const displaySerif = Fraunces({
+// Archivo's width axis gives the condensed, heavy headlines of the brand.
+const displaySans = Archivo({
   subsets: ["latin"],
-  axes: ["opsz", "SOFT"],
-  variable: "--font-display-serif",
+  axes: ["wdth"],
+  variable: "--font-display-sans",
   display: "swap",
 })
 
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#f6f3ec",
+  themeColor: "#ffffff",
 }
 
 export default function RootLayout(props: { children: React.ReactNode }) {
@@ -39,7 +40,7 @@ export default function RootLayout(props: { children: React.ReactNode }) {
     <html
       lang="en"
       data-mode="light"
-      className={`${displaySerif.variable} ${body.variable}`}
+      className={`${displaySans.variable} ${body.variable}`}
     >
       <head>
         <link rel="ucp" href="/.well-known/ucp" />

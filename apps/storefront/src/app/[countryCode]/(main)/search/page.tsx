@@ -46,7 +46,7 @@ export default async function SearchPage(props: Props) {
   return (
     <Container className="flex flex-col gap-10 py-12" data-testid="search-container">
       <div className="flex flex-col gap-6 border-b pb-10">
-        <h1 className="font-display text-5xl tracking-tight sm:text-6xl">
+        <h1 className="font-display-tight text-6xl sm:text-7xl">
           {query ? <>Results for &ldquo;{query}&rdquo;</> : "Search"}
         </h1>
         <form role="search" action={`/${countryCode}/search`} className="flex max-w-xl items-end gap-3">

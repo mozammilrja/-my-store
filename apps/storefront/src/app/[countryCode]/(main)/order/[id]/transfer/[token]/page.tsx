@@ -16,7 +16,7 @@ export default async function TransferPage({
 
   return (
     <Container className="flex max-w-2xl flex-col gap-6 py-16">
-      <h1 className="font-display text-4xl tracking-tight">Transfer request</h1>
+      <h1 className="font-display-tight text-5xl">Transfer request</h1>
       <p className="text-muted-foreground">
         Someone asked to take over order <span className="font-medium text-foreground">{id}</span>.
         If you accept, the new owner gets access to the order and its details.

@@ -15,7 +15,7 @@ export function StatusPage({
   return (
     <Container className="flex min-h-[60vh] flex-col justify-center gap-6 py-20">
       {code && <p className="text-xs font-semibold tracking-widest uppercase text-primary">{code}</p>}
-      <h1 className="max-w-3xl font-display text-5xl tracking-tight sm:text-7xl">{title}</h1>
+      <h1 className="max-w-3xl font-display-tight text-6xl sm:text-8xl">{title}</h1>
       {children && <div className="max-w-xl text-muted-foreground">{children}</div>}
       {actions && <div className="flex flex-wrap gap-3">{actions}</div>}
     </Container>

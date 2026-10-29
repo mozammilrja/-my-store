@@ -40,7 +40,7 @@ export async function Related({
   return (
     <section aria-labelledby="related-title" className="border-t py-20" data-testid="related-products-container">
       <Container className="flex flex-col gap-10">
-        <h2 id="related-title" className="font-display text-4xl tracking-tight">
+        <h2 id="related-title" className="font-display-tight text-5xl">
           {title}
         </h2>
         <ul className="grid grid-cols-2 gap-x-4 gap-y-10 lg:grid-cols-4 lg:gap-x-6">

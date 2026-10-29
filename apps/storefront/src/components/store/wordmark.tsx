@@ -1,16 +1,11 @@
 import { cn } from "@/lib/utils"
 
-/** The Everwear wordmark: display serif name beside a solid cobalt square. */
+/** The Everwear wordmark: heavy condensed caps with a volt slash. */
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-baseline gap-2 font-display text-2xl leading-none font-medium tracking-tight",
-        className
-      )}
-    >
-      <span aria-hidden className="inline-block size-2.5 translate-y-[-0.05em] bg-primary" />
+    <span className={cn("inline-flex items-center gap-1.5 font-display-tight text-[1.65rem] leading-none", className)}>
       Everwear
+      <span aria-hidden className="inline-block h-[0.7em] w-[0.32em] -skew-x-12 bg-accent" />
     </span>
   )
 }

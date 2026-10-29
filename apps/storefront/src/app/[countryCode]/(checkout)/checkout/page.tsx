@@ -27,7 +27,7 @@ export default async function Checkout(props: {
   return (
     <Container className="grid gap-12 py-10 lg:grid-cols-12 lg:py-14">
       <div className="flex flex-col gap-8 lg:col-span-7">
-        <h1 className="font-display text-5xl tracking-tight">Checkout</h1>
+        <h1 className="font-display-tight text-6xl">Checkout</h1>
         {redirect_status === "failed" && (
           <p role="alert" className="border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive-foreground" data-testid="payment-failed-message">
             Your payment wasn&apos;t authorised. Please try again or choose another payment method.

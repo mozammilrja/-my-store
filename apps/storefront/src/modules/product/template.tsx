@@ -58,7 +58,7 @@ export function ProductTemplate({
         </Breadcrumb>
       </Container>
 
-      <Container className="grid gap-10 py-8 lg:grid-cols-12 lg:gap-12 lg:py-10">
+      <Container className="grid gap-10 pt-8 pb-24 lg:grid-cols-12 lg:gap-12 lg:py-10">
         <div className="lg:col-span-7">
           <Suspense fallback={<Skeleton className="aspect-[4/5] w-full" />}>
             <Gallery product={product} />
@@ -75,7 +75,7 @@ export function ProductTemplate({
                   {product.collection.title}
                 </LocalizedClientLink>
               )}
-              <h1 className="font-display text-4xl leading-tight tracking-tight sm:text-5xl" data-testid="product-title">
+              <h1 className="font-display-tight text-5xl sm:text-6xl" data-testid="product-title">
                 {product.title}
               </h1>
               {product.subtitle && <p className="text-muted-foreground">{product.subtitle}</p>}

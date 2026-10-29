@@ -11,7 +11,7 @@ const bagCount = async (page: import("@playwright/test").Page) => {
 test.describe("shopping journey", () => {
   test("home page shows real catalog data", async ({ page }) => {
     await page.goto(`/${COUNTRY}`)
-    await expect(page).toHaveTitle(/My Store/)
+    await expect(page).toHaveTitle(/Everwear/)
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
     await expect(page.getByTestId("product-wrapper").first()).toBeVisible()
     await expect(page.getByRole("heading", { name: "Shop by category" })).toBeVisible()

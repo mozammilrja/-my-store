@@ -20,7 +20,7 @@ export default function CheckoutLayout({
             <ArrowLeftIcon className="size-4" aria-hidden />
             <span className="max-sm:sr-only">Back to bag</span>
           </LocalizedClientLink>
-          <LocalizedClientLink href="/" className="justify-self-center" aria-label="My Store home" data-testid="store-link">
+          <LocalizedClientLink href="/" className="justify-self-center" aria-label="Everwear home" data-testid="store-link">
             <Wordmark className="text-xl" />
           </LocalizedClientLink>
           <span className="inline-flex items-center gap-1.5 justify-self-end text-xs text-muted-foreground">

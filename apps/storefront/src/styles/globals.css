@@ -113,7 +113,7 @@
   @apply text-[32px] leading-[44px] font-semibold;
 }
 
-/* My Store brand tokens. Light theme only. Contrast checked to WCAG AA. */
+/* Everwear brand tokens. Light theme only. Contrast checked to WCAG AA. */
 :root {
   --radius: 0rem;
 
@@ -216,7 +216,7 @@
 
 /*
  * Bridge for legacy screens that still use Medusa ui-preset classes
- * (checkout steps, account, order). Maps their variables onto the My Store
+ * (checkout steps, account, order). Maps their variables onto the Everwear
  * tokens so every page shares one palette. Remove with the last legacy module.
  */
 :root {

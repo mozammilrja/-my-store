@@ -31,7 +31,7 @@ export async function Header({ countryCode }: { countryCode: string }) {
         <Container className="flex h-16 items-center gap-6 lg:h-[72px]">
           <MobileNav links={links} regions={regions} />
 
-          <LocalizedClientLink href="/" aria-label="My Store home" data-testid="nav-store-link" className="max-lg:mx-auto">
+          <LocalizedClientLink href="/" aria-label="Everwear home" data-testid="nav-store-link" className="max-lg:mx-auto">
             <Wordmark />
           </LocalizedClientLink>
 

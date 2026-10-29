@@ -24,7 +24,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const origin = await getSiteOrigin()
   return {
     title: productCategory.name,
-    description: productCategory.description || `Shop ${productCategory.name} at My Store.`,
+    description: productCategory.description || `Shop ${productCategory.name} at Everwear.`,
     alternates: { canonical: `${origin}/${countryCode}/categories/${category.join("/")}` },
   }
 }

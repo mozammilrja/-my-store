@@ -1,10 +1,10 @@
-# My Store — Project Docs
+# Everwear — Project Docs
 
 Last updated: 2026-10-29
 
 ## Overview
 
-My Store is a headless e-commerce store: a Medusa 2.22.1 backend with an admin dashboard, plus a Next.js 16 storefront, in one Turborepo monorepo managed with npm.
+Everwear is a headless e-commerce store: a Medusa 2.22.1 backend with an admin dashboard, plus a Next.js 16 storefront, in one Turborepo monorepo managed with npm.
 
 | Layer | Technology | Version |
 | --- | --- | --- |

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 
-/** The My Store wordmark: display serif name beside a solid cobalt square. */
+/** The Everwear wordmark: display serif name beside a solid cobalt square. */
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span
@@ -10,7 +10,7 @@ export function Wordmark({ className }: { className?: string }) {
       )}
     >
       <span aria-hidden className="inline-block size-2.5 translate-y-[-0.05em] bg-primary" />
-      My Store
+      Everwear
     </span>
   )
 }

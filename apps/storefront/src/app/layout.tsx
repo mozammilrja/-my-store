@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     template: `%s | ${STORE_NAME}`,
   },
   description:
-    "My Store: clothing and everyday essentials, delivered across Europe and India.",
+    "Everwear: clothing and everyday essentials, delivered across Europe and India.",
   applicationName: STORE_NAME,
 }
 

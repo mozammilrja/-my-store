@@ -14,7 +14,7 @@ export function Hero({ featured }: { featured?: HttpTypes.StoreProduct }) {
       <Container className="grid gap-10 py-12 lg:grid-cols-12 lg:gap-8 lg:py-20">
         <div className="flex flex-col justify-between gap-10 lg:col-span-7">
           <p className="text-xs font-semibold tracking-widest uppercase text-primary">
-            My Store / The everyday edit
+            Everwear / The everyday edit
           </p>
           <h1
             id="hero-title"

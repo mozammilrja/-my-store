@@ -13,7 +13,7 @@ export async function generateMetadata(props: {
   const origin = await getSiteOrigin()
   return {
     title: "Shop all",
-    description: "Every product at My Store. Filter by size, colour, category and price.",
+    description: "Every product at Everwear. Filter by size, colour, category and price.",
     alternates: { canonical: `${origin}/${countryCode}/store` },
   }
 }

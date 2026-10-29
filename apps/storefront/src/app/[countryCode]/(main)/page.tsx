@@ -25,7 +25,7 @@ export async function generateMetadata(props: {
   return {
     title: { absolute: `${STORE_NAME} | Everyday clothing and essentials` },
     description:
-      "Shop shirts, sweatshirts, pants and everyday essentials at My Store. Prices and delivery shown for your region.",
+      "Shop shirts, sweatshirts, pants and everyday essentials at Everwear. Prices and delivery shown for your region.",
     openGraph: {
       title: STORE_NAME,
       description: "Everyday clothing and essentials.",

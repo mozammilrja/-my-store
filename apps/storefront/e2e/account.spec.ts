@@ -7,7 +7,7 @@ test("register, see the account, log out, log back in", async ({ page }) => {
   test.setTimeout(150_000)
   const email = `e2e-account+${Date.now()}@example.com`
 
-  await page.goto(`/${COUNTRY}/account`)
+  await page.goto(`/${COUNTRY}/account`, { waitUntil: "domcontentloaded" })
   await expect(page.getByTestId("login-page")).toBeVisible()
   await page.getByRole("button", { name: /join us|register|create/i }).first().click()
 
@@ -35,7 +35,7 @@ test("register, see the account, log out, log back in", async ({ page }) => {
 })
 
 test("wrong password shows an error", async ({ page }) => {
-  await page.goto(`/${COUNTRY}/account`)
+  await page.goto(`/${COUNTRY}/account`, { waitUntil: "domcontentloaded" })
   await page.getByTestId("email-input").fill("nobody-here@example.com")
   await page.getByTestId("password-input").fill("not-the-password")
   await page.getByTestId("sign-in-button").click()
@@ -44,7 +44,7 @@ test("wrong password shows an error", async ({ page }) => {
 
 test("protected account pages need a session", async ({ page }) => {
   for (const path of ["profile", "addresses", "orders"]) {
-    await page.goto(`/${COUNTRY}/account/${path}`)
+    await page.goto(`/${COUNTRY}/account/${path}`, { waitUntil: "domcontentloaded" })
     await expect(page.getByTestId("login-page")).toBeVisible()
     await expect(page.getByTestId("account-nav")).toHaveCount(0)
   }

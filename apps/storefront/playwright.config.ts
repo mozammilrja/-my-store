@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "@playwright/test"
+import { defineConfig } from "@playwright/test"
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8001"
 
@@ -22,7 +22,11 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "desktop", use: { viewport: { width: 1440, height: 900 } } },
+    {
+      name: "desktop",
+      use: { viewport: { width: 1440, height: 900 } },
+      testIgnore: /mobile\.spec\.ts/,
+    },
     {
       name: "mobile",
       use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },

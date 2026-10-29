@@ -9,11 +9,11 @@ const COUNTRY = "dk"
 test("guest checkout reaches order confirmation", async ({ page }) => {
   test.setTimeout(180_000)
 
-  await page.goto(`/${COUNTRY}/products/t-shirt`)
+  await page.goto(`/${COUNTRY}/products/t-shirt`, { waitUntil: "domcontentloaded" })
   await page.getByTestId("add-product-button").click()
   await expect(page.getByTestId("nav-cart-count").first()).not.toHaveText("(0)")
 
-  await page.goto(`/${COUNTRY}/checkout?step=address`)
+  await page.goto(`/${COUNTRY}/checkout?step=address`, { waitUntil: "domcontentloaded" })
   await page.getByTestId("shipping-first-name-input").fill("Test")
   await page.getByTestId("shipping-last-name-input").fill("Shopper")
   await page.getByTestId("shipping-address-input").fill("Nørregade 1")
@@ -38,14 +38,14 @@ test("guest checkout reaches order confirmation", async ({ page }) => {
   await expect(page.getByText(/thank you|order/i).first()).toBeVisible()
 
   // The bag is empty after the order.
-  await page.goto(`/${COUNTRY}/cart`)
+  await page.goto(`/${COUNTRY}/cart`, { waitUntil: "domcontentloaded" })
   await expect(page.getByTestId("empty-cart-message")).toBeVisible()
 })
 
 test("checkout without a bag shows not found", async ({ browser }) => {
   const context = await browser.newContext()
   const page = await context.newPage()
-  const response = await page.goto(`${test.info().project.use.baseURL}/${COUNTRY}/checkout`)
+  const response = await page.goto(`${test.info().project.use.baseURL}/${COUNTRY}/checkout`, { waitUntil: "domcontentloaded" })
   expect(response?.status()).toBe(404)
   await context.close()
 })

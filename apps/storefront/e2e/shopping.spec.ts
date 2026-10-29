@@ -10,7 +10,7 @@ const bagCount = async (page: import("@playwright/test").Page) => {
 
 test.describe("shopping journey", () => {
   test("home page shows real catalog data", async ({ page }) => {
-    await page.goto(`/${COUNTRY}`)
+    await page.goto(`/${COUNTRY}`, { waitUntil: "domcontentloaded" })
     await expect(page).toHaveTitle(/Everwear/)
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
     await expect(page.getByTestId("product-wrapper").first()).toBeVisible()
@@ -18,7 +18,7 @@ test.describe("shopping journey", () => {
   })
 
   test("variant selection updates the selected variant", async ({ page }) => {
-    await page.goto(PRODUCT)
+    await page.goto(PRODUCT, { waitUntil: "domcontentloaded" })
     const options = page.getByTestId("product-options")
     await expect(options.first()).toBeVisible()
 
@@ -33,7 +33,7 @@ test.describe("shopping journey", () => {
   })
 
   test("add to bag, change quantity and remove", async ({ page }) => {
-    await page.goto(PRODUCT)
+    await page.goto(PRODUCT, { waitUntil: "domcontentloaded" })
     await expect(page.getByTestId("add-product-button")).toBeEnabled()
     const before = await bagCount(page)
 
@@ -43,7 +43,7 @@ test.describe("shopping journey", () => {
     await page.waitForTimeout(1500)
     expect(await bagCount(page)).toBe(before + 1)
 
-    await page.goto(`/${COUNTRY}/cart`)
+    await page.goto(`/${COUNTRY}/cart`, { waitUntil: "domcontentloaded" })
     const row = page.getByTestId("product-row").filter({ hasText: "Medusa T-Shirt" }).first()
     await expect(row).toBeVisible()
     const qty = row.getByTestId("product-quantity")
@@ -59,7 +59,7 @@ test.describe("shopping journey", () => {
   })
 
   test("store listing filters and sorts", async ({ page }) => {
-    await page.goto(`/${COUNTRY}/store`)
+    await page.goto(`/${COUNTRY}/store`, { waitUntil: "domcontentloaded" })
     await expect(page.getByTestId("products-list")).toBeVisible()
     await page.getByRole("button", { name: "M", exact: true }).first().click()
     await expect(page).toHaveURL(/refinementList/)
@@ -67,7 +67,7 @@ test.describe("shopping journey", () => {
   })
 
   test("unknown product shows not found", async ({ page }) => {
-    const response = await page.goto(`/${COUNTRY}/products/does-not-exist-xyz`)
+    const response = await page.goto(`/${COUNTRY}/products/does-not-exist-xyz`, { waitUntil: "domcontentloaded" })
     expect(response?.status()).toBe(404)
   })
 })

@@ -31,7 +31,7 @@ export function HitCard({ hit, currencyCode, priority }: { hit: ProductHit; curr
 
   return (
     <LocalizedClientLink href={`/products/${hit.handle}`} className="group flex flex-col gap-3" data-testid="product-wrapper">
-      <div className="relative aspect-[4/5] overflow-hidden bg-muted">
+      <div className="relative aspect-[4/5] overflow-hidden bg-surface">
         {hit.thumbnail && (
           <Image
             src={hit.thumbnail}
@@ -39,7 +39,7 @@ export function HitCard({ hit, currencyCode, priority }: { hit: ProductHit; curr
             fill
             loading={priority ? "eager" : "lazy"}
             sizes="(min-width: 1280px) 22vw, (min-width: 640px) 33vw, 50vw"
-            className="object-cover transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03] motion-reduce:transition-none"
+            className="scale-[1.12] object-cover transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.18] motion-reduce:transition-none"
           />
         )}
         {(onSale || isNew) && (
@@ -50,12 +50,12 @@ export function HitCard({ hit, currencyCode, priority }: { hit: ProductHit; curr
         )}
       </div>
       <div className="flex flex-col gap-0.5">
-        <Heading className="text-sm font-medium tracking-tight group-hover:underline group-hover:underline-offset-4" data-testid="product-title">
+        <Heading className="text-sm leading-snug font-semibold group-hover:underline group-hover:underline-offset-4" data-testid="product-title">
           {hit.title}
         </Heading>
         {min !== null && (
           <p className="flex items-baseline gap-2 text-sm tabular-nums" data-testid="product-price">
-            <span className={cn(onSale && "text-destructive-foreground")} data-testid="price">
+            <span className={cn("font-bold", onSale && "text-destructive-foreground")} data-testid="price">
               {max !== null && max > min && <span className="text-muted-foreground">From </span>}
               {formatMoney(min, currency)}
             </span>

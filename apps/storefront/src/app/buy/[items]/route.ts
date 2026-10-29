@@ -1,5 +1,6 @@
 import {
   activateCart,
+  hasOtherActiveCart,
   createCartWithItems,
   findMissingVariantIds,
   MAX_LINE_ITEM_QUANTITY,
@@ -63,10 +64,20 @@ export async function GET(
     return textResponse("One or more items in this link can't be purchased", 400)
   }
 
+  const origin = getRequestOrigin(request)
+
+  // Don't silently replace a bag the visitor already filled; ask first.
+  if (await hasOtherActiveCart(cartId)) {
+    return NextResponse.redirect(
+      `${origin}/${resolved.countryCode}/cart/resume/${encodeURIComponent(cartId)}/confirm`,
+      { status: 303, headers: NO_STORE }
+    )
+  }
+
   await activateCart(cartId)
 
-  return NextResponse.redirect(
-    `${getRequestOrigin(request)}/${resolved.countryCode}/checkout`,
-    { status: 303, headers: NO_STORE }
-  )
+  return NextResponse.redirect(`${origin}/${resolved.countryCode}/checkout`, {
+    status: 303,
+    headers: NO_STORE,
+  })
 }

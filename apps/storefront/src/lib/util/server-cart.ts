@@ -1,6 +1,6 @@
 import "server-only"
 import { sdk } from "@lib/config"
-import { getCacheTag, setCartId } from "@lib/data/cookies"
+import { getCacheTag, getCartId, setCartId } from "@lib/data/cookies"
 import { listRegions } from "@lib/data/regions"
 import { HttpTypes } from "@medusajs/types"
 import { revalidateTag } from "next/cache"
@@ -9,7 +9,37 @@ import { getDefaultCountryCode } from "./site"
 export const MAX_LINE_ITEM_QUANTITY = 100
 
 /** Stores the cart in the shopper's cookie and clears cached cart reads. */
+/** Cart metadata flag: the cart now belongs to a shopper's browser session. */
+export const HANDED_OFF_KEY = "ucp_handed_off"
+
+/**
+ * True when the visitor already has a different, open bag with items in it.
+ * Links that switch carts (/buy, cart resume) must not silently replace it.
+ */
+export const hasOtherActiveCart = async (cartId: string) => {
+  const current = await getCartId()
+  if (!current || current === cartId) return false
+  try {
+    const { cart } = await sdk.store.cart.retrieve(current, { fields: "id,completed_at,*items" })
+    return !cart.completed_at && (cart.items?.length ?? 0) > 0
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Makes `cartId` the visitor's cart and marks it as handed off, so the agent
+ * API stops exposing or changing the shopper's details on it.
+ */
 export const activateCart = async (cartId: string) => {
+  try {
+    const { cart } = await sdk.store.cart.retrieve(cartId, { fields: "id,metadata" })
+    if (cart.metadata?.[HANDED_OFF_KEY] !== true) {
+      await sdk.store.cart.update(cartId, { metadata: { ...cart.metadata, [HANDED_OFF_KEY]: true } })
+    }
+  } catch {
+    // The flag only narrows what the agent API returns; never block the shopper on it.
+  }
   await setCartId(cartId)
   const cartCacheTag = await getCacheTag("carts")
   if (cartCacheTag) {

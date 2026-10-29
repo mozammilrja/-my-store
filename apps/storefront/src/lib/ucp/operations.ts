@@ -29,6 +29,9 @@ const MAX_SEARCH_LIMIT = 50
 const MAX_LOOKUP_IDS = 50
 const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000
 const CANCELED_KEY = "ucp_canceled"
+// Set by the storefront when a shopper opens the cart (lib/util/server-cart.ts).
+const HANDED_OFF_KEY = "ucp_handed_off"
+const isHandedOff = (cart: HttpTypes.StoreCart) => cart.metadata?.[HANDED_OFF_KEY] === true
 
 const asObject = (value: unknown): Input =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Input) : {}
@@ -201,9 +204,11 @@ const retrieveCart = async (cartId: string) => {
 
 const isCanceled = (cart: HttpTypes.StoreCart) => cart.metadata?.[CANCELED_KEY] === true
 
+// Once a shopper has taken over the cart in their browser, agents can read
+// its status but can no longer change it.
 const retrieveOpenCart = async (cartId: string) => {
   const cart = await retrieveCart(cartId)
-  return cart && !cart.completed_at && !isCanceled(cart) ? cart : null
+  return cart && !cart.completed_at && !isCanceled(cart) && !isHandedOff(cart) ? cart : null
 }
 
 const syncLineItems = async (
@@ -382,6 +387,9 @@ const toUcpCheckoutBody = async (request: Request, cart: HttpTypes.StoreCart) =>
   ].filter(Boolean) as { path: string; content: string }[]
 
   const order = cart.completed_at ? await findOrder(cart.id) : null
+  // After handoff the shopper may have entered personal details in the
+  // browser. Anyone holding the cart id could call this API, so omit them.
+  const redact = isHandedOff(cart) || !!cart.completed_at
   const status = isCanceled(cart)
     ? "canceled"
     : order
@@ -397,8 +405,8 @@ const toUcpCheckoutBody = async (request: Request, cart: HttpTypes.StoreCart) =>
     currency: cart.currency_code.toUpperCase(),
     line_items: toUcpLineItems(cart),
     totals: toUcpTotals(cart),
-    buyer: cart.email ? { email: cart.email } : undefined,
-    fulfillment: address?.address_1
+    buyer: cart.email && !redact ? { email: cart.email } : undefined,
+    fulfillment: address?.address_1 && !redact
       ? {
           methods: [
             {
@@ -535,6 +543,9 @@ export const cancelCheckout = async (request: Request, id: string): Promise<UcpR
   if (!cart) return checkoutNotFound()
   if (cart.completed_at) {
     return ucpError(CHECKOUT, 409, "already_completed", "This checkout has already been completed")
+  }
+  if (isHandedOff(cart)) {
+    return ucpError(CHECKOUT, 409, "handed_off", "The buyer is completing this checkout in the store")
   }
 
   if (!isCanceled(cart)) {

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { ApiError, adminApi, setToken } from "@/lib/api"
+import { sdk } from "@/lib/sdk"
 
 const LoginPage = () => {
   const navigate = useNavigate()
@@ -30,18 +30,18 @@ const LoginPage = () => {
     setError(null)
 
     try {
-      const { token } = await adminApi.login(email, password)
-      setToken(token)
+      const result = await sdk.auth.login("user", "emailpass", { email, password })
+
+      if (typeof result !== "string") {
+        setError("This account needs another sign-in step that isn't supported here.")
+        return
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["me"] })
       const from = (location.state as { from?: string } | null)?.from
       navigate(from || "/", { replace: true })
-    } catch (caught) {
-      // Rate limiting and an unreachable API both need their own message.
-      setError(
-        caught instanceof ApiError && caught.code !== "unauthorized"
-          ? caught.message
-          : "Email or password is incorrect."
-      )
+    } catch {
+      setError("Email or password is incorrect.")
     } finally {
       setSubmitting(false)
     }

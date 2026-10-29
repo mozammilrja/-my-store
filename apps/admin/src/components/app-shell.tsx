@@ -2,12 +2,17 @@ import { useQueryClient } from "@tanstack/react-query"
 import {
   BarChart3,
   ChevronsUpDown,
+  ExternalLink,
   LogOut,
   Moon,
   Package,
+  Percent,
+  Settings,
   ShoppingCart,
   Sun,
+  Tags,
   Users,
+  Warehouse,
 } from "lucide-react"
 import { Fragment } from "react"
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
@@ -47,12 +52,14 @@ import {
 } from "@/components/ui/sidebar"
 import { useMe } from "@/hooks/use-me"
 import { useTheme } from "@/hooks/use-theme"
-import { clearToken } from "@/lib/api"
+import { LEGACY_ADMIN_URL, sdk } from "@/lib/sdk"
 
 type NavEntry = {
   label: string
   to: string
   icon: typeof Package
+  // Not rebuilt yet: opens the matching page in Medusa's dashboard
+  legacy?: boolean
 }
 
 const NAV: { label: string; items: NavEntry[] }[] = [
@@ -66,6 +73,9 @@ const NAV: { label: string; items: NavEntry[] }[] = [
       { label: "Orders", to: "/orders", icon: ShoppingCart },
       { label: "Products", to: "/products", icon: Package },
       { label: "Customers", to: "/customers", icon: Users },
+      { label: "Inventory", to: "/inventory", icon: Warehouse, legacy: true },
+      { label: "Promotions", to: "/promotions", icon: Percent, legacy: true },
+      { label: "Price Lists", to: "/price-lists", icon: Tags, legacy: true },
     ],
   },
 ]
@@ -85,12 +95,13 @@ const AppSidebar = () => {
   const { data } = useMe()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const email = data?.email ?? ""
-  const name = data?.name || email
+  const email = data?.user.email ?? ""
+  const name =
+    [data?.user.first_name, data?.user.last_name].filter(Boolean).join(" ") ||
+    email
 
-  const logout = () => {
-    // Tokens are stateless, so signing out is dropping ours and clearing what it fetched.
-    clearToken()
+  const logout = async () => {
+    await sdk.auth.logout().catch(() => undefined)
     queryClient.clear()
     navigate("/login", { replace: true })
   }
@@ -128,12 +139,24 @@ const AppSidebar = () => {
                     <SidebarMenuButton
                       asChild
                       tooltip={item.label}
-                      isActive={isActivePath(location.pathname, item.to)}
+                      isActive={!item.legacy && isActivePath(location.pathname, item.to)}
                     >
-                      <Link to={item.to}>
-                        <item.icon />
-                        <span>{item.label}</span>
-                      </Link>
+                      {item.legacy ? (
+                        <a
+                          href={`${LEGACY_ADMIN_URL}${item.to}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <item.icon />
+                          <span>{item.label}</span>
+                          <ExternalLink className="text-muted-foreground ml-auto size-3.5" />
+                        </a>
+                      ) : (
+                        <Link to={item.to}>
+                          <item.icon />
+                          <span>{item.label}</span>
+                        </Link>
+                      )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
@@ -145,6 +168,19 @@ const AppSidebar = () => {
 
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="Settings" asChild>
+              <a
+                href={`${LEGACY_ADMIN_URL}/settings`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Settings />
+                <span>Settings</span>
+                <ExternalLink className="text-muted-foreground ml-auto size-3.5" />
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

@@ -16,8 +16,7 @@ import { DataGridTable } from "@/components/reui/data-grid/data-grid-table"
 import { Frame, FrameHeader, FramePanel } from "@/components/reui/frame"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { api } from "@/lib/api"
-import type { Paged } from "@/lib/types"
+import { sdk } from "@/lib/sdk"
 
 export type GridColumn<TData extends object> = ColumnDef<DataGridFeatures, TData>
 
@@ -27,6 +26,8 @@ type ResourceGridProps<TData extends object> = {
   /** Response key that holds the rows, e.g. "orders" */
   resultKey: string
   columns: GridColumn<TData>[]
+  fields?: string
+  order?: string
   searchPlaceholder?: string
   emptyMessage?: ReactNode
   onRowClick?: (row: TData) => void
@@ -45,13 +46,15 @@ const useDebounced = <T,>(value: T, delay = 300) => {
 }
 
 /**
- * A server-paginated ReUI data grid over one admin list endpoint:
+ * A server-paginated ReUI data grid over one Medusa admin list endpoint:
  * search, paging and loading / empty / error states in one place.
  */
 export const ResourceGrid = <TData extends { id: string }>({
   path,
   resultKey,
   columns,
+  fields,
+  order = "-created_at",
   searchPlaceholder = "Search",
   emptyMessage = "Nothing here yet",
   onRowClick,
@@ -69,12 +72,14 @@ export const ResourceGrid = <TData extends { id: string }>({
   }, [q])
 
   const query = useQuery({
-    queryKey: [path, q, pagination],
+    queryKey: [path, fields, order, q, pagination],
     queryFn: () =>
-      api<Paged<string, TData>>(path, {
+      sdk.client.fetch<Record<string, unknown> & { count: number }>(path, {
         query: {
-          page: pagination.pageIndex + 1,
           limit: pagination.pageSize,
+          offset: pagination.pageIndex * pagination.pageSize,
+          order,
+          ...(fields ? { fields } : {}),
           ...(q ? { q } : {}),
         },
       }),

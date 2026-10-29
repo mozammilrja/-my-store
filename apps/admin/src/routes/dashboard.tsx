@@ -55,10 +55,10 @@ import {
   formatDateTime,
   formatDay,
   formatMoney,
-  formatMoneyCompact,
   formatStatus,
   percentChange,
 } from "@/lib/format"
+import { LEGACY_ADMIN_URL } from "@/lib/sdk"
 
 const Delta = ({ current, previous }: { current: number; previous: number }) => {
   const change = percentChange(current, previous)
@@ -372,7 +372,9 @@ const DashboardPage = () => {
                       width={56}
                       tickFormatter={(value: number) =>
                         metric === "revenue"
-                          ? formatMoneyCompact(value, data.currencyCode)
+                          ? new Intl.NumberFormat(undefined, {
+                              notation: "compact",
+                            }).format(value)
                           : formatCount(value)
                       }
                     />
@@ -468,14 +470,20 @@ const DashboardPage = () => {
                   </TableHeader>
                   <TableBody>
                     {data.recentOrders.map((order) => (
-                      <TableRow key={order.id}>
+                      <TableRow
+                        key={order.id}
+                        className="cursor-pointer"
+                        onClick={() =>
+                          window.open(`${LEGACY_ADMIN_URL}/orders/${order.id}`, "_blank")
+                        }
+                      >
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="font-medium tabular-nums">
-                              #{order.displayId}
+                              #{order.display_id}
                             </span>
                             <span className="text-muted-foreground text-xs">
-                              {formatDateTime(order.createdAt)}
+                              {formatDateTime(order.created_at)}
                             </span>
                           </div>
                         </TableCell>
@@ -483,10 +491,10 @@ const DashboardPage = () => {
                           {order.email || "Guest"}
                         </TableCell>
                         <TableCell>
-                          <StatusBadge status={order.paymentStatus} />
+                          <StatusBadge status={order.payment_status} />
                         </TableCell>
                         <TableCell className="text-right font-medium tabular-nums">
-                          {formatMoney(order.totals.total, order.currency)}
+                          {formatMoney(Number(order.total) || 0, order.currency_code)}
                         </TableCell>
                       </TableRow>
                     ))}

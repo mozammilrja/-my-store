@@ -6,7 +6,7 @@ import { useDataGrid } from "@/components/reui/data-grid/data-grid"
 import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid"
 import type { Column } from "@tanstack/react-table"
 
-import { cn } from "@/lib/utils"
+import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {

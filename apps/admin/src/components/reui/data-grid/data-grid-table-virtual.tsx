@@ -43,7 +43,7 @@ import type {
   Virtualizer,
   VirtualizerOptions,
 } from "@tanstack/react-virtual"
-import { cn } from "@/lib/utils"
+import { cn } from "cn"
 
 import { Spinner } from "@/components/ui/spinner"
 

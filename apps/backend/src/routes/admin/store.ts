@@ -149,14 +149,6 @@ adminStoreRoutes.delete("/categories/:id", async (req, res) => {
   res.json({ deleted: true })
 })
 
-/** The admin's product list shows a collection name, so it needs to read them. */
-adminStoreRoutes.get("/collections", async (_req, res) => {
-  const collections = await db.collections().find({}, { sort: { title: 1 } }).toArray()
-  res.json({
-    collections: collections.map((c) => ({ id: c._id, handle: c.handle, title: c.title })),
-  })
-})
-
 adminStoreRoutes.post("/collections", async (req, res) => {
   const body = z.object({ title: name, handle }).parse(req.body)
   const now = new Date()

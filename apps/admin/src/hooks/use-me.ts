@@ -1,14 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
-import { adminApi, getToken } from "@/lib/api"
+import { sdk } from "@/lib/sdk"
 
-/** The signed-in admin. Fails when there is no token or the API rejects it. */
 export const useMe = () =>
   useQuery({
     queryKey: ["me"],
-    queryFn: async () => {
-      if (!getToken()) throw new Error("Not signed in")
-      return (await adminApi.me()).admin
-    },
+    queryFn: () => sdk.admin.user.me(),
     retry: false,
     staleTime: 5 * 60_000,
   })

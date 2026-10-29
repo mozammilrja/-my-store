@@ -3,24 +3,29 @@ import { formatStatus } from "@/lib/format"
 
 type Tone = "success" | "warning" | "destructive" | "info" | "neutral"
 
-/** Every status the API can report, on orders (payment, fulfillment, state) and products. */
 const TONES: Record<string, Tone> = {
-  // payment
-  paid: "success",
-  awaiting: "warning",
-  refunded: "destructive",
-  // fulfillment
+  captured: "success",
+  authorized: "success",
+  completed: "success",
+  fulfilled: "success",
   delivered: "success",
   shipped: "info",
-  unfulfilled: "warning",
-  returned: "destructive",
-  // order state
-  completed: "success",
-  pending: "warning",
-  canceled: "destructive",
-  // product state
   published: "success",
+  partially_fulfilled: "info",
+  partially_shipped: "info",
+  partially_captured: "info",
+  partially_refunded: "warning",
+  not_paid: "warning",
+  awaiting: "warning",
+  requires_action: "warning",
+  not_fulfilled: "warning",
+  pending: "warning",
   draft: "neutral",
+  proposed: "info",
+  refunded: "destructive",
+  canceled: "destructive",
+  rejected: "destructive",
+  archived: "neutral",
 }
 
 const VARIANTS = {

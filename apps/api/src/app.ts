@@ -9,6 +9,7 @@ import { ZodError, z } from "zod"
 import { getDb } from "./db/client.js"
 import { env } from "./env.js"
 import { ApiError } from "./lib/errors.js"
+import { catalogRoutes } from "./routes/store/catalog.js"
 
 export function createApp() {
   const app = new Hono()
@@ -25,6 +26,8 @@ export function createApp() {
     await getDb().command({ ping: 1 })
     return c.json({ status: "ok" })
   })
+
+  app.route("/store", catalogRoutes)
 
   app.notFound((c) => c.json({ error: { code: "not_found", message: "Route not found" } }, 404))
 

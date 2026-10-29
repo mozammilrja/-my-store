@@ -16,10 +16,11 @@ const firstImage = (p?: HttpTypes.StoreProduct) =>
 
 /** Everything the home page needs, fetched in parallel. */
 export async function getHomeData(countryCode: string) {
-  const [latest, categories, { collections }] = await Promise.all([
+  const [recent, categories, { collections }] = await Promise.all([
+    // One request covers new arrivals and the merchant's "bestseller" tags.
     listProducts({
       countryCode,
-      queryParams: { limit: 9, order: "-created_at" },
+      queryParams: { limit: 60, order: "-created_at" },
     }).then((r) => r.response.products),
     listCategories({ fields: "id,name,handle,parent_category_id" }).catch(() => []),
     listCollections({ fields: "id,handle,title" }).catch(() => ({ collections: [], count: 0 })),
@@ -51,8 +52,15 @@ export async function getHomeData(countryCode: string) {
     ),
   ])
 
+  const latest = recent.slice(0, 8)
+  const tagged = recent.filter((p) => p.tags?.some((t) => t.value === "bestseller"))
+  // Without merchant tags, fall back to the newest products after the first row.
+  const bestsellers = (tagged.length >= 4 ? tagged : recent.slice(8)).slice(0, 8)
+
   return {
     latest,
+    bestsellers,
+    bestsellersTagged: tagged.length >= 4,
     categories: categoryShowcase.filter((c) => c.count > 0) as Showcase[],
     collections: collectionShowcase.filter((c) => c.count > 0) as Showcase[],
   }

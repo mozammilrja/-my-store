@@ -3,10 +3,13 @@ import { Metadata } from "next"
 import { getStorePolicies } from "@lib/data/store-policies"
 import { getRegion, listRegions } from "@lib/data/regions"
 import { getHomeData } from "@modules/home/data"
-import { CategoryIndex } from "@modules/home/sections/category-index"
-import { Collections } from "@modules/home/sections/collections"
+import { CategoryChips } from "@modules/home/sections/category-chips"
+import { CategoryTiles } from "@modules/home/sections/category-tiles"
+import { CollectionBand } from "@modules/home/sections/collection-band"
 import { Hero } from "@modules/home/sections/hero"
-import { NewArrivals } from "@modules/home/sections/new-arrivals"
+import { ProductRow } from "@modules/home/sections/product-row"
+import { PromoSplit } from "@modules/home/sections/promo-split"
+import { NEW_IN_HREF } from "@modules/shell/header"
 import { Promises } from "@modules/home/sections/promises"
 import { notFound } from "next/navigation"
 import { toJsonLd } from "@lib/util/product-structured-data"
@@ -101,14 +104,31 @@ export default async function Home(props: {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: toJsonLd(structuredData) }}
       />
-      <Hero featured={home.latest[0]} />
-      <NewArrivals products={home.latest} />
-      <CategoryIndex categories={home.categories} />
+      <Hero />
+      <CategoryChips categories={home.categories} />
+      <ProductRow
+        id="bestsellers-title"
+        eyebrow={home.bestsellersTagged ? "Most wanted" : "Shop the range"}
+        title={home.bestsellersTagged ? "Bestsellers" : "More to explore"}
+        products={home.bestsellers}
+        href="/store"
+        linkLabel="Shop all"
+      />
+      <PromoSplit categories={home.categories} />
+      <ProductRow
+        id="new-in-title"
+        eyebrow="Just landed"
+        title="New in"
+        products={home.latest}
+        href={NEW_IN_HREF}
+        linkLabel="View all new"
+      />
+      <CategoryTiles categories={home.categories} />
+      <CollectionBand collections={home.collections} />
       <Promises
         policies={policies?.current ?? null}
         currencyCode={policies?.currencyCode ?? region.currency_code}
       />
-      <Collections collections={home.collections} />
     </>
   )
 }

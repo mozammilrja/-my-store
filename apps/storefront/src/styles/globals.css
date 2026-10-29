@@ -1,0 +1,267 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Legacy Tailwind v3 config (Medusa ui-preset) kept while old modules are replaced. */
+@config "../../tailwind.config.js";
+
+@layer utilities {
+  /* Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  input:focus ~ label,
+  input:not(:placeholder-shown) ~ label {
+    @apply -translate-y-2 text-xsmall-regular;
+  }
+
+  input:focus ~ label {
+    @apply left-0;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus {
+    border: 1px solid #212121;
+    -webkit-text-fill-color: #212121;
+    -webkit-box-shadow: 0 0 0px 1000px #fff inset;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  input[type="search"]::-webkit-search-decoration,
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-results-button,
+  input[type="search"]::-webkit-search-results-decoration {
+    -webkit-appearance: none;
+  }
+}
+
+@utility content-container {
+  @apply max-w-[1440px] w-full mx-auto px-6;
+}
+
+@utility contrast-btn {
+  @apply px-4 py-2 border border-black rounded-full hover:bg-black hover:text-white transition-colors duration-200 ease-in;
+}
+
+@utility text-xsmall-regular {
+  @apply text-[10px] leading-4 font-normal;
+}
+
+@utility text-small-regular {
+  @apply text-xs leading-5 font-normal;
+}
+
+@utility text-small-semi {
+  @apply text-xs leading-5 font-semibold;
+}
+
+@utility text-base-regular {
+  @apply text-sm leading-6 font-normal;
+}
+
+@utility text-base-semi {
+  @apply text-sm leading-6 font-semibold;
+}
+
+@utility text-large-regular {
+  @apply text-base leading-6 font-normal;
+}
+
+@utility text-large-semi {
+  @apply text-base leading-6 font-semibold;
+}
+
+@utility text-xl-regular {
+  @apply text-2xl leading-[36px] font-normal;
+}
+
+@utility text-xl-semi {
+  @apply text-2xl leading-[36px] font-semibold;
+}
+
+@utility text-2xl-regular {
+  @apply text-[30px] leading-[48px] font-normal;
+}
+
+@utility text-2xl-semi {
+  @apply text-[30px] leading-[48px] font-semibold;
+}
+
+@utility text-3xl-regular {
+  @apply text-[32px] leading-[44px] font-normal;
+}
+
+@utility text-3xl-semi {
+  @apply text-[32px] leading-[44px] font-semibold;
+}
+
+/* My Store brand tokens. Light theme only. Contrast checked to WCAG AA. */
+:root {
+  --radius: 0rem;
+
+  --background: #f6f3ec; /* ivory */
+  --foreground: #16171b; /* ink */
+  --card: #fbfaf6; /* paper */
+  --card-foreground: #16171b;
+  --popover: #fbfaf6;
+  --popover-foreground: #16171b;
+  --primary: #2440d6; /* cobalt */
+  --primary-foreground: #ffffff;
+  --secondary: #ece7dc;
+  --secondary-foreground: #16171b;
+  --muted: #ede9e0;
+  --muted-foreground: #5e5c57;
+  --accent: #e7eafb;
+  --accent-foreground: #1a2fa3;
+  --destructive: #b42318;
+  --destructive-foreground: #8f1d14;
+  --border: #e3ded3;
+  --input: #d6d0c3;
+  --ring: #2440d6;
+
+  --success: #1f7a4d;
+  --success-foreground: #14532f;
+  --info: #2440d6;
+  --info-foreground: #1a2fa3;
+  --warning: #b7791f;
+  --warning-foreground: #7a4a00;
+  --invert: #16171b;
+  --invert-foreground: #f6f3ec;
+
+  --brand-deep: #1a2fa3;
+}
+
+@theme inline {
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-serif), ui-serif, Georgia, serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-invert: var(--invert);
+  --color-invert-foreground: var(--invert-foreground);
+  --color-brand-deep: var(--brand-deep);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/*
+ * Bridge for legacy screens that still use Medusa ui-preset classes
+ * (checkout steps, account, order). Maps their variables onto the My Store
+ * tokens so every page shares one palette. Remove with the last legacy module.
+ */
+:root {
+  --fg-base: var(--foreground);
+  --fg-subtle: var(--muted-foreground);
+  --fg-muted: var(--muted-foreground);
+  --fg-disabled: #9a968d;
+  --fg-interactive: var(--primary);
+  --fg-interactive-hover: var(--brand-deep);
+  --fg-error: var(--destructive-foreground);
+  --fg-on-color: #ffffff;
+  --fg-on-inverted: var(--invert-foreground);
+  --bg-base: var(--card);
+  --bg-base-hover: var(--muted);
+  --bg-base-pressed: var(--secondary);
+  --bg-subtle: var(--muted);
+  --bg-subtle-hover: var(--secondary);
+  --bg-subtle-pressed: var(--secondary);
+  --bg-component: var(--card);
+  --bg-component-hover: var(--muted);
+  --bg-component-pressed: var(--secondary);
+  --bg-field: var(--card);
+  --bg-field-hover: var(--muted);
+  --bg-field-component: var(--card);
+  --bg-field-component-hover: var(--muted);
+  --bg-interactive: var(--primary);
+  --bg-highlight: var(--accent);
+  --bg-highlight-hover: var(--accent);
+  --bg-disabled: var(--muted);
+  --border-base: var(--border);
+  --border-strong: var(--input);
+  --border-interactive: var(--primary);
+  --border-error: var(--destructive);
+  --border-danger: var(--destructive);
+  --button-inverted: var(--primary);
+  --button-inverted-hover: var(--brand-deep);
+  --button-inverted-pressed: var(--brand-deep);
+  --button-neutral: var(--card);
+  --button-neutral-hover: var(--muted);
+  --button-neutral-pressed: var(--secondary);
+  --elevation-card-rest: 0 0 0 1px var(--border);
+  --elevation-card-hover: 0 0 0 1px var(--input);
+  --elevation-flyout: 0 0 0 1px var(--border), 0 8px 24px -8px rgb(22 23 27 / 0.12);
+}
+
+[class*="txt-"] {
+  font-family: inherit;
+}

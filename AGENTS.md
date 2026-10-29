@@ -8,7 +8,7 @@ Everwear: an online clothing store for Europe and India. A Turborepo monorepo (n
 | --- | --- | --- | --- |
 | `apps/backend` | `@dtc/backend` | Everwear API: catalog, carts, checkout, orders, customers and admin endpoints. Node 22, Express 5, MongoDB, Zod. | http://localhost:9100 |
 | `apps/storefront` | `@dtc/storefront` | Shop front. Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui + ReUI. | http://localhost:8001 |
-| `apps/admin` | `@dtc/admin` | Store admin: dashboard, orders, products, customers. React 19, Vite 8, React Router, TanStack Query + Table, shadcn/ui + ReUI. | http://localhost:7001 |
+| `apps/admin` | `@dtc/admin` | Store admin: dashboard, orders, products, customers, each list with a detail page. React 19, Vite 8, React Router, TanStack Query + Table, shadcn/ui + ReUI. | http://localhost:7001 |
 
 The project started from the Medusa DTC starter and has since moved off Medusa. Medusa and PostgreSQL are no longer part of the running stack; the only remaining link is the one-off `migrate:medusa` script that copies data out of an old Medusa database. Ignore Medusa docs, skills and the `@medusajs/*` package `AGENTS.md` files unless you are working on that script.
 
@@ -21,7 +21,7 @@ Architecture, design tokens and known issues: [`docs/PROJECT.md`](./docs/PROJECT
 | Task | Location |
 | --- | --- |
 | Store API route (shopper-facing) | `apps/backend/src/routes/store/<area>.ts`, mounted in `src/app.ts` under `/store` |
-| Admin API route | `apps/backend/src/routes/admin/<area>.ts`, mounted under `/admin` behind `requireAdmin` |
+| Admin API route | `apps/backend/src/routes/admin/<area>.ts`, mounted under `/admin` behind `requireAdmin` (`auth`, `orders`, `products`, `store`, `settings`, `users`) |
 | App setup: CORS, body limits, error shape, uploads | `apps/backend/src/app.ts` |
 | Environment settings (validated at startup) | `apps/backend/src/env.ts`, documented in `apps/backend/.env.template` |
 | Data model, collections, indexes | `apps/backend/src/db/schema.ts` (types + `db.<collection>()` accessors + `ensureIndexes`) |
@@ -36,8 +36,8 @@ Architecture, design tokens and known issues: [`docs/PROJECT.md`](./docs/PROJECT
 | Storefront UI | `apps/storefront/src/modules/<feature>/`, routes in `src/app/[countryCode]/` |
 | Storefront e2e tests | `apps/storefront/e2e/` |
 | Admin API client and response types | `apps/admin/src/lib/api.ts`, `src/lib/types.ts` |
-| Admin pages | `apps/admin/src/routes/*.tsx`, wired up in `src/main.tsx` |
-| Admin list tables (search, paging) | `apps/admin/src/components/resource-grid.tsx` |
+| Admin pages | `apps/admin/src/routes/*.tsx`, wired up in `src/main.tsx`; the nav and the not-yet-built modules both come from `src/lib/modules.ts` |
+| Admin list tables (search, filters, paging) | `apps/admin/src/components/resource-grid.tsx` |
 | Admin UI | `apps/admin/src/` |
 
 ## Directory Structure
@@ -170,13 +170,15 @@ The checkout and account e2e tests create real orders and customers in the local
 
 ### Admin
 
-- Built from shadcn/ui and ReUI components (style `radix-sera` in `components.json`, registry `@reui`). Follow the ReUI skill.
+- Built from shadcn/ui and ReUI components (style `radix-nova` in `components.json`, registry `@reui`, a different style from the storefront's `radix-sera`). Follow the ReUI skill.
 - Talks to the API's `/admin` routes with a Bearer token. Its origin (port 7001) must be in `ADMIN_CORS`.
 - **Every request goes through `src/lib/api.ts`.** It attaches the token, unwraps the `{ error: { code, message } }` envelope and drops the token on a 401, which sends the viewer back to the login.
 - **Response types live in `src/lib/types.ts`** and mirror the API exactly: camelCase fields, and money as an integer in the currency's minor unit. Format money with `formatMoney` from `src/lib/format.ts`, which divides it out; never print a raw amount.
-- **List pages use `ResourceGrid`**, which pages with `page`/`limit` and searches with `q`. A new list page supplies a path, a result key and columns.
-- **`src/components/ui/` and `src/components/reui/` are installed files.** Don't hand-edit them; the lint config reports their findings as warnings for that reason.
-- The palette is light-only by design (`src/styles/globals.css` says so); there is no dark theme to maintain.
+- **The nav is `src/lib/modules.ts`.** It holds all sixteen modules the design calls for: `ready: true` ones have a route, the rest render `ModulePlaceholder`, which states what the module needs rather than faking it. When a module's endpoints land, flip `ready`, delete its entry from `MODULE_PLANS` and add the real route.
+- **Owner-only routes** (`/admin/settings` writes, every `/admin/users` write) check `req.admin.role`; the API refuses to demote or delete the last owner.
+- **List pages use `ResourceGrid`**, which pages with `page`/`limit`, searches with `q` and filters with one query parameter per `GridFilter`. A new list page supplies a path, a result key and columns, plus filters the endpoint accepts.
+- **`src/components/ui/` and `src/components/reui/` are installed files.** Don't hand-edit them; the lint config reports their findings as warnings for that reason. Restyle through the tokens in `src/styles/globals.css`. After any `npx shadcn add`: rewrite the `from "cn"` imports back to `@/lib/utils` and uninstall the stray `cn` package, and re-point `ui/sonner.tsx` at `@/hooks/use-theme` and uninstall `next-themes` — the published toaster pulls in a Next.js theme library this app does not use, and leaving it in blanks the page on a stale Vite dep cache.
+- Both palettes are themed: `:root` is light, `.dark` is dark, and `src/lib/theme.ts` owns the class (light, dark or the browser's choice). A no-flash script in `index.html` shares its storage key. Check any new screen in both.
 
 ## Code Style
 

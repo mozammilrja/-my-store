@@ -41,6 +41,7 @@ const CustomerDetailPage = () => {
   return (
     <>
       <PageHeader
+        eyebrow="Customers & marketing"
         title={name || customer?.email || "Customer"}
         description={customer ? `Joined ${formatDate(customer.createdAt)}` : "Loading the customer"}
         actions={
@@ -55,8 +56,8 @@ const CustomerDetailPage = () => {
 
       {query.isPending ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <Skeleton className="h-72 rounded-xl" />
-          <Skeleton className="h-72 rounded-xl xl:col-span-2" />
+          <Skeleton className="h-72" />
+          <Skeleton className="h-72 xl:col-span-2" />
         </div>
       ) : query.isError || !customer ? (
         <Alert variant="destructive">

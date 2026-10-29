@@ -46,11 +46,8 @@ import {
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { ApiError, adminApi, uploadImage } from "@/lib/api"
+import { toMajor, toMinor } from "@/lib/format"
 import type { AdminProduct, ProductStatus, VariantPatch } from "@/lib/types"
-
-/** Minor units in, major units on screen; the API only ever sees integers. */
-const toMajor = (minor: number) => (minor / 100).toFixed(2)
-const toMinor = (major: string) => Math.round(Number(major) * 100)
 
 type VariantDraft = {
   sku: string
@@ -69,12 +66,12 @@ const draftOf = (product: AdminProduct, currencies: string[]) =>
         sku: v.sku ?? "",
         stock: String(v.stock),
         prices: Object.fromEntries(
-          currencies.map((c) => [c, v.prices[c] === undefined ? "" : toMajor(v.prices[c])])
+          currencies.map((c) => [c, v.prices[c] === undefined ? "" : toMajor(v.prices[c], c)])
         ),
         compareAtPrices: Object.fromEntries(
           currencies.map((c) => [
             c,
-            v.compareAtPrices[c] === undefined ? "" : toMajor(v.compareAtPrices[c]),
+            v.compareAtPrices[c] === undefined ? "" : toMajor(v.compareAtPrices[c], c),
           ])
         ),
         manageInventory: v.manageInventory,
@@ -141,10 +138,10 @@ const ProductDetailPage = () => {
         const prices: Record<string, number> = {}
         const compareAtPrices: Record<string, number> = {}
         for (const [currency, value] of Object.entries(draft.prices)) {
-          if (value.trim() !== "") prices[currency] = toMinor(value)
+          if (value.trim() !== "") prices[currency] = toMinor(value, currency)
         }
         for (const [currency, value] of Object.entries(draft.compareAtPrices)) {
-          if (value.trim() !== "") compareAtPrices[currency] = toMinor(value)
+          if (value.trim() !== "") compareAtPrices[currency] = toMinor(value, currency)
         }
         return {
           id: variantId,
@@ -211,6 +208,7 @@ const ProductDetailPage = () => {
   return (
     <>
       <PageHeader
+        eyebrow="Catalog & inventory"
         title={product ? product.title : "Product"}
         description={product ? `${product.variants.length} variants` : "Loading the product"}
         actions={
@@ -263,8 +261,8 @@ const ProductDetailPage = () => {
 
       {query.isPending ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <Skeleton className="h-96 rounded-xl xl:col-span-2" />
-          <Skeleton className="h-96 rounded-xl" />
+          <Skeleton className="h-96 xl:col-span-2" />
+          <Skeleton className="h-96" />
         </div>
       ) : query.isError || !product ? (
         <Alert variant="destructive">

@@ -21,6 +21,8 @@ export type ProductRow = {
   key: string
   productId?: string | null
   title: string
+  /** The catalog handle, shown as the row's identifier under the title. */
+  handle?: string | null
   thumbnail?: string | null
   quantity: number
   revenue: number
@@ -41,6 +43,16 @@ export type SalesAnalytics = {
   itemsSold: number
   newCustomers: number
   daily: DailyPoint[]
+  /** The same number of days, one period back, for the comparison line. */
+  previousDaily: DailyPoint[]
+  /** Share of orders placed in range that were cancelled, 0 to 1. */
+  cancellationRate: number
+  /** Discount given as a share of the item subtotal, 0 to 1. */
+  discountDepth: number
+  returned: number
+  refunded: number
+  /** How many distinct products sold in range, so "top 6 of N" is honest. */
+  productsSold: number
   topProducts: ProductRow[]
   paymentStatus: StatusSlice[]
   fulfillmentStatus: StatusSlice[]
@@ -56,21 +68,17 @@ const startOfDay = (date: Date) => {
 const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
 
 /**
- * Reads orders newest first and stops at the first page that reaches back past
- * `since`. The list endpoint has no date filter, so the cutoff is applied here.
+ * Reads every order placed since `since`, newest first. The range is applied by
+ * the API (`from`), so no out-of-range order is ever sent to the browser.
  */
 const fetchOrdersSince = async (since: Date) => {
   const orders: AdminOrder[] = []
+  const from = since.toISOString()
 
   for (let page = 1; ; page += 1) {
-    const result = await adminApi.orders({ page, limit: PAGE_SIZE })
-    const fresh = result.orders.filter((order) => new Date(order.createdAt) >= since)
-    orders.push(...fresh)
-    // This page reached past the cutoff, so every later page is older still.
-    if (fresh.length < result.orders.length || !result.orders.length) {
-      return { orders, truncated: false }
-    }
-    if (page >= result.pages) return { orders, truncated: false }
+    const result = await adminApi.orders({ page, limit: PAGE_SIZE, from })
+    orders.push(...result.orders)
+    if (page >= result.pages || !result.orders.length) return { orders, truncated: false }
     // Stopped early: the figures cover only the most recent orders.
     if (orders.length >= MAX_ROWS) return { orders, truncated: true }
   }
@@ -137,15 +145,30 @@ const summarize = (
   const revenue = sumTotals(current)
   const previousRevenue = sumTotals(previous)
 
-  const daily: DailyPoint[] = []
-  const dailyIndex = new Map<string, DailyPoint>()
+  /** One bucket per day, for this period and the one before it. */
+  const buckets = (start: Date) => {
+    const points: DailyPoint[] = []
+    const index = new Map<string, DailyPoint>()
 
-  for (let i = 0; i < days; i++) {
-    const date = new Date(currentStart)
-    date.setDate(date.getDate() + i)
-    const point = { date, revenue: 0, orders: 0 }
-    daily.push(point)
-    dailyIndex.set(dayKey(date), point)
+    for (let i = 0; i < days; i++) {
+      const date = new Date(start)
+      date.setDate(date.getDate() + i)
+      const point = { date, revenue: 0, orders: 0 }
+      points.push(point)
+      index.set(dayKey(date), point)
+    }
+
+    return { points, index }
+  }
+
+  const { points: daily, index: dailyIndex } = buckets(currentStart)
+  const { points: previousDaily, index: previousIndex } = buckets(previousStart)
+
+  for (const order of previous) {
+    const point = previousIndex.get(dayKey(new Date(order.createdAt)))
+    if (!point) continue
+    point.revenue += order.totals?.total ?? 0
+    point.orders += 1
   }
 
   const products = new Map<string, ProductRow>()
@@ -167,6 +190,7 @@ const summarize = (
         key,
         productId: item.productId,
         title: item.productTitle || "Untitled product",
+        handle: item.productHandle,
         thumbnail: item.thumbnail,
         quantity: 0,
         revenue: 0,
@@ -180,6 +204,9 @@ const summarize = (
   }
 
   const currentAll = orders.filter((order) => new Date(order.createdAt) >= currentStart)
+  const canceled = currentAll.filter((order) => order.status === "canceled").length
+  const subtotal = current.reduce((sum, o) => sum + (o.totals?.itemSubtotal ?? 0), 0)
+  const discounts = current.reduce((sum, o) => sum + (o.totals?.discountTotal ?? 0), 0)
 
   return {
     currencyCode,
@@ -194,6 +221,12 @@ const summarize = (
     itemsSold,
     newCustomers,
     daily,
+    previousDaily,
+    cancellationRate: currentAll.length ? canceled / currentAll.length : 0,
+    discountDepth: subtotal ? discounts / subtotal : 0,
+    returned: currentAll.filter((o) => o.fulfillmentStatus === "returned").length,
+    refunded: currentAll.filter((o) => o.paymentStatus === "refunded").length,
+    productsSold: products.size,
     topProducts: [...products.values()]
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 6),

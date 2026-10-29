@@ -101,6 +101,87 @@ describe("products", () => {
   })
 })
 
+describe("settings", () => {
+  test("defaults answer before anything is saved", async () => {
+    const { body } = await call("GET", "/admin/settings")
+    assert.equal(body.settings.lowStockThreshold, 5)
+    assert.equal(body.settings.storeName, "Everwear")
+  })
+
+  test("an owner can change the low-stock threshold and the dashboard follows", async () => {
+    const saved = await call("PATCH", "/admin/settings", { lowStockThreshold: 99 })
+    assert.equal(saved.status, 200)
+    assert.equal(saved.body.settings.lowStockThreshold, 99)
+
+    const { body } = await call("GET", "/admin/dashboard")
+    assert.equal(body.lowStockThreshold, 99)
+
+    await call("PATCH", "/admin/settings", { lowStockThreshold: 5 })
+  })
+
+  test("unknown keys are refused", async () => {
+    assert.equal((await call("PATCH", "/admin/settings", { nope: 1 })).status, 400)
+  })
+})
+
+describe("users and roles", () => {
+  let staffId = ""
+  let staffToken = ""
+
+  test("an owner can add an admin", async () => {
+    const res = await call("POST", "/admin/users", {
+      email: "staff@everwear.test",
+      password: "staff-password-1",
+      name: "Sam Staff",
+      role: "staff",
+    })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.user.role, "staff")
+    staffId = res.body.user.id
+
+    const login = await call(
+      "POST",
+      "/admin/auth/login",
+      { email: "staff@everwear.test", password: "staff-password-1" },
+      false
+    )
+    assert.equal(login.status, 200)
+    staffToken = login.body.token
+  })
+
+  test("the same email cannot be added twice", async () => {
+    const res = await call("POST", "/admin/users", {
+      email: "staff@everwear.test",
+      password: "another-password-1",
+    })
+    assert.equal(res.status, 409)
+  })
+
+  test("staff may read the list but not change it", async () => {
+    const asStaff = (method: string, path: string, body?: unknown) =>
+      request(path, {
+        method,
+        headers: { "content-type": "application/json", authorization: `Bearer ${staffToken}` },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      })
+
+    assert.equal((await asStaff("GET", "/admin/users")).status, 200)
+    assert.equal((await asStaff("POST", "/admin/users", { email: "x@y.test", password: "0123456789abc" })).status, 403)
+    assert.equal((await asStaff("PATCH", "/admin/settings", { storeName: "Nope" })).status, 403)
+  })
+
+  test("the last owner cannot be demoted or deleted", async () => {
+    const demote = await call("PATCH", "/admin/users/admin_1", { role: "staff" })
+    assert.equal(demote.status, 409)
+    assert.equal((await call("DELETE", "/admin/users/admin_1")).status, 409)
+  })
+
+  test("an admin can be removed", async () => {
+    assert.equal((await call("DELETE", `/admin/users/${staffId}`)).status, 200)
+    assert.equal((await call("GET", "/admin/users")).body.users.length, 1)
+  })
+})
+
 describe("orders", () => {
   const placeOrder = async () => {
     const { body: list } = await call("GET", "/admin/products")
@@ -130,6 +211,21 @@ describe("orders", () => {
     const res = await call("POST", `/admin/orders/${order.id}/cancel`)
     assert.equal(res.body.order.status, "canceled")
     assert.equal(await stockOf(), before + 2)
+  })
+
+  test("the list filters by placed-at range", async () => {
+    const { order } = await placeOrder()
+    const { createdAt } = (await db.orders().findOne({ _id: order.id }))!
+    const earlier = new Date(createdAt.getTime() - 60_000).toISOString()
+    const later = new Date(createdAt.getTime() + 60_000).toISOString()
+
+    const inRange = await call("GET", `/admin/orders?from=${earlier}&to=${later}`)
+    assert.ok(inRange.body.orders.some((o: Json) => o.id === order.id))
+
+    const onlyOlder = await call("GET", `/admin/orders?to=${earlier}`)
+    assert.ok(!onlyOlder.body.orders.some((o: Json) => o.id === order.id))
+
+    assert.equal((await call("GET", `/admin/orders?from=${later}&to=${earlier}`)).status, 400)
   })
 
   test("dashboard reports revenue and work to do", async () => {

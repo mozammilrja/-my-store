@@ -5,8 +5,7 @@ import { withTransaction } from "../../db/client.js"
 import { db, type OrderDoc } from "../../db/schema.js"
 import { badRequest, conflict, notFound } from "../../lib/errors.js"
 import { assetUrl } from "../../lib/serialize.js"
-
-const LOW_STOCK = 5
+import { getSettings } from "./settings.js"
 
 const page = z.coerce.number().int().min(1).max(1000).default(1)
 const limit = z.coerce.number().int().min(1).max(100).default(25)
@@ -51,6 +50,7 @@ adminOrderRoutes.get("/me", (req, res) => {
 
 /** Headline numbers for the dashboard: last 30 days, plus what needs attention. */
 adminOrderRoutes.get("/dashboard", async (_req, res) => {
+  const { lowStockThreshold: LOW_STOCK } = await getSettings()
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000)
   const live = { status: { $ne: "canceled" as const } }
   const [byCurrency, daily, toShip, toCollect, recent, lowStock, customers] = await Promise.all([
@@ -121,14 +121,21 @@ adminOrderRoutes.get("/orders", async (req, res) => {
       status: z.enum(["pending", "completed", "canceled"]).optional(),
       payment: z.enum(["awaiting", "paid", "refunded"]).optional(),
       fulfillment: z.enum(["unfulfilled", "shipped", "delivered", "returned"]).optional(),
+      /** Inclusive placed-at bounds, so a client can ask for one period instead of paging to it. */
+      from: z.coerce.date().optional(),
+      to: z.coerce.date().optional(),
       page,
       limit,
     })
     .parse(req.query)
+  if (q.from && q.to && q.from > q.to) throw badRequest("`from` is after `to`")
   const filter: Filter<OrderDoc> = {}
   if (q.status) filter.status = q.status
   if (q.payment) filter.paymentStatus = q.payment
   if (q.fulfillment) filter.fulfillmentStatus = q.fulfillment
+  if (q.from || q.to) {
+    filter.createdAt = { ...(q.from ? { $gte: q.from } : {}), ...(q.to ? { $lte: q.to } : {}) }
+  }
   if (q.q) {
     const number = Number(q.q.replace(/^#/, ""))
     const escaped = q.q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")

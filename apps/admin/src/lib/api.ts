@@ -7,6 +7,8 @@ import type {
   AdminPromotion,
   AdminRegion,
   AdminUser,
+  AdminUserPatch,
+  AdminUserRow,
   Dashboard,
   FulfillmentStatus,
   NewProduct,
@@ -14,6 +16,9 @@ import type {
   Paged,
   PaymentStatus,
   ProductPatch,
+  NewAdminUser,
+  SettingsPatch,
+  StoreSettings,
 } from "@/lib/types"
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:9100"
@@ -153,7 +158,16 @@ export const adminApi = {
 
   dashboard: () => api<Dashboard>("/admin/dashboard"),
 
-  orders: (params: ListParams & { status?: string; payment?: string; fulfillment?: string } = {}) =>
+  orders: (
+    params: ListParams & {
+      status?: string
+      payment?: string
+      fulfillment?: string
+      /** Inclusive ISO bounds on when the order was placed. */
+      from?: string
+      to?: string
+    } = {}
+  ) =>
     api<Paged<"orders", AdminOrder>>("/admin/orders", { query: params }),
 
   order: (id: string) => api<{ order: AdminOrder }>(`/admin/orders/${id}`),
@@ -209,6 +223,22 @@ export const adminApi = {
 
   deleteCategory: (id: string) =>
     api<{ deleted: true }>(`/admin/categories/${id}`, { method: "DELETE" }),
+
+  settings: () => api<{ settings: StoreSettings }>("/admin/settings"),
+
+  updateSettings: (body: SettingsPatch) =>
+    api<{ settings: StoreSettings }>("/admin/settings", { method: "PATCH", body }),
+
+  users: () => api<{ users: AdminUserRow[] }>("/admin/users"),
+
+  createUser: (body: NewAdminUser) =>
+    api<{ user: AdminUserRow }>("/admin/users", { method: "POST", body }),
+
+  updateUser: (id: string, body: AdminUserPatch) =>
+    api<{ user: AdminUserRow }>(`/admin/users/${id}`, { method: "PATCH", body }),
+
+  deleteUser: (id: string) =>
+    api<{ deleted: true }>(`/admin/users/${id}`, { method: "DELETE" }),
 
   collections: () => api<{ collections: AdminCollection[] }>("/admin/collections"),
 

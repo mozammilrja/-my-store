@@ -13,7 +13,7 @@ The API is deliberately independent of any frontend. It speaks plain HTTP and JS
 | API | Node.js, Express, TypeScript, Zod | 22.22+, 5.3, 5.9 |
 | Database | MongoDB, single-node replica set `rs0` (Docker container `everwear-mongo`) | 7.0 |
 | Storefront | Next.js (App Router, Turbopack), React | 16.4.2, 19.0.5 |
-| Admin | React, Vite, React Router, TanStack Query + Table, shadcn/ui `radix-sera`, ReUI | 19.0.5, 8.3 |
+| Admin | React, Vite, React Router, TanStack Query + Table, shadcn/ui `radix-nova`, ReUI | 19.0.5, 8.3 |
 | Styling | Tailwind CSS (CSS-first config) | 4.3.3 |
 | Icons | lucide-react | latest 0.x |
 | Browser tests | Playwright (installed Google Chrome) + axe-core | 1.56 / 4.11 |
@@ -71,7 +71,7 @@ Three apps live under `apps/`. The API holds all business logic; the clients onl
 | `apps/backend/src/db/schema.ts` | Document types, `db.<collection>()` accessors, `ensureIndexes` |
 | `apps/backend/src/lib/` | `auth`, `errors`, `validation`, `totals`, `regions`, `serialize`, `ids` |
 | `apps/backend/src/routes/store/` | `catalog.ts`, `customers.ts`, `carts.ts` — the shopper-facing API |
-| `apps/backend/src/routes/admin/` | `auth.ts`, `products.ts`, `orders.ts`, `store.ts` — the dashboard API |
+| `apps/backend/src/routes/admin/` | `auth.ts`, `products.ts`, `orders.ts`, `store.ts`, `settings.ts`, `users.ts` — the dashboard API |
 | `apps/backend/scripts/` | `create-admin`, `migrate-from-medusa`, `localize-catalog` |
 | `apps/backend/test/` | `node:test` suites plus `server.ts`, which runs the app on a free port |
 | `apps/backend/uploads/` | Uploaded product images, served at `/uploads` with a one-year immutable cache |
@@ -86,9 +86,9 @@ Three apps live under `apps/`. The API holds all business logic; the clients onl
 | `apps/storefront/src/modules/checkout/`, `account/`, `order/` | Checkout steps, account and order screens |
 | `apps/storefront/src/styles/globals.css` | Brand tokens |
 | `apps/storefront/e2e/` | Playwright tests: shopping, checkout, account, mobile, accessibility |
-| `apps/admin/src/routes/` | Admin pages: login, dashboard, orders, products, customers |
+| `apps/admin/src/routes/` | Admin pages: login, dashboard, orders, products, customers, each list's detail page, catalog, promotions, users and settings, plus `module-placeholder.tsx` for the modules still to be built |
 | `apps/admin/src/lib/api.ts`, `types.ts` | Admin API client (Bearer token) and the API response shapes |
-| `apps/admin/src/components/resource-grid.tsx` | Searchable, server-paged table shared by the list pages |
+| `apps/admin/src/components/resource-grid.tsx` | Searchable, filterable, server-paged table shared by the list pages |
 | `.claude/skills/reui/` | ReUI design rules for Claude Code |
 
 ## Setup and running
@@ -140,7 +140,7 @@ Token lifetimes: customers 7 days, admins 12 hours. Login routes are rate-limite
 
 ## Design system
 
-The storefront uses an editorial look: warm ivory surfaces, ink text, one cobalt accent, a display serif for headlines and square controls.
+Two systems, one per audience. **The storefront** is editorial: warm ivory surfaces, ink text, one cobalt accent, a display serif for headlines and square controls (`radix-sera`). **The admin** is operational: zinc neutrals, royal violet for anything interactive, Inter throughout, 6px controls inside 8px panels (`radix-nova`). They are deliberately different, so a token or a component shape changed in one does not belong in the other.
 
 | Token | Value | Use |
 | --- | --- | --- |
@@ -152,10 +152,24 @@ The storefront uses an editorial look: warm ivory surfaces, ink text, one cobalt
 | `--border` | `#e3ded3` | Hairlines |
 | `--destructive-foreground`, `--success-foreground`, `--warning-foreground` | `#8f1d14`, `#14532f`, `#7a4a00` | Status text |
 
-- **Type:** Fraunces (display serif) for headings and the wordmark, Inter Tight for UI and body. Both are self-hosted at build time with `next/font`.
-- **Shape:** `--radius: 0`; the `radix-sera` style gives square, uppercase buttons. Product images use a 4:5 ratio.
+The admin's own palette, in `apps/admin/src/styles/globals.css`:
+
+| Token | Light | Dark | Use |
+| --- | --- | --- | --- |
+| `--background` | `#fafafa` | `#09090b` | Canvas |
+| `--card` | `#ffffff` | `#18181b` | Cards, frames, grids, the nav |
+| `--foreground` | `#09090b` | `#fafafa` | Text |
+| `--muted-foreground` | `#71717a` | `#a1a1aa` | Secondary text (4.8:1 light, 7.0:1 dark) |
+| `--primary` | `#6d28d9` | `#7c3aed` | Buttons, the current nav item, focus ring, chart 1 |
+| `--border` | `#e4e4e7` | `#27272a` | Hairlines |
+| `--success`, `--warning`, `--destructive`, `--info` | `#059669`, `#d97706`, `#e11d48`, `#2563eb` | `#10b981`, `#f59e0b`, `#f43f5e`, `#3b82f6` | Status tints; the `-foreground` rung is the text tone |
+
+- **Type:** the storefront pairs Fraunces (display serif) with Inter Tight, self-hosted at build time with `next/font`. The admin is Inter alone, from `@fontsource-variable/inter`, with two shared treatments in `apps/admin/src/lib/typography.ts`: `LABEL_CAPS` (11px, semibold, uppercase, `+0.06em`) for micro-labels, table headers and nav groups, and `METRIC_STAT` (28px) for a KPI number. They are Tailwind utilities rather than custom CSS so they merge correctly over a primitive's own classes.
+- **Shape:** the storefront is square (`--radius: 0`, `radix-sera` gives uppercase buttons) and its product images are 4:5. The admin sets `--radius: 0.375rem`, so controls land on 6px and cards and grids on 8px (`--radius-xl`); `rounded-full` is reserved for status pills and counters.
+- **Depth:** the admin leans on hairlines, not drops: `--shadow-xs`/`--shadow-sm` are a single 1px ambient line, `--shadow-md` the hover rung, `--shadow-lg` for overlays.
 - **Motion:** 200 to 500 ms transform and opacity only. Everything respects `prefers-reduced-motion`.
-- **Charts:** the admin's `--chart-1` to `--chart-5` are a fixed categorical order, validated for colour-vision separation and contrast against its white surface. Every use pairs the colour with a visible label, so nothing is identified by colour alone. Assign them in order; never cycle or recolour by rank.
+- **Themes:** the storefront is light-only; the admin themes both, `:root` light and `.dark` dark, selected by `apps/admin/src/lib/theme.ts` and pre-applied by a script in its `index.html`. Semantic tokens switch themselves; any raw palette needs its own `dark:` pair.
+- **Charts:** the admin's `--chart-1` to `--chart-5` are a fixed categorical order, validated for colour-vision separation and contrast against its surface in both themes. Every use pairs the colour with a visible label, so nothing is identified by colour alone. Assign them in order; never cycle or recolour by rank.
 - **Rules:** use installed components and theme tokens. The ReUI skill in `.claude/skills/reui` lists the details. After every `npx shadcn add`, check that no stray npm package called `cn` was added (this shadcn style does that) and remove it.
 
 ## Testing
@@ -193,8 +207,10 @@ Validate at the edge, keep money in integers, and let the error handler do the t
 
 None of these block the app in development.
 
-- **Admin covers reading, not editing.** The dashboard, orders, products and customers pages all load from the API, but nothing writes yet: there are no order-status, product-edit or promotion screens, though the API exposes those endpoints.
-- **The admin dashboard reads orders client-side.** `/admin/orders` has no date filter, so the dashboard pages through orders newest-first and stops at the range cutoff, up to 2000 rows. Past that it says the figures cover only the most recent orders. A date-filtered endpoint would be cheaper.
+- **Nine modules in the design have no API yet.** The sidebar carries all sixteen the design calls for; the nine without endpoints (analytics, inventory, suppliers, returns, shipments, invoices, payments, credit notes) render `ModulePlaceholder`, which says what each one needs. They are listed with their planned capability in `apps/admin/src/lib/modules.ts`.
+- **Settings are a single document.** `db.settings()` holds one record, id `store`. It is the home for anything that was a constant: `lowStockThreshold` was hardcoded in the dashboard route and is now read from there, falling back to 5 when nothing has been saved.
+- **Roles are enforced, narrowly.** `owner` and `staff` both reach every read; only an owner writes settings or users. The API refuses to demote or delete the last owner, and refuses to let anyone delete their own account.
+- **The admin dashboard still aggregates in the browser.** `/admin/orders` now takes `from` and `to`, so only orders inside the range are fetched, but the KPIs are summed client-side and the read stops at 2000 rows, where it says the figures cover only the most recent orders. Moving the aggregation into `/admin/dashboard` would be cheaper still.
 - **Admin login allows 5 attempts per 15 minutes** per address and email, counted in memory. A few typos lock an admin out until the window passes or the API restarts.
 - **Payments:** cash on delivery only. `paymentMethod` is fixed to `cod` on every order, and payment is tracked by hand through `awaiting`, `paid` and `refunded`.
 - **Emails:** the API sends none. No order confirmation or account email goes out.

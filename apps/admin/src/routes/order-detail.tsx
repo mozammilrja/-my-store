@@ -92,8 +92,8 @@ const Row = ({ label, value, strong }: { label: string; value: string; strong?: 
 
 const OrderSkeleton = () => (
   <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-    <Skeleton className="h-96 rounded-xl xl:col-span-2" />
-    <Skeleton className="h-96 rounded-xl" />
+    <Skeleton className="h-96 xl:col-span-2" />
+    <Skeleton className="h-96" />
   </div>
 )
 
@@ -157,6 +157,7 @@ const OrderDetailPage = () => {
   return (
     <>
       <PageHeader
+        eyebrow="Fulfillment & orders"
         title={order ? `Order #${order.displayId}` : "Order"}
         description={order ? formatDateTime(order.createdAt) : "Loading the order"}
         actions={

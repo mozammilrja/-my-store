@@ -8,6 +8,21 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0b0c'/%3E%3Ctext x='16' y='23' font-family='system-ui,sans-serif' font-size='19' font-weight='700' fill='%23ffffff' text-anchor='middle'%3EE%3C/text%3E%3C/svg%3E"
     />
+    <script>
+      // Paints the chosen palette before React loads, so a dark session never
+      // flashes the light one. Key shared with src/lib/theme.ts.
+      try {
+        var stored = localStorage.getItem("everwear_admin_theme")
+        if (
+          stored === "dark" ||
+          (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches)
+        ) {
+          document.documentElement.classList.add("dark")
+        }
+      } catch (error) {
+        /* localStorage is unavailable; the light palette stands. */
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

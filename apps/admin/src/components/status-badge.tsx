@@ -34,5 +34,9 @@ const VARIANTS = {
 export const StatusBadge = ({ status }: { status?: string | null }) => {
   const tone = TONES[status ?? ""] ?? "neutral"
 
-  return <Badge variant={VARIANTS[tone]}>{formatStatus(status)}</Badge>
+  return (
+    <Badge variant={VARIANTS[tone]} radius="full">
+      {formatStatus(status)}
+    </Badge>
+  )
 }

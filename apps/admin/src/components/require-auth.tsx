@@ -9,10 +9,10 @@ export const RequireAuth = () => {
   if (isPending) {
     return (
       <div className="flex min-h-svh">
-        <Skeleton className="hidden w-64 rounded-none md:block" />
+        <Skeleton className="hidden w-64 md:block" />
         <div className="flex flex-1 flex-col gap-4 p-6">
           <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-64 w-full rounded-xl" />
+          <Skeleton className="h-64 w-full" />
         </div>
       </div>
     )

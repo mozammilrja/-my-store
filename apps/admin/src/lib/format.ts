@@ -44,6 +44,20 @@ export const formatMoneyCompact = (amount: number, currencyCode?: string | null)
   }
 }
 
+/** 100 for most currencies, 1 for the ones with no minor unit (JPY, KRW and friends). */
+export const minorFactor = (currencyCode?: string | null) =>
+  currencyCode && ZERO_DECIMAL.has(currencyCode.toLowerCase()) ? 1 : 100
+
+/** Minor units to an editable major-unit string. The API only ever sees integers. */
+export const toMajor = (minor: number, currencyCode?: string | null) => {
+  const factor = minorFactor(currencyCode)
+  return (minor / factor).toFixed(factor === 1 ? 0 : 2)
+}
+
+/** An edited major-unit string back to the integer minor units the API takes. */
+export const toMinor = (major: string, currencyCode?: string | null) =>
+  Math.round(Number(major) * minorFactor(currencyCode))
+
 export const formatCount = (value: number) =>
   new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)
 
@@ -66,6 +80,27 @@ export const formatDateTime = (value: string | Date) =>
     hour: "numeric",
     minute: "2-digit",
   })
+
+const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" })
+const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ["day", 86_400_000],
+  ["hour", 3_600_000],
+  ["minute", 60_000],
+  ["second", 1000],
+]
+
+/** "4 minutes ago", for a live stream where the clock matters more than the date. */
+export const formatRelative = (value: string | Date) => {
+  const elapsed = new Date(value).getTime() - Date.now()
+
+  for (const [unit, ms] of UNITS) {
+    if (Math.abs(elapsed) >= ms || unit === "second") {
+      return RELATIVE.format(Math.round(elapsed / ms), unit)
+    }
+  }
+
+  return "just now"
+}
 
 export const formatStatus = (status?: string | null) => {
   if (!status) {

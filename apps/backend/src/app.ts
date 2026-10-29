@@ -11,6 +11,8 @@ import { cartRoutes } from "./routes/store/carts.js"
 import { catalogRoutes } from "./routes/store/catalog.js"
 import { customerRoutes } from "./routes/store/customers.js"
 import { adminAuthRoutes, requireAdmin } from "./routes/admin/auth.js"
+import { adminSettingsRoutes } from "./routes/admin/settings.js"
+import { adminUserRoutes } from "./routes/admin/users.js"
 import { adminOrderRoutes } from "./routes/admin/orders.js"
 import { adminProductRoutes } from "./routes/admin/products.js"
 import { adminStoreRoutes } from "./routes/admin/store.js"
@@ -81,7 +83,7 @@ export function createApp(): Express {
 
   app.use("/admin", adminAuthRoutes)
   // Everything past the login route needs a signed-in admin.
-  app.use("/admin", ...requireAdmin, adminOrderRoutes, adminProductRoutes, adminStoreRoutes)
+  app.use("/admin", ...requireAdmin, adminOrderRoutes, adminProductRoutes, adminStoreRoutes, adminSettingsRoutes, adminUserRoutes)
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "not_found", message: "Route not found" } })

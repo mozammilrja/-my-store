@@ -10,6 +10,36 @@ export type AdminUser = {
   role: "owner" | "staff"
 }
 
+/** One admin account as the users screen lists it. */
+export type AdminUserRow = AdminUser & { createdAt: string }
+
+export type NewAdminUser = {
+  email: string
+  password: string
+  name?: string
+  role?: "owner" | "staff"
+}
+
+export type AdminUserPatch = {
+  name?: string
+  role?: "owner" | "staff"
+  password?: string
+}
+
+export type StoreSettings = {
+  storeName: string
+  /** A variant at or under this count is reported as low stock. */
+  lowStockThreshold: number
+  supportEmail: string | null
+  updatedAt: string | null
+}
+
+export type SettingsPatch = {
+  storeName?: string
+  lowStockThreshold?: number
+  supportEmail?: string | null
+}
+
 export type Address = {
   firstName: string
   lastName: string

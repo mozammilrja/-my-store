@@ -1,12 +1,17 @@
 "use client"
 
+// Local adaptation: this app owns its theme (src/lib/theme.ts), so the
+// toaster reads that instead of next-themes. Redo after any `shadcn add`.
+import { useTheme } from "@/hooks/use-theme"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme } = useTheme()
+
   return (
     <Sonner
-      theme="light"
+      theme={theme as ToasterProps["theme"]}
       className="toaster group"
       icons={{
         success: (

@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { Alert, AlertDescription } from "@/components/reui/alert"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -48,7 +49,10 @@ const LoginPage = () => {
   }
 
   return (
-    <div className="bg-muted/40 flex min-h-svh items-center justify-center p-4">
+    <div className="bg-background relative flex min-h-svh items-center justify-center p-4">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="flex w-full max-w-sm flex-col gap-6">
         <div className="flex items-center justify-center gap-2">
           <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg text-sm font-semibold">

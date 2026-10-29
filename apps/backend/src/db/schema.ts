@@ -118,6 +118,16 @@ export type AdminUserDoc = {
   updatedAt: Date
 }
 
+/** One document, id `store`: the knobs an owner can turn without a deploy. */
+export type SettingsDoc = {
+  _id: string
+  storeName: string
+  /** A variant at or under this count is reported as low stock. */
+  lowStockThreshold: number
+  supportEmail?: string
+  updatedAt: Date
+}
+
 export type LineItem = {
   _id: string
   productId: string
@@ -208,6 +218,7 @@ export const db = {
   orders: (): Collection<OrderDoc> => getDb().collection("orders"),
   promotions: (): Collection<PromotionDoc> => getDb().collection("promotions"),
   counters: (): Collection<CounterDoc> => getDb().collection("counters"),
+  settings: (): Collection<SettingsDoc> => getDb().collection("settings"),
 }
 
 /** Creates every index the API relies on. Safe to run on each start. */
@@ -230,6 +241,7 @@ export async function ensureIndexes() {
     db.carts().createIndex({ updatedAt: 1 }),
     db.orders().createIndex({ displayId: 1 }, { unique: true }),
     db.orders().createIndex({ customerId: 1, createdAt: -1 }),
+    db.orders().createIndex({ createdAt: -1 }),
     db.orders().createIndex({ cartId: 1 }, { unique: true }),
     db.promotions().createIndex({ code: 1 }, { unique: true }),
   ])

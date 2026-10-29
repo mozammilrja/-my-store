@@ -141,4 +141,91 @@ export type Paged<K extends string, T> = { [key in K]: T[] } & {
   pages: number
 }
 
-export type AdminCollection = { id: string; handle: string; title: string }
+export type AdminPromotion = {
+  id: string
+  code: string
+  type: "percentage" | "fixed"
+  /** A percentage (10 = 10%) or a fixed amount in minor units of `currency`. */
+  value: number
+  currency: string | null
+  active: boolean
+  usageLimit: number | null
+  usageCount: number
+  startsAt: string | null
+  endsAt: string | null
+  createdAt: string
+}
+
+export type AdminCategory = {
+  id: string
+  handle: string
+  name: string
+  description: string | null
+  productCount: number
+}
+
+export type AdminCollection = {
+  id: string
+  handle: string
+  title: string
+  productCount: number
+}
+
+/** What a variant edit may change. Everything is optional; only sent keys are applied. */
+export type VariantPatch = {
+  id: string
+  sku?: string | null
+  prices?: Record<string, number>
+  compareAtPrices?: Record<string, number>
+  stock?: number
+  manageInventory?: boolean
+  allowBackorder?: boolean
+}
+
+export type ProductPatch = {
+  title?: string
+  subtitle?: string
+  description?: string
+  status?: ProductStatus
+  categoryIds?: string[]
+  collectionId?: string | null
+  tags?: string[]
+  images?: string[]
+  material?: string
+  handle?: string
+  variants?: VariantPatch[]
+}
+
+export type NewProduct = {
+  title: string
+  subtitle?: string
+  description?: string
+  status: ProductStatus
+  categoryIds?: string[]
+  collectionId?: string | null
+  tags?: string[]
+  images?: string[]
+  material?: string
+  handle?: string
+  options?: { title: string; values: string[] }[]
+  prices: Record<string, number>
+  stock?: number
+}
+
+export type NewPromotion = {
+  code: string
+  type: "percentage" | "fixed"
+  value: number
+  currency?: string | null
+  active?: boolean
+  usageLimit?: number | null
+  startsAt?: string | null
+  endsAt?: string | null
+}
+
+export type AdminRegion = {
+  id: string
+  name: string
+  currency: string
+  countries: { code: string; name: string }[]
+}

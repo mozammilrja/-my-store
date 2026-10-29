@@ -1,11 +1,19 @@
 import type {
+  AdminCategory,
   AdminCollection,
   AdminCustomer,
   AdminOrder,
   AdminProduct,
+  AdminPromotion,
+  AdminRegion,
   AdminUser,
   Dashboard,
+  FulfillmentStatus,
+  NewProduct,
+  NewPromotion,
   Paged,
+  PaymentStatus,
+  ProductPatch,
 } from "@/lib/types"
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:9100"
@@ -102,6 +110,39 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
   return data as T
 }
 
+/** Uploads one image. Multipart, so it bypasses the JSON client above. */
+export async function uploadImage(file: File): Promise<{ path: string; url: string }> {
+  const form = new FormData()
+  form.append("file", file)
+  const token = getToken()
+
+  let response: Response
+  try {
+    response = await fetch(`${API_URL}/admin/uploads`, {
+      method: "POST",
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      body: form,
+    })
+  } catch {
+    throw new ApiError(503, "unavailable", "Can't reach the API. Is it running?")
+  }
+
+  const data = (await response.json().catch(() => null)) as
+    | { path?: string; url?: string; error?: { code?: string; message?: string } }
+    | null
+
+  if (!response.ok) {
+    if (response.status === 401) clearToken()
+    throw new ApiError(
+      response.status,
+      data?.error?.code ?? "error",
+      data?.error?.message ?? "That image could not be uploaded"
+    )
+  }
+
+  return { path: data!.path!, url: data!.url! }
+}
+
 type ListParams = { q?: string; page?: number; limit?: number }
 
 export const adminApi = {
@@ -117,10 +158,27 @@ export const adminApi = {
 
   order: (id: string) => api<{ order: AdminOrder }>(`/admin/orders/${id}`),
 
+  setOrderStatus: (
+    id: string,
+    body: { fulfillmentStatus?: FulfillmentStatus; paymentStatus?: PaymentStatus }
+  ) => api<{ order: AdminOrder }>(`/admin/orders/${id}/status`, { method: "POST", body }),
+
+  cancelOrder: (id: string) =>
+    api<{ order: AdminOrder }>(`/admin/orders/${id}/cancel`, { method: "POST" }),
+
   products: (params: ListParams & { status?: string } = {}) =>
     api<Paged<"products", AdminProduct>>("/admin/products", { query: params }),
 
   product: (id: string) => api<{ product: AdminProduct }>(`/admin/products/${id}`),
+
+  createProduct: (body: NewProduct) =>
+    api<{ product: AdminProduct }>("/admin/products", { method: "POST", body }),
+
+  updateProduct: (id: string, body: ProductPatch) =>
+    api<{ product: AdminProduct }>(`/admin/products/${id}`, { method: "PATCH", body }),
+
+  deleteProduct: (id: string) =>
+    api<{ deleted: true }>(`/admin/products/${id}`, { method: "DELETE" }),
 
   customers: (params: ListParams = {}) =>
     api<Paged<"customers", AdminCustomer>>("/admin/customers", { query: params }),
@@ -128,5 +186,38 @@ export const adminApi = {
   customer: (id: string) =>
     api<{ customer: AdminCustomer; orders: AdminOrder[] }>(`/admin/customers/${id}`),
 
+  regions: () => api<{ regions: AdminRegion[] }>("/admin/regions"),
+
+  promotions: () => api<{ promotions: AdminPromotion[] }>("/admin/promotions"),
+
+  createPromotion: (body: NewPromotion) =>
+    api<{ promotion: AdminPromotion }>("/admin/promotions", { method: "POST", body }),
+
+  setPromotionActive: (id: string, active: boolean) =>
+    api<{ promotion: AdminPromotion }>(`/admin/promotions/${id}`, { method: "PATCH", body: { active } }),
+
+  deletePromotion: (id: string) =>
+    api<{ deleted: true }>(`/admin/promotions/${id}`, { method: "DELETE" }),
+
+  categories: () => api<{ categories: AdminCategory[] }>("/admin/categories"),
+
+  createCategory: (body: { name: string; handle: string; description?: string }) =>
+    api<{ category: { id: string; name: string; handle: string } }>("/admin/categories", { method: "POST", body }),
+
+  updateCategory: (id: string, body: { name?: string; handle?: string; description?: string }) =>
+    api<{ category: { id: string; name: string; handle: string } }>(`/admin/categories/${id}`, { method: "PATCH", body }),
+
+  deleteCategory: (id: string) =>
+    api<{ deleted: true }>(`/admin/categories/${id}`, { method: "DELETE" }),
+
   collections: () => api<{ collections: AdminCollection[] }>("/admin/collections"),
+
+  createCollection: (body: { title: string; handle: string }) =>
+    api<{ collection: { id: string; title: string; handle: string } }>("/admin/collections", { method: "POST", body }),
+
+  updateCollection: (id: string, body: { title?: string; handle?: string }) =>
+    api<{ collection: { id: string; title: string; handle: string } }>(`/admin/collections/${id}`, { method: "PATCH", body }),
+
+  deleteCollection: (id: string) =>
+    api<{ deleted: true }>(`/admin/collections/${id}`, { method: "DELETE" }),
 }

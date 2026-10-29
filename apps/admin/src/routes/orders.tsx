@@ -26,16 +26,16 @@ const columns: GridColumn<AdminOrder>[] = [
     header: "Customer",
     size: 240,
     cell: ({ row }) => {
-      const { shippingAddress, email } = row.original
+      const { shippingAddress, email, customerId } = row.original
       const name = [shippingAddress?.firstName, shippingAddress?.lastName]
         .filter(Boolean)
         .join(" ")
       return (
         <div className="flex min-w-0 flex-col">
-          <span className="truncate font-medium">{name || email || "Guest"}</span>
-          {name && email ? (
-            <span className="text-muted-foreground truncate text-xs">{email}</span>
-          ) : null}
+          <span className="truncate font-medium">{name || email}</span>
+          <span className="text-muted-foreground truncate text-xs">
+            {name ? email : customerId ? "Account" : "Guest"}
+          </span>
         </div>
       )
     },
@@ -43,14 +43,20 @@ const columns: GridColumn<AdminOrder>[] = [
   {
     id: "paymentStatus",
     header: "Payment",
-    size: 140,
+    size: 130,
     cell: ({ row }) => <StatusBadge status={row.original.paymentStatus} />,
   },
   {
     id: "fulfillmentStatus",
     header: "Fulfillment",
-    size: 150,
+    size: 140,
     cell: ({ row }) => <StatusBadge status={row.original.fulfillmentStatus} />,
+  },
+  {
+    id: "status",
+    header: "Status",
+    size: 120,
+    cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
   {
     id: "total",
@@ -67,12 +73,15 @@ const columns: GridColumn<AdminOrder>[] = [
 
 const OrdersPage = () => (
   <>
-    <PageHeader title="Orders" description="Every order placed in your store." />
+    <PageHeader
+      title="Orders"
+      description="Every order placed in your store, newest first."
+    />
     <ResourceGrid<AdminOrder>
       path="/admin/orders"
       resultKey="orders"
       columns={columns}
-      searchPlaceholder="Search orders"
+      searchPlaceholder="Search by number, email or last name"
       emptyMessage="No orders yet"
     />
   </>

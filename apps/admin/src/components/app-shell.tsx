@@ -3,10 +3,8 @@ import {
   BarChart3,
   ChevronsUpDown,
   LogOut,
-  Moon,
   Package,
   ShoppingCart,
-  Sun,
   Users,
 } from "lucide-react"
 import { Fragment } from "react"
@@ -19,7 +17,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,7 +43,6 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { useMe } from "@/hooks/use-me"
-import { useTheme } from "@/hooks/use-theme"
 import { clearToken } from "@/lib/api"
 
 type NavEntry = {
@@ -178,22 +174,6 @@ const AppSidebar = () => {
   )
 }
 
-const ThemeToggle = () => {
-  const { theme, setTheme } = useTheme()
-  const next = theme === "dark" ? "light" : "dark"
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      onClick={() => setTheme(next)}
-      aria-label={`Switch to ${next} theme`}
-    >
-      {theme === "dark" ? <Sun /> : <Moon />}
-    </Button>
-  )
-}
-
 export const AppShell = () => {
   const location = useLocation()
   const segments = location.pathname.split("/").filter(Boolean)
@@ -220,9 +200,6 @@ export const AppShell = () => {
               ))}
             </BreadcrumbList>
           </Breadcrumb>
-          <div className="ml-auto flex items-center gap-1">
-            <ThemeToggle />
-          </div>
         </header>
         <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
           <Outlet />

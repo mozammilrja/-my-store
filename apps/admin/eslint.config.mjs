@@ -24,12 +24,14 @@ export default defineConfig([
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
       ],
+      // Matches the storefront: worth seeing, not worth failing a build over.
       "react-hooks/set-state-in-effect": "warn",
       "react-hooks/refs": "warn",
     },
   },
   {
-    // Installed shadcn and ReUI primitives, vendored as published and not ours to edit.
+    // Installed shadcn and ReUI primitives. They are vendored as published and
+    // must not be hand-edited, so their findings are reported but never fatal.
     files: ["src/components/ui/**", "src/components/reui/**"],
     rules: {
       "react-refresh/only-export-components": "off",

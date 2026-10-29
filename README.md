@@ -1,186 +1,205 @@
-<p align="center">
-  <a href="https://www.medusajs.com">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/59018053/229103275-b5e482bb-4601-46e6-8142-244f531cebdb.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://user-images.githubusercontent.com/59018053/229103726-e5b529a3-9b3f-4970-8a1f-c6af37f087bf.svg">
-    <img alt="Medusa logo" src="https://user-images.githubusercontent.com/59018053/229103726-e5b529a3-9b3f-4970-8a1f-c6af37f087bf.svg">
-    </picture>
-  </a>
-</p>
-<h1 align="center">
-  Medusa DTC Starter
-</h1>
+# Everwear
 
-<h4 align="center">
-  <a href="https://docs.medusajs.com">Documentation</a> |
-  <a href="https://www.medusajs.com">Website</a>
-</h4>
+Everwear is an online store for clothing and everyday essentials, with delivery across Europe and India. It is a headless e-commerce app: a standalone commerce API, a Next.js storefront and a separate admin dashboard, in one Turborepo monorepo.
 
-<p align="center">
-  Building blocks for digital commerce
-</p>
-<p align="center">
-  <a href="https://github.com/medusajs/medusa/blob/develop/LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="Medusa is released under the MIT license." />
-  </a>
-  <a href="https://circleci.com/gh/medusajs/medusa">
-    <img src="https://circleci.com/gh/medusajs/medusa.svg?style=shield" alt="Current CircleCI build status." />
-  </a>
-  <a href="https://github.com/medusajs/medusa/blob/develop/CONTRIBUTING.md">
-    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat" alt="PRs welcome!" />
-  </a>
-    <a href="https://www.producthunt.com/posts/medusa"><img src="https://img.shields.io/badge/Product%20Hunt-%231%20Product%20of%20the%20Day-%23DA552E" alt="Product Hunt"></a>
-  <a href="https://discord.gg/xpCwq3Kfn8">
-    <img src="https://img.shields.io/badge/chat-on%20discord-7289DA.svg" alt="Discord Chat" />
-  </a>
-  <a href="https://twitter.com/intent/follow?screen_name=medusajs">
-    <img src="https://img.shields.io/twitter/follow/medusajs.svg?label=Follow%20@medusajs" alt="Follow @medusajs" />
-  </a>
-</p>
-
-# Medusa DTC Starter
-
-A production-ready monorepo starter for direct-to-consumer ecommerce stores powered by Medusa and Next.js. Includes a fully featured storefront with product browsing, cart, checkout, customer accounts, and order management.
+The API is a plain Node and Express service, independent of any frontend, so the storefront, the admin dashboard and a future mobile app all talk to the same HTTP endpoints.
 
 ## Features
 
-- All of [Medusa's commerce features](https://docs.medusajs.com/resources/commerce-modules)
-- Multi-region support with automatic country detection
-- Product catalog with variant selection
+- Multi-region storefront with automatic country detection (Europe and India)
+- Product catalog with faceted search, filters and variant selection
 - Cart with promotion codes
-- Multi-step checkout with shipping and payment
+- Multi-step checkout with cash on delivery
 - Customer accounts with order history and address management
-- Order transfer between accounts
+- Admin dashboard with sales figures, orders, products and customers
+- Stock and order placement in MongoDB transactions, so the last unit is never sold twice
 
-## Getting Started
+## Tech stack
 
-### Deploy with Medusa Cloud
+| Layer | Technology |
+| --- | --- |
+| API | Node.js 22, Express 5, TypeScript, Zod |
+| Database | MongoDB 7 (single-node replica set) |
+| Storefront | Next.js 16 (App Router), React 19, Tailwind CSS 4 |
+| Admin | React 19, Vite 8, React Router, TanStack Query, Tailwind CSS 4, shadcn/ui and ReUI |
+| Monorepo | Turborepo, npm workspaces |
+| Tests | `node:test` (API), Playwright (storefront end-to-end) |
 
-The fastest way to get started is deploying with [Medusa Cloud](https://cloud.medusajs.com):
+## Apps
 
-1. [Create a Medusa Cloud account](https://cloud.medusajs.com)
-2. Deploy this starter directly from your dashboard
+| Path | Package | What it is | Dev URL |
+| --- | --- | --- | --- |
+| `apps/backend` | `@dtc/backend` | The Everwear API | http://localhost:9100 |
+| `apps/storefront` | `@dtc/storefront` | The shop | http://localhost:8001 |
+| `apps/admin` | `@dtc/admin` | The admin dashboard | http://localhost:7001 |
 
-### Local Installation
+## Getting started
 
-> **Prerequisites:**
->
-> - [Node.js](https://nodejs.org/) v22.22+
-> - [PostgreSQL](https://www.postgresql.org/) v15+
-> - [pnpm](https://pnpm.io/) v10+
+**Prerequisites:** Node.js 22+, npm 10+, and MongoDB 7 running as a **single-node replica set**. The replica set is required: placing an order uses a multi-document transaction, which standalone MongoDB does not support.
 
-1. Clone the repository and install dependencies:
+1. Clone the repo and install dependencies:
 
-```bash
-git clone https://github.com/medusajs/dtc-starter.git
-cd dtc-starter
-pnpm install
-```
+   ```bash
+   git clone https://github.com/mozammilrja/-my-store.git
+   cd -- -my-store
+   npm install
+   ```
 
-2. Set up environment variables for the backend:
+2. Set up the API environment:
 
-```bash
-cp apps/backend/.env.template apps/backend/.env
-```
+   ```bash
+   cp apps/backend/.env.template apps/backend/.env
+   ```
 
-3. Set the database URL in `apps/backend/.env`:
+   Then set `JWT_SECRET` in `apps/backend/.env` to a random string of at least 32 characters, and check that `MONGODB_URI` points at your replica set.
 
-```bash
-# Replace with actual database URL, make sure the database exists.
-DATABASE_URL=postgres://postgres:@localhost:5432/medusa-dtc-starter
-```
+3. Create an admin user:
 
-4. Run migrations (this also seeds initial store data):
+   ```bash
+   cd apps/backend && npm run admin:create -- admin@example.com '<password>' "Your Name"
+   ```
 
-```bash
-cd apps/backend
-pnpm medusa db:migrate
-```
+4. Set up the storefront and admin environments:
 
-5. Add admin user:
+   ```bash
+   cp apps/storefront/.env.template apps/storefront/.env.local
+   cp apps/admin/.env.template apps/admin/.env.local
+   ```
 
-```bash
-cd apps/backend
-pnpm medusa user -e admin@test.com -p supersecret
-```
+5. Start everything from the repo root:
 
-6. Start Medusa backend:
+   ```bash
+   npm run dev
+   ```
 
-```bash
-cd apps/backend
-pnpm dev
-```
-
-7. Open the admin dashboard at `localhost:9000/app` and log in. Retrieve your publishable API key at Settings > Publishable API key.
-
-8. Set up environment variables for the storefront:
-
-```bash
-cp apps/storefront/.env.template apps/storefront/.env.local
-```
-
-9. Update `apps/storefront/.env.local` with your Medusa publishable API key:
-
-```bash
-NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=pk_6c3...
-```
-
-10. Start the storefront:
-
-```bash
-cd apps/storefront
-pnpm dev
-```
-
-The storefront runs on `http://localhost:8000`.
-
-You can also start both the backend and storefront from the root:
-
-```bash
-pnpm dev
-```
-
-## Project Structure
-
-```text
-apps/
-├── backend/      # Medusa application: API routes, workflows, modules, admin extensions
-└── storefront/   # Next.js storefront (optional)
-```
-
-## Building with AI Agents
-
-This repo is set up for AI coding agents such as Claude Code, Cursor, and Codex:
-
-- [`AGENTS.md`](./AGENTS.md) holds the project's commands, conventions, and off-limits paths. `CLAUDE.md` points to it.
-- Installed `@medusajs/*` packages ship their own `AGENTS.md` in `node_modules`, documenting the API of the exact version you have installed.
-- Install the [Medusa agent skills](https://docs.medusajs.com/learn/introduction/build-with-llms-ai/agentic-skills) and [MCP server](https://docs.medusajs.com/learn/introduction/build-with-llms-ai/mcp-server) for documentation-backed answers:
-
-```bash
-claude mcp add --transport http medusa https://docs.medusajs.com/mcp
-```
-
-- If you deploy on [Medusa Cloud](https://cloud.medusajs.com), add the Medusa Cloud MCP server so your agent can inspect deployments, build and runtime logs, environment variables, and your store's data. It authenticates with your Medusa Cloud account:
-
-```bash
-claude mcp add --transport http medusa-cloud https://cloud.medusajs.com/mcp
-```
+| Service | URL (dev) |
+| --- | --- |
+| Storefront | http://localhost:8001 (port 8000 with `npm run start`) |
+| API | http://localhost:9100 |
+| Admin dashboard | http://localhost:7001 |
+| Health check | http://localhost:9100/health |
 
 ## Configuration
 
-The storefront is configured via environment variables in `apps/storefront/.env.local`:
+Never commit `.env` or `.env.local`. Each app's `.env.template` documents its variables.
+
+API variables (`apps/backend/.env`):
 
 | Variable | Description | Default |
-|----------|-------------|---------|
-| `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` | Publishable API key from your Medusa backend | — |
-| `NEXT_PUBLIC_MEDUSA_BACKEND_URL` | URL of your Medusa backend | `http://localhost:9000` |
-| `NEXT_PUBLIC_DEFAULT_REGION` | Default region country code | `dk` |
-| `NEXT_PUBLIC_BASE_URL` | Base URL of the storefront | `https://localhost:8000` |
-| `NEXT_PUBLIC_STRIPE_KEY` | Stripe publishable key (optional) | — |
+| --- | --- | --- |
+| `PORT` | Port the API listens on | `9100` |
+| `MONGODB_URI` | Connection string, replica set required | required |
+| `MONGODB_DB` | Database name | `everwear` |
+| `JWT_SECRET` | Signs customer and admin tokens; 32+ characters | required |
+| `STORE_CORS` | Browser origins allowed to call `/store` | — |
+| `ADMIN_CORS` | Browser origins allowed to call `/admin` | — |
+| `API_PUBLIC_URL` | Public base URL, used to build image links | `http://localhost:9100` |
+| `UPLOADS_DIR` | Folder for uploaded product images | `uploads` |
 
-## Resources
+The API validates all of these at startup and exits with a clear message if any are missing or invalid.
 
-- [Medusa Documentation](https://docs.medusajs.com)
-- [Medusa Cloud](https://cloud.medusajs.com)
-- [Build with AI agents](https://docs.medusajs.com/learn/introduction/build-with-llms-ai)
-- [Medusa docs for LLMs (`llms.txt`)](https://docs.medusajs.com/llms.txt)
+Storefront variables (`apps/storefront/.env.local`):
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `EVERWEAR_API_URL` | Address of the API; server-side only | `http://localhost:9100` |
+| `NEXT_PUBLIC_API_PUBLIC_URL` | Public address for API-hosted images, if different | optional |
+| `NEXT_PUBLIC_DEFAULT_REGION` | Country shown at `/` | `dk` |
+| `NEXT_PUBLIC_BASE_URL` | Public URL of the storefront | `http://localhost:8001` |
+
+Admin variables (`apps/admin/.env.local`):
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `VITE_API_URL` | Address of the API. The admin is a browser app, so this must be reachable from the browser and ends up in the bundle. | `http://localhost:9100` |
+
+Sign in at http://localhost:7001 with the admin created in step 3. The admin's origin must appear in the API's `ADMIN_CORS`.
+
+## API
+
+Two audiences, each with its own CORS origins:
+
+- `/store/*` — the shop. Catalog, carts, checkout and customer accounts. Customers get a Bearer token from `/store/auth/login`.
+- `/admin/*` — the dashboard. Everything past `/admin/auth/login` needs an admin Bearer token.
+
+Both use stateless JWTs in an `Authorization: Bearer <token>` header rather than cookies, so a native mobile client can use the same endpoints as the browser. Every error response has the shape `{ "error": { "code": "...", "message": "..." } }`, and all money is an integer in the currency's minor unit (cents, paise).
+
+## Scripts
+
+Run from the repo root:
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Start every app in dev mode |
+| `npm run backend:dev` | Start only the API |
+| `npm run admin:dev` | Start only the admin dashboard |
+| `npm run storefront:dev` | Start only the storefront |
+| `npm run build` | Build all apps |
+| `npm run start` | Build, then start in production mode (storefront on port 8000) |
+| `npm run lint` | Lint the frontend apps |
+| `npm run typecheck` | Type-check every app that defines the task |
+| `npm test` | Run each app's tests |
+
+From `apps/backend`:
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Watch mode on `PORT` |
+| `npm run build` / `npm start` | Compile to `dist/`, then run it |
+| `npm run typecheck` | `tsc`, no emit |
+| `npm test` | API suites; needs MongoDB |
+| `npm run admin:create -- <email> <password> ["Name"]` | Create or reset an admin |
+| `npm run migrate:medusa` | One-off import of a catalog from an old Medusa PostgreSQL database |
+| `npm run catalog:localize` | One-off pass that pulls remote product images into `uploads/` |
+
+The storefront's production build reads the sitemap from the API, so the API must be running while you build.
+
+## Testing
+
+```bash
+# API (from apps/backend) — needs MongoDB; drops its own test databases
+npm test
+
+# Storefront (from apps/storefront, with the API running)
+npx tsc --noEmit
+npx playwright test
+```
+
+The checkout and account tests create real orders and customers in the local database. Don't run them against production.
+
+## Project structure
+
+```text
+apps/
+├── backend/        # Everwear API: Express app, routes, MongoDB access, scripts, tests
+│   ├── scripts/
+│   ├── test/
+│   └── src/
+│       ├── app.ts      # Express app: middleware, routers, error handler
+│       ├── index.ts    # Server start and shutdown
+│       ├── db/         # MongoDB client, schema types, indexes
+│       ├── lib/        # auth, errors, validation, totals, regions, serialize, ids
+│       └── routes/     # store/* and admin/* routers
+├── admin/          # Admin dashboard: a Vite single-page app
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx    # Router and query client
+│       ├── routes/     # login, dashboard, orders, products, customers
+│       ├── components/ # app shell, resource grid, ui/ + reui/ primitives
+│       └── lib/        # API client, response types, formatters
+├── storefront/     # Next.js storefront
+│   ├── e2e/        # Playwright tests
+│   └── src/
+│       ├── app/        # Routes (under [countryCode]/)
+│       ├── lib/api/    # Server-side API client
+│       └── modules/    # Feature UI: shell, catalog, product, bag, checkout, account, order
+docs/PROJECT.md     # Architecture, design system, and known issues
+AGENTS.md           # Conventions and commands for coding agents
+```
+
+For architecture, design tokens and known issues, see [`docs/PROJECT.md`](./docs/PROJECT.md).
+
+## Branches
+
+- `main`: stable code
+- `develop`: ongoing work; open pull requests against this branch

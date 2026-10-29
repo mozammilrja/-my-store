@@ -194,7 +194,9 @@ const summarize = (
     itemsSold,
     newCustomers,
     daily,
-    topProducts: [...products.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 6),
+    topProducts: [...products.values()]
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 6),
     paymentStatus: countBy(currentAll.map((order) => order.paymentStatus)),
     fulfillmentStatus: countBy(currentAll.map((order) => order.fulfillmentStatus)),
     recentOrders: currentAll.slice(0, 6),

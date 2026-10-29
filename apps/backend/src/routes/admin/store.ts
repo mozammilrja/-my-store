@@ -62,6 +62,21 @@ adminStoreRoutes.get("/customers/:id", async (req, res) => {
   })
 })
 
+/* ---------- regions ---------- */
+
+/** Which currencies the store sells in; product prices are keyed by these. */
+adminStoreRoutes.get("/regions", async (_req, res) => {
+  const regions = await db.regions().find({}, { sort: { name: 1 } }).toArray()
+  res.json({
+    regions: regions.map((r) => ({
+      id: r._id,
+      name: r.name,
+      currency: r.currency,
+      countries: r.countries,
+    })),
+  })
+})
+
 /* ---------- promotions ---------- */
 
 const toAdminPromotion = (p: PromotionDoc) => ({
@@ -125,6 +140,24 @@ adminStoreRoutes.delete("/promotions/:id", async (req, res) => {
 
 /* ---------- categories and collections ---------- */
 
+adminStoreRoutes.get("/categories", async (_req, res) => {
+  const categories = await db.categories().find({}, { sort: { rank: 1, name: 1 } }).toArray()
+  const counts = await db
+    .products()
+    .aggregate<{ _id: string; count: number }>([{ $unwind: "$categoryIds" }, { $group: { _id: "$categoryIds", count: { $sum: 1 } } }])
+    .toArray()
+  const countBy = new Map(counts.map((c) => [c._id, c.count]))
+  res.json({
+    categories: categories.map((c) => ({
+      id: c._id,
+      handle: c.handle,
+      name: c.name,
+      description: c.description ?? null,
+      productCount: countBy.get(c._id) ?? 0,
+    })),
+  })
+})
+
 adminStoreRoutes.post("/categories", async (req, res) => {
   const body = z.object({ name, handle, description: z.string().trim().max(1000).optional() }).parse(req.body)
   const now = new Date()
@@ -149,11 +182,23 @@ adminStoreRoutes.delete("/categories/:id", async (req, res) => {
   res.json({ deleted: true })
 })
 
-/** The admin's product list shows a collection name, so it needs to read them. */
 adminStoreRoutes.get("/collections", async (_req, res) => {
   const collections = await db.collections().find({}, { sort: { title: 1 } }).toArray()
+  const counts = await db
+    .products()
+    .aggregate<{ _id: string; count: number }>([
+      { $match: { collectionId: { $ne: null } } },
+      { $group: { _id: "$collectionId", count: { $sum: 1 } } },
+    ])
+    .toArray()
+  const countBy = new Map(counts.map((c) => [c._id, c.count]))
   res.json({
-    collections: collections.map((c) => ({ id: c._id, handle: c.handle, title: c.title })),
+    collections: collections.map((c) => ({
+      id: c._id,
+      handle: c.handle,
+      title: c.title,
+      productCount: countBy.get(c._id) ?? 0,
+    })),
   })
 })
 

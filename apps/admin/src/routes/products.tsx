@@ -1,28 +1,11 @@
-import { useQuery } from "@tanstack/react-query"
 import { ImageIcon } from "lucide-react"
-import { useMemo } from "react"
 import { PageHeader } from "@/components/page-header"
 import { ResourceGrid, type GridColumn } from "@/components/resource-grid"
 import { StatusBadge } from "@/components/status-badge"
-import { adminApi } from "@/lib/api"
 import { formatCount } from "@/lib/format"
 import type { AdminProduct } from "@/lib/types"
 
-/** Products carry a collection id; the name comes from the collections list. */
-const useCollectionTitles = () => {
-  const query = useQuery({
-    queryKey: ["collections"],
-    queryFn: async () => (await adminApi.collections()).collections,
-    staleTime: 10 * 60_000,
-  })
-
-  return useMemo(
-    () => new Map((query.data ?? []).map((collection) => [collection.id, collection.title])),
-    [query.data]
-  )
-}
-
-const buildColumns = (collectionTitles: Map<string, string>): GridColumn<AdminProduct>[] => [
+const columns: GridColumn<AdminProduct>[] = [
   {
     id: "title",
     header: "Product",
@@ -38,29 +21,52 @@ const buildColumns = (collectionTitles: Map<string, string>): GridColumn<AdminPr
         </div>
         <div className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.original.title}</span>
-          <span className="text-muted-foreground truncate text-xs">{row.original.handle}</span>
+          <span className="text-muted-foreground truncate text-xs">
+            {row.original.handle}
+          </span>
         </div>
       </div>
     ),
   },
   {
-    id: "collection",
-    header: "Collection",
-    size: 180,
-    cell: ({ row }) => {
-      const title = row.original.collectionId
-        ? collectionTitles.get(row.original.collectionId)
-        : undefined
-      return title ?? <span className="text-muted-foreground">—</span>
-    },
-  },
-  {
     id: "variants",
     header: "Variants",
     size: 110,
+    meta: { headerClassName: "text-right", cellClassName: "text-right" },
     cell: ({ row }) => (
-      <span className="tabular-nums">{formatCount(row.original.variants?.length ?? 0)}</span>
+      <span className="tabular-nums">{formatCount(row.original.variants.length)}</span>
     ),
+  },
+  {
+    id: "stock",
+    header: "In stock",
+    size: 110,
+    meta: { headerClassName: "text-right", cellClassName: "text-right" },
+    cell: ({ row }) => {
+      const stock = row.original.totalStock
+      return (
+        <span
+          className={
+            stock === 0 ? "text-destructive font-medium tabular-nums" : "tabular-nums"
+          }
+        >
+          {formatCount(stock)}
+        </span>
+      )
+    },
+  },
+  {
+    id: "tags",
+    header: "Tags",
+    size: 200,
+    cell: ({ row }) =>
+      row.original.tags.length ? (
+        <span className="text-muted-foreground truncate">
+          {row.original.tags.join(", ")}
+        </span>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      ),
   },
   {
     id: "status",
@@ -70,22 +76,17 @@ const buildColumns = (collectionTitles: Map<string, string>): GridColumn<AdminPr
   },
 ]
 
-const ProductsPage = () => {
-  const collectionTitles = useCollectionTitles()
-  const columns = useMemo(() => buildColumns(collectionTitles), [collectionTitles])
-
-  return (
-    <>
-      <PageHeader title="Products" description="Everything listed in your catalog." />
-      <ResourceGrid<AdminProduct>
-        path="/admin/products"
-        resultKey="products"
-        columns={columns}
-        searchPlaceholder="Search products"
-        emptyMessage="No products yet"
-      />
-    </>
-  )
-}
+const ProductsPage = () => (
+  <>
+    <PageHeader title="Products" description="Everything listed in your catalog." />
+    <ResourceGrid<AdminProduct>
+      path="/admin/products"
+      resultKey="products"
+      columns={columns}
+      searchPlaceholder="Search by title, handle or SKU"
+      emptyMessage="No products yet"
+    />
+  </>
+)
 
 export default ProductsPage

@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/reui/badge"
 import { ResourceGrid, type GridColumn } from "@/components/resource-grid"
-import { formatDate } from "@/lib/format"
+import { formatCount, formatDate } from "@/lib/format"
 import type { AdminCustomer } from "@/lib/types"
 
 const columns: GridColumn<AdminCustomer>[] = [
@@ -16,20 +16,31 @@ const columns: GridColumn<AdminCustomer>[] = [
     header: "Name",
     size: 200,
     cell: ({ row }) => {
-      const name = [row.original.firstName, row.original.lastName].filter(Boolean).join(" ")
+      const name = [row.original.firstName, row.original.lastName]
+        .filter(Boolean)
+        .join(" ")
       return name ? name : <span className="text-muted-foreground">—</span>
     },
   },
   {
     id: "account",
     header: "Account",
-    size: 140,
+    size: 130,
     cell: ({ row }) =>
       row.original.hasAccount ? (
         <Badge variant="success-light">Registered</Badge>
       ) : (
         <Badge variant="outline">Guest</Badge>
       ),
+  },
+  {
+    id: "orders",
+    header: "Orders",
+    size: 100,
+    meta: { headerClassName: "text-right", cellClassName: "text-right" },
+    cell: ({ row }) => (
+      <span className="tabular-nums">{formatCount(row.original.orderCount)}</span>
+    ),
   },
   {
     id: "createdAt",
@@ -51,7 +62,7 @@ const CustomersPage = () => (
       path="/admin/customers"
       resultKey="customers"
       columns={columns}
-      searchPlaceholder="Search customers"
+      searchPlaceholder="Search by email or name"
       emptyMessage="No customers yet"
     />
   </>

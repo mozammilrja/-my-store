@@ -1,0 +1,843 @@
+import React, { useState, useMemo } from 'react';
+import { Select } from '../ui/select';
+import { collectionsData } from '../../data/mockData';
+
+export function CategoriesAndCollections({ onNavigate, onShowToast }) {
+  const [activeTab, setActiveTab] = useState('drops'); // 'drops', 'tree', 'rules', 'channels'
+  const [selectedDropId, setSelectedDropId] = useState('col-1');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [seasonFilter, setSeasonFilter] = useState('All Seasons (2024-25)');
+  const [channelFilter, setChannelFilter] = useState('All Omnichannel');
+  const [statusFilter, setStatusFilter] = useState('Active & Scheduled');
+  const [viewDensity, setViewDensity] = useState('list'); // 'list' | 'grid'
+  const [selectedCheckboxes, setSelectedCheckboxes] = useState({ 'col-1': true });
+
+
+
+  const selectedDrop = useMemo(() => {
+    return collectionsData.find(d => d.id === selectedDropId) || collectionsData[0];
+  }, [selectedDropId]);
+
+  const filteredCollections = useMemo(() => {
+    return collectionsData.filter(d => {
+      if (seasonFilter !== 'All Seasons (2024-25)' && d.season !== seasonFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        if (!d.title.toLowerCase().includes(q) && !d.code.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [searchQuery, seasonFilter]);
+
+  const toggleCheckbox = (id) => {
+    setSelectedCheckboxes(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const selectedCount = Object.values(selectedCheckboxes).filter(Boolean).length;
+
+  return (
+    <div className="flex flex-col w-full space-y-space-md">
+      {/* Breadcrumb & Page Header Bar */}
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-space-sm bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle">
+        <div className="flex flex-col space-y-0.5">
+          <div className="flex items-center gap-1.5 font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">
+            <span>Everwear Admin</span>
+            <span className="text-outline-variant">/</span>
+            <span>Catalog & Inventory</span>
+            <span className="text-outline-variant">/</span>
+            <span className="text-primary-container font-semibold">Categories & Collections</span>
+          </div>
+          <h1 className="font-headline-lg text-headline-lg text-text-primary tracking-tight font-semibold">
+            Taxonomy, Collections & Visual Merchandising
+          </h1>
+          <p className="font-body-sm text-body-sm text-text-secondary max-w-3xl">
+            Manage seasonal drops, hierarchical apparel taxonomy, curated lookbook collections, and dynamic rule-based sorting across storefronts and marketplace feeds.
+          </p>
+        </div>
+
+        {/* Primary Quick Actions */}
+        <div className="flex flex-wrap items-center gap-space-xs shrink-0 pt-2 xl:pt-0">
+          <button
+            onClick={() => onShowToast?.('Exporting taxonomy structure to CSV/JSON format...')}
+            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle"
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[16px] text-secondary">file_download</span>
+            <span>Export Taxonomy</span>
+          </button>
+          <button
+            onClick={() => onShowToast?.('Opening dynamic visual reordering rules editor...')}
+            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle"
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[16px] text-secondary">reorder</span>
+            <span>Reorder Rules</span>
+          </button>
+          <button
+            onClick={() => onShowToast?.('Creating new category node in taxonomy tree...')}
+            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle"
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[16px] text-secondary">add</span>
+            <span>New Category</span>
+          </button>
+          <button
+            onClick={() => onShowToast?.('Opening Collection Drop Creator wizard...')}
+            className="inline-flex items-center gap-1.5 h-8 px-space-md rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-primary font-label-sm text-label-sm shadow-sm transition-colors"
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[16px]">stars</span>
+            <span>Create Collection Drop</span>
+          </button>
+        </div>
+      </div>
+
+      {/* KPI / Metric Ribbon (Exact 5 cards from Stitch design) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-space-sm">
+        {/* Active Categories */}
+        <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Active Categories</span>
+            <span className="material-symbols-outlined text-[18px] text-secondary">account_tree</span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">142</span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">
+              +8 this season
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] font-body-sm text-text-secondary">4 Global Depts · 18 Sub-nodes</div>
+        </div>
+
+        {/* Curated Drops */}
+        <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Curated Drops</span>
+            <span className="material-symbols-outlined text-[18px] text-fashion-magenta">auto_awesome</span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">38 drops</span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-info-bg text-status-info font-label-xs-caps text-label-xs-caps font-semibold">
+              6 Live
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] font-body-sm text-text-secondary">4 Scheduled · 28 Archived</div>
+        </div>
+
+        {/* Merch Rules */}
+        <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Merch Rules</span>
+            <span className="material-symbols-outlined text-[18px] text-secondary">tune</span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">24 Active</span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-surface-subtle text-text-secondary font-label-xs-caps text-label-xs-caps font-semibold">
+              Smart Boost
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] font-body-sm text-text-secondary">Avg Margin Lift +4.8%</div>
+        </div>
+
+        {/* Orphan SKUs */}
+        <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Orphan SKUs</span>
+            <span className="material-symbols-outlined text-[18px] text-status-success">verified</span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="font-metric-stat text-metric-stat text-status-success font-semibold">0 SKUs</span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">
+              100% Synced
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] font-body-sm text-text-secondary">Strict Taxonomy Gate Active</div>
+        </div>
+
+        {/* Omnichannel Feed */}
+        <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between col-span-2 md:col-span-1">
+          <div className="flex items-center justify-between">
+            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Omnichannel Feed</span>
+            <span className="material-symbols-outlined text-[18px] text-status-info">cloud_sync</span>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">99.9%</span>
+            <span className="inline-flex items-center gap-1 text-[11px] text-status-success font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-status-success"></span>
+              Healthy
+            </span>
+          </div>
+          <div className="mt-2 text-[11px] font-body-sm text-text-secondary truncate">Myntra · Nykaa · Web · iOS</div>
+        </div>
+      </div>
+
+      {/* Main Work Surface (2/3 Master + 1/3 Inspector Split) */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-md items-start">
+        {/* LEFT 8-COLUMNS: Management Matrix & Collection Engine */}
+        <div className="xl:col-span-8 flex flex-col space-y-space-sm">
+          {/* Primary Tab Navigation Strip */}
+          <div className="bg-surface-container-lowest rounded-xl p-space-xs shadow-sm border border-border-subtle flex items-center justify-between flex-wrap gap-space-xs">
+            <div className="flex items-center gap-1 overflow-x-auto">
+              <button
+                onClick={() => setActiveTab('drops')}
+                className={`px-space-md py-1.5 rounded-lg font-label-sm text-label-sm flex items-center gap-2 transition-all ${
+                  activeTab === 'drops'
+                    ? 'bg-primary-container text-on-primary shadow-sm font-semibold'
+                    : 'hover:bg-surface-subtle text-on-surface-variant'
+                }`}
+                type="button"
+              >
+                <span>Curated Drops & Collections</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[11px] ${activeTab === 'drops' ? 'bg-white/20 text-white' : 'bg-surface-subtle text-text-secondary'}`}>
+                  38
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab('tree')}
+                className={`px-space-md py-1.5 rounded-lg font-label-sm text-label-sm flex items-center gap-2 transition-all ${
+                  activeTab === 'tree'
+                    ? 'bg-primary-container text-on-primary shadow-sm font-semibold'
+                    : 'hover:bg-surface-subtle text-on-surface-variant'
+                }`}
+                type="button"
+              >
+                <span>Taxonomy Hierarchy Tree</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[11px] ${activeTab === 'tree' ? 'bg-white/20 text-white' : 'bg-surface-subtle text-text-secondary'}`}>
+                  142
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab('rules')}
+                className={`px-space-md py-1.5 rounded-lg font-label-sm text-label-sm flex items-center gap-2 transition-all ${
+                  activeTab === 'rules'
+                    ? 'bg-primary-container text-on-primary shadow-sm font-semibold'
+                    : 'hover:bg-surface-subtle text-on-surface-variant'
+                }`}
+                type="button"
+              >
+                <span>Smart Rules Engine</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[11px] ${activeTab === 'rules' ? 'bg-white/20 text-white' : 'bg-surface-subtle text-text-secondary'}`}>
+                  24
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab('channels')}
+                className={`px-space-md py-1.5 rounded-lg font-label-sm text-label-sm transition-all ${
+                  activeTab === 'channels'
+                    ? 'bg-primary-container text-on-primary shadow-sm font-semibold'
+                    : 'hover:bg-surface-subtle text-on-surface-variant'
+                }`}
+                type="button"
+              >
+                <span>Marketplace Channels</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-1 pr-1">
+              <button
+                onClick={() => setViewDensity('list')}
+                className={`p-1.5 rounded-lg transition-colors ${viewDensity === 'list' ? 'bg-surface-subtle text-text-primary' : 'text-secondary hover:bg-surface-subtle'}`}
+                title="Density Matrix"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[18px]">view_list</span>
+              </button>
+              <button
+                onClick={() => setViewDensity('grid')}
+                className={`p-1.5 rounded-lg transition-colors ${viewDensity === 'grid' ? 'bg-surface-subtle text-text-primary' : 'text-secondary hover:bg-surface-subtle'}`}
+                title="Visual Cards View"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[18px]">grid_view</span>
+              </button>
+            </div>
+          </div>
+
+          {/* High Density Filter Bar */}
+          <div className="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm border border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-space-xs">
+            <div className="flex items-center gap-space-xs flex-1 max-w-lg">
+              <div className="relative w-full flex items-center">
+                <span className="material-symbols-outlined absolute left-2 text-secondary text-[16px]">search</span>
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-8 pl-8 pr-3 text-body-sm font-body-sm bg-surface-canvas rounded-lg text-text-primary placeholder:text-text-secondary border border-border-subtle focus:outline-none focus:ring-1 focus:ring-primary-container"
+                  placeholder="Search collection title, slug, tag, or hero model..."
+                  type="text"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Season select */}
+              <div className="w-48">
+                <Select
+                  value={seasonFilter}
+                  onChange={(e) => setSeasonFilter(e.target.value)}
+                  className="h-8 text-xs"
+                >
+                  <option>All Seasons (2024-25)</option>
+                  <option>Festive Atelier '24</option>
+                  <option>Autumn/Winter '24</option>
+                  <option>Summer Essentials '24</option>
+                  <option>Core Evergreen</option>
+                </Select>
+              </div>
+              {/* Channel select */}
+              <div className="w-44">
+                <Select
+                  value={channelFilter}
+                  onChange={(e) => setChannelFilter(e.target.value)}
+                  className="h-8 text-xs"
+                >
+                  <option>All Omnichannel</option>
+                  <option>Mobile App Exclusives</option>
+                  <option>Storefront Web</option>
+                  <option>Myntra Syndicate</option>
+                </Select>
+              </div>
+              {/* Status Pill Filter */}
+              <div className="w-44">
+                <Select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-8 text-xs"
+                >
+                  <option>Active &amp; Scheduled</option>
+                  <option>Active Live Only</option>
+                  <option>Draft / In Review</option>
+                  <option>Archived</option>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {/* TAB 1: Curated Drops & Collections */}
+          {activeTab === 'drops' && (
+            <div className="space-y-space-xs">
+              {filteredCollections.map((col) => {
+                const isSelected = selectedDropId === col.id;
+                return (
+                  <div
+                    key={col.id}
+                    onClick={() => setSelectedDropId(col.id)}
+                    className={`group relative p-space-sm rounded-xl shadow-sm transition-all cursor-pointer border ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-primary-fixed/30 via-surface-container-lowest to-surface-container-lowest border-primary-container shadow-sm'
+                        : 'bg-surface-container-lowest hover:bg-surface-bright border-border-subtle'
+                    }`}
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-sm">
+                      <div className="flex items-center gap-space-sm min-w-0">
+                        <input
+                          checked={!!selectedCheckboxes[col.id]}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleCheckbox(col.id);
+                          }}
+                          className="w-4 h-4 rounded text-primary-container accent-primary-container shrink-0 cursor-pointer"
+                          type="checkbox"
+                        />
+                        {/* Lookbook Image */}
+                        <div className="relative w-20 h-16 rounded-lg overflow-hidden shrink-0 bg-surface-subtle shadow-inner">
+                          <img
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            src={col.thumbnail}
+                            alt={col.title}
+                          />
+                          <span className={`absolute bottom-1 right-1 px-1 py-0.2 rounded font-label-xs-caps text-[9px] uppercase ${
+                            col.tag === 'Oct 15' ? 'bg-status-warning text-white' : 'bg-black/70 text-white'
+                          }`}>
+                            {col.tag}
+                          </span>
+                        </div>
+                        {/* Metadata & Title */}
+                        <div className="flex flex-col min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-headline-sm text-headline-sm text-text-primary font-semibold truncate hover:text-primary-container">
+                              {col.title}
+                            </span>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-label-xs-caps text-label-xs-caps font-semibold ${
+                              col.badgeType === 'success'
+                                ? 'bg-status-success-bg text-status-success'
+                                : col.badgeType === 'warning'
+                                ? 'bg-status-warning-bg text-status-warning'
+                                : 'bg-surface-subtle text-text-secondary'
+                            }`}>
+                              {col.badge}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-surface-subtle font-label-xs-caps text-label-xs-caps text-text-secondary">
+                              {col.code}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-space-sm mt-1 text-body-sm font-body-sm text-text-secondary flex-wrap">
+                            <span className="flex items-center gap-1 text-text-primary font-medium">
+                              <span className="material-symbols-outlined text-[14px] text-fashion-magenta">checkroom</span>
+                              {col.skusCount} SKUs
+                            </span>
+                            <span>•</span>
+                            <span>
+                              Price Range: <strong className="text-text-primary font-semibold">{col.priceRange}</strong>
+                            </span>
+                            <span>•</span>
+                            <span className="text-primary-container font-medium flex items-center gap-0.5">
+                              <span className="material-symbols-outlined text-[14px]">{col.ruleIcon}</span>
+                              {col.ruleText}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quantitative Metrics Block */}
+                      <div className="flex items-center gap-space-lg shrink-0 justify-between lg:justify-end pl-6 lg:pl-0">
+                        <div className="flex flex-col text-right">
+                          <span className="font-label-xs-caps text-label-xs-caps text-text-secondary">COLLECTION GMV</span>
+                          <span className="font-headline-sm text-headline-sm text-text-primary font-semibold">{col.gmv}</span>
+                          <span className={`text-[11px] font-medium ${col.gmvSubColor}`}>{col.gmvSub}</span>
+                        </div>
+                        <div className="hidden sm:flex flex-col text-right">
+                          <span className="font-label-xs-caps text-label-xs-caps text-text-secondary">CVR / AOV</span>
+                          <span className="font-body-sm text-body-sm text-text-primary font-medium">{col.cvrAov}</span>
+                          <span className="text-[11px] text-text-secondary">{col.channelsText}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onShowToast?.(`Editing dynamic rules for ${col.code}...`);
+                            }}
+                            className="p-1.5 rounded-lg bg-surface-subtle text-secondary hover:text-text-primary hover:bg-border-subtle"
+                            title="Edit Rule Set"
+                            type="button"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">tune</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onShowToast?.(`Opening options for ${col.code}...`);
+                            }}
+                            className="p-1.5 rounded-lg bg-surface-subtle text-secondary hover:text-text-primary hover:bg-border-subtle"
+                            title="View Options"
+                            type="button"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">more_vert</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Quick Batch Merchandising Bar */}
+              <div className="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm border border-border-subtle flex items-center justify-between text-body-sm font-body-sm">
+                <div className="flex items-center gap-space-sm text-text-secondary">
+                  <span className="font-label-sm text-label-sm font-semibold text-text-primary">
+                    {selectedCount} Collection Selected
+                  </span>
+                  <span>•</span>
+                  <span>Showing {filteredCollections.length} of 38 Active Drops</span>
+                </div>
+                <div className="flex items-center gap-space-xs">
+                  <button
+                    onClick={() => onShowToast?.(`Bulk rule applied to ${selectedCount} selected collections.`)}
+                    className="px-space-sm py-1 rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm border border-border-subtle transition-colors"
+                    type="button"
+                  >
+                    Bulk Rule Apply
+                  </button>
+                  <button
+                    onClick={() => onShowToast?.(`Omnichannel sync triggered for active catalog drops.`)}
+                    className="px-space-sm py-1 rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm border border-border-subtle transition-colors"
+                    type="button"
+                  >
+                    Sync Channels
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: Taxonomy Hierarchy Tree */}
+          {activeTab === 'tree' && (
+            <div className="bg-surface-container-lowest p-5 rounded-xl border border-border-subtle shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-headline-sm font-semibold text-text-primary">Everwear Apparel Master Hierarchy</h3>
+                  <p className="text-xs text-text-secondary">4 Global Departments · 18 Category Sub-nodes · 142 Terminal Leafs</p>
+                </div>
+                <button
+                  onClick={() => onShowToast?.('Adding new department root...')}
+                  className="px-3 py-1.5 bg-primary-container text-white text-xs font-semibold rounded-lg shadow-sm"
+                >
+                  + Add Root Node
+                </button>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                {/* Women's Ethnic */}
+                <div className="p-3 bg-surface-canvas rounded-lg border border-border-subtle">
+                  <div className="flex items-center justify-between font-semibold text-text-primary cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[16px] text-primary">folder</span>
+                      <span>Women's Ethnic Atelier (48 Sub-categories)</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-status-success text-[10px]">1,280 SKUs Active</span>
+                  </div>
+                  <div className="pl-6 mt-2 space-y-1.5 text-text-secondary">
+                    <div className="flex items-center justify-between py-1 border-b border-border-subtle">
+                      <span>└── Sarees (Chanderi, Banarasi, Raw Silk, Georgette)</span>
+                      <span className="font-mono text-text-primary">420 SKUs</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-border-subtle">
+                      <span>└── Kurtas & Sets (Anarkali, Straight Fit, Palazzo Combos)</span>
+                      <span className="font-mono text-text-primary">540 SKUs</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span>└── Lehengas & Dupattas (Bridal Velvet, Zari Heavy, Festive Organza)</span>
+                      <span className="font-mono text-text-primary">320 SKUs</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Men's Sartorial & Casual */}
+                <div className="p-3 bg-surface-canvas rounded-lg border border-border-subtle">
+                  <div className="flex items-center justify-between font-semibold text-text-primary cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[16px] text-fashion-magenta">folder</span>
+                      <span>Men's Sartorial & Casuals (36 Sub-categories)</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-status-info text-[10px]">940 SKUs Active</span>
+                  </div>
+                  <div className="pl-6 mt-2 space-y-1.5 text-text-secondary">
+                    <div className="flex items-center justify-between py-1 border-b border-border-subtle">
+                      <span>└── Shirts & Knits (Supima Cotton, French Linen, Oxford Weave)</span>
+                      <span className="font-mono text-text-primary">380 SKUs</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-border-subtle">
+                      <span>└── Outerwear & Tailored (Cashmere Overcoats, Merino Wool, Sherwanis)</span>
+                      <span className="font-mono text-text-primary">240 SKUs</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span>└── Denim & Trousers (Shuttle-Loom Selvedge, Pleated Chinos)</span>
+                      <span className="font-mono text-text-primary">320 SKUs</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: Smart Rules Engine */}
+          {activeTab === 'rules' && (
+            <div className="bg-surface-container-lowest p-5 rounded-xl border border-border-subtle shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-headline-sm font-semibold text-text-primary">Dynamic Merchandising & Re-ranking Rules</h3>
+                  <p className="text-xs text-text-secondary">24 Active visual rules regulating product placements across storefronts</p>
+                </div>
+                <button
+                  onClick={() => onShowToast?.('Creating custom merchandising rule...')}
+                  className="px-3 py-1.5 bg-primary-container text-white text-xs font-semibold rounded-lg shadow-sm"
+                >
+                  + Create Rule
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="p-4 bg-surface-canvas rounded-xl border border-border-subtle space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs text-text-primary">RULE #01: High Gross Margin Booster</span>
+                    <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-status-success text-[10px] font-bold">Active in 18 Collections</span>
+                  </div>
+                  <p className="text-xs text-text-secondary">IF Gross Margin &gt;= 55% AND Local FC Stock &gt; 10 THEN Elevate Rank by +35 positions.</p>
+                  <div className="flex items-center gap-4 text-[11px] text-text-secondary font-mono">
+                    <span>Lift: +4.8% Net Contribution</span>
+                    <span>Evaluation Latency: 12ms</span>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-surface-canvas rounded-xl border border-border-subtle space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs text-text-primary">RULE #02: Low Inventory Demotion Guardrail</span>
+                    <span className="px-2 py-0.5 rounded-full bg-status-warning-bg text-status-warning text-[10px] font-bold">Storewide Guard</span>
+                  </div>
+                  <p className="text-xs text-text-secondary">IF Total Size Availability &lt; 2 Sizes THEN Demote to Page 2+ to prevent bounce rate spike.</p>
+                  <div className="flex items-center gap-4 text-[11px] text-text-secondary font-mono">
+                    <span>Prevents 8.4% Out-of-Stock Clicks</span>
+                    <span>Active 24/7</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: Marketplace Channels */}
+          {activeTab === 'channels' && (
+            <div className="bg-surface-container-lowest p-5 rounded-xl border border-border-subtle shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-headline-sm font-semibold text-text-primary">Omnichannel Catalog Feed Syndication</h3>
+                  <p className="text-xs text-text-secondary">Live schema transformation & inventory sync pipelines</p>
+                </div>
+                <button
+                  onClick={() => onShowToast?.('Force syndicating all active channel feeds...')}
+                  className="px-3 py-1.5 bg-primary-container text-white text-xs font-semibold rounded-lg shadow-sm"
+                >
+                  Force Feed Resync
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="p-4 bg-surface-canvas rounded-xl border border-border-subtle space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs text-text-primary">Myntra Brand Store Feed</span>
+                    <span className="w-2 h-2 rounded-full bg-status-success"></span>
+                  </div>
+                  <p className="text-xs text-text-secondary">Synced: 1,480 SKUs · HSN Validation Active · SLA 99.9%</p>
+                  <span className="text-[10px] font-mono text-status-success">Last ping: 42s ago</span>
+                </div>
+                <div className="p-4 bg-surface-canvas rounded-xl border border-border-subtle space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs text-text-primary">Nykaa Fashion Premium API</span>
+                    <span className="w-2 h-2 rounded-full bg-status-success"></span>
+                  </div>
+                  <p className="text-xs text-text-secondary">Synced: 680 Curated Ethnic SKUs · Lookbook Media Synced</p>
+                  <span className="text-[10px] font-mono text-status-success">Last ping: 2m ago</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT 4-COLUMNS: Visual Merchandising Inspector Drawer (Exact 1:1 with Stitch design) */}
+        <div className="xl:col-span-4 flex flex-col space-y-space-sm">
+          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle p-space-md flex flex-col space-y-space-md">
+            {/* Inspector Top Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5 font-label-xs-caps text-label-xs-caps text-primary-container uppercase font-semibold">
+                  <span className="material-symbols-outlined text-[14px]">tune</span>
+                  Visual Merch Inspector
+                </div>
+                <h2 className="font-headline-md text-headline-md text-text-primary font-semibold tracking-tight mt-0.5">
+                  {selectedDrop.title}
+                </h2>
+                <span className="text-body-sm font-body-sm text-text-secondary">Collection ID: {selectedDrop.code}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">
+                  LIVE APP
+                </span>
+              </div>
+            </div>
+
+            {/* Banner & Media Lookbook Preview Container */}
+            <div className="space-y-space-xs">
+              <div className="flex items-center justify-between text-label-xs-caps font-label-xs-caps text-text-secondary">
+                <span>STOREFRONT HERO MEDIA</span>
+                <span>1920×600 (Desktop) · 1080×1350 (App)</span>
+              </div>
+              <div className="relative rounded-lg overflow-hidden bg-surface-canvas shadow-inner group border border-border-subtle">
+                <div
+                  className="w-full h-32 bg-cover bg-center transition-all duration-300"
+                  style={{ backgroundImage: `url('${selectedDrop.heroBanner}')` }}
+                ></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-2.5">
+                  <span className="text-white font-headline-sm text-headline-sm font-semibold tracking-tight leading-tight">
+                    {selectedDrop.heroBannerTitle}
+                  </span>
+                  <span className="text-white/80 font-body-sm text-[11px]">
+                    {selectedDrop.heroBannerSub}
+                  </span>
+                </div>
+                <button
+                  onClick={() => onShowToast?.('Opening media asset manager to replace storefront hero...')}
+                  className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-black text-white text-[12px] flex items-center gap-1 backdrop-blur-sm transition-colors"
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[14px]">photo_camera</span>
+                  <span>Replace Media</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Merchandising Algorithm Configuration */}
+            <div className="space-y-space-xs pt-1">
+              <div className="flex items-center justify-between">
+                <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">SORTING & ALGORITHM LOGIC</span>
+                <span className="font-label-xs-caps text-label-xs-caps text-primary-container font-semibold">{selectedDrop.engineVersion}</span>
+              </div>
+              <div className="p-space-sm bg-surface-canvas rounded-lg border border-border-subtle flex flex-col space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-primary-container">auto_graph</span>
+                    <span className="font-label-sm text-label-sm font-semibold text-text-primary">
+                      {selectedDrop.algoTitle}
+                    </span>
+                  </div>
+                  <span className="material-symbols-outlined text-[16px] text-secondary cursor-pointer">info</span>
+                </div>
+                <p className="font-body-sm text-[12px] text-text-secondary leading-relaxed">
+                  {selectedDrop.algoDesc}
+                </p>
+                <div className="flex items-center justify-between pt-1 font-label-xs-caps text-label-xs-caps text-text-secondary">
+                  <span>MARGIN WEIGHT: {selectedDrop.marginWeight}%</span>
+                  <span>VELOCITY: {selectedDrop.velocityWeight}%</span>
+                  <span>FRESHNESS: {selectedDrop.freshnessWeight}%</span>
+                </div>
+                {/* Visual Weight Progress Bar */}
+                <div className="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden flex">
+                  <div className="bg-primary-container h-full" style={{ width: `${selectedDrop.marginWeight}%` }}></div>
+                  <div className="bg-fashion-magenta h-full" style={{ width: `${selectedDrop.velocityWeight}%` }}></div>
+                  <div className="bg-status-info h-full" style={{ width: `${selectedDrop.freshnessWeight}%` }}></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pinned Hero SKUs (Drag & Drop Visual Grid) */}
+            <div className="space-y-space-xs pt-1">
+              <div className="flex items-center justify-between">
+                <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">
+                  PINNED HERO ITEMS (SLOTS 1-4)
+                </span>
+                <button
+                  onClick={() => onShowToast?.('Search catalog to pin SKU to hero slot...')}
+                  className="font-label-xs-caps text-label-xs-caps text-primary-container font-semibold hover:underline"
+                  type="button"
+                >
+                  + Pin SKU
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-space-xs">
+                {selectedDrop.pinnedItems.map((pin) => (
+                  <div
+                    key={pin.slot}
+                    className="p-2 bg-surface-canvas rounded-lg border border-border-subtle flex items-center gap-2 relative group hover:bg-surface-bright transition-colors"
+                  >
+                    <span className="absolute top-1 left-1 w-4 h-4 rounded-full bg-primary-container text-white font-label-xs-caps text-[9px] flex items-center justify-center font-bold">
+                      {pin.slot}
+                    </span>
+                    <img
+                      className="w-10 h-12 object-cover rounded shrink-0 bg-surface-subtle"
+                      src={pin.image}
+                      alt={pin.name}
+                    />
+                    <div className="flex flex-col min-w-0 pr-1">
+                      <span className="font-label-sm text-[11px] font-semibold text-text-primary truncate">{pin.name}</span>
+                      <span className="text-[10px] text-text-secondary">{pin.price} · {pin.margin}</span>
+                      <span className="text-[9px] text-status-success font-medium">{pin.stock}</span>
+                    </div>
+                    <span className="material-symbols-outlined text-[14px] text-outline ml-auto group-hover:text-text-primary cursor-grab">
+                      drag_indicator
+                    </span>
+                  </div>
+                ))}
+                {/* Empty slot */}
+                <div
+                  onClick={() => onShowToast?.(`Pin SKU to Slot 4 for ${selectedDrop.code}`)}
+                  className="p-2 bg-surface-canvas rounded-lg flex items-center justify-center border-dashed border-2 border-border-subtle hover:border-primary-container text-text-secondary hover:text-primary-container cursor-pointer transition-colors h-16"
+                >
+                  <div className="flex items-center gap-1 font-label-xs-caps text-label-xs-caps font-semibold">
+                    <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                    <span>Pin Slot {selectedDrop.pinnedItems.length + 1}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Facets & Filters Allowed on Storefront */}
+            <div className="space-y-space-xs pt-1">
+              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">
+                ACTIVE COLLECTION FACETS
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedDrop.facets.map((facet, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-canvas border border-border-subtle text-body-sm text-[12px] font-medium text-text-primary"
+                  >
+                    <span className="material-symbols-outlined text-[14px] text-secondary">
+                      {idx === 0 ? 'palette' : idx === 1 ? 'straighten' : 'sell'}
+                    </span>
+                    {facet}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Omnichannel Visibility Matrix */}
+            <div className="space-y-space-xs pt-1">
+              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">
+                STOREFRONT PLACEMENT TARGETS
+              </span>
+              <div className="space-y-1.5">
+                <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-fashion-magenta">smartphone</span>
+                    <span className="font-body-sm text-body-sm font-medium text-text-primary">iOS & Android App (Slot A)</span>
+                  </div>
+                  <input defaultChecked className="w-4 h-4 rounded text-primary-container accent-primary-container cursor-pointer" type="checkbox" />
+                </label>
+                <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-status-info">desktop_windows</span>
+                    <span className="font-body-sm text-body-sm font-medium text-text-primary">Desktop Web Top Carousel</span>
+                  </div>
+                  <input defaultChecked className="w-4 h-4 rounded text-primary-container accent-primary-container cursor-pointer" type="checkbox" />
+                </label>
+                <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-secondary">storefront</span>
+                    <span className="font-body-sm text-body-sm font-medium text-text-primary">Myntra Brand Store Landing</span>
+                  </div>
+                  <input defaultChecked className="w-4 h-4 rounded text-primary-container accent-primary-container cursor-pointer" type="checkbox" />
+                </label>
+              </div>
+            </div>
+
+            {/* Bottom Action Commit Button */}
+            <div className="pt-2 flex flex-col space-y-2">
+              <button
+                onClick={() => onShowToast?.(`Published ${selectedDrop.title} changes to live storefronts.`)}
+                className="w-full h-9 rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-primary font-label-md text-label-md font-semibold flex items-center justify-center gap-2 shadow-sm transition-colors"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[18px]">publish</span>
+                <span>Save & Publish to Live Storefront</span>
+              </button>
+              <button
+                onClick={() => onShowToast?.(`Opening live storefront preview modal...`)}
+                className="w-full h-8 rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm flex items-center justify-center gap-1.5 transition-colors border border-border-subtle"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[16px] text-secondary">visibility</span>
+                <span>Preview Live Storefront Experience</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Micro-Widget: Feed Syndication Sync Status */}
+          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle p-space-sm flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-status-success animate-pulse"></span>
+              <div className="flex flex-col">
+                <span className="font-label-sm text-[12px] font-semibold text-text-primary">Edge Cache & CDN Invalidation</span>
+                <span className="font-body-sm text-[11px] text-text-secondary">Last purged 4 mins ago across 14 Cloudflare nodes</span>
+              </div>
+            </div>
+            <button
+              onClick={() => onShowToast?.('Cloudflare CDN edge cache purged for collections.')}
+              className="text-secondary hover:text-text-primary text-[12px] font-label-xs-caps uppercase underline"
+              type="button"
+            >
+              Purge
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

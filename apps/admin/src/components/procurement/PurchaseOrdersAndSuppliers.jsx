@@ -1,0 +1,1202 @@
+import React, { useState, useMemo } from 'react';
+import { Select } from '../ui/select';
+
+export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
+  const [selectedPoId, setSelectedPoId] = useState('PO-2024-0891');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [supplierFilter, setSupplierFilter] = useState('ALL');
+  const [targetHubFilter, setTargetHubFilter] = useState('ALL');
+  const [isCreatePoModalOpen, setIsCreatePoModalOpen] = useState(false);
+
+  // New PO form state
+  const [newPoForm, setNewPoForm] = useState({
+    supplier: 'Jaipur Weaves & Prints',
+    origin: 'Jaipur, RJ',
+    targetHub: 'BLR-FC1',
+    qty: 1500,
+    cost: '₹14,50,000',
+    deliveryDate: '2024-06-15'
+  });
+
+  const poList = [
+    {
+      id: 'PO-2024-0891',
+      code: '#PO-2024-0891',
+      supplier: 'Jaipur Weaves & Prints',
+      vendorCode: 'V-JP-024',
+      origin: 'Jaipur, RJ • Hub: BLR-FC1',
+      orderedDate: '12 May 2024',
+      promisedDate: '28 May 2024',
+      daysNotice: 'In 4 days',
+      noticeColor: 'text-status-warning',
+      qtyPcs: '2,000 pcs',
+      qtyNum: 2000,
+      skuBreakdown: '2 SKUs (Silk & Zari)',
+      cost: '₹18,40,000',
+      costShort: '₹18.4L',
+      advance: 'Adv ₹9.2L (50%)',
+      advanceColor: 'text-status-success',
+      status: 'In Production',
+      milestone: 'Factory QC Inspection',
+      milestoneBadge: 'bg-status-info-bg text-status-info',
+      milestonePulse: true,
+      stageProgress: 'Stage 4 of 5 (80%)',
+      styles: [
+        {
+          name: 'Mulberry Silk Midi Dress',
+          sku: 'SKU: DR-MUL-BERRY-04',
+          fabric: 'Pure Mulberry Silk (19mm) • Berry Wine',
+          pcs: '1,200 pcs',
+          unitCost: '@ ₹1,050/pc',
+          img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDhlj_IgxCYYzqpjUpyJ3X6nRbEiq0t1Nq18-25nDTXCxAtR7LTju-bJ4Baujf5fkZm7wLdBqo1uv-DtU2dvi_upaDJ5L-AL1jRt41tocNtXOyekiZCDBjSK3OOCWzT6Zz3fCX856dvJ-lNNHYUxs9UJ0w8y57jQR_GobtfzwXx3z7LrT8Fvrg5LVhwK3RKtpdkNDNiveXsjYmpyC8iYEfPZ3qkHepNiUkBq-0VDN4O'
+        },
+        {
+          name: 'Embroidered Anarkali Ensemble',
+          sku: 'SKU: AN-EMB-IVORY-12',
+          fabric: 'Chanderi Silk with Zari Border',
+          pcs: '800 pcs',
+          unitCost: '@ ₹725/pc',
+          img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCp1uqOVagvfwJek-P5Bua3wUqIv8FaJmPHjmn8N2zR9mPlyoi_Hj9nGrt5vc2LgGs08RVnIzKfFTfT9HW717rR-KrSRenhS-KpRmGmEZN1bxM8rZVCEl96JsdtXO1FvsdiRmvw_mj1dzRDUWnZY3H49Zui0TPhB3HOFGo8tjr6bXD6UEfHxaG0--_TYyUDO7N8zSK_tUEDMIAV_W-ADmU3kQMfMon2y5ymDNa-OK1w'
+        }
+      ],
+      steps: [
+        { title: 'Yarn & Greige Procurement', desc: 'Sourced from Central Silk Board Bengaluru', date: 'May 14', status: 'completed' },
+        { title: 'Dyeing & Lot Color Match', desc: 'Delta-E < 0.6 spectrometer approval', date: 'May 18', status: 'completed' },
+        { title: 'Batch Stitching & Finishing', desc: '2,000 units cut & assembled (12 lines)', date: 'May 22', status: 'completed' },
+        { title: 'Mill Final Quality Inspection (AQL 1.5)', desc: 'Everwear auditor on-site in Jaipur', date: 'Today', status: 'current' },
+        { title: 'Dispatch to Everwear BLR-FC1', desc: 'Dedicated logistics convoy via NH48', date: 'ETA May 28', status: 'upcoming' }
+      ],
+      grnSummary: {
+        docket: '#GRN-PRE-891',
+        tolerance: 'Within Tolerance (±2%)',
+        toleranceColor: 'bg-status-success-bg text-status-success',
+        orderedQty: '2,000 pcs',
+        millCount: '2,015 pcs (+0.75%)',
+        limit: '1,960 - 2,040 pcs',
+        barcoding: '100% GS1 Compliant'
+      }
+    },
+    {
+      id: 'PO-2024-0888',
+      code: '#PO-2024-0888',
+      supplier: 'Tirupur Knitwear Hub',
+      vendorCode: 'V-TP-012',
+      origin: 'Tirupur, TN • Hub: BOM-FC2',
+      orderedDate: '08 May 2024',
+      promisedDate: '24 May 2024',
+      daysNotice: 'Dock Arrived',
+      noticeColor: 'text-status-success',
+      qtyPcs: '6,500 pcs',
+      qtyNum: 6500,
+      skuBreakdown: '4 SKUs (Combed Tee)',
+      cost: '₹22,75,000',
+      costShort: '₹22.7L',
+      advance: 'Adv ₹15.0L (65%)',
+      advanceColor: 'text-status-success',
+      status: 'Shipped',
+      milestone: 'QC Dock Inward',
+      milestoneBadge: 'bg-status-success-bg text-status-success',
+      milestonePulse: false,
+      stageProgress: 'Stage 5 of 5 (95%)',
+      styles: [
+        {
+          name: 'Combed Cotton Daily T-Shirt',
+          sku: 'SKU: TS-CMB-NAVY-01',
+          fabric: '100% Combed Compact Cotton (180 GSM)',
+          pcs: '4,000 pcs',
+          unitCost: '@ ₹310/pc',
+          img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDhlj_IgxCYYzqpjUpyJ3X6nRbEiq0t1Nq18-25nDTXCxAtR7LTju-bJ4Baujf5fkZm7wLdBqo1uv-DtU2dvi_upaDJ5L-AL1jRt41tocNtXOyekiZCDBjSK3OOCWzT6Zz3fCX856dvJ-lNNHYUxs9UJ0w8y57jQR_GobtfzwXx3z7LrT8Fvrg5LVhwK3RKtpdkNDNiveXsjYmpyC8iYEfPZ3qkHepNiUkBq-0VDN4O'
+        },
+        {
+          name: 'Washed French Terry Sweatshirt',
+          sku: 'SKU: SW-TER-GREY-03',
+          fabric: '320 GSM French Terry Loopback',
+          pcs: '2,500 pcs',
+          unitCost: '@ ₹414/pc',
+          img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCp1uqOVagvfwJek-P5Bua3wUqIv8FaJmPHjmn8N2zR9mPlyoi_Hj9nGrt5vc2LgGs08RVnIzKfFTfT9HW717rR-KrSRenhS-KpRmGmEZN1bxM8rZVCEl96JsdtXO1FvsdiRmvw_mj1dzRDUWnZY3H49Zui0TPhB3HOFGo8tjr6bXD6UEfHxaG0--_TYyUDO7N8zSK_tUEDMIAV_W-ADmU3kQMfMon2y5ymDNa-OK1w'
+        }
+      ],
+      steps: [
+        { title: 'Yarn Spinning & Combing', desc: 'Sourced from Coimbatore Mills', date: 'May 09', status: 'completed' },
+        { title: 'Circular Knitting & Bio-Wash', desc: 'Zero pilling test verified', date: 'May 14', status: 'completed' },
+        { title: 'Screen Printing & Stitching', desc: 'Precision placement verified', date: 'May 19', status: 'completed' },
+        { title: 'Factory Final Pack & Barcode', desc: 'Ready for container seal', date: 'May 22', status: 'completed' },
+        { title: 'Dock Arrived at BOM-FC2', desc: 'Vehicle unloading at Dock 04', date: 'Today', status: 'current' }
+      ],
+      grnSummary: {
+        docket: '#GRN-BOM-888',
+        tolerance: 'Within Tolerance (±1%)',
+        toleranceColor: 'bg-status-success-bg text-status-success',
+        orderedQty: '6,500 pcs',
+        millCount: '6,508 pcs (+0.12%)',
+        limit: '6,435 - 6,565 pcs',
+        barcoding: '100% GS1 Compliant'
+      }
+    },
+    {
+      id: 'PO-2024-0879',
+      code: '#PO-2024-0879',
+      supplier: 'Surat Synthetic Silks',
+      vendorCode: 'V-ST-009',
+      origin: 'Surat, GJ • Hub: BLR-FC1',
+      orderedDate: '02 May 2024',
+      promisedDate: '20 May 2024',
+      daysNotice: '4 Days Overdue',
+      noticeColor: 'text-status-danger',
+      qtyPcs: '3,200 pcs',
+      qtyNum: 3200,
+      skuBreakdown: 'Georgette Saree line',
+      cost: '₹14,08,000',
+      costShort: '₹14.0L',
+      advance: 'Adv ₹4.2L (30%)',
+      advanceColor: 'text-status-warning',
+      status: 'In Production',
+      milestone: 'SLA Escalated',
+      milestoneBadge: 'bg-status-danger-bg text-status-danger',
+      milestonePulse: false,
+      stageProgress: 'Stage 3 of 5 (55%)',
+      styles: [
+        {
+          name: 'Poly-Georgette Foil Saree',
+          sku: 'SKU: SA-GEO-SURAT-88',
+          fabric: '60 GSM Poly-Georgette with Foil Print',
+          pcs: '3,200 pcs',
+          unitCost: '@ ₹440/pc',
+          img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDhlj_IgxCYYzqpjUpyJ3X6nRbEiq0t1Nq18-25nDTXCxAtR7LTju-bJ4Baujf5fkZm7wLdBqo1uv-DtU2dvi_upaDJ5L-AL1jRt41tocNtXOyekiZCDBjSK3OOCWzT6Zz3fCX856dvJ-lNNHYUxs9UJ0w8y57jQR_GobtfzwXx3z7LrT8Fvrg5LVhwK3RKtpdkNDNiveXsjYmpyC8iYEfPZ3qkHepNiUkBq-0VDN4O'
+        }
+      ],
+      steps: [
+        { title: 'Weft & Warp Preparation', desc: 'Texturized yarn staging', date: 'May 04', status: 'completed' },
+        { title: 'Water-jet Weaving', desc: 'Roll weaving complete', date: 'May 10', status: 'completed' },
+        { title: 'Foil Printing & Finishing (Delayed)', desc: '1.8% weft skew flagged on roll 4', date: 'May 18', status: 'current' },
+        { title: 'Lab Tear & Tensile Test', desc: 'Awaiting third-party QA certificate', date: 'Pending', status: 'upcoming' },
+        { title: 'Dispatch to BLR-FC1', desc: 'Truck delayed by mill delay', date: 'Overdue', status: 'upcoming' }
+      ],
+      grnSummary: {
+        docket: '#GRN-HOLD-879',
+        tolerance: 'Weft Skew Flagged (Hold)',
+        toleranceColor: 'bg-status-danger-bg text-status-danger',
+        orderedQty: '3,200 pcs',
+        millCount: '3,180 pcs (-0.6%)',
+        limit: '3,136 - 3,264 pcs',
+        barcoding: 'Barcode audit pending'
+      }
+    },
+    {
+      id: 'PO-2024-0894',
+      code: '#PO-2024-0894',
+      supplier: 'Ludhiana Woolens & Blends',
+      vendorCode: 'V-LD-041',
+      origin: 'Ludhiana, PB • Hub: DEL-NCR',
+      orderedDate: '15 May 2024',
+      promisedDate: '02 Jun 2024',
+      daysNotice: '9 days remaining',
+      noticeColor: 'text-text-secondary',
+      qtyPcs: '1,800 pcs',
+      qtyNum: 1800,
+      skuBreakdown: 'Cardigans & Shawls',
+      cost: '₹26,10,000',
+      costShort: '₹26.1L',
+      advance: 'Adv ₹13.0L (50%)',
+      advanceColor: 'text-status-success',
+      status: 'In Production',
+      milestone: 'In Dyeing & Stitching',
+      milestoneBadge: 'bg-status-warning-bg text-status-warning',
+      milestonePulse: false,
+      stageProgress: 'Stage 2 of 5 (40%)',
+      styles: [
+        {
+          name: 'Merino Blend Knit Cardigan',
+          sku: 'SKU: CD-MER-OAT-07',
+          fabric: '50% Merino Wool, 50% Organic Cotton',
+          pcs: '1,800 pcs',
+          unitCost: '@ ₹1,450/pc',
+          img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCp1uqOVagvfwJek-P5Bua3wUqIv8FaJmPHjmn8N2zR9mPlyoi_Hj9nGrt5vc2LgGs08RVnIzKfFTfT9HW717rR-KrSRenhS-KpRmGmEZN1bxM8rZVCEl96JsdtXO1FvsdiRmvw_mj1dzRDUWnZY3H49Zui0TPhB3HOFGo8tjr6bXD6UEfHxaG0--_TYyUDO7N8zSK_tUEDMIAV_W-ADmU3kQMfMon2y5ymDNa-OK1w'
+        }
+      ],
+      steps: [
+        { title: 'Raw Merino Wool Batch Intake', desc: 'Australian wool certified', date: 'May 16', status: 'completed' },
+        { title: 'Vat Dyeing & Color Fixation', desc: 'Oatmeal & Forest Green shades', date: 'Today', status: 'current' },
+        { title: 'Shima Seiki 3D Knitting', desc: 'Fully fashioned seamless knit', date: 'May 26', status: 'upcoming' },
+        { title: 'Hand Finishing & Button Attach', desc: 'Horn buttons placement', date: 'May 30', status: 'upcoming' },
+        { title: 'Dispatch to DEL-NCR Hub', desc: 'Direct road cargo via GT Road', date: 'ETA Jun 02', status: 'upcoming' }
+      ],
+      grnSummary: {
+        docket: '#GRN-PRE-894',
+        tolerance: 'Scheduled',
+        toleranceColor: 'bg-surface-subtle text-text-secondary',
+        orderedQty: '1,800 pcs',
+        millCount: 'In production',
+        limit: '1,764 - 1,836 pcs',
+        barcoding: 'GS1 Registered'
+      }
+    },
+    {
+      id: 'PO-2024-0897',
+      code: '#PO-2024-0897',
+      supplier: 'Varanasi Brocades Guild',
+      vendorCode: 'V-VN-003',
+      origin: 'Varanasi, UP • Hub: BLR-FC1',
+      orderedDate: '19 May 2024',
+      promisedDate: '10 Jun 2024',
+      daysNotice: '17 days remaining',
+      noticeColor: 'text-text-secondary',
+      qtyPcs: '950 pcs',
+      qtyNum: 950,
+      skuBreakdown: 'Zari Dupattas',
+      cost: '₹11,40,000',
+      costShort: '₹11.4L',
+      advance: 'Adv ₹5.7L (50%)',
+      advanceColor: 'text-status-success',
+      status: 'Issued',
+      milestone: 'Yarn Procurement',
+      milestoneBadge: 'bg-surface-subtle text-secondary',
+      milestonePulse: false,
+      stageProgress: 'Stage 1 of 5 (20%)',
+      styles: [
+        {
+          name: 'Handloom Katan Silk Dupatta',
+          sku: 'SKU: DP-KAT-ZARI-19',
+          fabric: 'Pure Katan Silk with Real Zari Border',
+          pcs: '950 pcs',
+          unitCost: '@ ₹1,200/pc',
+          img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDhlj_IgxCYYzqpjUpyJ3X6nRbEiq0t1Nq18-25nDTXCxAtR7LTju-bJ4Baujf5fkZm7wLdBqo1uv-DtU2dvi_upaDJ5L-AL1jRt41tocNtXOyekiZCDBjSK3OOCWzT6Zz3fCX856dvJ-lNNHYUxs9UJ0w8y57jQR_GobtfzwXx3z7LrT8Fvrg5LVhwK3RKtpdkNDNiveXsjYmpyC8iYEfPZ3qkHepNiUkBq-0VDN4O'
+        }
+      ],
+      steps: [
+        { title: 'Artisanal Warp Sizing', desc: 'Handloom pit loom preparation', date: 'May 20', status: 'current' },
+        { title: 'Jacquard Card Punching', desc: 'Mughal floral jaal motif', date: 'May 24', status: 'upcoming' },
+        { title: 'Master Weaver Looming', desc: '14 handloom guild setups', date: 'May 31', status: 'upcoming' },
+        { title: 'Tassel Knotting & QC', desc: 'Hand-knotted fringe work', date: 'Jun 06', status: 'upcoming' },
+        { title: 'Air Cargo to BLR-FC1', desc: 'Priority air consignment', date: 'ETA Jun 10', status: 'upcoming' }
+      ],
+      grnSummary: {
+        docket: '#GRN-PRE-897',
+        tolerance: 'Scheduled',
+        toleranceColor: 'bg-surface-subtle text-text-secondary',
+        orderedQty: '950 pcs',
+        millCount: 'Yarn staging',
+        limit: '930 - 970 pcs',
+        barcoding: 'Handloom Mark + GS1'
+      }
+    },
+    {
+      id: 'PO-2024-0870',
+      code: '#PO-2024-0870',
+      supplier: 'Bhilwara TexCraft Co.',
+      vendorCode: 'V-BW-019',
+      origin: 'Bhilwara, RJ • Hub: BLR-FC1',
+      orderedDate: '24 Apr 2024',
+      promisedDate: '15 May 2024',
+      daysNotice: 'GRN Reconciled',
+      noticeColor: 'text-status-success',
+      qtyPcs: '4,000 pcs',
+      qtyNum: 4000,
+      skuBreakdown: 'Poplin Shirting',
+      cost: '₹16,00,000',
+      costShort: '₹16.0L',
+      advance: 'Settled 100%',
+      advanceColor: 'text-status-info',
+      status: 'Closed',
+      milestone: 'Completed & Stored',
+      milestoneBadge: 'bg-status-success-bg text-status-success',
+      milestonePulse: false,
+      stageProgress: 'Stage 5 of 5 (100%)',
+      styles: [
+        {
+          name: 'Crisp Poplin Button-Down Shirt',
+          sku: 'SKU: SH-POP-WHT-02',
+          fabric: '60s Compact Cotton Poplin',
+          pcs: '4,000 pcs',
+          unitCost: '@ ₹400/pc',
+          img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCp1uqOVagvfwJek-P5Bua3wUqIv8FaJmPHjmn8N2zR9mPlyoi_Hj9nGrt5vc2LgGs08RVnIzKfFTfT9HW717rR-KrSRenhS-KpRmGmEZN1bxM8rZVCEl96JsdtXO1FvsdiRmvw_mj1dzRDUWnZY3H49Zui0TPhB3HOFGo8tjr6bXD6UEfHxaG0--_TYyUDO7N8zSK_tUEDMIAV_W-ADmU3kQMfMon2y5ymDNa-OK1w'
+        }
+      ],
+      steps: [
+        { title: 'Weaving & Pre-Shrunk Finishing', desc: 'Sanforized cotton process', date: 'Apr 26', status: 'completed' },
+        { title: 'Garmenting & Collar Fusing', desc: 'German interlining specification', date: 'May 04', status: 'completed' },
+        { title: 'Single Needle Stitching', desc: '18 stitches per inch verified', date: 'May 10', status: 'completed' },
+        { title: 'Inward Dock QC Pass', desc: 'Zero defect lot acceptance', date: 'May 14', status: 'completed' },
+        { title: 'Stocked in BLR-FC1 Aisle 12', desc: 'All units active in inventory', date: 'May 15', status: 'completed' }
+      ],
+      grnSummary: {
+        docket: '#GRN-BLR-0870-FINAL',
+        tolerance: 'Zero Discrepancy (100% Match)',
+        toleranceColor: 'bg-status-success-bg text-status-success',
+        orderedQty: '4,000 pcs',
+        millCount: '4,000 pcs (Exact)',
+        limit: '3,920 - 4,080 pcs',
+        barcoding: '100% Verified'
+      }
+    }
+  ];
+
+  const selectedPo = useMemo(() => {
+    return poList.find(p => p.id === selectedPoId) || poList[0];
+  }, [selectedPoId, poList]);
+
+  const filteredPoList = useMemo(() => {
+    return poList.filter(p => {
+      if (statusFilter !== 'ALL' && p.status !== statusFilter) return false;
+      if (supplierFilter !== 'ALL' && !p.supplier.toLowerCase().includes(supplierFilter.toLowerCase())) return false;
+      if (targetHubFilter !== 'ALL' && !p.origin.toLowerCase().includes(targetHubFilter.toLowerCase())) return false;
+      return true;
+    });
+  }, [statusFilter, supplierFilter, targetHubFilter, poList]);
+
+  const handleCreatePoSubmit = (e) => {
+    e.preventDefault();
+    setIsCreatePoModalOpen(false);
+    if (onShowToast) onShowToast(`Purchase Order #PO-2024-0901 drafted for ${newPoForm.supplier} (${newPoForm.qty} pcs). Advance token generated.`);
+  };
+
+  const handleExportCsv = () => {
+    const headers = ['PO Code', 'Supplier', 'Origin / Target Hub', 'Order Date', 'Promised Date', 'Units Qty', 'Total Cost (INR)', 'Advance Status', 'Milestone'];
+    const rows = filteredPoList.map(p => [
+      p.code,
+      `"${p.supplier}"`,
+      `"${p.origin}"`,
+      `"${p.orderedDate}"`,
+      `"${p.promisedDate}"`,
+      p.qtyNum,
+      `"${p.cost}"`,
+      `"${p.advance}"`,
+      `"${p.milestone}"`
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(',')).join('\n')];
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.href = encodedUri;
+    link.download = `everwear_purchase_orders_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    if (onShowToast) onShowToast('Procurement order ledger CSV exported successfully.');
+  };
+
+  return (
+    <div className="flex flex-col w-full space-y-6">
+      {/* Top Breadcrumb & Header Action Suite */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary tracking-wider">
+          <span className="hover:text-text-primary transition-colors cursor-pointer" onClick={() => onNavigate && onNavigate('overview')}>
+            EVERWEAR ADMIN
+          </span>
+          <span>/</span>
+          <span>CATALOG &amp; INVENTORY</span>
+          <span>/</span>
+          <span className="text-primary-container font-bold">PURCHASE ORDERS &amp; SUPPLIERS</span>
+        </div>
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-text-primary tracking-tight">
+              Fashion Procurement, Mill Suppliers &amp; Purchase Orders
+            </h1>
+            <p className="text-sm text-text-secondary mt-0.5">
+              Orchestrate raw fiber sourcing, batch lot spinning, dyeing milestones, and multi-hub GRN receipts across primary Indian textile clusters.
+            </p>
+          </div>
+          {/* Action Button Group */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={() => onShowToast && onShowToast('Syncing mill catalogs and vendor product master from Surat & Jaipur...')}
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-surface-subtle text-text-primary text-xs font-semibold hover:bg-surface-container transition-colors shadow-sm border border-border-subtle cursor-pointer"
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[18px] text-secondary">cloud_download</span>
+              <span>Import Catalog</span>
+            </button>
+            <button
+              onClick={() => onShowToast && onShowToast('Opening GRN & Quality Dock Inward Scanner...')}
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-surface-subtle text-text-primary text-xs font-semibold hover:bg-surface-container transition-colors shadow-sm border border-border-subtle cursor-pointer"
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[18px] text-secondary">verified</span>
+              <span>GRN &amp; Quality Inward</span>
+            </button>
+            <button
+              onClick={() => setIsCreatePoModalOpen(true)}
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-primary-container text-on-primary text-xs font-semibold hover:bg-primary transition-all shadow-md cursor-pointer"
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[18px]">add_circle</span>
+              <span>Create Purchase Order</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Operational KPI Cards (Bento Ribbon with Editorial Density) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
+        {/* KPI 1 */}
+        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow border border-border-subtle">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-text-secondary uppercase">Active Purchase Orders</span>
+            <span className="p-1 rounded-md bg-surface-container-low text-primary-container material-symbols-outlined text-[18px]">
+              receipt_long
+            </span>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[26px] leading-8 font-bold text-text-primary">48 POs</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-text-secondary font-medium">Valuation ₹3.84 Cr</span>
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success text-[11px] font-bold">
+                <span className="material-symbols-outlined text-[12px]">trending_up</span>+8.4% MoM
+              </span>
+            </div>
+          </div>
+          <div className="w-full bg-surface-subtle h-1 rounded-full mt-3 overflow-hidden">
+            <div className="bg-primary-container h-full w-[72%] rounded-full"></div>
+          </div>
+        </div>
+
+        {/* KPI 2 */}
+        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow border border-border-subtle">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-text-secondary uppercase">Inward Pipeline (7D)</span>
+            <span className="p-1 rounded-md bg-status-info-bg text-status-info material-symbols-outlined text-[18px]">
+              local_shipping
+            </span>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[26px] leading-8 font-bold text-text-primary">18,400</span>
+              <span className="text-xs text-text-secondary font-medium">garments</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-text-secondary font-medium">BLR-FC1 &amp; BOM-FC2</span>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-info-bg text-status-info text-[11px] font-bold">
+                9 consignments
+              </span>
+            </div>
+          </div>
+          <div className="w-full bg-surface-subtle h-1 rounded-full mt-3 overflow-hidden">
+            <div className="bg-status-info h-full w-[54%] rounded-full"></div>
+          </div>
+        </div>
+
+        {/* KPI 3 */}
+        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow border border-border-subtle">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-text-secondary uppercase">Overdue Shipments</span>
+            <span className="p-1 rounded-md bg-status-danger-bg text-status-danger material-symbols-outlined text-[18px]">
+              warning
+            </span>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[26px] leading-8 font-bold text-status-danger">3 POs</span>
+              <span className="text-xs text-status-danger font-semibold">Delayed</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-text-secondary font-medium">SLA Escalation Alert</span>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-danger-bg text-status-danger text-[11px] font-bold">
+                Critical
+              </span>
+            </div>
+          </div>
+          <div className="w-full bg-surface-subtle h-1 rounded-full mt-3 overflow-hidden">
+            <div className="bg-status-danger h-full w-[24%] rounded-full"></div>
+          </div>
+        </div>
+
+        {/* KPI 4 */}
+        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow border border-border-subtle">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-text-secondary uppercase">Quality Acceptance</span>
+            <span className="p-1 rounded-md bg-status-success-bg text-status-success material-symbols-outlined text-[18px]">
+              verified_user
+            </span>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[26px] leading-8 font-bold text-text-primary">98.2%</span>
+              <span className="text-xs text-status-success font-bold">Grade-A</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-text-secondary font-medium">Fabrics &amp; Stitch Pass</span>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success text-[11px] font-bold">
+                &gt; 97.5% Target
+              </span>
+            </div>
+          </div>
+          <div className="w-full bg-surface-subtle h-1 rounded-full mt-3 overflow-hidden">
+            <div className="bg-status-success h-full w-[98%] rounded-full"></div>
+          </div>
+        </div>
+
+        {/* KPI 5 */}
+        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow border border-border-subtle">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-text-secondary uppercase">Vendor Network</span>
+            <span className="p-1 rounded-md bg-surface-container-low text-primary-container material-symbols-outlined text-[18px]">
+              storefront
+            </span>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[26px] leading-8 font-bold text-text-primary">34 Mills</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-text-secondary font-medium truncate">Surat, Jaipur, Tirupur, Ludhiana</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 mt-3">
+            <span className="w-2 h-2 rounded-full bg-status-success"></span>
+            <span className="text-[11px] font-bold text-text-secondary">100% Tier-1 Audited</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Bar & Slicers */}
+      <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 border border-border-subtle">
+        {/* Quick Status Pill Filter */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 scrollbar-none text-xs">
+          {[
+            { id: 'ALL', label: 'All (48)' },
+            { id: 'Draft', label: 'Draft (4)' },
+            { id: 'Issued', label: 'Issued (8)' },
+            { id: 'In Production', label: 'In Production (19)' },
+            { id: 'Shipped', label: 'Shipped (7)' },
+            { id: 'Inward QC', label: 'Inward QC (6)' },
+            { id: 'Closed', label: 'Closed (4)' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className={`px-3 py-1.5 rounded-lg font-semibold shrink-0 transition-colors cursor-pointer ${
+                statusFilter === tab.id
+                  ? 'bg-primary-container text-on-primary shadow-sm'
+                  : 'bg-surface-subtle text-text-secondary hover:text-text-primary hover:bg-surface-container'
+              }`}
+              type="button"
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Dropdowns & Secondary Selectors */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="w-56">
+            <Select
+              value={supplierFilter}
+              onChange={(e) => setSupplierFilter(e.target.value)}
+              className="h-9"
+            >
+              <option value="ALL">All Suppliers / Mills</option>
+              <option value="Jaipur">Jaipur Weaves &amp; Prints (RJ)</option>
+              <option value="Tirupur">Tirupur Knitwear Hub (TN)</option>
+              <option value="Surat">Surat Synthetic Silks (GJ)</option>
+              <option value="Ludhiana">Ludhiana Woolens &amp; Blends (PB)</option>
+              <option value="Varanasi">Varanasi Brocades Guild (UP)</option>
+            </Select>
+          </div>
+
+          <div className="w-52">
+            <Select
+              value={targetHubFilter}
+              onChange={(e) => setTargetHubFilter(e.target.value)}
+              className="h-9"
+            >
+              <option value="ALL">Target Hub: All FCs</option>
+              <option value="BLR">BLR-Fulfillment-FC1</option>
+              <option value="BOM">BOM- Bhiwandi-FC2</option>
+              <option value="DEL">DEL-NCR-FC3</option>
+            </Select>
+          </div>
+
+          <button
+            onClick={() => {
+              setStatusFilter('ALL');
+              setSupplierFilter('ALL');
+              setTargetHubFilter('ALL');
+            }}
+            className="h-9 px-2.5 rounded-lg bg-surface-subtle hover:bg-surface-container text-secondary hover:text-text-primary transition-colors flex items-center justify-center border border-border-subtle cursor-pointer"
+            title="Reset Filters"
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[18px]">restart_alt</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Split Grid: Comprehensive PO Ledger (8 cols) + Selected PO Detailed Inspector (4 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* LEFT PANE: PO Ledger Table (Cols 8) */}
+        <div className="lg:col-span-8 bg-surface-container-lowest rounded-xl shadow-sm flex flex-col overflow-hidden border border-border-subtle">
+          {/* Table Header Bar */}
+          <div className="px-4 py-3 bg-surface-subtle flex items-center justify-between border-b border-border-subtle">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-primary-container">inventory_2</span>
+              <span className="text-sm font-bold text-text-primary">Procurement Order Ledger</span>
+              <span className="px-2 py-0.5 rounded-full bg-surface-container text-text-secondary text-[10px] font-bold">
+                Showing {filteredPoList.length} of 48 POs
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportCsv}
+                className="p-1 rounded text-secondary hover:text-text-primary hover:bg-surface-container transition-colors"
+                title="Export Ledger as CSV"
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[18px]">download</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Ledger Table */}
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full text-left border-collapse min-w-[850px]">
+              <thead>
+                <tr className="bg-surface-canvas text-text-secondary text-[11px] uppercase tracking-wider font-semibold border-b border-border-subtle sticky top-0 z-10 backdrop-blur-sm">
+                  <th className="py-2.5 px-3 whitespace-nowrap">PO Code &amp; Origin</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Timeline</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Volume</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Cost &amp; Advance</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Milestone Status</th>
+                  <th className="py-2.5 px-3 text-center whitespace-nowrap">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-subtle text-xs text-text-primary">
+                {filteredPoList.map((po) => {
+                  const isSelected = selectedPoId === po.id;
+                  return (
+                    <tr
+                      key={po.id}
+                      onClick={() => setSelectedPoId(po.id)}
+                      className={`transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-surface-container-low'
+                          : 'bg-surface-container-lowest hover:bg-surface-subtle'
+                      }`}
+                    >
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`w-1.5 h-10 rounded-full shrink-0 ${
+                              isSelected ? 'bg-primary-container' : 'bg-transparent'
+                            }`}
+                          ></div>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-primary-container">{po.code}</span>
+                            <span className="text-xs font-semibold text-text-primary">{po.supplier}</span>
+                            <span className="text-[10px] text-text-secondary font-medium">{po.origin}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex flex-col">
+                          <span className="text-text-secondary font-medium">Ord: {po.orderedDate}</span>
+                          <span className="text-text-primary font-bold">Prom: {po.promisedDate}</span>
+                          <span className={`text-[10px] font-bold ${po.noticeColor}`}>{po.daysNotice}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-text-primary">{po.qtyPcs}</span>
+                          <span className="text-[10px] text-text-secondary font-medium">{po.skuBreakdown}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-text-primary">{po.cost}</span>
+                          <span className={`text-[10px] font-bold ${po.advanceColor}`}>{po.advance}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${po.milestoneBadge}`}>
+                          {po.milestonePulse ? (
+                            <span className="w-1.5 h-1.5 rounded-full bg-status-info animate-pulse"></span>
+                          ) : (
+                            <span className="material-symbols-outlined text-[12px]">dock</span>
+                          )}
+                          {po.milestone}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPoId(po.id);
+                          }}
+                          className="p-1 rounded text-primary-container hover:bg-surface-container transition-colors"
+                          title="Inspect PO Details"
+                          type="button"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination / Footer Bar */}
+          <div className="px-4 py-3 bg-surface-canvas flex items-center justify-between text-xs border-t border-border-subtle">
+            <span className="text-text-secondary font-medium">Page 1 of 8 (48 Active PO entries)</span>
+            <div className="flex items-center gap-1 font-semibold">
+              <button
+                className="px-2.5 py-1 rounded bg-surface-subtle text-text-secondary opacity-50 cursor-not-allowed border border-border-subtle"
+                disabled
+                type="button"
+              >
+                Prev
+              </button>
+              <button className="px-2.5 py-1 rounded bg-primary-container text-on-primary">1</button>
+              <button className="px-2.5 py-1 rounded bg-surface-subtle hover:bg-surface-container text-text-primary border border-border-subtle">
+                2
+              </button>
+              <button className="px-2.5 py-1 rounded bg-surface-subtle hover:bg-surface-container text-text-primary border border-border-subtle">
+                3
+              </button>
+              <span className="px-1 text-text-secondary">...</span>
+              <button className="px-2.5 py-1 rounded bg-surface-subtle hover:bg-surface-container text-text-primary border border-border-subtle">
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT PANE: Selected PO Detailed Inspector (Cols 4) */}
+        <div className="lg:col-span-4 bg-surface-container-lowest rounded-xl shadow-sm p-5 flex flex-col space-y-4 border border-border-subtle sticky top-20">
+          {/* Panel Header & Supplier Profile */}
+          <div className="flex items-start justify-between border-b border-border-subtle pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-primary-fixed text-primary-container text-[10px] font-bold">
+                  INSPECTOR
+                </span>
+                <span className="text-base font-bold text-text-primary">{selectedPo.code}</span>
+              </div>
+              <p className="text-xs text-text-secondary mt-0.5 font-medium">
+                {selectedPo.supplier} (Vendor Code: {selectedPo.vendorCode})
+              </p>
+            </div>
+            <button
+              onClick={() => onShowToast && onShowToast(`PO Specification Sheet generated for ${selectedPo.code}.`)}
+              className="p-1 rounded text-secondary hover:text-text-primary hover:bg-surface-subtle transition-colors"
+              title="Print PO Specification Sheet"
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[20px]">print</span>
+            </button>
+          </div>
+
+          {/* Quick Metrics Strip */}
+          <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg bg-surface-subtle border border-border-subtle">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-text-secondary font-semibold uppercase">ORDER VALUE</span>
+              <span className="text-base font-bold text-text-primary">{selectedPo.costShort}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] text-text-secondary font-semibold uppercase">QTY LOT</span>
+              <span className="text-base font-bold text-text-primary">{selectedPo.qtyPcs}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] text-text-secondary font-semibold uppercase">PAY STATUS</span>
+              <span className="text-xs font-bold text-status-success mt-1">{selectedPo.advance}</span>
+            </div>
+          </div>
+
+          {/* Fabric / Garment Style Breakdown */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-text-secondary uppercase">Fabric &amp; Style Breakdown</span>
+              <span className="text-[11px] text-text-secondary font-medium">{selectedPo.styles.length} Line Items</span>
+            </div>
+            {selectedPo.styles.map((style, sIdx) => (
+              <div
+                key={sIdx}
+                className="p-3 rounded-lg bg-surface-canvas flex items-center justify-between gap-2 hover:shadow-sm transition-shadow border border-border-subtle"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <img
+                    alt={style.name}
+                    className="w-12 h-14 object-cover rounded-md shrink-0 shadow-sm border border-border-subtle"
+                    src={style.img}
+                  />
+                  <div className="flex flex-col truncate">
+                    <span className="text-xs font-bold text-text-primary truncate">{style.name}</span>
+                    <span className="text-[10px] text-text-secondary font-semibold">{style.sku}</span>
+                    <span className="text-[11px] text-text-secondary font-medium truncate">{style.fabric}</span>
+                  </div>
+                </div>
+                <div className="flex flex-col text-right shrink-0">
+                  <span className="text-xs font-bold text-text-primary">{style.pcs}</span>
+                  <span className="text-[10px] text-text-secondary font-semibold">{style.unitCost}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Production Milestone Tracker */}
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-text-secondary uppercase">
+                Production Lifecycle Milestone
+              </span>
+              <span className="text-[11px] text-primary-container font-bold">{selectedPo.stageProgress}</span>
+            </div>
+            {/* Milestone Stepper Vertical */}
+            <div className="relative pl-6 space-y-3.5 pt-1">
+              {/* Continuous Track Line */}
+              <div className="absolute left-2.5 top-2 bottom-2 w-0.5 bg-surface-container"></div>
+              {selectedPo.steps.map((st, sIdx) => {
+                const isCompleted = st.status === 'completed';
+                const isCurrent = st.status === 'current';
+
+                return (
+                  <div key={sIdx} className="relative flex items-center justify-between group">
+                    {isCompleted ? (
+                      <div className="absolute -left-6 w-5 h-5 rounded-full bg-status-success text-on-primary flex items-center justify-center shadow-sm">
+                        <span className="material-symbols-outlined text-[13px]">check</span>
+                      </div>
+                    ) : isCurrent ? (
+                      <div className="absolute -left-6 w-5 h-5 rounded-full bg-primary-container text-on-primary flex items-center justify-center ring-4 ring-primary-fixed shadow-md">
+                        <span className="w-2 h-2 rounded-full bg-on-primary animate-ping"></span>
+                      </div>
+                    ) : (
+                      <div className="absolute -left-6 w-5 h-5 rounded-full bg-surface-container text-text-secondary flex items-center justify-center">
+                        <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                      </div>
+                    )}
+                    <div>
+                      <p className={`text-xs font-bold ${isCurrent ? 'text-primary-container' : 'text-text-primary'}`}>
+                        {st.title}
+                      </p>
+                      <p className="text-[10px] text-text-secondary font-medium">{st.desc}</p>
+                    </div>
+                    <span className={`text-[10px] font-semibold ${isCompleted ? 'text-status-success' : isCurrent ? 'text-primary-container' : 'text-text-secondary'}`}>
+                      {st.date}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Goods Receipt Note (GRN) & Discrepancy Tolerance Summary */}
+          <div className="p-3.5 rounded-lg bg-surface-subtle space-y-2 border border-border-subtle">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[16px] text-primary-container">fact_check</span>
+                <span className="text-xs font-bold text-text-primary">GRN Intake &amp; Discrepancy Checker</span>
+              </div>
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${selectedPo.grnSummary.toleranceColor}`}>
+                {selectedPo.grnSummary.tolerance}
+              </span>
+            </div>
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center justify-between text-text-secondary font-medium">
+                <span>Ordered Quantity:</span>
+                <span className="font-bold text-text-primary">{selectedPo.grnSummary.orderedQty}</span>
+              </div>
+              <div className="flex items-center justify-between text-text-secondary font-medium">
+                <span>Pre-Dispatch Mill Count:</span>
+                <span className="font-bold text-text-primary">{selectedPo.grnSummary.millCount}</span>
+              </div>
+              <div className="flex items-center justify-between text-text-secondary font-medium">
+                <span>Allowed Variation Limit:</span>
+                <span className="font-bold text-text-primary">{selectedPo.grnSummary.limit}</span>
+              </div>
+              <div className="flex items-center justify-between text-text-secondary font-medium">
+                <span>Barcoding Status:</span>
+                <span className="font-bold text-status-success">{selectedPo.grnSummary.barcoding}</span>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-border-subtle flex items-center justify-between">
+              <span className="text-[10px] font-bold text-text-secondary">Quality Inward Slip: {selectedPo.grnSummary.docket}</span>
+              <button
+                onClick={() => onShowToast && onShowToast(`GRN Docket ${selectedPo.grnSummary.docket} authorized.`)}
+                className="text-[10px] text-primary-container font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+                type="button"
+              >
+                <span>Authorize GRN Docket</span>
+                <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Inspector Footer Action Suite */}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              onClick={() => onShowToast && onShowToast(`Connecting to ${selectedPo.supplier} Mill Master on WhatsApp/Phone.`)}
+              className="flex-1 h-9 rounded-lg bg-surface-container hover:bg-surface-container-high text-text-primary text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 border border-border-subtle cursor-pointer"
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[16px] text-secondary">chat</span>
+              <span>Contact Mill Master</span>
+            </button>
+            <button
+              onClick={() => onShowToast && onShowToast(`Dock scan release verified for ${selectedPo.code}.`)}
+              className="flex-1 h-9 rounded-lg bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
+              <span>Dock Scan Release</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Secondary Section: Supplier SLA Performance & Cluster Matrix */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+        {/* Card 1: Mill SLA Leaderboard */}
+        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between border border-border-subtle">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-primary-container">military_tech</span>
+                <span className="text-sm font-bold text-text-primary">Top Performing Mill Partners</span>
+              </div>
+              <span className="text-[10px] font-bold text-text-secondary uppercase">May 2024</span>
+            </div>
+            <div className="mt-3 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-text-primary">Tirupur Knitwear Hub</span>
+                  <span className="text-[10px] text-text-secondary font-medium">99.4% On-Time Fulfillment</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-status-success text-[10px] font-bold">
+                  Tier-1 Star
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-text-primary">Jaipur Weaves &amp; Prints</span>
+                  <span className="text-[10px] text-text-secondary font-medium">98.1% Quality Grade-A Pass</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-status-success text-[10px] font-bold">
+                  Tier-1 Certified
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-text-primary">Bhilwara TexCraft Co.</span>
+                  <span className="text-[10px] text-text-secondary font-medium">97.8% Compliance Rate</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-status-success text-[10px] font-bold">
+                  Tier-2 Active
+                </span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => onShowToast && onShowToast('Navigating to full 34-mill vendor scorecard registry.')}
+            className="mt-3 w-full py-1.5 rounded-lg bg-surface-subtle hover:bg-surface-container text-[11px] font-semibold text-text-secondary hover:text-text-primary text-center transition-colors border border-border-subtle cursor-pointer"
+            type="button"
+          >
+            View All 34 Mill Scorecards
+          </button>
+        </div>
+
+        {/* Card 2: Fabric Material Intake Allocation */}
+        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between border border-border-subtle">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-fashion-magenta">pie_chart</span>
+                <span className="text-sm font-bold text-text-primary">Material Allocation Mix</span>
+              </div>
+              <span className="text-[10px] font-bold text-text-secondary uppercase">Current Pipeline</span>
+            </div>
+            {/* Material progress bars */}
+            <div className="mt-3 space-y-2">
+              <div>
+                <div className="flex justify-between text-[11px] mb-1 font-semibold">
+                  <span className="text-text-primary font-medium">Mulberry &amp; Chanderi Silks</span>
+                  <span className="text-text-secondary">42% (₹1.61 Cr)</span>
+                </div>
+                <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-primary-container h-full w-[42%] rounded-full"></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-[11px] mb-1 font-semibold">
+                  <span className="text-text-primary font-medium">Combed Compact Cotton</span>
+                  <span className="text-text-secondary">31% (₹1.19 Cr)</span>
+                </div>
+                <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-status-info h-full w-[31%] rounded-full"></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-[11px] mb-1 font-semibold">
+                  <span className="text-text-primary font-medium">Merino &amp; Cashmere Blends</span>
+                  <span className="text-text-secondary">18% (₹0.69 Cr)</span>
+                </div>
+                <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-status-warning h-full w-[18%] rounded-full"></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-[11px] mb-1 font-semibold">
+                  <span className="text-text-primary font-medium">Sustainable Viscose / Modal</span>
+                  <span className="text-text-secondary">9% (₹0.35 Cr)</span>
+                </div>
+                <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-status-success h-full w-[9%] rounded-full"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <span className="text-[10px] font-bold text-text-secondary mt-2">Zero AZO-dye &amp; REACH certified sourcing</span>
+        </div>
+
+        {/* Card 3: Quality Defect Hotspot Warning */}
+        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between border border-border-subtle">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-status-warning">report</span>
+                <span className="text-sm font-bold text-text-primary">QC Dock Defect Watch</span>
+              </div>
+              <span className="px-1.5 py-0.5 rounded bg-status-warning-bg text-status-warning text-[10px] font-bold">
+                Active Monitor
+              </span>
+            </div>
+            <div className="mt-3 p-3 rounded-lg bg-status-warning-bg space-y-1.5 border border-status-warning/30">
+              <div className="flex items-center gap-1.5 text-status-warning">
+                <span className="material-symbols-outlined text-[16px]">priority_high</span>
+                <span className="text-xs font-bold">Surat Synthetics: Weft Skewing</span>
+              </div>
+              <p className="text-xs text-text-primary leading-tight font-medium">
+                Batch #PO-2024-0879 flagged with 1.8% weft skew on poly-georgette roll 4. Pre-shipment sample quarantined for third-party lab tear test.
+              </p>
+            </div>
+            <div className="flex items-center justify-between mt-3 text-xs">
+              <span className="text-text-secondary font-medium">Escalation Assigned:</span>
+              <span className="font-bold text-text-primary">Vikram Patel (QC Lead)</span>
+            </div>
+          </div>
+          <button
+            onClick={() => onShowToast && onShowToast('Supplier Corrective Action (SCAR) docket issued to Surat Synthetic Silks.')}
+            className="mt-2 w-full py-1.5 rounded-lg bg-surface-subtle hover:bg-surface-container text-[11px] font-semibold text-text-secondary hover:text-text-primary text-center transition-colors border border-border-subtle cursor-pointer"
+            type="button"
+          >
+            Trigger Supplier Corrective Action (SCAR)
+          </button>
+        </div>
+      </div>
+
+      {/* Create Purchase Order Modal */}
+      {isCreatePoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <form
+            onSubmit={handleCreatePoSubmit}
+            className="bg-surface-container-lowest rounded-2xl max-w-lg w-full p-6 shadow-xl border border-border-subtle space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary-container text-[22px]">add_circle</span>
+                <h3 className="text-lg font-bold text-text-primary">Generate Purchase Order</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreatePoModalOpen(false)}
+                className="p-1 text-text-secondary hover:text-text-primary rounded-lg transition-colors"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-text-secondary uppercase mb-1">
+                  Mill / Textile Supplier
+                </label>
+                <Select
+                  value={newPoForm.supplier}
+                  onChange={(e) => setNewPoForm({ ...newPoForm, supplier: e.target.value })}
+                  className="h-9"
+                >
+                  <option value="Jaipur Weaves & Prints">Jaipur Weaves &amp; Prints (Surat &amp; Jaipur)</option>
+                  <option value="Tirupur Knitwear Hub">Tirupur Knitwear Hub (TN)</option>
+                  <option value="Surat Synthetic Silks">Surat Synthetic Silks (GJ)</option>
+                  <option value="Ludhiana Woolens & Blends">Ludhiana Woolens &amp; Blends (PB)</option>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-text-secondary uppercase mb-1">
+                    Destination Hub
+                  </label>
+                  <Select
+                    value={newPoForm.targetHub}
+                    onChange={(e) => setNewPoForm({ ...newPoForm, targetHub: e.target.value })}
+                    className="h-9"
+                  >
+                    <option value="BLR-FC1">BLR-Fulfillment-FC1</option>
+                    <option value="BOM-FC2">BOM- Bhiwandi-FC2</option>
+                    <option value="DEL-NCR">DEL-NCR-FC3</option>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-text-secondary uppercase mb-1">
+                    Lot Quantity (pcs)
+                  </label>
+                  <input
+                    type="number"
+                    value={newPoForm.qty}
+                    onChange={(e) => setNewPoForm({ ...newPoForm, qty: Number(e.target.value) })}
+                    className="w-full h-9 px-3 bg-surface-subtle rounded-lg text-xs font-semibold text-text-primary border border-border-subtle focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-text-secondary uppercase mb-1">
+                    Estimated Cost (INR)
+                  </label>
+                  <input
+                    type="text"
+                    value={newPoForm.cost}
+                    onChange={(e) => setNewPoForm({ ...newPoForm, cost: e.target.value })}
+                    className="w-full h-9 px-3 bg-surface-subtle rounded-lg text-xs font-semibold text-text-primary border border-border-subtle focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-text-secondary uppercase mb-1">
+                    Promised Delivery Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newPoForm.deliveryDate}
+                    onChange={(e) => setNewPoForm({ ...newPoForm, deliveryDate: e.target.value })}
+                    className="w-full h-9 px-3 bg-surface-subtle rounded-lg text-xs font-semibold text-text-primary border border-border-subtle focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-border-subtle flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCreatePoModalOpen(false)}
+                className="px-3.5 py-2 rounded-xl bg-surface-subtle hover:bg-surface-variant text-text-primary text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-xl bg-primary-container text-on-primary hover:bg-primary text-xs font-semibold shadow-sm"
+              >
+                Issue Purchase Order
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default PurchaseOrdersAndSuppliers;

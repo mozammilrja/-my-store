@@ -1,12 +1,13 @@
 {
-  "name": "everwear-fashion-commerce-admin",
+  "name": "@dtc/admin",
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "description": "Everwear admin: operations, catalog, fulfilment and finance screens.",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 7001 --strictPort",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --port 7001"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",

@@ -1,15 +1,16 @@
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
-import path from "node:path"
+import { fileURLToPath } from "node:url"
 import { defineConfig } from "vite"
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: { port: 7001, strictPort: true },
   resolve: {
-    // The workspace root hoists React 18 for the backend; keep this app on its own React 19
+    // The workspace root hoists its own React; keep this app on the one it declares
     dedupe: ["react", "react-dom", "react-router-dom", "@tanstack/react-query"],
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
 })

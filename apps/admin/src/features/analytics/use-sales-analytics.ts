@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
-import { sdk } from "@/lib/sdk"
+import { adminApi } from "@/lib/api"
+import type { AdminOrder } from "@/lib/types"
 
 export type RangeKey = "7d" | "30d" | "90d"
 
@@ -9,59 +10,10 @@ export const RANGES: { key: RangeKey; label: string; days: number }[] = [
   { key: "90d", label: "90 days", days: 90 },
 ]
 
-const PAGE_SIZE = 200
-// Upper bound on orders read per load, across the current and previous period
-const MAX_ORDERS = 2000
-
-const ORDER_FIELDS = [
-  "id",
-  "display_id",
-  "status",
-  "created_at",
-  "email",
-  "currency_code",
-  "total",
-  "payment_status",
-  "fulfillment_status",
-  "items.id",
-  "items.title",
-  "items.product_title",
-  "items.product_id",
-  "items.thumbnail",
-  "items.quantity",
-  "items.unit_price",
-  "items.total",
-].join(",")
-
-type AnalyticsItem = {
-  id: string
-  title?: string | null
-  product_title?: string | null
-  product_id?: string | null
-  thumbnail?: string | null
-  quantity: number
-  unit_price: number
-  total?: number | null
-}
-
-export type AnalyticsOrder = {
-  id: string
-  display_id?: number | null
-  status: string
-  created_at: string
-  email?: string | null
-  currency_code: string
-  total: number
-  payment_status?: string | null
-  fulfillment_status?: string | null
-  items?: AnalyticsItem[] | null
-}
-
-type ListResponse<K extends string, T> = { [key in K]: T[] } & {
-  count: number
-  offset: number
-  limit: number
-}
+/** The API's largest page. */
+const PAGE_SIZE = 100
+/** Upper bound on rows read per load, across the current and previous period. */
+const MAX_ROWS = 2000
 
 export type DailyPoint = { date: Date; revenue: number; orders: number }
 
@@ -89,11 +41,10 @@ export type SalesAnalytics = {
   itemsSold: number
   newCustomers: number
   daily: DailyPoint[]
-  heatmap: number[][]
   topProducts: ProductRow[]
   paymentStatus: StatusSlice[]
   fulfillmentStatus: StatusSlice[]
-  recentOrders: AnalyticsOrder[]
+  recentOrders: AdminOrder[]
 }
 
 const startOfDay = (date: Date) => {
@@ -102,51 +53,42 @@ const startOfDay = (date: Date) => {
   return copy
 }
 
-const dayKey = (date: Date) =>
-  `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
 
-const fetchOrders = async (since: Date) => {
-  const orders: AnalyticsOrder[] = []
-  let count = 0
+/**
+ * Reads orders newest first and stops at the first page that reaches back past
+ * `since`. The list endpoint has no date filter, so the cutoff is applied here.
+ */
+const fetchOrdersSince = async (since: Date) => {
+  const orders: AdminOrder[] = []
 
-  do {
-    const page = await sdk.client.fetch<ListResponse<"orders", AnalyticsOrder>>(
-      "/admin/orders",
-      {
-        query: {
-          fields: ORDER_FIELDS,
-          limit: PAGE_SIZE,
-          offset: orders.length,
-          order: "-created_at",
-          created_at: { $gte: since.toISOString() },
-        },
-      }
-    )
-
-    count = page.count
-    orders.push(...page.orders)
-
-    if (!page.orders.length) {
-      break
+  for (let page = 1; ; page += 1) {
+    const result = await adminApi.orders({ page, limit: PAGE_SIZE })
+    const fresh = result.orders.filter((order) => new Date(order.createdAt) >= since)
+    orders.push(...fresh)
+    // This page reached past the cutoff, so every later page is older still.
+    if (fresh.length < result.orders.length || !result.orders.length) {
+      return { orders, truncated: false }
     }
-  } while (orders.length < count && orders.length < MAX_ORDERS)
-
-  return { orders, truncated: count > orders.length }
+    if (page >= result.pages) return { orders, truncated: false }
+    // Stopped early: the figures cover only the most recent orders.
+    if (orders.length >= MAX_ROWS) return { orders, truncated: true }
+  }
 }
 
-const fetchNewCustomerCount = async (since: Date) => {
-  const { count } = await sdk.client.fetch<ListResponse<"customers", unknown>>(
-    "/admin/customers",
-    {
-      query: {
-        fields: "id",
-        limit: 1,
-        created_at: { $gte: since.toISOString() },
-      },
-    }
-  )
+/** Same trick for customers: they are listed newest first too. */
+const countCustomersSince = async (since: Date) => {
+  let count = 0
 
-  return count
+  for (let page = 1; ; page += 1) {
+    const result = await adminApi.customers({ page, limit: PAGE_SIZE })
+    const fresh = result.customers.filter(
+      (customer) => new Date(customer.createdAt) >= since
+    )
+    count += fresh.length
+    if (fresh.length < result.customers.length || !result.customers.length) return count
+    if (page >= result.pages || count >= MAX_ROWS) return count
+  }
 }
 
 const countBy = (values: (string | null | undefined)[]) => {
@@ -163,7 +105,7 @@ const countBy = (values: (string | null | undefined)[]) => {
 }
 
 const summarize = (
-  orders: AnalyticsOrder[],
+  orders: AdminOrder[],
   days: number,
   truncated: boolean,
   newCustomers: number
@@ -175,29 +117,22 @@ const summarize = (
   previousStart.setDate(previousStart.getDate() - days)
 
   // Money is only comparable within one currency, so report the busiest one
-  const currencies = countBy(orders.map((order) => order.currency_code))
+  const currencies = countBy(orders.map((order) => order.currency))
   const currencyCode = currencies[0]?.status
-  const otherCurrencies = currencies
-    .slice(1)
-    .map((entry) => entry.status.toUpperCase())
+  const otherCurrencies = currencies.slice(1).map((entry) => entry.status.toUpperCase())
 
   const counted = orders.filter(
-    (order) =>
-      order.status !== "canceled" &&
-      order.status !== "draft" &&
-      order.currency_code === currencyCode
+    (order) => order.status !== "canceled" && order.currency === currencyCode
   )
 
-  const current = counted.filter(
-    (order) => new Date(order.created_at) >= currentStart
-  )
+  const current = counted.filter((order) => new Date(order.createdAt) >= currentStart)
   const previous = counted.filter((order) => {
-    const created = new Date(order.created_at)
+    const created = new Date(order.createdAt)
     return created >= previousStart && created < currentStart
   })
 
-  const sumTotals = (list: AnalyticsOrder[]) =>
-    list.reduce((sum, order) => sum + (Number(order.total) || 0), 0)
+  const sumTotals = (list: AdminOrder[]) =>
+    list.reduce((sum, order) => sum + (order.totals?.total ?? 0), 0)
 
   const revenue = sumTotals(current)
   const previousRevenue = sumTotals(previous)
@@ -213,34 +148,25 @@ const summarize = (
     dailyIndex.set(dayKey(date), point)
   }
 
-  // Rows are weekdays (Mon first), columns are 3-hour blocks
-  const heatmap = Array.from({ length: 7 }, () => Array(8).fill(0) as number[])
   const products = new Map<string, ProductRow>()
   let itemsSold = 0
 
   for (const order of current) {
-    const created = new Date(order.created_at)
-    const point = dailyIndex.get(dayKey(created))
+    const point = dailyIndex.get(dayKey(new Date(order.createdAt)))
 
     if (point) {
-      point.revenue += Number(order.total) || 0
+      point.revenue += order.totals?.total ?? 0
       point.orders += 1
     }
 
-    const weekday = (created.getDay() + 6) % 7
-    heatmap[weekday][Math.floor(created.getHours() / 3)] += 1
-
     for (const item of order.items ?? []) {
-      const quantity = Number(item.quantity) || 0
-      const lineTotal =
-        item.total != null
-          ? Number(item.total)
-          : (Number(item.unit_price) || 0) * quantity
-      const key = item.product_id || item.product_title || item.title || item.id
+      const quantity = item.quantity || 0
+      const lineTotal = item.total ?? item.unitPrice * quantity
+      const key = item.productId || item.productTitle || item.id
       const row = products.get(key) ?? {
         key,
-        productId: item.product_id,
-        title: item.product_title || item.title || "Untitled product",
+        productId: item.productId,
+        title: item.productTitle || "Untitled product",
         thumbnail: item.thumbnail,
         quantity: 0,
         revenue: 0,
@@ -253,9 +179,7 @@ const summarize = (
     }
   }
 
-  const currentAll = orders.filter(
-    (order) => new Date(order.created_at) >= currentStart
-  )
+  const currentAll = orders.filter((order) => new Date(order.createdAt) >= currentStart)
 
   return {
     currencyCode,
@@ -266,20 +190,13 @@ const summarize = (
     orders: current.length,
     previousOrders: previous.length,
     averageOrderValue: current.length ? revenue / current.length : 0,
-    previousAverageOrderValue: previous.length
-      ? previousRevenue / previous.length
-      : 0,
+    previousAverageOrderValue: previous.length ? previousRevenue / previous.length : 0,
     itemsSold,
     newCustomers,
     daily,
-    heatmap,
-    topProducts: [...products.values()]
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 6),
-    paymentStatus: countBy(currentAll.map((order) => order.payment_status)),
-    fulfillmentStatus: countBy(
-      currentAll.map((order) => order.fulfillment_status)
-    ),
+    topProducts: [...products.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 6),
+    paymentStatus: countBy(currentAll.map((order) => order.paymentStatus)),
+    fulfillmentStatus: countBy(currentAll.map((order) => order.fulfillmentStatus)),
     recentOrders: currentAll.slice(0, 6),
   }
 }
@@ -296,8 +213,8 @@ export const useSalesAnalytics = (range: RangeKey) => {
       previousStart.setDate(previousStart.getDate() - days)
 
       const [{ orders, truncated }, newCustomers] = await Promise.all([
-        fetchOrders(previousStart),
-        fetchNewCustomerCount(currentStart),
+        fetchOrdersSince(previousStart),
+        countCustomersSince(currentStart),
       ])
 
       return summarize(orders, days, truncated, newCustomers)

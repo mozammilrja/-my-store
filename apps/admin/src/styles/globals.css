@@ -44,6 +44,10 @@
 
 /* Everwear brand tokens. Bold fashion palette: white, ink, volt accent. Light theme only. Contrast checked to WCAG AA. */
 :root {
+  /* The palette is light-only, so say so: without this a dark-mode browser
+     (or Chrome's auto-dark) repaints the page it is not themed for. */
+  color-scheme: light;
+
   --radius: 0rem;
 
   --background: #ffffff;
@@ -78,6 +82,15 @@
   --brand-deep: #2b2b2e;
   --sale: #c8291d;
   --surface: #f4f4f2;
+
+  /* Categorical chart slots, assigned in fixed order and never cycled.
+     Every use pairs the colour with a visible label, so identity is never
+     carried by colour alone. */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
 }
 
 @theme inline {
@@ -114,6 +127,11 @@
   --color-brand-deep: var(--brand-deep);
   --color-sale: var(--sale);
   --color-surface: var(--surface);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);

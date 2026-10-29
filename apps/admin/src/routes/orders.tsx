@@ -1,29 +1,24 @@
-import type { HttpTypes } from "@medusajs/types"
-import { ExternalLink } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
 import { ResourceGrid, type GridColumn } from "@/components/resource-grid"
 import { StatusBadge } from "@/components/status-badge"
-import { Button } from "@/components/ui/button"
 import { formatDate, formatMoney } from "@/lib/format"
-import { LEGACY_ADMIN_URL } from "@/lib/sdk"
+import type { AdminOrder } from "@/lib/types"
 
-type OrderRow = HttpTypes.AdminOrder
-
-const columns: GridColumn<OrderRow>[] = [
+const columns: GridColumn<AdminOrder>[] = [
   {
-    id: "display_id",
+    id: "displayId",
     header: "Order",
     size: 90,
     cell: ({ row }) => (
-      <span className="font-medium tabular-nums">#{row.original.display_id}</span>
+      <span className="font-medium tabular-nums">#{row.original.displayId}</span>
     ),
   },
   {
-    id: "created_at",
+    id: "createdAt",
     header: "Date",
     size: 130,
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{formatDate(row.original.created_at)}</span>
+      <span className="text-muted-foreground">{formatDate(row.original.createdAt)}</span>
     ),
   },
   {
@@ -31,8 +26,10 @@ const columns: GridColumn<OrderRow>[] = [
     header: "Customer",
     size: 240,
     cell: ({ row }) => {
-      const { customer, email } = row.original
-      const name = [customer?.first_name, customer?.last_name].filter(Boolean).join(" ")
+      const { shippingAddress, email } = row.original
+      const name = [shippingAddress?.firstName, shippingAddress?.lastName]
+        .filter(Boolean)
+        .join(" ")
       return (
         <div className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{name || email || "Guest"}</span>
@@ -44,16 +41,16 @@ const columns: GridColumn<OrderRow>[] = [
     },
   },
   {
-    id: "payment_status",
+    id: "paymentStatus",
     header: "Payment",
     size: 140,
-    cell: ({ row }) => <StatusBadge status={row.original.payment_status} />,
+    cell: ({ row }) => <StatusBadge status={row.original.paymentStatus} />,
   },
   {
-    id: "fulfillment_status",
+    id: "fulfillmentStatus",
     header: "Fulfillment",
     size: 150,
-    cell: ({ row }) => <StatusBadge status={row.original.fulfillment_status} />,
+    cell: ({ row }) => <StatusBadge status={row.original.fulfillmentStatus} />,
   },
   {
     id: "total",
@@ -62,7 +59,7 @@ const columns: GridColumn<OrderRow>[] = [
     meta: { headerClassName: "text-right", cellClassName: "text-right" },
     cell: ({ row }) => (
       <span className="font-medium tabular-nums">
-        {formatMoney(Number(row.original.total) || 0, row.original.currency_code)}
+        {formatMoney(row.original.totals.total, row.original.currency)}
       </span>
     ),
   },
@@ -71,22 +68,12 @@ const columns: GridColumn<OrderRow>[] = [
 const OrdersPage = () => (
   <>
     <PageHeader title="Orders" description="Every order placed in your store." />
-    <ResourceGrid<OrderRow>
+    <ResourceGrid<AdminOrder>
       path="/admin/orders"
       resultKey="orders"
-      fields="id,display_id,status,created_at,email,payment_status,fulfillment_status,total,currency_code,*customer"
       columns={columns}
       searchPlaceholder="Search orders"
       emptyMessage="No orders yet"
-      onRowClick={(order) => window.open(`${LEGACY_ADMIN_URL}/orders/${order.id}`, "_blank")}
-      toolbar={
-        <Button variant="outline" size="sm" asChild>
-          <a href={`${LEGACY_ADMIN_URL}/draft-orders`} target="_blank" rel="noreferrer">
-            Draft orders
-            <ExternalLink />
-          </a>
-        </Button>
-      }
     />
   </>
 )

@@ -11,7 +11,7 @@
     "start": "turbo start",
     "lint": "turbo lint",
     "test": "turbo test",
-    "backend:seed": "turbo seed --filter=@dtc/backend",
+    "typecheck": "turbo typecheck",
     "backend:dev": "turbo dev --filter=@dtc/backend",
     "storefront:dev": "turbo dev --filter=@dtc/storefront"
   },
@@ -23,7 +23,6 @@
     }
   },
   "devDependencies": {
-    "@medusajs/eslint-plugin": "2.22.1",
     "eslint": "^9.39.4",
     "jiti": "^2.7.0",
     "prettier": "^3.2.5",
@@ -33,8 +32,7 @@
     "ajv": "^8.13.0"
   },
   "workspaces": [
-    "apps/**",
-    "!apps/backend/.medusa/**"
+    "apps/**"
   ],
   "overrides": {
     "eslint": {

@@ -50,7 +50,9 @@ export function Gallery({ product }: { product: HttpTypes.StoreProduct }) {
           src={current.url}
           alt={`${product.title}${images.length > 1 ? `, image ${active + 1} of ${images.length}` : ""}`}
           fill
-          priority
+          preload
+          loading="eager"
+          fetchPriority="high"
           sizes="(min-width: 1024px) 55vw, 100vw"
           className="object-cover"
         />

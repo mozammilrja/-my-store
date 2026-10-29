@@ -49,7 +49,9 @@ export function Hero({ featured }: { featured?: HttpTypes.StoreProduct }) {
                 src={image}
                 alt={featured.title}
                 fill
-                priority
+                preload
+                loading="eager"
+                fetchPriority="high"
                 sizes="(min-width: 1024px) 40vw, 100vw"
                 className="object-cover transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.02] motion-reduce:transition-none"
               />

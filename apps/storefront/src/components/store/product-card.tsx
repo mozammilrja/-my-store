@@ -11,6 +11,8 @@ type ProductCardProps = {
   priority?: boolean
   sizes?: string
   className?: string
+  /** h2 directly under a page title (listings), h3 under a section heading. */
+  headingLevel?: "h2" | "h3"
 }
 
 /**
@@ -23,7 +25,9 @@ export function ProductCard({
   priority = false,
   sizes = "(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw",
   className,
+  headingLevel = "h3",
 }: ProductCardProps) {
+  const Heading = headingLevel
   const { cheapestPrice } = getProductPrice({ product })
   const amounts = new Set(
     (product.variants ?? [])
@@ -49,7 +53,7 @@ export function ProductCard({
             alt={product.title}
             fill
             sizes={sizes}
-            priority={priority}
+            loading={priority ? "eager" : "lazy"}
             className="object-cover transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03] motion-reduce:transition-none"
           />
         ) : (
@@ -65,9 +69,9 @@ export function ProductCard({
         )}
       </div>
       <div className="flex flex-col gap-0.5">
-        <h3 className="text-sm font-medium tracking-tight group-hover:underline group-hover:underline-offset-4" data-testid="product-title">
+        <Heading className="text-sm font-medium tracking-tight group-hover:underline group-hover:underline-offset-4" data-testid="product-title">
           {product.title}
-        </h3>
+        </Heading>
         {cheapestPrice ? (
           <p className="flex items-baseline gap-2 text-sm tabular-nums" data-testid="price">
             <span className={cn(onSale && "text-destructive-foreground")}>

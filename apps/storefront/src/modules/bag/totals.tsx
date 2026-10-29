@@ -1,5 +1,4 @@
 import { formatMoney } from "@/components/store/money"
-import { Separator } from "@/components/ui/separator"
 import { HttpTypes } from "@medusajs/types"
 
 /** Cart or order totals exactly as the backend calculated them. */
@@ -46,8 +45,7 @@ export function Totals({
           {formatMoney(totals.tax_total, c)}
         </dd>
       </div>
-      <Separator className="my-2" />
-      <div className="flex items-baseline justify-between">
+      <div className="mt-2 flex items-baseline justify-between border-t pt-4">
         <dt className="font-medium">Total</dt>
         <dd className="text-xl font-semibold tabular-nums" data-testid="cart-total" data-value={totals.total ?? 0}>
           {formatMoney(totals.total, c)}

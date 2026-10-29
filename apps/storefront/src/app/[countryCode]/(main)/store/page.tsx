@@ -31,7 +31,11 @@ export default async function StorePage(props: {
   return (
     <>
       <CatalogHeader eyebrow="Shop" title="All products" />
-      <Browse currencyCode={region.currency_code} />
+      {/* The faceted listing renders in the browser; reserving a screen of
+          height keeps the footer from jumping when results arrive. */}
+      <div className="min-h-[100svh]">
+        <Browse currencyCode={region.currency_code} />
+      </div>
     </>
   )
 }

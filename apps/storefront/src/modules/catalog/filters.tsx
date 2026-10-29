@@ -51,11 +51,13 @@ function CheckList({
     transformItems,
   })
   return (
-    <ul className="flex flex-col gap-2.5">
+    // Rows of at least 32px keep each 18px checkbox inside the 24px target
+    // spacing WCAG 2.2 (2.5.8) asks for.
+    <ul className="flex flex-col pt-1">
       {items.map((item) => {
         const id = `${attribute}-${item.value}`
         return (
-          <li key={item.value} className="flex items-center gap-2.5">
+          <li key={item.value} className="flex min-h-8 items-center gap-2.5">
             <Checkbox
               id={id}
               checked={item.isRefined}
@@ -93,7 +95,7 @@ function OptionGroups() {
       {[...groups.entries()].map(([title, values]) => (
         <AccordionItem key={title} value={`option-${title}`}>
           <AccordionTrigger>{title}</AccordionTrigger>
-          <AccordionContent>
+          <AccordionContent className="h-auto">
             <div className="flex flex-wrap gap-2">
               {values.map((v) => (
                 <button
@@ -136,8 +138,8 @@ function PriceFilter({ currencyCode }: { currencyCode: string }) {
   return (
     <AccordionItem value="price">
       <AccordionTrigger>Price</AccordionTrigger>
-      <AccordionContent>
-        <div className="flex flex-col gap-4 px-1 pt-2">
+      <AccordionContent className="h-auto">
+        <div className="flex flex-col gap-4 px-3 pt-4 pb-2">
           <Slider
             value={value}
             min={min}
@@ -178,7 +180,7 @@ export function Filters({ currencyCode, showCategories }: { currencyCode: string
         {showCategories && (
           <AccordionItem value="category">
             <AccordionTrigger>Category</AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent className="h-auto">
               <CheckList attribute={CATEGORY_ATTRIBUTE} />
             </AccordionContent>
           </AccordionItem>
@@ -187,7 +189,7 @@ export function Filters({ currencyCode, showCategories }: { currencyCode: string
         <PriceFilter currencyCode={currencyCode} />
         <AccordionItem value="labels">
           <AccordionTrigger>Labels</AccordionTrigger>
-          <AccordionContent>
+          <AccordionContent className="h-auto">
             {/* A "sale" tag without a lower price would mislead; real discounts use "On sale only". */}
             <CheckList attribute={LABELS_ATTRIBUTE} format={(v) => LABEL_NAMES[v] ?? v.charAt(0).toUpperCase() + v.slice(1)} exclude={["sale"]} />
           </AccordionContent>

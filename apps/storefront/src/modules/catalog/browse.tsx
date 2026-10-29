@@ -141,7 +141,7 @@ function Results({ currencyCode }: { currencyCode: string }) {
   if (hasNoResultsYet) {
     return (
       <ul className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 xl:grid-cols-4" aria-busy="true">
-        {Array.from({ length: 8 }, (_, i) => (
+        {Array.from({ length: PER_PAGE }, (_, i) => (
           <li key={i} className="flex flex-col gap-3">
             <Skeleton className="aspect-[4/5] w-full" />
             <Skeleton className="h-4 w-2/3" />

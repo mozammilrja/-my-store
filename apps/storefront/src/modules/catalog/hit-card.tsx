@@ -20,6 +20,8 @@ const amount = (value: unknown) => (typeof value === "number" ? value : null)
 
 /** Product tile for search-index results; prices come from the index fields for the region currency. */
 export function HitCard({ hit, currencyCode, priority }: { hit: ProductHit; currencyCode: string; priority?: boolean }) {
+  // Hits always sit directly under the listing's h1.
+  const Heading = "h2"
   const currency = indexedCurrency(currencyCode)
   const min = amount(hit[priceAttribute("min_price", currencyCode)])
   const max = amount(hit[priceAttribute("max_price", currencyCode)])
@@ -35,7 +37,7 @@ export function HitCard({ hit, currencyCode, priority }: { hit: ProductHit; curr
             src={hit.thumbnail}
             alt={hit.title ?? ""}
             fill
-            priority={priority}
+            loading={priority ? "eager" : "lazy"}
             sizes="(min-width: 1280px) 22vw, (min-width: 640px) 33vw, 50vw"
             className="object-cover transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03] motion-reduce:transition-none"
           />
@@ -48,9 +50,9 @@ export function HitCard({ hit, currencyCode, priority }: { hit: ProductHit; curr
         )}
       </div>
       <div className="flex flex-col gap-0.5">
-        <h3 className="text-sm font-medium tracking-tight group-hover:underline group-hover:underline-offset-4" data-testid="product-title">
+        <Heading className="text-sm font-medium tracking-tight group-hover:underline group-hover:underline-offset-4" data-testid="product-title">
           {hit.title}
-        </h3>
+        </Heading>
         {min !== null && (
           <p className="flex items-baseline gap-2 text-sm tabular-nums" data-testid="product-price">
             <span className={cn(onSale && "text-destructive-foreground")} data-testid="price">

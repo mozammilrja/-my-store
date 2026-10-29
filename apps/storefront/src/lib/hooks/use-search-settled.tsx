@@ -16,10 +16,11 @@ export function useSearchSettled() {
   const { status, results } = useInstantSearch()
 
   const isSearching = status !== "idle" && status !== "error"
-  const hasNoResultsYet = Boolean(
-    (results as unknown as { __isArtificial?: boolean } | undefined)
-      ?.__isArtificial
-  )
+  // No results object at all (server render, first paint) also means
+  // "nothing yet", so callers show a skeleton instead of an empty state.
+  const hasNoResultsYet =
+    !results ||
+    Boolean((results as unknown as { __isArtificial?: boolean }).__isArtificial)
 
   return {
     isSearching,

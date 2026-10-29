@@ -10,6 +10,9 @@ import { CartDrawer } from "./cart-drawer"
 import { MobileNav, NavLink } from "./mobile-nav"
 import { SearchDialog } from "./search-dialog"
 
+// The store listing keeps its sort in InstantSearch's URL state.
+export const NEW_IN_HREF = `/store?${new URLSearchParams({ "product[sortBy]": "product/sort/created_at:desc" })}`
+
 export async function Header({ countryCode }: { countryCode: string }) {
   const [regions, categories] = await Promise.all([
     listRegions().catch(() => []),
@@ -17,6 +20,7 @@ export async function Header({ countryCode }: { countryCode: string }) {
   ])
 
   const links: NavLink[] = [
+    { href: NEW_IN_HREF, label: "New in" },
     { href: "/store", label: "Shop all" },
     ...categories
       .filter((c) => !c.parent_category_id)
@@ -27,21 +31,26 @@ export async function Header({ countryCode }: { countryCode: string }) {
   return (
     <>
       <Announcement countryCode={countryCode} />
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-        <Container className="flex h-16 items-center gap-6 lg:h-[72px]">
-          <MobileNav links={links} regions={regions} />
+      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
+        <Container className="grid h-16 grid-cols-[1fr_auto_1fr] items-center gap-4 lg:h-[72px]">
+          <div className="flex items-center gap-2">
+            <MobileNav links={links} regions={regions} />
+            <LocalizedClientLink href="/" aria-label="Everwear home" data-testid="nav-store-link" className="max-lg:hidden">
+              <Wordmark />
+            </LocalizedClientLink>
+          </div>
 
-          <LocalizedClientLink href="/" aria-label="Everwear home" data-testid="nav-store-link" className="max-lg:mx-auto">
-            <Wordmark />
+          <LocalizedClientLink href="/" aria-label="Everwear home" className="lg:hidden">
+            <Wordmark className="text-2xl" />
           </LocalizedClientLink>
 
-          <nav aria-label="Main" className="hidden flex-1 lg:block">
-            <ul className="flex items-center gap-7 text-sm">
+          <nav aria-label="Main" className="hidden lg:block">
+            <ul className="flex items-center gap-8 text-xs font-bold tracking-[0.12em] uppercase">
               {links.map((link) => (
                 <li key={link.href}>
                   <LocalizedClientLink
                     href={link.href}
-                    className="py-2 underline-offset-[6px] transition-colors hover:text-primary hover:underline"
+                    className="relative py-6 after:absolute after:inset-x-0 after:bottom-4 after:h-0.5 after:origin-left after:scale-x-0 after:bg-foreground after:transition-transform after:duration-300 hover:after:scale-x-100"
                   >
                     {link.label}
                   </LocalizedClientLink>
@@ -50,7 +59,7 @@ export async function Header({ countryCode }: { countryCode: string }) {
             </ul>
           </nav>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-end gap-1">
             <SearchDialog />
             <Button variant="ghost" size="icon-sm" asChild className="max-sm:hidden">
               <LocalizedClientLink href="/account" aria-label="Account" data-testid="nav-account-link">

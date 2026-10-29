@@ -36,7 +36,7 @@ function Column({
       <ul className="flex flex-col gap-2.5 text-sm">
         {links.map((link) => (
           <li key={link.href}>
-            <LocalizedClientLink href={link.href} className="hover:text-primary">
+            <LocalizedClientLink href={link.href} className="text-muted-foreground transition-colors hover:text-foreground">
               {link.label}
             </LocalizedClientLink>
           </li>
@@ -56,10 +56,10 @@ export async function Footer() {
   ])
 
   return (
-    <footer className="mt-24 border-t bg-card">
+    <footer className="mt-24 bg-invert text-invert-foreground [--border:#2a2a2c] [--foreground:#ffffff] [--input:#3a3a3c] [--muted-foreground:#a3a3a3]">
       <Container className="grid gap-12 py-16 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-4">
-          <Wordmark className="text-3xl" />
+          <Wordmark className="text-5xl" />
           <p className="max-w-xs text-sm text-muted-foreground">
             Clothing and everyday essentials, chosen with care.
           </p>

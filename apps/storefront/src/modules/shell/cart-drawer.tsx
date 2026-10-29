@@ -11,6 +11,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { formatMoney } from "@/components/store/money"
+import { cn } from "@/lib/utils"
 import { deleteLineItem, retrieveCart } from "@lib/data/cart"
 import { CART_UPDATED_EVENT, notifyCartUpdated } from "@lib/util/cart-events"
 import { HttpTypes } from "@medusajs/types"
@@ -84,20 +85,26 @@ export function CartDrawer() {
       <SheetTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
+          size="icon-sm"
+          className="relative"
           aria-label={`Bag, ${count} ${count === 1 ? "item" : "items"}`}
           data-testid="nav-cart-link"
         >
           <ShoppingBagIcon aria-hidden />
-          <span className="hidden sm:inline">Bag</span>
-          <span className="tabular-nums" data-testid="nav-cart-count">
-            ({count})
+          <span
+            className={cn(
+              "absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-none font-bold text-accent-foreground tabular-nums",
+              count === 0 && "sr-only"
+            )}
+            data-testid="nav-cart-count"
+          >
+            {count}
           </span>
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="flex w-full flex-col gap-0 sm:max-w-md" data-testid="nav-cart-dropdown">
         <SheetHeader className="border-b">
-          <SheetTitle className="font-display text-2xl font-medium normal-case tracking-tight">
+          <SheetTitle className="font-display-tight text-3xl">
             Your bag
           </SheetTitle>
           <SheetDescription>

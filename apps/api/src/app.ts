@@ -9,7 +9,9 @@ import { ZodError, z } from "zod"
 import { getDb } from "./db/client.js"
 import { env } from "./env.js"
 import { ApiError } from "./lib/errors.js"
+import { cartRoutes } from "./routes/store/carts.js"
 import { catalogRoutes } from "./routes/store/catalog.js"
+import { customerRoutes } from "./routes/store/customers.js"
 
 export function createApp() {
   const app = new Hono()
@@ -28,6 +30,8 @@ export function createApp() {
   })
 
   app.route("/store", catalogRoutes)
+  app.route("/store", customerRoutes)
+  app.route("/store", cartRoutes)
 
   app.notFound((c) => c.json({ error: { code: "not_found", message: "Route not found" } }, 404))
 

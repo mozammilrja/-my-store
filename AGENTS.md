@@ -86,7 +86,7 @@ Run from the repo root unless noted. Turbo skips missing apps automatically.
 ```bash
 <pm> run dev                # all apps
 <pm> run backend:dev        # backend only (http://localhost:9000, admin at /app)
-<pm> run storefront:dev     # storefront only (http://localhost:8000)
+<pm> run storefront:dev     # storefront only (http://localhost:8001; `start` serves on 8000)
 ```
 
 ### Build
@@ -104,9 +104,16 @@ cd apps/backend && <pm> run lint       # medusa lint
 cd apps/storefront && <pm> run lint    # eslint (flat config)
 ```
 
-### Test (backend only; the storefront has no test suite)
+### Test
 
-Run the suites from `apps/backend` — it defines no plain `test` script, so the root `<pm> run test` runs nothing there.
+Storefront end-to-end and accessibility tests use Playwright with the locally installed Google Chrome. Start both apps first (`<pm> run dev`); the checkout and account tests write orders and customers to the local database.
+
+```bash
+cd apps/storefront && <pm> exec playwright test            # e2e/*.spec.ts, desktop + mobile projects
+cd apps/storefront && <pm> exec playwright test e2e/a11y.spec.ts   # axe WCAG 2.2 AA scans
+```
+
+Run the backend suites from `apps/backend` — it defines no plain `test` script, so the root `<pm> run test` runs nothing there.
 
 ```bash
 cd apps/backend && <pm> run test:unit                      # **/src/**/__tests__/**/*.unit.spec.ts

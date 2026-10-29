@@ -9,9 +9,11 @@ Everwear is a headless e-commerce store: a Medusa 2.22.1 backend with an admin d
 | Layer | Technology | Version |
 | --- | --- | --- |
 | Backend + Admin | Medusa (`@medusajs/medusa`) | 2.22.1 |
-| Storefront | Next.js (App Router, Turbopack), React | 16.3.8, 19.0.5 |
-| Styling | Tailwind CSS, `@medusajs/ui` | 3.x |
+| Storefront | Next.js (App Router, Turbopack), React | 16.4.2, 19.0.5 |
+| Styling | Tailwind CSS (CSS-first config), shadcn/ui `radix-sera` style, ReUI (free tier) | 4.3.3 |
+| Icons | lucide-react | latest 0.x |
 | Storefront API client | `@medusajs/js-sdk` | 2.22.1 |
+| Browser tests | Playwright (installed Google Chrome) + axe-core | 1.56 / 4.11 |
 | Database | PostgreSQL (Docker container `medusa-postgres`) | 16 |
 | Monorepo | Turborepo, npm workspaces | npm 10.9.7 |
 | Runtime | Node.js | 22.22+ |
@@ -63,9 +65,17 @@ Two apps live under `apps/`; the backend holds all business logic and the storef
 | `apps/backend/src/migration-scripts/` | Initial data seed and region store policies |
 | `apps/backend/src/scripts/` | One-off scripts, e.g. `seed-demo-products.ts` |
 | `apps/backend/src/admin/` | Admin dashboard widgets, routes, i18n |
-| `apps/storefront/src/app/` | Next.js routes, mostly under `[countryCode]/` |
+| `apps/storefront/src/app/` | Next.js routes, mostly under `[countryCode]/`; `error.tsx`, `global-error.tsx`, `not-found.tsx` boundaries |
+| `apps/storefront/src/proxy.ts` | Country-code routing (Next.js 16 name for middleware); falls back to the default region if the backend is down |
 | `apps/storefront/src/lib/data/` | Server-side Medusa API calls: cart, products, orders, customer, payment |
-| `apps/storefront/src/modules/` | Feature UI: home, store, products, cart, checkout, account, order, search |
+| `apps/storefront/src/components/ui/`, `components/reui/` | Installed shadcn and ReUI primitives (do not restyle these files; theme through tokens) |
+| `apps/storefront/src/components/store/` | Brand parts: wordmark, container, product card, money format, status page |
+| `apps/storefront/src/modules/shell/` | Header, announcement bar, mobile menu, search dialog, cart drawer, region and language pickers, footer |
+| `apps/storefront/src/modules/home/`, `catalog/`, `product/`, `bag/` | Home page, listings and filters, product page, cart |
+| `apps/storefront/src/modules/checkout/`, `account/`, `order/` | Checkout steps, account and order screens (existing logic, restyled) |
+| `apps/storefront/src/styles/globals.css` | Brand tokens, plus a bridge mapping legacy Medusa `ui-*` variables onto them |
+| `apps/storefront/e2e/` | Playwright tests: shopping, checkout, account, agent API, mobile, accessibility |
+| `.claude/skills/reui/` | ReUI design rules for Claude Code |
 
 ## Setup and running
 
@@ -92,7 +102,39 @@ Start Postgres, then run `npm run dev` from the repo root; both apps come up in 
 | `apps/backend/.env` | `DATABASE_URL`, `STORE_CORS`, `ADMIN_CORS`, `AUTH_CORS`, `JWT_SECRET`, `COOKIE_SECRET`, `REDIS_URL` (optional) |
 | `apps/storefront/.env.local` | `NEXT_PUBLIC_MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY`, `NEXT_PUBLIC_DEFAULT_REGION`, `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_STRIPE_KEY` |
 
-Production: `npm run build`, then `npm run start`.
+Production: `npm run build`, then `npm run start`. The build prerenders the sitemap from the Store API, so the backend must be running.
+
+## Design system
+
+The storefront uses an editorial look: warm ivory surfaces, ink text, one cobalt accent, a display serif for headlines and square controls.
+
+| Token | Value | Use |
+| --- | --- | --- |
+| `--background` | `#f6f3ec` ivory | Page |
+| `--card` | `#fbfaf6` paper | Panels, footer |
+| `--foreground` | `#16171b` ink | Text |
+| `--muted-foreground` | `#5e5c57` | Secondary text (6.0:1 on ivory) |
+| `--primary` | `#2440d6` cobalt | Main buttons, links, focus ring only |
+| `--border` | `#e3ded3` | Hairlines |
+| `--destructive-foreground`, `--success-foreground`, `--warning-foreground` | `#8f1d14`, `#14532f`, `#7a4a00` | Status text |
+
+- **Type:** Fraunces (display serif) for headings and the wordmark, Inter Tight for UI and body. Both are self-hosted at build time with `next/font`.
+- **Shape:** `--radius: 0`; the `radix-sera` style gives square, uppercase buttons. Product images use a 4:5 ratio.
+- **Motion:** 200 to 500 ms transform and opacity only. Everything respects `prefers-reduced-motion`.
+- **Rules:** use installed components and theme tokens. The ReUI skill in `.claude/skills/reui` lists the details. After every `npx shadcn add`, check that no stray npm package called `cn` was added (this shadcn style does that) and remove it.
+
+## Testing
+
+Run from `apps/storefront` with both apps running (`npm run dev` at the root):
+
+| Check | Command |
+| --- | --- |
+| Types | `npx tsc --noEmit` |
+| Lint | `npm run lint` |
+| Production build | `npm run build` |
+| End-to-end and accessibility | `npx playwright test` (29 tests: shopping, checkout with manual payment, account, agent API, mobile, axe WCAG 2.2 AA) |
+
+The checkout and account tests create real orders and customers in the local database. Don't point them at production.
 
 ## Development guide
 
@@ -115,11 +157,17 @@ Put business logic in workflows, expose it through file-based routes, and keep `
 
 ## Known issues and notes
 
-None of these block the app today; all were seen during the first run.
+None of these block the app in development.
 
-- **Locales 404:** the storefront calls `/store/locales` and the backend returns 404. Pages still render.
-- **No Redis:** the backend uses an in-memory fake Redis and local event bus. Fine for development; set `REDIS_URL` for production.
+- **Payments:** only the manual provider (`pp_system_default`) is configured. The Stripe checkout path is kept but untested until a Stripe provider and test keys are added to the backend.
+- **Emails:** the backend uses the local notification provider, so no order or account emails are sent.
+- **Locales:** `/store/locales` returns 404 because `MEDUSA_FF_TRANSLATION` is off. The language picker stays hidden until it is on.
+- **India region:** its metadata has no store policies, so shipping and returns details show as unavailable for `/in`.
+- **Demo data:** the 50 demo products share four images and use the same number in EUR and INR (for example 75 EUR and 75 INR).
+- **No Redis:** the backend uses an in-memory fake Redis and local event bus. Set it up for production.
 - **Node version:** the root `package.json` asks for Node 22.23.4 or newer; the machine runs 22.22.2 without errors.
-- **Next.js warning:** the `middleware` file convention is deprecated in Next.js 16; migrate to `proxy` with `npx @next/codemod@canary middleware-to-proxy .`
-- **Port docs:** `AGENTS.md` lists the storefront on 8000, but `npm run dev` uses 8001.
+- **Sessions:** customer tokens are stateless JWTs, so logging out removes the cookie but can't revoke a copied token before it expires.
+- **CSP:** scripts are allowed `'unsafe-inline'` because statically rendered pages can't carry nonces.
+- **Dependencies:** `npm audit` still reports a high-severity `zod` advisory that comes in through ESLint tooling and the backend. `pg` and `qs` are listed in the storefront but not imported.
+- **Lighthouse (production build, simulated mobile):** performance 79 to 90, accessibility, best practices and SEO 100 (cart SEO 63 by design: `noindex`). LCP 3.6 to 5 s, limited by the large demo product PNGs.
   

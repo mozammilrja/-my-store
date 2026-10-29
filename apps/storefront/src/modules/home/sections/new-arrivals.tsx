@@ -12,7 +12,7 @@ export function NewArrivals({ products }: { products: HttpTypes.StoreProduct[] }
         <Container className="flex flex-col items-start gap-4">
           <h2 className="font-display text-4xl tracking-tight">New in</h2>
           <p className="max-w-md text-sm text-muted-foreground">
-            The catalog is empty. Add products in the Medusa admin, or run the
+            The catalog is empty. Add products in the admin dashboard, or run the
             demo seed script, and they will appear here.
           </p>
         </Container>

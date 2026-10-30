@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Select } from '../ui/select';
+import { adminApi } from '../../lib/api';
 
 export function SystemSettings({ onNavigate, onShowToast }) {
   const [activeSection, setActiveSection] = useState('general');
@@ -8,6 +9,63 @@ export function SystemSettings({ onNavigate, onShowToast }) {
   const [ipWhitelisting, setIpWhitelisting] = useState(true);
   const [cloudSyncInterval, setCloudSyncInterval] = useState('15');
   const [activeLogLevel, setActiveLogLevel] = useState('INFO');
+
+  // Backend store settings
+  const [storeName, setStoreName] = useState('Everwear');
+  const [lowStockThreshold, setLowStockThreshold] = useState(5);
+  const [supportEmail, setSupportEmail] = useState('concierge@everwear.test');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    adminApi.settings()
+      .then(res => {
+        if (res?.settings) {
+          if (res.settings.storeName) setStoreName(res.settings.storeName);
+          if (res.settings.lowStockThreshold !== undefined) setLowStockThreshold(res.settings.lowStockThreshold);
+          if (res.settings.supportEmail) setSupportEmail(res.settings.supportEmail);
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to fetch settings from API:', err?.message);
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const handleSaveSettings = async () => {
+    setIsSaving(true);
+    try {
+      await adminApi.updateSettings({
+        storeName,
+        lowStockThreshold: Number(lowStockThreshold),
+        supportEmail: supportEmail || null,
+      });
+      onShowToast?.({
+        type: 'success',
+        title: 'Settings Saved',
+        message: 'System governance & store configuration persisted to database.',
+      });
+    } catch (err) {
+      onShowToast?.({
+        type: 'error',
+        title: 'Save Failed',
+        message: err?.message || 'Could not save store settings.',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleResetDefaults = () => {
+    setStoreName('Everwear');
+    setLowStockThreshold(5);
+    setSupportEmail('concierge@everwear.test');
+    onShowToast?.({
+      type: 'info',
+      title: 'Defaults Staged',
+      message: 'Reset staged settings to standard defaults. Click Save Configuration to persist.',
+    });
+  };
 
   return (
     <div className="flex flex-col w-full space-y-space-lg">
@@ -30,19 +88,22 @@ export function SystemSettings({ onNavigate, onShowToast }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => onShowToast?.('Reset all pending changes to production defaults.')}
-            className="h-9 px-3.5 rounded-xl bg-surface-container-lowest text-text-primary border border-border-subtle hover:bg-surface-subtle font-label-sm text-label-sm transition-colors"
+            onClick={handleResetDefaults}
+            className="h-9 px-3.5 rounded-xl bg-surface-container-lowest text-text-primary border border-border-subtle hover:bg-surface-subtle font-label-sm text-label-sm transition-colors cursor-pointer"
             type="button"
           >
             Reset Defaults
           </button>
           <button
-            onClick={() => onShowToast?.('Saved system configuration across 4 national clusters.')}
-            className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary-container/90 text-on-primary font-label-sm text-label-sm font-semibold transition-all shadow-sm flex items-center gap-1.5"
+            onClick={handleSaveSettings}
+            disabled={isSaving}
+            className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-label-sm text-label-sm font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             type="button"
           >
-            <span className="material-symbols-outlined text-[18px]">save</span>
-            <span>Save Configuration</span>
+            <span className="material-symbols-outlined text-[18px]">
+              {isSaving ? 'hourglass_top' : 'save'}
+            </span>
+            <span>{isSaving ? 'Saving...' : 'Save Configuration'}</span>
           </button>
         </div>
       </div>
@@ -77,6 +138,49 @@ export function SystemSettings({ onNavigate, onShowToast }) {
         <div className="lg:col-span-9 space-y-space-md">
           {activeSection === 'general' && (
             <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle p-6 space-y-6">
+              {/* Store Identity & Core Configuration */}
+              <div className="p-4 bg-surface-canvas rounded-xl border border-border-subtle space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-headline-sm font-semibold text-text-primary">Everwear Storefront Identity & Policies</h3>
+                    <p className="text-xs text-text-secondary mt-0.5">Global store metadata synchronized with backend database.</p>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-status-success text-[10px] font-bold">MONGODB LIVE</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Store Name</label>
+                    <input
+                      type="text"
+                      value={storeName}
+                      onChange={(e) => setStoreName(e.target.value)}
+                      className="w-full h-9 px-3 bg-surface-container-lowest border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Global Low-Stock Alert (Units)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="1000"
+                      value={lowStockThreshold}
+                      onChange={(e) => setLowStockThreshold(Number(e.target.value))}
+                      className="w-full h-9 px-3 bg-surface-container-lowest border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Concierge Support Email</label>
+                    <input
+                      type="email"
+                      value={supportEmail}
+                      onChange={(e) => setSupportEmail(e.target.value)}
+                      className="w-full h-9 px-3 bg-surface-container-lowest border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <h3 className="font-headline-sm font-semibold text-text-primary">Fulfillment Routing & Allocation</h3>
                 <p className="text-xs text-text-secondary mt-1">Configure intelligent split-shipment prevention and nearest warehouse allocation logic.</p>

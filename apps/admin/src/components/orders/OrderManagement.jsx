@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { INITIAL_ORDERS } from '../../data/mockData';
+import { adminApi } from '../../lib/api';
+import { formatMoney, formatDate } from '../../lib/format';
 import { OrderDetailDrawer } from './OrderDetailDrawer';
 import { CreateOrderModal } from './CreateOrderModal';
 import {
@@ -26,7 +28,7 @@ export function OrderManagement({
   onSelectOrder 
 }) {
   const [orders, setOrders] = useState(INITIAL_ORDERS);
-  const [activeTab, setActiveTab] = useState('Packed & Ready');
+  const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('All');
   const [warehouseFilter, setWarehouseFilter] = useState('All Hubs');
@@ -38,7 +40,119 @@ export function OrderManagement({
   const [internalActiveId, setInternalActiveId] = useState('EVR-984210-BLR');
   const [drawerOpen, setDrawerOpen] = useState(true);
 
-  // Currently inspected order (defaults to selectedOrderId, internalActiveId or first order)
+  // Fetch real orders from Everwear API on mount
+  useEffect(() => {
+    adminApi.orders({ limit: 50 })
+      .then((data) => {
+        if (data?.orders && data.orders.length > 0) {
+          const apiOrders = data.orders.map((ord, idx) => {
+            const customerName = ord.shippingAddress 
+              ? `${ord.shippingAddress.firstName || ''} ${ord.shippingAddress.lastName || ''}`.trim() || ord.email.split('@')[0]
+              : ord.email.split('@')[0];
+            const phone = ord.shippingAddress?.phone || '+91 98800 12345';
+            const city = ord.shippingAddress?.city || 'Bengaluru';
+            const address = ord.shippingAddress 
+              ? `${ord.shippingAddress.address1 || ''}, ${ord.shippingAddress.city || ''}`
+              : 'Bengaluru, India';
+            const totalAmount = ord.totals?.total ? formatMoney(ord.totals.total, ord.currency) : (ord.total ? formatMoney(ord.total, ord.currency) : '₹4,890.00');
+
+            const orderIdFormatted = ord.displayId ? `EVR-${ord.displayId}-${currentHub.id.slice(0, 3)}` : ord.id;
+            const isDelivered = ord.fulfillmentStatus === 'delivered';
+            const isShipped = ord.fulfillmentStatus === 'shipped';
+            const isAwaiting = ord.paymentStatus === 'awaiting';
+
+            return {
+              id: orderIdFormatted,
+              rawId: ord.id,
+              channel: 'Everwear Online Flagship',
+              orderDate: ord.createdAt ? formatDate(ord.createdAt) : 'Today',
+              timeAgo: `${idx * 4 + 2}m ago`,
+              nodeFc: idx % 2 === 0 ? 'BLR-FC1' : 'BOM-FC2',
+              status: isDelivered ? 'Delivered' : isShipped ? 'Dispatched' : 'Packed & Staged',
+              stageBadge: isDelivered ? 'DELIVERED' : isShipped ? 'IN TRANSIT' : 'READY TO HANDOVER',
+              isExpress: idx % 2 === 0,
+              expressLabel: idx % 2 === 0 ? '⚡ 24h Express' : undefined,
+              customer: {
+                name: customerName,
+                shortName: customerName.split(' ')[0],
+                email: ord.email,
+                phone: phone.replace(/(\d{5})\d+/, '$1•••••'),
+                fullPhone: phone,
+                tier: idx === 0 ? 'VIP COUTURE' : 'GOLD TIER',
+                tierBadgeClass: 'bg-primary-fixed text-on-primary-fixed font-bold',
+                address,
+                cityRegion: `${city}, India`,
+                deliveryInstructions: 'Fragile luxury garment packaging'
+              },
+              items: ord.items?.map((it, i) => ({
+                id: it.id || `item-${i}`,
+                name: it.productTitle || 'Everwear Luxury Style',
+                variant: it.variantTitle || 'Default',
+                qty: it.quantity || 1,
+                price: it.unitPrice ? formatMoney(it.unitPrice, ord.currency) : '₹2,445.00',
+                sku: `EVR-${it.variantId?.slice(-6) || 'SKU'}`,
+                hsn: '6204.49.00',
+                image: it.thumbnail || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6'
+              })) || [
+                {
+                  id: 'item-1',
+                  name: 'Pleated Mulberry Silk Maxi Dress',
+                  variant: 'Emerald / M',
+                  qty: 1,
+                  price: totalAmount,
+                  sku: 'EVR-WDR-EMR-M',
+                  hsn: '6204.49.00',
+                  image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6'
+                }
+              ],
+              courier: {
+                partner: idx % 2 === 0 ? 'BlueDart Express' : 'Delhivery Air',
+                awb: `BLR${890000000 + idx}`,
+                serviceTier: 'Guaranteed 24h SLA',
+                bagId: `BAG-882-${idx}`,
+                pickupSlot: '16:00 - 18:00 IST'
+              },
+              payment: {
+                type: ord.paymentStatus === 'paid' ? 'prepaid' : 'cod',
+                method: ord.paymentStatus === 'paid' ? 'Razorpay UPI (Instant)' : 'Cash on Delivery',
+                totalPaid: totalAmount,
+                subtotal: totalAmount,
+                discount: '₹0.00',
+                shipping: '₹0.00',
+                cgst: '₹240.00',
+                sgst: '₹240.00',
+                igst: '₹0.00',
+                statusBadge: ord.paymentStatus === 'paid' ? 'PAID (VERIFIED)' : 'PENDING ON DELIVERY',
+                statusVariant: ord.paymentStatus === 'paid' ? 'success' : 'warning'
+              },
+              currentTimelineStep: isDelivered ? 9 : isShipped ? 7 : 5,
+              timeline: [
+                { step: 1, title: 'Order Ingested', time: '14:28 IST', desc: 'Validated & Fraud Scored', done: true },
+                { step: 2, title: 'Payment Reconciled', time: '14:28 IST', desc: 'Payment Gateway Verified', done: true },
+                { step: 3, title: 'Hub Inventory Allocated', time: '14:31 IST', desc: 'BLR-FC1 Matched via SLA', done: true },
+                { step: 4, title: 'Item Picked from Bin', time: '15:15 IST', desc: 'Aisle C-12 / Bin 5 Scanned', done: true },
+                { step: 5, title: 'QC & Packaging', time: '15:35 IST', desc: 'Studio Boxed with Ribbon', done: true, isCurrent: !isShipped && !isDelivered },
+                { step: 6, title: 'AWB Manifest Generated', time: '15:45 IST', desc: 'BlueDart Tracking Ingested', done: isShipped || isDelivered },
+                { step: 7, title: 'Handed to Courier Partner', time: '16:30 IST', desc: 'Dock 4 Departure', done: isShipped || isDelivered, isCurrent: isShipped },
+                { step: 8, title: 'Out for Final Delivery', time: 'Tomorrow 10:00', desc: 'Delivery Associate Outbound', done: isDelivered },
+                { step: 9, title: 'Delivered & Signature Collected', time: 'Tomorrow 12:30', desc: 'OTP Verified at Doorstep', done: isDelivered, isCurrent: isDelivered },
+              ],
+              rawBackend: ord
+            };
+          });
+
+          setOrders([...apiOrders, ...INITIAL_ORDERS]);
+          if (apiOrders.length > 0) {
+            setInternalActiveId(apiOrders[0].id);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Backend orders fetch notice:', err?.message);
+      });
+  }, [currentHub.id]);
+
+  // Currently inspected order
   const activeOrder = useMemo(() => {
     if (!drawerOpen) return null;
     const targetId = selectedOrderId || internalActiveId;
@@ -54,32 +168,38 @@ export function OrderManagement({
   // Filter orders
   const filteredOrders = useMemo(() => {
     return orders.filter(ord => {
+      // Tab filter
+      if (activeTab === 'Packed & Ready' && ord.status !== 'Packed & Staged' && ord.status !== 'Packed & Ready') return false;
+      if (activeTab === 'In Transit' && ord.status !== 'Dispatched' && ord.status !== 'In Transit') return false;
+      if (activeTab === 'Delivered' && ord.status !== 'Delivered') return false;
+      if (activeTab === 'Exceptions' && ord.status !== 'On Hold' && ord.status !== 'Cancelled') return false;
+
       // Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesId = ord.id.toLowerCase().includes(q);
         const matchesName = ord.customer.name.toLowerCase().includes(q);
-        const matchesAwb = ord.courier.awb.toLowerCase().includes(q);
-        const matchesPhone = (ord.customer.fullPhone || ord.customer.phone).toLowerCase().includes(q);
+        const matchesAwb = ord.courier?.awb?.toLowerCase().includes(q);
+        const matchesPhone = (ord.customer.fullPhone || ord.customer.phone || '').toLowerCase().includes(q);
         if (!matchesId && !matchesName && !matchesAwb && !matchesPhone) return false;
       }
       // Payment filter
       if (paymentFilter !== 'All') {
-        if (paymentFilter.includes('COD') && ord.payment.type !== 'cod') return false;
-        if (paymentFilter.includes('Prepaid') && ord.payment.type !== 'prepaid') return false;
+        if (paymentFilter.includes('COD') && ord.payment?.type !== 'cod') return false;
+        if (paymentFilter.includes('Prepaid') && ord.payment?.type !== 'prepaid') return false;
       }
       // Warehouse filter
       if (warehouseFilter !== 'All Hubs') {
-        if (!ord.nodeFc.includes(warehouseFilter.split(' ')[0])) return false;
+        if (!ord.nodeFc?.includes(warehouseFilter.split(' ')[0])) return false;
       }
       // Courier filter
       if (courierFilter !== 'All 3PL') {
         const cName = courierFilter.replace('Courier: ', '');
-        if (!ord.courier.partner.toLowerCase().includes(cName.toLowerCase())) return false;
+        if (!ord.courier?.partner?.toLowerCase().includes(cName.toLowerCase())) return false;
       }
       return true;
     });
-  }, [orders, searchQuery, paymentFilter, warehouseFilter, courierFilter]);
+  }, [orders, activeTab, searchQuery, paymentFilter, warehouseFilter, courierFilter]);
 
   const handleSelectAll = (checked) => {
     if (checked) {
@@ -98,8 +218,21 @@ export function OrderManagement({
     }
   };
 
-  const handleUpdateOrder = (updatedOrder) => {
+  const handleUpdateOrder = async (updatedOrder) => {
     setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+
+    // If real backend order, update on server
+    if (updatedOrder.rawBackend?.id) {
+      try {
+        if (updatedOrder.status === 'Cancelled') {
+          await adminApi.cancelOrder(updatedOrder.rawBackend.id);
+        } else if (updatedOrder.status === 'Dispatched') {
+          await adminApi.setOrderStatus(updatedOrder.rawBackend.id, { fulfillmentStatus: 'shipped' });
+        }
+      } catch (err) {
+        console.warn('Backend order update notice:', err?.message);
+      }
+    }
   };
 
   const handleCreateOrder = (newOrder) => {
@@ -128,8 +261,8 @@ export function OrderManagement({
       `"${o.customer.phone}"`,
       `"${o.channel}"`,
       o.nodeFc,
-      `"${o.courier.partner}"`,
-      o.courier.awb,
+      `"${o.courier?.partner || '3PL'}"`,
+      o.courier?.awb || '—',
       o.payment.totalPaid,
       o.payment.cgst,
       o.payment.sgst,
@@ -160,14 +293,6 @@ export function OrderManagement({
     });
   };
 
-  const handleAssignCourier = () => {
-    onShowToast({
-      type: 'warning',
-      title: 'Carrier Load-Balancing Active',
-      message: 'Automated 3PL load allocator assigned BlueDart & Delhivery based on air cargo capacity.',
-    });
-  };
-
   return (
     <div className="flex flex-col w-full space-y-space-md">
       {/* Top Navigation & Operations Header */}
@@ -191,520 +316,319 @@ export function OrderManagement({
           </div>
         </div>
 
-        {/* Page Title & High-Velocity Action Bar */}
+        {/* Page Title & Action Bar */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md pb-space-xs">
           <div>
             <h1 className="font-headline-lg text-headline-lg font-bold text-text-primary tracking-tight">
               Order Management & Fulfillment Dispatch
             </h1>
             <p className="font-body-sm text-body-sm text-text-secondary">
-              Manage nationwide customer orders, bulk manifesting, carrier allocation, and order exceptions.
+              Omnichannel order routing, real-time 3PL manifest generation, GST invoice compliance & live airway bill tracking.
             </p>
           </div>
 
-          {/* Quick Action Toolbar */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBulkManifest}
-              className="gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[16px] text-primary">inventory_2</span>
-              <span>Bulk Manifest</span>
-              <Badge variant="default" className="ml-1 px-1.5 py-0 text-[10px]">
-                {selectedIds.length || 14}
-              </Badge>
-            </Button>
+          <div className="flex flex-wrap items-center gap-space-xs">
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportCsv}
-              className="gap-1.5"
+              className="gap-1.5 h-9"
+              type="button"
             >
-              <span className="material-symbols-outlined text-[16px] text-secondary">receipt_long</span>
-              <span>Export GST (CSV)</span>
+              <span className="material-symbols-outlined text-[18px]">receipt_long</span>
+              <span>Export GST Register</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={handleGenerateLabels}
-              className="gap-1.5"
+              className="gap-1.5 h-9"
+              type="button"
             >
-              <span className="material-symbols-outlined text-[16px] text-secondary">label</span>
-              <span>Generate Labels</span>
+              <span className="material-symbols-outlined text-[18px]">print</span>
+              <span>Print Barcodes</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={handleAssignCourier}
-              className="gap-1.5"
+              onClick={handleBulkManifest}
+              className="gap-1.5 h-9"
+              type="button"
             >
-              <span className="material-symbols-outlined text-[16px] text-secondary">local_shipping</span>
-              <span>Assign Courier</span>
+              <span className="material-symbols-outlined text-[18px]">inventory_2</span>
+              <span>Batch Manifest</span>
             </Button>
             <Button
               variant="primary"
               size="sm"
               onClick={() => setCreateModalOpen(true)}
-              className="gap-1.5 shadow-sm"
+              className="gap-1.5 h-9 shadow-sm"
+              type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              <span>Create Manual Order</span>
+              <span className="material-symbols-outlined text-[18px]">add_circle</span>
+              <span>+ Create Manual Order</span>
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Operational Metrical Pulse - ReUI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-space-sm">
-        <Card className="hover:border-primary/30 transition-all">
-          <CardContent className="p-3 flex flex-col justify-between h-full">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">All Active Today</span>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="font-metric-stat text-metric-stat text-text-primary tracking-tight tabular-nums">84,210</span>
-              <span className="text-status-success font-label-xs-caps text-[10px] font-semibold">+8.4%</span>
-            </div>
-            <Progress value={84} className="mt-2 h-1 bg-surface-subtle" indicatorClassName="bg-primary-container" />
-          </CardContent>
-        </Card>
-
-        <Card className="hover:border-amber-300 transition-all">
-          <CardContent className="p-3 flex flex-col justify-between h-full">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">To Pick & Pack</span>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="font-metric-stat text-metric-stat text-status-warning tracking-tight tabular-nums">1,428</span>
-              <span className="text-status-warning font-label-xs-caps text-[10px] font-semibold">Priority</span>
-            </div>
-            <Progress value={42} className="mt-2 h-1 bg-surface-subtle" indicatorClassName="bg-status-warning" />
-          </CardContent>
-        </Card>
-
-        <Card className="hover:border-emerald-300 transition-all">
-          <CardContent className="p-3 flex flex-col justify-between h-full">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">Ready for Courier</span>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="font-metric-stat text-metric-stat text-status-success tracking-tight tabular-nums">892</span>
-              <span className="text-text-secondary font-label-xs-caps text-[10px]">Staged</span>
-            </div>
-            <Progress value={65} className="mt-2 h-1 bg-surface-subtle" indicatorClassName="bg-status-success" />
-          </CardContent>
-        </Card>
-
-        <Card className="hover:border-blue-300 transition-all">
-          <CardContent className="p-3 flex flex-col justify-between h-full">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">In-Transit Hubs</span>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="font-metric-stat text-metric-stat text-status-info tracking-tight tabular-nums">12,400</span>
-              <span className="text-status-info font-label-xs-caps text-[10px]">99.2% SLA</span>
-            </div>
-            <Progress value={78} className="mt-2 h-1 bg-surface-subtle" indicatorClassName="bg-status-info" />
-          </CardContent>
-        </Card>
-
-        <Card className="hover:border-primary/30 transition-all">
-          <CardContent className="p-3 flex flex-col justify-between h-full">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">Delivered</span>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="font-metric-stat text-metric-stat text-text-primary tracking-tight tabular-nums">68,120</span>
-              <span className="text-status-success font-label-xs-caps text-[10px]">80.9%</span>
-            </div>
-            <Progress value={91} className="mt-2 h-1 bg-surface-subtle" indicatorClassName="bg-status-success" />
-          </CardContent>
-        </Card>
-
-        <Card className="hover:border-rose-300 transition-all">
-          <CardContent className="p-3 flex flex-col justify-between h-full">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">RTO & Reversals</span>
-            <div className="flex items-baseline justify-between mt-1">
-              <span className="font-metric-stat text-metric-stat text-status-danger tracking-tight tabular-nums">1,370</span>
-              <span className="text-status-danger font-label-xs-caps text-[10px] font-semibold">1.62% RT</span>
-            </div>
-            <Progress value={16} className="mt-2 h-1 bg-surface-subtle" indicatorClassName="bg-status-danger" />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Omnichannel Search & Intelligent Filter Array */}
-      <Card className="overflow-visible shadow-xs border border-border-subtle">
-        <div className="p-4 sm:p-5 space-y-3.5">
-          {/* Row 1: Search Bar + Filter Dropdowns + Date Range & Save */}
-          <div className="flex flex-wrap xl:flex-nowrap items-center gap-2.5">
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-[260px]">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary text-[18px]">
-                search
-              </span>
-              <Input
-                className="pl-9 pr-24 h-9 bg-surface-canvas focus:bg-surface-container-lowest w-full rounded-xl border border-border-subtle"
-                placeholder="Search by Order ID (e.g. EVR-984210-BLR), AWB, Customer phone, or Email..."
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery && (
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  <Badge variant="secondary" className="text-[10px]">
-                    Filter Active
-                  </Badge>
-                  <button 
-                    onClick={() => setSearchQuery('')}
-                    className="text-secondary hover:text-text-primary cursor-pointer" 
-                    type="button"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">cancel</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Quick Filters in Top Searchbar Row */}
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Payment Filter */}
-              <Select 
-                value={paymentFilter}
-                onChange={(e) => setPaymentFilter(e.target.value)}
-                className="w-auto h-9 text-xs min-w-[125px] rounded-xl"
-              >
-                <option value="All">Payment: All</option>
-                <option value="Paid (Prepaid)">Payment: Paid</option>
-                <option value="Cash on Delivery (COD)">Payment: COD</option>
-                <option value="Pending Gate">Payment: Pending</option>
-                <option value="Refunded">Payment: Refunded</option>
-              </Select>
-
-              {/* Warehouse Filter */}
-              <Select 
-                value={warehouseFilter}
-                onChange={(e) => setWarehouseFilter(e.target.value)}
-                className="w-auto h-9 text-xs min-w-[135px] rounded-xl"
-              >
-                <option value="All Hubs">Warehouse: All</option>
-                <option value="BLR-FC1">Warehouse: BLR</option>
-                <option value="BOM-FC2">Warehouse: BOM</option>
-                <option value="DEL-FC1">Warehouse: DEL</option>
-              </Select>
-
-              {/* Courier Partner Filter */}
-              <Select 
-                value={courierFilter}
-                onChange={(e) => setCourierFilter(e.target.value)}
-                className="w-auto h-9 text-xs min-w-[125px] rounded-xl"
-                dropdownAlign="right"
-              >
-                <option value="All 3PL">Courier: All</option>
-                <option value="BlueDart Express">Courier: BlueDart</option>
-                <option value="Delhivery Direct">Courier: Delhivery</option>
-                <option value="Shadowfax Hyper">Courier: Shadowfax</option>
-                <option value="XpressBees Surface">Courier: XpressBees</option>
-              </Select>
-
-              {/* Date Range Button */}
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => onShowToast({ type: 'info', title: 'Date Range Selector', message: 'Current view: May 18 - May 24, 2024' })}
-                className="gap-1.5 h-9 shrink-0 whitespace-nowrap hidden sm:inline-flex rounded-xl"
-              >
-                <span className="material-symbols-outlined text-[16px] text-secondary">date_range</span>
-                <span className="text-xs font-medium">May 18 – May 24, 2024</span>
-              </Button>
-
-              {/* Save Search */}
-              <Button 
-                variant="outline"
-                size="icon"
-                onClick={() => onShowToast({ type: 'success', title: 'Segment Saved', message: 'Fulfillment search segment bookmarked.' })}
-                className="h-9 w-9 shrink-0 rounded-xl"
-                title="Save Search Segment"
-              >
-                <span className="material-symbols-outlined text-[18px]">bookmark_add</span>
-              </Button>
-
-              {(paymentFilter !== 'All' || warehouseFilter !== 'All Hubs' || courierFilter !== 'All 3PL' || searchQuery) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPaymentFilter('All');
-                    setWarehouseFilter('All Hubs');
-                    setCourierFilter('All 3PL');
-                    setSearchQuery('');
-                  }}
-                  className="text-xs text-primary-container font-semibold hover:underline whitespace-nowrap px-1 cursor-pointer"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Row 2: Status Tab Pills Across Full Width */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar w-full pt-0.5">
+      {/* Operational Filter & State Navigation Bar */}
+      <Card>
+        <CardContent className="p-space-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-space-sm">
+          {/* Status Tabs */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 no-scrollbar">
             {[
-              { label: 'All Orders', count: '84,210' },
-              { label: 'Unfulfilled / To Pick', count: '1,428', warn: true },
-              { label: 'Packed & Ready', count: '892', active: true },
-              { label: 'Dispatched / In-Transit', count: '12,400' },
-              { label: 'Delivered', count: '68,120' },
-              { label: 'RTO / Returned', count: '1,370' },
-              { label: 'Cancelled', count: '1,120' },
+              { id: 'All', label: 'All Orders', count: orders.length },
+              { id: 'Packed & Ready', label: 'Packed & Ready', count: orders.filter(o => o.status === 'Packed & Staged').length || 14 },
+              { id: 'In Transit', label: 'In Transit', count: orders.filter(o => o.status === 'Dispatched').length || 8 },
+              { id: 'Delivered', label: 'Delivered', count: orders.filter(o => o.status === 'Delivered').length || 6 },
+              { id: 'Exceptions', label: 'Exceptions', count: 3 },
             ].map((tab) => {
-              const isTabActive = activeTab === tab.label;
+              const isTabActive = activeTab === tab.id;
               return (
                 <button
-                  key={tab.label}
-                  onClick={() => setActiveTab(tab.label)}
-                  className={`shrink-0 px-3 py-1 rounded-full font-label-xs-caps text-[11px] font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg font-label-sm text-label-sm transition-all flex items-center gap-1.5 whitespace-nowrap ${
                     isTabActive
-                      ? 'bg-primary-container text-on-primary shadow-xs'
-                      : tab.warn
-                      ? 'bg-status-warning-bg text-status-warning hover:bg-amber-100 dark:hover:bg-amber-950/40'
-                      : 'bg-surface-subtle hover:bg-secondary-fixed text-text-secondary'
+                      ? 'bg-primary-container text-on-primary font-semibold shadow-xs'
+                      : 'bg-surface-subtle hover:bg-surface-container text-on-surface-variant'
                   }`}
                   type="button"
                 >
-                  {tab.label} <span className={`ml-1 ${isTabActive ? 'bg-white/20 px-1 rounded-full text-white' : 'opacity-70'}`}>{tab.count}</span>
+                  <span>{tab.label}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                    isTabActive ? 'bg-white/20 text-white' : 'bg-surface-container text-text-secondary'
+                  }`}>
+                    {tab.count}
+                  </span>
                 </button>
               );
             })}
           </div>
-        </div>
+
+          {/* Quick Search & Param Filters */}
+          <div className="flex flex-wrap items-center gap-space-xs">
+            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+              <span className="material-symbols-outlined absolute left-2.5 top-2.5 text-secondary text-[16px] pointer-events-none">
+                search
+              </span>
+              <Input
+                type="text"
+                placeholder="Search Order, AWB, Phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 pr-3 h-8.5 bg-surface-canvas text-xs"
+              />
+            </div>
+
+            <Select
+              value={paymentFilter}
+              onChange={(e) => setPaymentFilter(e.target.value)}
+              className="h-8.5 text-xs bg-surface-canvas font-medium"
+            >
+              <option>All Payments</option>
+              <option>Prepaid (UPI / Cards)</option>
+              <option>COD (Cash on Delivery)</option>
+            </Select>
+
+            <Select
+              value={warehouseFilter}
+              onChange={(e) => setWarehouseFilter(e.target.value)}
+              className="h-8.5 text-xs bg-surface-canvas font-medium"
+            >
+              <option>All Hubs</option>
+              <option>BLR-FC1 (Bengaluru)</option>
+              <option>BOM-FC2 (Mumbai)</option>
+              <option>DEL-FC3 (Delhi NCR)</option>
+              <option>CCU-FC4 (Kolkata)</option>
+            </Select>
+
+            <Select
+              value={courierFilter}
+              onChange={(e) => setCourierFilter(e.target.value)}
+              className="h-8.5 text-xs bg-surface-canvas font-medium"
+            >
+              <option>All 3PL Couriers</option>
+              <option>BlueDart Express</option>
+              <option>Delhivery Air</option>
+              <option>Shadowfax Air</option>
+            </Select>
+          </div>
+        </CardContent>
       </Card>
 
-      {/* Dual-Pane Enterprise Fulfilment Grid */}
+      {/* Main Split Grid: High-Density Table (8 Cols) + Interactive Order Drawer (4 Cols) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-md items-start">
-        {/* LEFT PANE: Orders Table (Takes 8 cols when drawer open, full 12 cols when drawer closed) */}
-        <Card className={`${drawerOpen ? 'xl:col-span-8' : 'xl:col-span-12'} overflow-hidden flex flex-col transition-all duration-200`}>
-          {/* Table Sub-toolbar */}
-          <div className="px-space-md py-2.5 bg-surface-subtle flex items-center justify-between border-b border-border-subtle">
-            <div className="flex items-center gap-space-sm">
-              <Checkbox
-                checked={selectedIds.length > 0 && selectedIds.length === filteredOrders.length}
-                onChange={(e) => handleSelectAll(e.target.checked)}
-              />
-              <span className="font-label-xs-caps text-label-xs-caps font-semibold uppercase tracking-wider text-text-primary">
-                Showing 1-{filteredOrders.length} of 892 Ready Orders
-              </span>
-              <Badge variant="default" className="text-[10px] font-bold">
-                {selectedIds.length} Selected
-              </Badge>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant={drawerOpen ? "subtle" : "outline"}
-                size="sm"
-                onClick={() => setDrawerOpen(!drawerOpen)}
-                className="h-7 px-2.5 text-xs gap-1.5 font-medium border border-border-subtle"
-                title={drawerOpen ? "Hide detail drawer" : "Show detail drawer"}
-              >
-                <span className="material-symbols-outlined text-[15px]">
-                  {drawerOpen ? 'dock_to_right' : 'side_navigation'}
-                </span>
-                <span>{drawerOpen ? 'Full Table' : 'Split View'}</span>
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={handleExportCsv}
-                className="h-7 w-7 text-secondary hover:text-text-primary"
-                title="Export Segment" 
-              >
-                <span className="material-symbols-outlined text-[16px]">download</span>
-              </Button>
-            </div>
-          </div>
+        {/* Left Column: Orders Table */}
+        <Card className={`${drawerOpen ? 'xl:col-span-8' : 'xl:col-span-12'} overflow-hidden shadow-xs transition-all`}>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-surface-subtle">
+                <TableRow className="border-b border-border-subtle">
+                  <TableHead className="w-10 text-center">
+                    <Checkbox
+                      checked={selectedIds.length === filteredOrders.length && filteredOrders.length > 0}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                    />
+                  </TableHead>
+                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Order ID &amp; Time</TableHead>
+                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Consignee (Customer)</TableHead>
+                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Hub &amp; Channel</TableHead>
+                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Items Ordered</TableHead>
+                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Courier / AWB</TableHead>
+                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Value &amp; Tax</TableHead>
+                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Fulfillment Stage</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-12 text-text-secondary">
+                      No orders found matching the filter criteria.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredOrders.map((order) => {
+                    const isSelected = selectedIds.includes(order.id);
+                    const isActive = activeOrder?.id === order.id;
 
-          {/* ReUI Data Table */}
-          <div className="overflow-x-auto scrollbar-thin w-full">
-            <table className="min-w-[825px] w-full border-collapse text-left text-sm">
-              <thead>
-                <tr className="bg-surface-canvas/90 border-b border-border-subtle sticky top-0 z-10 backdrop-blur-sm font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider">
-                  <th className="w-9 min-w-[36px] text-center py-2.5 px-3 whitespace-nowrap">
-                    <span className="sr-only">Select</span>
-                  </th>
-                  <th className="w-[170px] min-w-[170px] py-2.5 px-3 whitespace-nowrap">Order Details</th>
-                  <th className="w-[150px] min-w-[150px] py-2.5 px-3 whitespace-nowrap">Customer / Region</th>
-                  <th className="w-[110px] min-w-[110px] py-2.5 px-3 whitespace-nowrap">Items Staged</th>
-                  <th className="w-[115px] min-w-[115px] py-2.5 px-3 text-right whitespace-nowrap">Value &amp; Pay</th>
-                  <th className="w-[165px] min-w-[165px] py-2.5 px-3 whitespace-nowrap">Dispatch SLA &amp; Partner</th>
-                  <th className="w-[75px] min-w-[75px] py-2.5 px-3 text-center whitespace-nowrap">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle/50">
-                {filteredOrders.map((ord) => {
-                  const isSelected = selectedIds.includes(ord.id);
-                  const isCurrentActive = drawerOpen && activeOrder?.id === ord.id;
+                    return (
+                      <TableRow
+                        key={order.id}
+                        onClick={() => handleRowClick(order.id)}
+                        className={`cursor-pointer transition-colors border-b border-border-subtle/50 hover:bg-surface-subtle/70 ${
+                          isActive ? 'bg-primary-fixed/20 border-l-4 border-l-primary-container' : ''
+                        }`}
+                      >
+                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={isSelected}
+                            onChange={(e) => handleToggleSelect(order.id, e)}
+                          />
+                        </TableCell>
 
-                  return (
-                    <tr
-                      key={ord.id}
-                      onClick={() => handleRowClick(ord.id)}
-                      className={`cursor-pointer transition-colors ${
-                        isCurrentActive
-                          ? 'bg-surface-container-low border-l-4 border-l-primary'
-                          : 'hover:bg-surface-canvas'
-                      }`}
-                    >
-                      <td className="py-2.5 px-3 text-center align-middle whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={isSelected}
-                          onChange={(e) => handleToggleSelect(ord.id, e)}
-                        />
-                      </td>
-
-                      <td className="py-2.5 px-3 align-middle whitespace-nowrap">
-                        <div className="flex flex-col gap-0.5 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5 whitespace-nowrap">
-                            <span className="font-mono text-xs font-bold text-primary tracking-tight whitespace-nowrap">
-                              {ord.id}
+                        {/* Order ID & Time */}
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-xs font-bold text-text-primary group-hover:text-primary">
+                                {order.id}
+                              </span>
+                              {order.isExpress && (
+                                <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-900 text-[9px] font-bold">
+                                  24h
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-text-secondary font-mono mt-0.5">
+                              {order.timeAgo}
                             </span>
-                            {ord.isExpress && (
-                              <Badge variant="destructive" className="text-[9px] font-semibold py-0 px-1 whitespace-nowrap">
-                                {ord.expressLabel || '⚡ Express'}
-                              </Badge>
-                            )}
                           </div>
-                          <span className="text-[11px] text-text-secondary whitespace-nowrap">
-                            {ord.orderDate}
-                          </span>
-                          <div className="flex items-center gap-1.5 mt-0.5 whitespace-nowrap">
-                            <span className="px-1.5 py-0.2 rounded bg-surface-subtle border border-border-subtle font-mono text-[10px] text-text-secondary font-medium whitespace-nowrap">
-                              {ord.nodeFc}
+                        </TableCell>
+
+                        {/* Customer */}
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-xs text-text-primary">
+                              {order.customer.name}
                             </span>
-                            <Badge variant={ord.status === 'Packed & Staged' ? 'success' : 'outline'} className="text-[10px] py-0 px-1.5 whitespace-nowrap">
-                              {ord.status}
+                            <span className="text-[11px] text-text-secondary truncate max-w-[130px]">
+                              {order.customer.cityRegion}
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        {/* Hub & Channel */}
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <Badge variant="outline" className="text-[10px] w-fit font-mono font-bold">
+                              {order.nodeFc}
+                            </Badge>
+                            <span className="text-[10px] text-text-secondary mt-0.5 truncate max-w-[120px]">
+                              {order.channel}
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        {/* Items */}
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-semibold text-text-primary">
+                              {order.items?.length || 1} Style ({(order.items || []).reduce((acc, it) => acc + (it.qty || 1), 0)} pcs)
+                            </span>
+                            <span className="text-[11px] text-text-secondary truncate max-w-[140px]">
+                              {order.items?.[0]?.name || 'Apparel item'}
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        {/* Courier / AWB */}
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-medium text-text-primary">
+                              {order.courier?.partner || 'BlueDart Air'}
+                            </span>
+                            <span className="text-[11px] font-mono text-primary truncate">
+                              {order.courier?.awb || 'Pending AWB'}
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        {/* Value & Tax */}
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-mono text-xs font-bold text-text-primary">
+                              {order.payment.totalPaid}
+                            </span>
+                            <Badge 
+                              variant={order.payment.type === 'prepaid' ? 'success' : 'warning'} 
+                              className="text-[9px] py-0 px-1 font-semibold w-fit mt-0.5"
+                            >
+                              {order.payment.type === 'prepaid' ? 'PREPAID' : 'COD'}
                             </Badge>
                           </div>
-                        </div>
-                      </td>
+                        </TableCell>
 
-                      <td className="py-2.5 px-3 align-middle whitespace-nowrap">
-                        <div className="flex flex-col gap-0.5 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5 whitespace-nowrap">
-                            <span className="font-semibold text-xs text-text-primary whitespace-nowrap">
-                              {ord.customer.shortName}
-                            </span>
-                            <span className={`px-1 py-0.2 rounded text-[9px] font-bold whitespace-nowrap ${ord.customer.tierBadgeClass}`}>
-                              {ord.customer.tier}
-                            </span>
-                          </div>
-                          <span className="text-text-secondary text-[11px] whitespace-nowrap">{ord.customer.cityRegion}</span>
-                          <span className="text-text-secondary/70 font-mono text-[10px] whitespace-nowrap">{ord.customer.phone}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-2.5 px-3 align-middle whitespace-nowrap">
-                        <div className="flex items-center gap-2 whitespace-nowrap">
-                          <div className="flex -space-x-2 overflow-hidden p-0.5 shrink-0">
-                            {ord.items.map((it, idx) => (
-                              <img
-                                key={idx}
-                                className="inline-block h-8 w-8 rounded-lg object-cover shadow-xs bg-surface-subtle ring-1.5 ring-surface-container-lowest"
-                                alt={it.name}
-                                src={it.image}
-                              />
-                            ))}
-                          </div>
-                          <div className="flex flex-col whitespace-nowrap">
-                            <span className="text-xs font-semibold text-text-primary whitespace-nowrap">
-                              {ord.items.length} {ord.items.length === 1 ? 'Item' : 'Items'}
-                            </span>
-                            <span className="text-text-secondary text-[10px] whitespace-nowrap">
-                              {ord.items.map(i => i.size).join(', ')}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="py-2.5 px-3 text-right align-middle whitespace-nowrap">
-                        <div className="flex flex-col items-end gap-0.5 whitespace-nowrap">
-                          <span className="font-mono text-xs font-bold text-text-primary tabular-nums whitespace-nowrap">
-                            ₹{ord.payment.totalPaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                          </span>
+                        {/* Fulfillment Stage */}
+                        <TableCell>
                           <Badge 
-                            variant={ord.payment.type === 'cod' ? 'warning' : 'success'} 
-                            className="text-[10px] py-0 px-1.5 whitespace-nowrap"
+                            variant={
+                              order.status === 'Delivered' ? 'success' :
+                              order.status === 'Dispatched' ? 'info' :
+                              order.status === 'Cancelled' ? 'destructive' : 'warning'
+                            }
+                            className="text-[10px] py-0.5 px-2 font-semibold"
                           >
-                            {ord.payment.status}
+                            {order.status}
                           </Badge>
-                          <span className="font-mono text-text-secondary/70 text-[10px] whitespace-nowrap">{ord.payment.reference}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-2.5 px-3 align-middle whitespace-nowrap">
-                        <div className="flex flex-col gap-0.5 whitespace-nowrap">
-                          <span className="text-xs font-semibold text-text-primary whitespace-nowrap">
-                            {ord.courier.partner}
-                          </span>
-                          <span className="font-mono text-[10px] text-text-secondary whitespace-nowrap">AWB #{ord.courier.awb}</span>
-                          <div className="inline-flex items-center gap-1.5 text-status-success text-[10px] font-semibold whitespace-nowrap mt-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-status-success shrink-0"></span>
-                            <span>SLA: {ord.courier.slaRemaining}</span>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="py-2.5 px-3 text-center align-middle whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1 whitespace-nowrap">
-                          <Button
-                            variant={isCurrentActive ? "primary" : "subtle"}
-                            size="icon"
-                            onClick={() => handleRowClick(ord.id)}
-                            className="h-7 w-7"
-                            title="Inspect Order Details"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">visibility</span>
-                          </Button>
-                          <Button
-                            variant="subtle"
-                            size="icon"
-                            onClick={() => onShowToast({ type: 'info', title: 'Tax Invoice', message: `Tax invoice EW-INV for ${ord.id} sent to printer.` })}
-                            className="h-7 w-7 text-secondary hover:text-text-primary"
-                            title="Print Tax Invoice"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">print</span>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
           </div>
 
-          {/* Pagination & Velocity Summary Bar */}
-          <div className="px-space-md py-3 bg-surface-canvas flex flex-col sm:flex-row items-center justify-between gap-2 mt-auto border-t border-border-subtle">
-            <div className="flex items-center gap-2 text-text-secondary text-xs whitespace-nowrap">
-              <span className="whitespace-nowrap font-medium">Rows per page:</span>
-              <Select 
-                value={rowsPerPage}
-                onChange={(e) => setRowsPerPage(e.target.value)}
-                className="w-16 h-7 py-0 px-2 text-xs"
-              >
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </Select>
-              <span className="text-text-secondary whitespace-nowrap">Showing 1-{filteredOrders.length} of 892 items</span>
+          {/* Table Footer with Paging */}
+          <div className="p-space-sm bg-surface-subtle border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between gap-space-sm text-xs text-text-secondary">
+            <div>
+              Showing <span className="font-semibold text-text-primary">{filteredOrders.length}</span> of {orders.length} active dispatches across hubs
             </div>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-secondary/40" disabled>
-                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-7 text-xs" disabled>
+                Previous
               </Button>
-              <Button variant="primary" size="sm" className="h-7 w-7 p-0 text-xs">1</Button>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-xs text-text-primary">2</Button>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-xs text-text-primary">3</Button>
-              <span className="text-secondary px-1 text-xs">...</span>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-xs text-text-primary">36</Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-secondary hover:text-text-primary">
-                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+              <span className="font-mono text-text-primary">Page 1 of 1</span>
+              <Button variant="outline" size="sm" className="h-7 text-xs" disabled>
+                Next
               </Button>
             </div>
           </div>
         </Card>
 
-        {/* RIGHT PANE: Expansive Order Drill-Down Detail Drawer */}
+        {/* Right Column: Slide-Over Order Detail Drawer */}
         {drawerOpen && activeOrder && (
           <OrderDetailDrawer
             order={activeOrder}
@@ -715,7 +639,7 @@ export function OrderManagement({
         )}
       </div>
 
-      {/* Create Order Modal */}
+      {/* Manual Order Creation Modal */}
       <CreateOrderModal
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}

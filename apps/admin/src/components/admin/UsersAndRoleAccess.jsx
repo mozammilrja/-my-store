@@ -1,16 +1,122 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usersList } from '../../data/mockData';
+import { adminApi } from '../../lib/api';
 
 export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   const [selectedUserKey, setSelectedUserKey] = useState('vikram');
   const [activeTab, setActiveTab] = useState('directory'); // 'directory', 'matrix', 'nodes', 'audit'
   const [filterText, setFilterText] = useState('');
+  const [dbUsers, setDbUsers] = useState([]);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [inviteForm, setInviteForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'staff',
+  });
 
+  const loadUsers = async () => {
+    try {
+      const res = await adminApi.users();
+      if (res?.users) {
+        setDbUsers(res.users);
+      }
+    } catch (err) {
+      console.warn('Could not load users from backend:', err?.message);
+    }
+  };
 
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
-  const selectedUser = usersList.find(u => u.key === selectedUserKey) || usersList[0];
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    if (!inviteForm.email || !inviteForm.password) {
+      onShowToast?.({ type: 'error', title: 'Missing Fields', message: 'Email and password (min 12 characters) required.' });
+      return;
+    }
+    if (inviteForm.password.length < 12) {
+      onShowToast?.({ type: 'error', title: 'Password Too Short', message: 'Password must be at least 12 characters long.' });
+      return;
+    }
 
-  const filteredUsers = usersList.filter(u => {
+    setIsSubmitting(true);
+    try {
+      const res = await adminApi.createUser({
+        email: inviteForm.email,
+        password: inviteForm.password,
+        name: inviteForm.name || undefined,
+        role: inviteForm.role,
+      });
+      onShowToast?.({
+        type: 'success',
+        title: 'Team Member Invited',
+        message: `${res.user.name || res.user.email} was added with role: ${res.user.role}.`,
+      });
+      setIsInviteModalOpen(false);
+      setInviteForm({ name: '', email: '', password: '', role: 'staff' });
+      await loadUsers();
+    } catch (err) {
+      onShowToast?.({
+        type: 'error',
+        title: 'Invite Failed',
+        message: err?.message || 'Failed to create user.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId, userName) => {
+    if (!confirm(`Are you sure you want to remove ${userName}? This will revoke all admin access.`)) return;
+    try {
+      await adminApi.deleteUser(userId);
+      onShowToast?.({
+        type: 'info',
+        title: 'Access Revoked',
+        message: `Admin privileges removed for ${userName}.`,
+      });
+      await loadUsers();
+    } catch (err) {
+      onShowToast?.({
+        type: 'error',
+        title: 'Action Failed',
+        message: err?.message || 'Failed to remove user.',
+      });
+    }
+  };
+
+  // Merge live db users into display list
+  const mergedUsers = [
+    ...dbUsers.map(u => ({
+      key: u.id,
+      id: u.id,
+      isDbUser: true,
+      name: u.name || u.email.split('@')[0],
+      email: u.email,
+      role: u.role === 'owner' ? 'Store Owner' : 'Operations Staff',
+      roleBadge: u.role === 'owner' ? 'bg-primary-container text-white' : 'bg-surface-subtle text-text-primary',
+      hub: 'Central HQ / All Hubs',
+      hubIcon: 'corporate_fare',
+      scopeTitle: u.role === 'owner' ? 'Full Superadmin' : 'Operational Access',
+      scopeDesc: u.role === 'owner' ? 'Full RBAC & financial sign-off authority' : 'Order, shipment & catalog management',
+      securityState: 'Zero-Trust Active',
+      securityBadge: 'bg-status-success-bg text-status-success',
+      securityIcon: 'verified_user',
+      lastActive: 'Just now',
+      device: 'Everwear Secure Auth',
+      isOnline: true,
+      isExec: u.role === 'owner',
+      avatar: null,
+    })),
+    ...usersList.filter(m => !dbUsers.some(d => d.email.toLowerCase() === m.email.toLowerCase()))
+  ];
+
+  const selectedUser = mergedUsers.find(u => u.key === selectedUserKey) || mergedUsers[0];
+
+  const filteredUsers = mergedUsers.filter(u => {
     if (filterText.trim()) {
       const q = filterText.toLowerCase();
       if (!u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q) && !u.role.toLowerCase().includes(q) && !u.hub.toLowerCase().includes(q)) {
@@ -68,8 +174,8 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
             <span>Create Custom Role Policy</span>
           </button>
           <button
-            onClick={() => onShowToast?.('Opening Team Member Invitation modal...')}
-            className="h-9 px-space-md rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-primary font-label-md text-label-md flex items-center gap-1.5 shadow-sm transition-all font-semibold"
+            onClick={() => setIsInviteModalOpen(true)}
+            className="h-9 px-space-md rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-primary font-label-md text-label-md flex items-center gap-1.5 shadow-sm transition-all font-semibold cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">person_add</span>
             <span>Invite Team Member</span>
@@ -398,6 +504,18 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                                 >
                                   <span className="material-symbols-outlined text-[18px]">logout</span>
                                 </button>
+                                {user.isDbUser && user.role !== 'Store Owner' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteUser(user.id, user.name);
+                                    }}
+                                    className="p-1 rounded-lg hover:bg-status-danger-bg text-status-danger hover:text-red-700 transition-colors"
+                                    title="Delete User"
+                                  >
+                                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                                  </button>
+                                )}
                               </>
                             )}
                           </div>
@@ -582,6 +700,100 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
           </div>
         </div>
       </div>
+
+      {/* Invite Team Member Modal */}
+      {isInviteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-border-subtle max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-space-lg border-b border-border-subtle flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-primary-container text-white material-symbols-outlined text-[20px]">person_add</span>
+                <div>
+                  <h3 className="font-headline-sm font-semibold text-text-primary">Invite Team Member</h3>
+                  <p className="text-xs text-text-secondary">Provision administrator credentials in Everwear RBAC</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsInviteModalOpen(false)}
+                className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-text-secondary"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="p-space-lg space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Full Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Alisha Kapoor"
+                  value={inviteForm.name}
+                  onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Work Email *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="alisha@everwear.test"
+                  value={inviteForm.email}
+                  onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Initial Password (min 12 characters) *</label>
+                <input
+                  type="password"
+                  required
+                  minLength={12}
+                  placeholder="••••••••••••"
+                  value={inviteForm.password}
+                  onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })}
+                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                />
+                <p className="text-[10px] text-text-secondary mt-1">Must contain at least 12 characters.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Role / Permissions Level</label>
+                <select
+                  value={inviteForm.role}
+                  onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                >
+                  <option value="staff">Operations Staff (Catalog, Orders, Inventory, Fulfillment)</option>
+                  <option value="owner">Store Owner (Full Administrative & Financial Access)</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-border-subtle">
+                <button
+                  type="button"
+                  onClick={() => setIsInviteModalOpen(false)}
+                  className="h-9 px-4 rounded-xl border border-border-subtle bg-surface-container-lowest text-text-primary text-xs font-semibold hover:bg-surface-subtle transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    {isSubmitting ? 'hourglass_top' : 'check'}
+                  </span>
+                  <span>{isSubmitting ? 'Creating...' : 'Grant Access'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

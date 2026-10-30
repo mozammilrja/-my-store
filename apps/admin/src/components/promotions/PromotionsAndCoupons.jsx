@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Select } from '../ui/select';
 import { campaigns } from '../../data/mockData';
+import { adminApi } from '../../lib/api';
 
 export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
   const [selectedCode, setSelectedCode] = useState('FESTIVE20');
@@ -10,11 +11,137 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
   const [channelFilter, setChannelFilter] = useState('omni');
   const [selectedRows, setSelectedRows] = useState({ 'FESTIVE20': true });
 
+  // Live Backend Promotions State
+  const [dbPromotions, setDbPromotions] = useState([]);
+  const [isCreatePromoOpen, setIsCreatePromoOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [promoForm, setPromoForm] = useState({
+    code: '',
+    type: 'percentage',
+    value: 20,
+    currency: 'inr',
+    usageLimit: '',
+    active: true,
+  });
 
-  const selectedCampaign = campaigns.find(c => c.code === selectedCode) || campaigns[0];
+  const loadPromotions = async () => {
+    try {
+      const res = await adminApi.promotions();
+      if (res?.promotions) {
+        setDbPromotions(res.promotions);
+      }
+    } catch (err) {
+      console.warn('Could not load promotions from API:', err?.message);
+    }
+  };
 
-  const filteredCampaigns = campaigns.filter(c => {
+  useEffect(() => {
+    loadPromotions();
+  }, []);
+
+  const handleCreatePromo = async (e) => {
+    e.preventDefault();
+    if (!promoForm.code) return;
+
+    setIsSubmitting(true);
+    try {
+      await adminApi.createPromotion({
+        code: promoForm.code.toUpperCase().trim(),
+        type: promoForm.type,
+        value: promoForm.type === 'percentage' ? Number(promoForm.value) : Number(promoForm.value) * 100, // convert major to minor paise if fixed
+        currency: promoForm.type === 'fixed' ? (promoForm.currency || 'inr') : null,
+        usageLimit: promoForm.usageLimit ? Number(promoForm.usageLimit) : null,
+        active: promoForm.active,
+      });
+
+      onShowToast?.({
+        type: 'success',
+        title: 'Promotion Created',
+        message: `Campaign code "${promoForm.code.toUpperCase()}" created and active.`,
+      });
+      setIsCreatePromoOpen(false);
+      setPromoForm({ code: '', type: 'percentage', value: 20, currency: 'inr', usageLimit: '', active: true });
+      await loadPromotions();
+    } catch (err) {
+      onShowToast?.({
+        type: 'error',
+        title: 'Creation Failed',
+        message: err?.message || 'Could not create promotion.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleActive = async (promoId, currentActive, promoCode) => {
+    try {
+      await adminApi.setPromotionActive(promoId, !currentActive);
+      onShowToast?.({
+        type: 'info',
+        title: 'Status Updated',
+        message: `Promo ${promoCode} is now ${!currentActive ? 'active' : 'inactive'}.`,
+      });
+      await loadPromotions();
+    } catch (err) {
+      onShowToast?.({
+        type: 'error',
+        title: 'Update Failed',
+        message: err?.message || 'Could not update promotion status.',
+      });
+    }
+  };
+
+  const handleDeletePromo = async (promoId, promoCode) => {
+    if (!confirm(`Are you sure you want to delete promo ${promoCode}?`)) return;
+    try {
+      await adminApi.deletePromotion(promoId);
+      onShowToast?.({
+        type: 'info',
+        title: 'Promotion Deleted',
+        message: `Promo code ${promoCode} deleted.`,
+      });
+      await loadPromotions();
+    } catch (err) {
+      onShowToast?.({
+        type: 'error',
+        title: 'Delete Failed',
+        message: err?.message || 'Cannot delete used code. Deactivate it instead.',
+      });
+    }
+  };
+
+  // Merge live promotions with mock campaigns
+  const mergedCampaigns = useMemo(() => {
+    const fromDb = dbPromotions.map(p => ({
+      code: p.code,
+      id: p.id,
+      isDbPromo: true,
+      name: p.type === 'percentage' ? `${p.value}% Off Entire Order` : `Flat ₹${p.value / 100} Discount`,
+      type: p.type === 'percentage' ? 'Percentage' : 'Fixed Minor',
+      applicability: 'All Omnichannel Channels',
+      excluded: p.usageLimit ? `Limit: ${p.usageLimit} uses` : 'Unlimited Uses',
+      isUrgent: false,
+      redemptions: `${p.usageCount ?? 0} Uses`,
+      progress: Math.min(100, Math.round(((p.usageCount ?? 0) / (p.usageLimit || 100)) * 100)),
+      progressColor: 'bg-primary-container',
+      gmvImpact: '₹4.2L',
+      marginHealth: 'Safe (48%)',
+      marginHealthColor: 'bg-status-success-bg text-status-success',
+      status: p.active ? 'Live' : 'Paused',
+      statusColor: p.active ? 'bg-status-success-bg text-status-success' : 'bg-surface-subtle text-text-secondary',
+      icon: 'local_offer',
+      iconColor: 'bg-primary-container text-white',
+      isAuto: false,
+      active: p.active,
+    }));
+
+    return [...fromDb, ...campaigns.filter(c => !fromDb.some(p => p.code === c.code))];
+  }, [dbPromotions]);
+
+  const selectedCampaign = mergedCampaigns.find(c => c.code === selectedCode) || mergedCampaigns[0];
+
+  const filteredCampaigns = mergedCampaigns.filter(c => {
     if (activeTab === 'live' && c.status !== 'Live') return false;
     if (activeTab === 'vip' && !c.code.includes('VIP') && !c.code.includes('INFLUENCER')) return false;
     if (searchQuery.trim()) {
@@ -69,8 +196,8 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             <span>Export Campaign Ledger</span>
           </button>
           <button
-            onClick={() => onShowToast?.('Opening Promotion Campaign Builder wizard...')}
-            className="h-9 px-3.5 rounded-lg bg-primary-container text-on-primary hover:bg-primary-container/90 transition-all shadow-sm flex items-center gap-1.5 font-label-md text-label-md font-semibold active:scale-[0.98]"
+            onClick={() => setIsCreatePromoOpen(true)}
+            className="h-9 px-3.5 rounded-lg bg-primary-container text-on-primary hover:bg-primary transition-all shadow-sm flex items-center gap-1.5 font-label-md text-label-md font-semibold active:scale-[0.98] cursor-pointer"
             type="button"
           >
             <span className="material-symbols-outlined text-[18px]">add</span>
@@ -411,15 +538,44 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                           </span>
                         </td>
                         <td className="py-3 px-2 text-center">
-                          <button
-                            className="p-1 rounded hover:bg-surface-subtle text-text-secondary hover:text-text-primary"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onShowToast?.(`Options for promo ${camp.code}`);
-                            }}
-                          >
-                            <span className="material-symbols-outlined text-[18px]">more_vert</span>
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            {camp.isDbPromo ? (
+                              <>
+                                <button
+                                  className={`p-1 rounded hover:bg-surface-subtle cursor-pointer ${camp.active ? 'text-status-success' : 'text-text-secondary'}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleActive(camp.id, camp.active, camp.code);
+                                  }}
+                                  title={camp.active ? "Pause Promotion" : "Activate Promotion"}
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">
+                                    {camp.active ? 'toggle_on' : 'toggle_off'}
+                                  </span>
+                                </button>
+                                <button
+                                  className="p-1 rounded hover:bg-status-danger-bg text-text-secondary hover:text-status-danger cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeletePromo(camp.id, camp.code);
+                                  }}
+                                  title="Delete Promo"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                className="p-1 rounded hover:bg-surface-subtle text-text-secondary hover:text-text-primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onShowToast?.(`Options for promo ${camp.code}`);
+                                }}
+                              >
+                                <span className="material-symbols-outlined text-[18px]">more_vert</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -683,6 +839,132 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
           </div>
         </div>
       </div>
+
+      {/* Create Promo Campaign Modal */}
+      {isCreatePromoOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-border-subtle max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-space-lg border-b border-border-subtle flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-primary-container text-white material-symbols-outlined text-[20px]">local_offer</span>
+                <div>
+                  <h3 className="font-headline-sm font-semibold text-text-primary">Create Promo Campaign</h3>
+                  <p className="text-xs text-text-secondary">Configure cart discount rules and voucher codes</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCreatePromoOpen(false)}
+                className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-text-secondary"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePromo} className="p-space-lg space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Coupon Code *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. DIWALI30"
+                  value={promoForm.code}
+                  onChange={(e) => setPromoForm({ ...promoForm, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })}
+                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-mono font-bold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container uppercase"
+                />
+                <p className="text-[10px] text-text-secondary mt-1">3 to 32 letters, numbers, or dashes.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Discount Type</label>
+                  <select
+                    value={promoForm.type}
+                    onChange={(e) => setPromoForm({ ...promoForm, type: e.target.value })}
+                    className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                  >
+                    <option value="percentage">Percentage Off (%)</option>
+                    <option value="fixed">Fixed Amount (₹ / €)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
+                    {promoForm.type === 'percentage' ? 'Percentage Value (1-100)' : 'Amount (Major Currency)'}
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={promoForm.type === 'percentage' ? 100 : 100000}
+                    value={promoForm.value}
+                    onChange={(e) => setPromoForm({ ...promoForm, value: e.target.value })}
+                    className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                  />
+                </div>
+              </div>
+
+              {promoForm.type === 'fixed' && (
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Currency</label>
+                  <select
+                    value={promoForm.currency}
+                    onChange={(e) => setPromoForm({ ...promoForm, currency: e.target.value })}
+                    className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                  >
+                    <option value="inr">INR (Indian Rupee - ₹)</option>
+                    <option value="eur">EUR (Euro - €)</option>
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Max Redemptions (Optional)</label>
+                <input
+                  type="number"
+                  placeholder="Leave empty for unlimited uses"
+                  min={1}
+                  max={100000}
+                  value={promoForm.usageLimit}
+                  onChange={(e) => setPromoForm({ ...promoForm, usageLimit: e.target.value })}
+                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="promo-active-chk"
+                  checked={promoForm.active}
+                  onChange={(e) => setPromoForm({ ...promoForm, active: e.target.checked })}
+                  className="w-4 h-4 accent-primary-container rounded cursor-pointer"
+                />
+                <label htmlFor="promo-active-chk" className="text-xs font-semibold text-text-primary cursor-pointer">
+                  Activate campaign immediately upon creation
+                </label>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-border-subtle">
+                <button
+                  type="button"
+                  onClick={() => setIsCreatePromoOpen(false)}
+                  className="h-9 px-4 rounded-xl border border-border-subtle bg-surface-container-lowest text-text-primary text-xs font-semibold hover:bg-surface-subtle transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    {isSubmitting ? 'hourglass_top' : 'check'}
+                  </span>
+                  <span>{isSubmitting ? 'Creating...' : 'Launch Campaign'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

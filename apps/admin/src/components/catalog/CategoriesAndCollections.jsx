@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Select } from '../ui/select';
 import { collectionsData } from '../../data/mockData';
+import { adminApi } from '../../lib/api';
 
 export function CategoriesAndCollections({ onNavigate, onShowToast }) {
   const [activeTab, setActiveTab] = useState('drops'); // 'drops', 'tree', 'rules', 'channels'
@@ -12,14 +13,147 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
   const [viewDensity, setViewDensity] = useState('list'); // 'list' | 'grid'
   const [selectedCheckboxes, setSelectedCheckboxes] = useState({ 'col-1': true });
 
+  // Live Backend Data State
+  const [dbCategories, setDbCategories] = useState([]);
+  const [dbCollections, setDbCollections] = useState([]);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    handle: '',
+    description: '',
+  });
+
+  const [collectionForm, setCollectionForm] = useState({
+    title: '',
+    handle: '',
+  });
+
+  const loadTaxonomy = async () => {
+    try {
+      const [catsRes, colsRes] = await Promise.all([
+        adminApi.categories(),
+        adminApi.collections(),
+      ]);
+      if (catsRes?.categories) setDbCategories(catsRes.categories);
+      if (colsRes?.collections) setDbCollections(colsRes.collections);
+    } catch (err) {
+      console.warn('Could not load categories or collections:', err?.message);
+    }
+  };
+
+  useEffect(() => {
+    loadTaxonomy();
+  }, []);
+
+  const handleCreateCategory = async (e) => {
+    e.preventDefault();
+    if (!categoryForm.name || !categoryForm.handle) return;
+    setIsSubmitting(true);
+    try {
+      await adminApi.createCategory({
+        name: categoryForm.name,
+        handle: categoryForm.handle.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+        description: categoryForm.description || undefined,
+      });
+      onShowToast?.({
+        type: 'success',
+        title: 'Category Created',
+        message: `Apparel category "${categoryForm.name}" created in database.`,
+      });
+      setIsCategoryModalOpen(false);
+      setCategoryForm({ name: '', handle: '', description: '' });
+      await loadTaxonomy();
+    } catch (err) {
+      onShowToast?.({
+        type: 'error',
+        title: 'Creation Failed',
+        message: err?.message || 'Failed to create category.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteCategory = async (catId, catName) => {
+    if (!confirm(`Delete category "${catName}"?`)) return;
+    try {
+      await adminApi.deleteCategory(catId);
+      onShowToast?.({
+        type: 'info',
+        title: 'Category Removed',
+        message: `Category "${catName}" removed.`,
+      });
+      await loadTaxonomy();
+    } catch (err) {
+      onShowToast?.({
+        type: 'error',
+        title: 'Delete Failed',
+        message: err?.message || 'Could not delete category.',
+      });
+    }
+  };
+
+  const handleCreateCollection = async (e) => {
+    e.preventDefault();
+    if (!collectionForm.title || !collectionForm.handle) return;
+    setIsSubmitting(true);
+    try {
+      await adminApi.createCollection({
+        title: collectionForm.title,
+        handle: collectionForm.handle.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+      });
+      onShowToast?.({
+        type: 'success',
+        title: 'Collection Drop Created',
+        message: `Curated collection "${collectionForm.title}" added to catalog.`,
+      });
+      setIsCollectionModalOpen(false);
+      setCollectionForm({ title: '', handle: '' });
+      await loadTaxonomy();
+    } catch (err) {
+      onShowToast?.({
+        type: 'error',
+        title: 'Creation Failed',
+        message: err?.message || 'Failed to create collection.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Merge live collections with mock collections
+  const mergedCollections = useMemo(() => {
+    const fromDb = dbCollections.map((col, idx) => ({
+      id: col.id,
+      code: `DROP-${col.handle.toUpperCase()}`,
+      title: col.title,
+      season: 'Festive Atelier 2024-25',
+      skuCount: col.productCount ? `${col.productCount} SKUs` : '18 SKUs',
+      sellThrough: '92.4%',
+      sellThroughColor: 'bg-status-success-bg text-status-success',
+      gmv: '₹14.8L',
+      status: 'Live & Active',
+      statusColor: 'bg-status-success-bg text-status-success',
+      channels: ['Everwear.com', 'Mobile App', 'Flagship BLR'],
+      launchDate: 'Active Now',
+      isHero: idx === 0,
+      image: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=400',
+    }));
+
+    return [...fromDb, ...collectionsData.filter(d => !fromDb.some(c => c.id === d.id))];
+  }, [dbCollections]);
+
 
 
   const selectedDrop = useMemo(() => {
-    return collectionsData.find(d => d.id === selectedDropId) || collectionsData[0];
-  }, [selectedDropId]);
+    return mergedCollections.find(d => d.id === selectedDropId) || mergedCollections[0];
+  }, [mergedCollections, selectedDropId]);
 
   const filteredCollections = useMemo(() => {
-    return collectionsData.filter(d => {
+    return mergedCollections.filter(d => {
       if (seasonFilter !== 'All Seasons (2024-25)' && d.season !== seasonFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -27,7 +161,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
       }
       return true;
     });
-  }, [searchQuery, seasonFilter]);
+  }, [mergedCollections, searchQuery, seasonFilter]);
 
   const toggleCheckbox = (id) => {
     setSelectedCheckboxes(prev => ({
@@ -62,7 +196,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
         <div className="flex flex-wrap items-center gap-space-xs shrink-0 pt-2 xl:pt-0">
           <button
             onClick={() => onShowToast?.('Exporting taxonomy structure to CSV/JSON format...')}
-            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle"
+            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle cursor-pointer"
             type="button"
           >
             <span className="material-symbols-outlined text-[16px] text-secondary">file_download</span>
@@ -70,23 +204,23 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
           </button>
           <button
             onClick={() => onShowToast?.('Opening dynamic visual reordering rules editor...')}
-            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle"
+            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle cursor-pointer"
             type="button"
           >
             <span className="material-symbols-outlined text-[16px] text-secondary">reorder</span>
             <span>Reorder Rules</span>
           </button>
           <button
-            onClick={() => onShowToast?.('Creating new category node in taxonomy tree...')}
-            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle"
+            onClick={() => setIsCategoryModalOpen(true)}
+            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle cursor-pointer"
             type="button"
           >
             <span className="material-symbols-outlined text-[16px] text-secondary">add</span>
             <span>New Category</span>
           </button>
           <button
-            onClick={() => onShowToast?.('Opening Collection Drop Creator wizard...')}
-            className="inline-flex items-center gap-1.5 h-8 px-space-md rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-primary font-label-sm text-label-sm shadow-sm transition-colors"
+            onClick={() => setIsCollectionModalOpen(true)}
+            className="inline-flex items-center gap-1.5 h-8 px-space-md rounded-lg bg-primary-container hover:bg-primary text-on-primary font-label-sm text-label-sm shadow-sm transition-colors cursor-pointer"
             type="button"
           >
             <span className="material-symbols-outlined text-[16px]">stars</span>
@@ -466,17 +600,51 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-headline-sm font-semibold text-text-primary">Everwear Apparel Master Hierarchy</h3>
-                  <p className="text-xs text-text-secondary">4 Global Departments · 18 Category Sub-nodes · 142 Terminal Leafs</p>
+                  <p className="text-xs text-text-secondary">{dbCategories.length} Active Master Categories · Synchronized with MongoDB</p>
                 </div>
                 <button
-                  onClick={() => onShowToast?.('Adding new department root...')}
-                  className="px-3 py-1.5 bg-primary-container text-white text-xs font-semibold rounded-lg shadow-sm"
+                  onClick={() => setIsCategoryModalOpen(true)}
+                  className="px-3 py-1.5 bg-primary-container hover:bg-primary text-white text-xs font-semibold rounded-lg shadow-sm cursor-pointer transition-colors"
                 >
                   + Add Root Node
                 </button>
               </div>
 
-              <div className="space-y-2 text-xs">
+              <div className="space-y-3 text-xs">
+                {/* Live MongoDB Categories */}
+                {dbCategories.length > 0 && (
+                  <div className="p-3 bg-surface-canvas rounded-lg border border-primary-container/20 space-y-2">
+                    <div className="flex items-center justify-between font-semibold text-text-primary">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[16px] text-primary-container">database</span>
+                        <span>Active Database Categories ({dbCategories.length})</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-primary-container text-[10px] font-semibold">Live in API</span>
+                    </div>
+                    <div className="space-y-1.5 pt-1">
+                      {dbCategories.map(cat => (
+                        <div key={cat.id} className="flex items-center justify-between py-1.5 px-2 bg-surface-container-lowest rounded border border-border-subtle">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-primary-container font-semibold">/{cat.handle}</span>
+                            <span className="text-text-primary font-medium">{cat.name}</span>
+                            {cat.description && <span className="text-text-secondary text-[11px]">({cat.description})</span>}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-text-secondary">{cat.productCount ?? 0} Products</span>
+                            <button
+                              onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                              className="text-text-secondary hover:text-status-danger p-0.5 rounded"
+                              title="Delete Category"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">delete</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Women's Ethnic */}
                 <div className="p-3 bg-surface-canvas rounded-lg border border-border-subtle">
                   <div className="flex items-center justify-between font-semibold text-text-primary cursor-pointer">
@@ -838,6 +1006,169 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
           </div>
         </div>
       </div>
+
+      {/* New Category Modal */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-border-subtle max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-space-lg border-b border-border-subtle flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-primary-container text-white material-symbols-outlined text-[20px]">folder</span>
+                <div>
+                  <h3 className="font-headline-sm font-semibold text-text-primary">New Apparel Category</h3>
+                  <p className="text-xs text-text-secondary">Create a taxonomy node in the catalog hierarchy</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-text-secondary"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCategory} className="p-space-lg space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Category Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Silk Dupattas"
+                  value={categoryForm.name}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCategoryForm({
+                      ...categoryForm,
+                      name: val,
+                      handle: categoryForm.handle ? categoryForm.handle : val.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                    });
+                  }}
+                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">URL Handle (slug) *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. silk-dupattas"
+                  value={categoryForm.handle}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, handle: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-mono text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Description (Optional)</label>
+                <textarea
+                  rows={2}
+                  placeholder="Curated artisanal silk drapes crafted with authentic gold zari..."
+                  value={categoryForm.description}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                  className="w-full p-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-border-subtle">
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryModalOpen(false)}
+                  className="h-9 px-4 rounded-xl border border-border-subtle bg-surface-container-lowest text-text-primary text-xs font-semibold hover:bg-surface-subtle transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    {isSubmitting ? 'hourglass_top' : 'check'}
+                  </span>
+                  <span>{isSubmitting ? 'Creating...' : 'Create Category'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* New Collection Drop Modal */}
+      {isCollectionModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-border-subtle max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-space-lg border-b border-border-subtle flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-fashion-magenta text-white material-symbols-outlined text-[20px]">stars</span>
+                <div>
+                  <h3 className="font-headline-sm font-semibold text-text-primary">Create Collection Drop</h3>
+                  <p className="text-xs text-text-secondary">Launch a seasonal drop or curated capsule lookbook</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCollectionModalOpen(false)}
+                className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-text-secondary"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCollection} className="p-space-lg space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Collection Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Royal Benares Festive '25"
+                  value={collectionForm.title}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCollectionForm({
+                      ...collectionForm,
+                      title: val,
+                      handle: collectionForm.handle ? collectionForm.handle : val.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                    });
+                  }}
+                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">URL Handle (slug) *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. royal-benares-festive-25"
+                  value={collectionForm.handle}
+                  onChange={(e) => setCollectionForm({ ...collectionForm, handle: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-mono text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-border-subtle">
+                <button
+                  type="button"
+                  onClick={() => setIsCollectionModalOpen(false)}
+                  className="h-9 px-4 rounded-xl border border-border-subtle bg-surface-container-lowest text-text-primary text-xs font-semibold hover:bg-surface-subtle transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="h-9 px-4 rounded-xl bg-fashion-magenta hover:bg-fashion-magenta/90 text-white text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    {isSubmitting ? 'hourglass_top' : 'check'}
+                  </span>
+                  <span>{isSubmitting ? 'Creating...' : 'Launch Drop'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

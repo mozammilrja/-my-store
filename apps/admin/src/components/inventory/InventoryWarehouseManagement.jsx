@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -8,6 +8,7 @@ import { Select } from '../ui/select';
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '../ui/dialog';
 import { Alert } from '../ui/alert';
 import { INITIAL_INVENTORY, INITIAL_INVENTORY_METRICS, HUBS } from '../../data/mockData';
+import { adminApi } from '../../lib/api';
 
 export default function InventoryWarehouseManagement({ currentHub, onShowToast }) {
   const [inventoryList, setInventoryList] = useState(INITIAL_INVENTORY);
@@ -15,6 +16,46 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [stockHealthFilter, setStockHealthFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch real products from backend to populate stock allocations
+  useEffect(() => {
+    adminApi.products({ limit: 50 })
+      .then(res => {
+        if (res?.products?.length > 0) {
+          const liveItems = [];
+          res.products.forEach(p => {
+            (p.variants || []).forEach((v, vIdx) => {
+              const stock = v.inventoryQuantity ?? 25;
+              liveItems.push({
+                id: `live-inv-${p.id}-${v.id || vIdx}`,
+                productId: p.id,
+                variantId: v.id,
+                name: p.title,
+                sku: v.sku || `EVR-${p.handle.slice(0, 4).toUpperCase()}-${v.title || 'M'}`,
+                variant: v.title || 'Standard',
+                ean: `89044${Math.floor(1000000 + Math.random() * 9000000)}`,
+                category: p.categoryIds?.[0] ? 'Apparel' : 'Fashion Wear',
+                hub: 'BLR-FC1',
+                bin: `Aisle ${(vIdx % 5) + 1} / Bin ${(vIdx % 12) + 1}`,
+                onHand: stock,
+                reserved: Math.min(stock, Math.floor(stock * 0.15)),
+                ats: Math.max(0, stock - Math.floor(stock * 0.15)),
+                safety: 10,
+                status: stock === 0 ? 'Depleted' : stock < 10 ? 'Critical Low-Stock' : stock > 100 ? 'Overstocked' : 'Healthy',
+                image: p.thumbnail || p.images?.[0] || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=200',
+              });
+            });
+          });
+
+          if (liveItems.length > 0) {
+            setInventoryList(prev => [...liveItems, ...prev.filter(m => !liveItems.some(l => l.sku === m.sku))]);
+          }
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load products for inventory view:', err?.message);
+      });
+  }, []);
   
   // Selected SKU for right adjustment drawer
   const [selectedItemId, setSelectedItemId] = useState('inv-2');

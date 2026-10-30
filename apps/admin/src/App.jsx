@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HUBS } from './data/mockData';
+import { ensureAdminAuth } from './lib/api';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { ExecutiveOverview } from './components/overview/ExecutiveOverview';
@@ -23,16 +24,41 @@ import { CommandPalette } from './components/common/CommandPalette';
 import { NotificationsModal } from './components/common/NotificationsModal';
 import { Toast } from './components/common/Toast';
 
+const getInitialPath = () => {
+  const hash = window.location.hash.replace(/^#\/?/, '').trim();
+  return hash || 'overview';
+};
+
 export function App() {
-  const [currentPath, setCurrentPath] = useState('overview');
+  const [currentPath, setCurrentPath] = useState(getInitialPath);
   const [currentHub, setCurrentHub] = useState(HUBS[0]);
   const [selectedOrderId, setSelectedOrderId] = useState('EVR-984210-BLR');
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [toast, setToast] = useState(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Initial Auth Check with Everwear API
+  useEffect(() => {
+    ensureAdminAuth().catch((err) => {
+      console.warn('API authentication init notice:', err?.message);
+    });
+  }, []);
+
+  // Browser Back/Forward navigation listener
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '').trim();
+      if (hash && hash !== currentPath) {
+        setCurrentPath(hash);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [currentPath]);
 
   // Toggle Dark Mode on html root
   useEffect(() => {
@@ -44,14 +70,26 @@ export function App() {
   }, [isDarkMode]);
 
   const showToast = (toastObj) => {
-    setToast(toastObj);
+    if (typeof toastObj === 'string') {
+      setToast({ type: 'info', message: toastObj });
+    } else if (toastObj && typeof toastObj === 'object') {
+      setToast({
+        type: toastObj.type || 'info',
+        title: toastObj.title,
+        message: typeof toastObj.message === 'string' ? toastObj.message : String(toastObj.message || ''),
+      });
+    } else {
+      setToast(null);
+    }
   };
 
   const handleNavigate = (path, orderId) => {
     setCurrentPath(path);
+    window.location.hash = `#/${path}`;
     if (orderId) {
       setSelectedOrderId(orderId);
     }
+    setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -64,7 +102,7 @@ export function App() {
     showToast({
       type: 'info',
       title: 'Fulfillment Hub Switched',
-      message: `Active node switched to ${hub.name} (${hub.location}). Telemetry routed.`,
+      message: `Active node switched to ${hub.name} (${hub.location}). Real-time telemetry routed.`,
     });
   };
 
@@ -106,12 +144,14 @@ export function App() {
         onSelectHub={handleSelectHub}
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
       />
 
       {/* Main Content Area */}
       <div 
-        className={`transition-all duration-300 ${
-          isCollapsed ? 'pl-[72px]' : 'pl-[280px]'
+        className={`transition-all duration-300 pl-0 ${
+          isCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[260px]'
         }`}
       >
         {/* Top Header */}
@@ -125,10 +165,11 @@ export function App() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           unreadCount={3}
+          onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
         />
 
         {/* Dynamic Route View */}
-        <main className="w-full pt-16 bg-surface-canvas min-h-screen px-space-lg py-space-lg">
+        <main className="w-full pt-16 bg-surface-canvas min-h-screen px-4 md:px-space-lg py-4 md:py-space-lg">
           {currentPath === 'overview' && (
             <ExecutiveOverview
               onNavigate={handleNavigate}

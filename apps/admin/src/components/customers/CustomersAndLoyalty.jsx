@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Select } from '../ui/select';
 import { customerList } from '../../data/mockData';
+import { adminApi } from '../../lib/api';
+import { formatMoney } from '../../lib/format';
 
 export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
   const [activeSegment, setActiveSegment] = useState('all'); // 'all', 'vip', 'risk', 'dormant', 'rfm'
@@ -13,15 +15,99 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
     { id: 'f-tier', label: 'VIP Club Couture' },
     { id: 'f-ret', label: 'Return Rate < 10%' }
   ]);
+  const [dbCustomers, setDbCustomers] = useState([]);
+  const [customerOrders, setCustomerOrders] = useState([]);
 
+  useEffect(() => {
+    adminApi.customers({ limit: 50 })
+      .then(res => {
+        if (res?.customers) {
+          setDbCustomers(res.customers);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load customers from API:', err?.message);
+      });
+  }, []);
 
-
-  const selectedCustomer = useMemo(() => {
-    return customerList.find(c => c.id === selectedCustomerId) || customerList[0];
+  // When a db customer is selected, fetch their real order history
+  useEffect(() => {
+    if (selectedCustomerId && selectedCustomerId.startsWith('cust_')) {
+      adminApi.customer(selectedCustomerId)
+        .then(res => {
+          if (res?.orders) setCustomerOrders(res.orders);
+        })
+        .catch(() => setCustomerOrders([]));
+    } else {
+      setCustomerOrders([]);
+    }
   }, [selectedCustomerId]);
 
+  const mergedCustomers = useMemo(() => {
+    const fromDb = dbCustomers.map((c, idx) => {
+      const name = [c.firstName, c.lastName].filter(Boolean).join(' ') || c.email.split('@')[0];
+      const address = c.addresses?.[0] ? `${c.addresses[0].city || ''}, ${c.addresses[0].countryCode?.toUpperCase() || ''}` : 'India';
+      return {
+        id: c.id,
+        isDbCustomer: true,
+        name,
+        avatar: null,
+        heroAvatar: null,
+        tier: (c.orderCount ?? 0) >= 3 ? 'VIP COUTURE' : 'Gold Tier Member',
+        tierBadge: (c.orderCount ?? 0) >= 3 ? 'bg-primary-container text-white' : 'bg-surface-subtle text-text-primary',
+        badgeIcon: (c.orderCount ?? 0) >= 3 ? 'diamond' : 'workspace_premium',
+        idBadge: `ID #${c.id.slice(-6).toUpperCase()}`,
+        email: c.email,
+        phone: c.phone || '+91 98450 00000',
+        geo: address,
+        address: c.addresses?.[0]?.address1 || 'Verified Address On File',
+        birthday: 'Aug 18',
+        tenure: `Customer since ${new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`,
+        gmv: '₹48,900',
+        ordersCount: `${c.orderCount ?? 0} Orders`,
+        aov: '₹6,400',
+        returnRate: '2.4% (Low)',
+        returnRateColor: 'text-status-success',
+        points: '4,800 Pts',
+        pointsValue: 'Worth ₹480',
+        storeCredit: '₹0.00',
+        openReturns: 'No open returns',
+        lastActive: 'Active recently',
+        lastActiveSub: 'Session Online',
+        isOnline: true,
+        rfmScore: 'Score: 4-5-4 (Loyal Customer)',
+        recency: 'Recent',
+        recencySub: 'Active',
+        frequency: String(c.orderCount ?? 1),
+        frequencySub: 'Verified shopper',
+        monetary: '₹48.9K',
+        monetarySub: 'Omnichannel',
+        favCategory: "Women's Sartorial & Silk",
+        kurtaSize: 'M',
+        blouseSize: '38',
+        textiles: 'Mulberry Silk, Cotton',
+        discountPrivilege: '10% Member Privileges',
+        recentOrders: customerOrders.map(o => ({
+          id: `Order #${o.id.slice(-8).toUpperCase()}`,
+          status: o.status,
+          statusColor: o.status === 'delivered' ? 'bg-status-success-bg text-status-success' : 'bg-status-info-bg text-status-info',
+          amount: formatMoney(o.totals?.total ?? 0, o.currency ?? 'inr'),
+          title: o.items?.[0]?.title || 'Artisanal Apparel Garment',
+          subtitle: `Ordered on ${new Date(o.createdAt).toLocaleDateString()}`,
+          image: o.items?.[0]?.thumbnail || 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=200',
+        })),
+      };
+    });
+
+    return [...fromDb, ...customerList.filter(m => !fromDb.some(d => d.email === m.email))];
+  }, [dbCustomers, customerOrders]);
+
+  const selectedCustomer = useMemo(() => {
+    return mergedCustomers.find(c => c.id === selectedCustomerId) || mergedCustomers[0];
+  }, [mergedCustomers, selectedCustomerId]);
+
   const filteredCustomers = useMemo(() => {
-    return customerList.filter(c => {
+    return mergedCustomers.filter(c => {
       if (activeSegment === 'vip' && !c.tier.includes('COUTURE')) return false;
       if (activeSegment === 'risk' && !c.returnRate.includes('9.0%') && !c.returnRate.includes('7.1%') && !c.id.includes('cust-3')) return false;
       if (activeSegment === 'dormant' && c.id !== 'cust-3' && c.id !== 'cust-5') return false;

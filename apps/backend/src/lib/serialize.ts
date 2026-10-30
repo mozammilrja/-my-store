@@ -1,8 +1,11 @@
 import type { ProductDoc, RegionDoc } from "../db/schema.js"
 import { env } from "../env.js"
 
-/** Stored image paths are relative (`/uploads/...`); clients get absolute URLs. */
-export const assetUrl = (path: string) => (/^https?:\/\//.test(path) ? path : `${env.API_PUBLIC_URL}${path}`)
+export const assetUrl = (path: string) => {
+  if (/^https?:\/\//.test(path)) return path
+  if (path.startsWith("/images/")) return path
+  return `${env.API_PUBLIC_URL}${path}`
+}
 
 /** Never expose exact stock beyond what a shopper can buy in one go. */
 const MAX_VISIBLE_STOCK = 99

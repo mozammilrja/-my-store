@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --obsidian: #171717;
+      --ivory: #F5F1E9;
+      --champagne: #B49A78;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--ivory);
+      color: var(--obsidian);
+      font-family: "Manrope", sans-serif;
+    }
+
+    /* —— Full system sheet —— */
+    .sheet {
+      width: 1280px;
+      height: 1440px;
+      background: var(--ivory);
+      padding: 96px 80px 72px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.42em;
+      text-transform: uppercase;
+      color: var(--champagne);
+      font-weight: 500;
+      margin-bottom: 18px;
+    }
+    .sheet-title {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-weight: 500;
+      font-size: 28px;
+      letter-spacing: 0.55em;
+      text-indent: 0.55em;
+      margin-bottom: 72px;
+    }
+    .mono-frame {
+      width: 360px;
+      height: 360px;
+      border: 1px solid #E4DDD0;
+      display: grid;
+      place-items: center;
+      margin-bottom: 28px;
+      background: var(--ivory);
+    }
+    .label {
+      font-size: 10px;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: #8A8174;
+      margin-bottom: 64px;
+    }
+    .word-frame {
+      width: 100%;
+      max-width: 960px;
+      height: 220px;
+      border: 1px solid #E4DDD0;
+      display: grid;
+      place-items: center;
+      margin-bottom: 28px;
+      background: var(--ivory);
+    }
+    .palette {
+      margin-top: auto;
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--champagne);
+    }
+
+    /* —— Monogram —— */
+    .monogram {
+      position: relative;
+      width: 168px;
+      height: 168px;
+      display: grid;
+      place-items: center;
+    }
+    .monogram-av {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-weight: 500;
+      font-size: 128px;
+      line-height: 1;
+      letter-spacing: -0.06em;
+      color: var(--obsidian);
+      position: relative;
+    }
+    .monogram-av .bar {
+      position: absolute;
+      left: 18%;
+      top: 54%;
+      width: 28%;
+      height: 3px;
+      background: var(--champagne);
+      border-radius: 1px;
+    }
+
+    /* Compact AV ligature using overlapping letters */
+    .av-mark {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-weight: 500;
+      color: var(--obsidian);
+    }
+    .av-mark .a,
+    .av-mark .v {
+      position: absolute;
+      font-size: 148px;
+      line-height: 1;
+      top: -8px;
+    }
+    .av-mark .a { left: 4px; }
+    .av-mark .v { left: 52px; opacity: 0.92; }
+    .av-mark .cross {
+      position: absolute;
+      left: 22px;
+      top: 78px;
+      width: 42px;
+      height: 2.5px;
+      background: var(--champagne);
+    }
+
+    /* —— Primary wordmark —— */
+    .wordmark {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-weight: 500;
+      font-size: 72px;
+      letter-spacing: 0.42em;
+      text-indent: 0.42em;
+      line-height: 1;
+      color: var(--obsidian);
+      position: relative;
+      display: inline-block;
+    }
+    .wordmark .a-accent {
+      position: absolute;
+      /* Approximate A crossbar under first letter */
+      left: 0.52em;
+      top: 0.55em;
+      width: 0.38em;
+      height: 2.5px;
+      background: var(--champagne);
+      border-radius: 1px;
+    }
+
+    /* Alternate: A with inline span for precise accent */
+    .wordmark-precise {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-weight: 500;
+      font-size: 72px;
+      letter-spacing: 0.4em;
+      line-height: 1;
+      color: var(--obsidian);
+      display: inline-flex;
+      align-items: baseline;
+    }
+    .wordmark-precise .letter {
+      display: inline-block;
+      position: relative;
+    }
+    .wordmark-precise .letter.a .cross {
+      position: absolute;
+      left: 18%;
+      right: 18%;
+      top: 54%;
+      height: 2.5px;
+      background: var(--champagne);
+      border-radius: 1px;
+    }
+    .wordmark-precise .rest {
+      letter-spacing: 0.4em;
+      padding-left: 0.05em;
+    }
+
+    /* Solo export canvases */
+    .solo {
+      width: 1280px;
+      height: 720px;
+      display: grid;
+      place-items: center;
+      background: var(--ivory);
+    }
+    .solo.square {
+      width: 1024px;
+      height: 1024px;
+    }
+    .solo .wordmark-precise { font-size: 96px; letter-spacing: 0.45em; }
+    .solo .wordmark-precise .rest { letter-spacing: 0.45em; }
+    .solo.square .av-mark {
+      width: 280px;
+      height: 280px;
+      position: relative;
+    }
+    .solo.square .av-mark .a,
+    .solo.square .av-mark .v {
+      font-size: 260px;
+      top: 0;
+    }
+    .solo.square .av-mark .a { left: 8px; }
+    .solo.square .av-mark .v { left: 96px; }
+    .solo.square .av-mark .cross {
+      left: 42px;
+      top: 142px;
+      width: 78px;
+      height: 4px;
+    }
+  </style>
+</head>
+<body>
+  <!-- System sheet -->
+  <section id="system" class="sheet">
+    <div class="eyebrow">Logo System</div>
+    <div class="sheet-title">AVELIQ</div>
+
+    <div class="mono-frame">
+      <div class="av-mark" aria-label="AV monogram">
+        <span class="a">A</span>
+        <span class="v">V</span>
+        <span class="cross"></span>
+      </div>
+    </div>
+    <div class="label">Monogram</div>
+
+    <div class="word-frame">
+      <div class="wordmark-precise" aria-label="AVELIQ">
+        <span class="letter a">A<span class="cross"></span></span>
+        <span class="rest">VELIQ</span>
+      </div>
+    </div>
+    <div class="label">Primary Wordmark</div>
+
+    <div class="palette">Obsidian #171717 &nbsp;|&nbsp; Ivory #F5F1E9 &nbsp;|&nbsp; Champagne #B49A78</div>
+  </section>
+
+  <!-- Wordmark solo -->
+  <section id="wordmark" class="solo">
+    <div class="wordmark-precise" aria-label="AVELIQ">
+      <span class="letter a">A<span class="cross"></span></span>
+      <span class="rest">VELIQ</span>
+    </div>
+  </section>
+
+  <!-- Monogram solo -->
+  <section id="monogram" class="solo square">
+    <div class="av-mark" aria-label="AV monogram">
+      <span class="a">A</span>
+      <span class="v">V</span>
+      <span class="cross"></span>
+    </div>
+  </section>
+</body>
+</html>

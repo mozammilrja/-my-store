@@ -40,47 +40,48 @@
   }
 }
 
-/* Everwear brand tokens from Stitch design system. High-end editorial shopping experience: warm ivory gallery canvas, royal plum editorial accents, architectural precision. */
+/* AVELIQ brand tokens: Obsidian, Ivory, Champagne — editorial luxury marketplace. */
 :root {
   --radius: 0.25rem;
 
-  --background: #fbf9f8;
-  --foreground: #1b1c1b;
+  --background: #F5F1E9;
+  --foreground: #171717;
   --card: #ffffff;
-  --card-foreground: #1b1c1b;
+  --card-foreground: #171717;
   --popover: #ffffff;
-  --popover-foreground: #1b1c1b;
-  --primary: #18181b;
-  --primary-foreground: #ffffff;
-  --secondary: #f5f3f2;
-  --secondary-foreground: #1b1c1b;
-  --muted: #f5f3f2;
-  --muted-foreground: #47464b;
-  --accent: #913b94;
-  --accent-foreground: #ffffff;
+  --popover-foreground: #171717;
+  --primary: #171717;
+  --primary-foreground: #F5F1E9;
+  --secondary: #EFE9DF;
+  --secondary-foreground: #171717;
+  --muted: #EFE9DF;
+  --muted-foreground: #5C564C;
+  --accent: #B49A78;
+  --accent-foreground: #171717;
   --destructive: #ba1a1a;
   --destructive-foreground: #ba1a1a;
-  --border: #e7e5e4;
-  --input: #d6d3d1;
-  --ring: #18181b;
+  --border: #E4DDD0;
+  --input: #D6CFC2;
+  --ring: #171717;
 
   --success: #065f46;
   --success-foreground: #ffffff;
-  --info: #1b1b1e;
-  --info-foreground: #ffffff;
+  --info: #171717;
+  --info-foreground: #F5F1E9;
   --warning: #c2410c;
   --warning-foreground: #ffffff;
-  --invert: #1b1b1e;
-  --invert-foreground: #fbf9f8;
+  --invert: #171717;
+  --invert-foreground: #F5F1E9;
 
-  --brand-deep: #1b1b1e;
+  --brand-deep: #171717;
+  --brand-champagne: #B49A78;
   --sale: #c2410c;
-  --surface: #f5f3f2;
+  --surface: #EFE9DF;
 }
 
 @theme inline {
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), "Cormorant Garamond", Georgia, "Times New Roman", serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -110,6 +111,7 @@
   --color-invert: var(--invert);
   --color-invert-foreground: var(--invert-foreground);
   --color-brand-deep: var(--brand-deep);
+  --color-brand-champagne: var(--brand-champagne);
   --color-sale: var(--sale);
   --color-surface: var(--surface);
 

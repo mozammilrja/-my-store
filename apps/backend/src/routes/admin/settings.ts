@@ -9,7 +9,7 @@ export const adminSettingsRoutes = Router()
 export const SETTINGS_ID = "store"
 
 const DEFAULTS = {
-  storeName: "Everwear",
+  storeName: "AVELIQ",
   lowStockThreshold: 5,
 } as const
 

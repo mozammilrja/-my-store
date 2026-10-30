@@ -38,7 +38,7 @@ export async function Header({ countryCode }: { countryCode: string }) {
   return (
     <>
       <Announcement countryCode={countryCode} deliveryInfo={deliveryInfo} />
-      <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md shadow-[0_1px_8px_rgba(0,0,0,0.04)] border-b border-border/60">
+      <header className="sticky top-0 z-40 bg-surface shadow-[0_1px_8px_rgba(0,0,0,0.04)] border-b border-border/60">
         <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
           <div className="h-20 flex items-center justify-between gap-space-lg">
             {/* Left: Mobile Trigger & Brand Wordmark */}
@@ -46,11 +46,11 @@ export async function Header({ countryCode }: { countryCode: string }) {
               <MobileNav links={links} regions={regions} />
               <LocalizedClientLink
                 href="/"
-                aria-label="Everwear home"
+                aria-label="EVERWEAR home"
                 data-testid="nav-store-link"
                 className="flex items-center"
               >
-                <Wordmark />
+                <Wordmark showMark />
               </LocalizedClientLink>
             </div>
 

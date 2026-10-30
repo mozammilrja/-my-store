@@ -105,7 +105,7 @@ describe("settings", () => {
   test("defaults answer before anything is saved", async () => {
     const { body } = await call("GET", "/admin/settings")
     assert.equal(body.settings.lowStockThreshold, 5)
-    assert.equal(body.settings.storeName, "Everwear")
+    assert.equal(body.settings.storeName, "AVELIQ")
   })
 
   test("an owner can change the low-stock threshold and the dashboard follows", async () => {

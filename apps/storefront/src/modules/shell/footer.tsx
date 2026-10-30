@@ -133,7 +133,7 @@ export function Footer() {
               Sustainable Craftsmanship
             </LocalizedClientLink>
             <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/contact">
-              Careers at Everwear
+              Careers at AVELIQ
             </LocalizedClientLink>
             <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/contact">
               Press &amp; Publications
@@ -145,7 +145,7 @@ export function Footer() {
 
           <div className="flex flex-col gap-2">
             <h6 className="font-label-caps text-label-caps uppercase text-on-surface tracking-wider font-semibold mb-1">
-              Everwear Privilege
+              AVELIQ Privilege
             </h6>
             <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/account">
               Privilege Club Tiering
@@ -197,7 +197,7 @@ export function Footer() {
         <div className="pt-space-lg border-t border-surface-container flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-on-surface-variant">
             <span className="font-body-sm text-body-sm">
-              &copy; {new Date().getFullYear()} Everwear Fashions Private Limited. All rights reserved.
+              &copy; {new Date().getFullYear()} AVELIQ. All rights reserved.
             </span>
             <LocalizedClientLink className="font-body-sm text-body-sm hover:text-on-surface transition-colors" href="/terms">
               Terms of Service

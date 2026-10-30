@@ -82,51 +82,64 @@ export function CartDrawer() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="relative"
+        <button
+          type="button"
+          className="relative flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors group cursor-pointer border border-border/40"
           aria-label={`Bag, ${count} ${count === 1 ? "item" : "items"}`}
           data-testid="nav-cart-link"
         >
-          <ShoppingBagIcon aria-hidden />
-          <span
-            className={cn(
-              "absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-none font-bold text-accent-foreground tabular-nums",
-              count === 0 && "sr-only"
-            )}
-            data-testid="nav-cart-count"
-          >
-            {count}
-          </span>
-        </Button>
+          <div className="relative flex items-center">
+            <ShoppingBagIcon className="size-5 text-foreground" aria-hidden />
+            <span
+              className={cn(
+                "absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-secondary text-on-secondary font-label-caps text-[9px] font-bold tabular-nums",
+                count === 0 && "sr-only"
+              )}
+              data-testid="nav-cart-count"
+            >
+              {count}
+            </span>
+          </div>
+          <div className="hidden sm:flex flex-col text-left">
+            <span className="font-label-caps text-[9px] text-muted-foreground uppercase leading-none font-semibold">
+              Bag
+            </span>
+            <span className="font-label-sm text-xs text-foreground font-bold leading-tight tabular-nums">
+              {cart?.totals.total ? formatMoney(cart.totals.total, cart.currency) : (count > 0 ? `${count} items` : "Empty")}
+            </span>
+          </div>
+        </button>
       </SheetTrigger>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 sm:max-w-md" data-testid="nav-cart-dropdown">
-        <SheetHeader className="border-b">
-          <SheetTitle className="font-display-tight text-3xl">
-            Your bag
+      <SheetContent side="right" className="flex w-full flex-col gap-0 sm:max-w-md bg-surface-container-lowest border-l border-border shadow-[0_20px_40px_-15px_rgba(24,24,27,0.12)] p-0" data-testid="nav-cart-dropdown">
+        <SheetHeader className="p-6 border-b border-border/60 bg-surface-container-low/50">
+          <SheetTitle className="font-headline-lg text-2xl font-medium tracking-tight text-foreground">
+            Shopping Bag
           </SheetTitle>
-          <SheetDescription>
-            {count === 0 ? "Nothing here yet." : `${count} ${count === 1 ? "item" : "items"}`}
+          <SheetDescription className="font-body-sm text-xs text-muted-foreground">
+            {count === 0 ? "Your bag is currently empty." : `${count} ${count === 1 ? "handcrafted item" : "curated items"}`}
           </SheetDescription>
         </SheetHeader>
 
         {items.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              Your bag is empty. Start with the full collection.
+            <div className="size-16 rounded-full bg-surface-container flex items-center justify-center text-muted-foreground">
+              <ShoppingBagIcon className="size-8" />
+            </div>
+            <p className="font-body-sm text-sm text-muted-foreground max-w-xs">
+              Your bag is empty. Explore our tailored garments and daily essentials.
             </p>
-            <Button asChild>
-              <LocalizedClientLink href="/store">Shop all</LocalizedClientLink>
+            <Button asChild className="mt-2 bg-primary text-primary-foreground hover:bg-primary/90 font-label-md">
+              <LocalizedClientLink href="/store" onClick={() => setOpen(false)}>Shop Collections</LocalizedClientLink>
             </Button>
           </div>
         ) : (
-          <ul className="flex-1 divide-y overflow-y-auto px-4">
+          <ul className="flex-1 divide-y divide-border/60 overflow-y-auto px-6 py-2">
             {items.map((item) => (
               <li key={item.id} className="flex gap-4 py-4" data-testid="cart-item">
                 <LocalizedClientLink
                   href={`/products/${item.productHandle}`}
-                  className="relative aspect-[4/5] w-20 shrink-0 overflow-hidden bg-muted"
+                  onClick={() => setOpen(false)}
+                  className="relative aspect-[3/4] w-20 shrink-0 overflow-hidden rounded bg-surface-container-low border border-border/40"
                 >
                   {item.thumbnail && (
                     <Image src={item.thumbnail} alt="" fill sizes="80px" className="object-cover" />
@@ -136,26 +149,27 @@ export function CartDrawer() {
                   <div className="flex items-start justify-between gap-3">
                     <LocalizedClientLink
                       href={`/products/${item.productHandle}`}
-                      className="truncate text-sm font-medium hover:underline"
+                      onClick={() => setOpen(false)}
+                      className="truncate font-headline-sm text-sm font-medium hover:underline text-foreground"
                       data-testid="product-link"
                     >
                       {item.productTitle}
                     </LocalizedClientLink>
-                    <span className="text-sm tabular-nums">
+                    <span className="text-sm font-bold text-foreground tabular-nums">
                       {formatMoney(item.total, cart!.currency)}
                     </span>
                   </div>
                   {item.variantTitle && (
-                    <span className="text-xs text-muted-foreground">{item.variantTitle}</span>
+                    <span className="font-label-caps text-[10px] text-muted-foreground uppercase">{item.variantTitle}</span>
                   )}
-                  <span className="text-xs text-muted-foreground" data-testid="cart-item-quantity">
-                    Qty {item.quantity}
+                  <span className="font-body-sm text-xs text-muted-foreground" data-testid="cart-item-quantity">
+                    Quantity: {item.quantity}
                   </span>
                   <button
                     type="button"
                     onClick={() => remove(item.id)}
                     disabled={removing === item.id}
-                    className="mt-auto inline-flex w-fit items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
+                    className="mt-auto inline-flex w-fit items-center gap-1 font-label-caps text-[11px] text-muted-foreground underline-offset-4 hover:text-destructive transition-colors disabled:opacity-50 cursor-pointer"
                     data-testid="cart-item-remove-button"
                   >
                     {removing === item.id && <Loader2Icon className="size-3 animate-spin" aria-hidden />}
@@ -168,21 +182,21 @@ export function CartDrawer() {
         )}
 
         {items.length > 0 && cart && (
-          <SheetFooter className="border-t">
-            <div className="flex items-baseline justify-between text-sm">
-              <span>
-                Subtotal <span className="text-muted-foreground">(excl. shipping)</span>
+          <SheetFooter className="p-6 border-t border-border/60 bg-surface-container-low/30 flex flex-col gap-3">
+            <div className="flex items-baseline justify-between text-sm py-1">
+              <span className="font-body-sm text-muted-foreground">
+                Subtotal <span className="text-xs">(excl. delivery)</span>
               </span>
-              <span className="text-base font-semibold tabular-nums" data-testid="cart-subtotal">
+              <span className="text-base font-bold tabular-nums text-foreground" data-testid="cart-subtotal">
                 {formatMoney(cart.totals.itemSubtotal, cart.currency)}
               </span>
             </div>
-            <Button asChild size="lg" className="w-full">
-              <LocalizedClientLink href="/checkout?step=address">Checkout</LocalizedClientLink>
+            <Button asChild size="lg" className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-label-md">
+              <LocalizedClientLink href="/checkout?step=address" onClick={() => setOpen(false)}>Proceed to Checkout</LocalizedClientLink>
             </Button>
-            <Button asChild variant="outline" size="lg" className="w-full">
-              <LocalizedClientLink href="/cart" data-testid="go-to-cart-button">
-                View bag
+            <Button asChild variant="outline" size="lg" className="w-full font-label-md border-border/70">
+              <LocalizedClientLink href="/cart" data-testid="go-to-cart-button" onClick={() => setOpen(false)}>
+                View Complete Bag
               </LocalizedClientLink>
             </Button>
           </SheetFooter>

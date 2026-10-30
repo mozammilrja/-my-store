@@ -48,7 +48,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             name={name}
             required={required}
             className={cn(
-              "block h-11 w-full border border-input bg-card px-3 text-sm outline-none transition-colors",
+              "block h-11 w-full rounded-md border border-input bg-card px-3 text-sm outline-none transition-colors",
               "hover:border-foreground/40 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25",
               "aria-invalid:border-destructive disabled:cursor-not-allowed disabled:opacity-50",
               isPassword && "pr-11",

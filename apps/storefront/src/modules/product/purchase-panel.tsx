@@ -136,9 +136,9 @@ export function PurchasePanel({ product }: { product: Product }) {
                     <label
                       key={value}
                       className={cn(
-                        "relative inline-flex h-11 min-w-12 cursor-pointer items-center justify-center border px-4 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/40",
-                        checked ? "border-foreground bg-foreground text-background" : "border-border hover:border-foreground",
-                        !available && !checked && "text-muted-foreground line-through decoration-1"
+                        "relative inline-flex h-11 min-w-12 cursor-pointer items-center justify-center rounded-md border px-4 font-label-sm text-xs font-medium transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/40",
+                        checked ? "border-primary bg-primary text-primary-foreground font-semibold shadow-2xs" : "border-border bg-surface-container-lowest hover:border-primary/50 text-foreground",
+                        !available && !checked && "text-muted-foreground line-through decoration-1 opacity-60"
                       )}
                     >
                       <input
@@ -160,29 +160,32 @@ export function PurchasePanel({ product }: { product: Product }) {
             </fieldset>
           ))}
 
-        <p className="text-sm" aria-live="polite" data-testid="product-availability">
+        <p className="text-xs font-label-sm flex items-center gap-1.5" aria-live="polite" data-testid="product-availability">
           {!selected ? (
             <span className="text-muted-foreground">This combination isn&apos;t available.</span>
           ) : inStock ? (
-            <span className="text-success-foreground">In stock</span>
+            <span className="text-emerald-800 flex items-center gap-1.5 font-semibold">
+              <span className="size-1.5 rounded-full bg-emerald-600 animate-pulse" />
+              In stock · Ready for express dispatch
+            </span>
           ) : (
-            <span className="text-destructive-foreground">Out of stock</span>
+            <span className="text-destructive font-semibold">Out of stock</span>
           )}
         </p>
 
         <div className="flex gap-3">
-          <div className="flex h-12 items-center border" role="group" aria-label="Quantity">
-            <button type="button" onClick={() => setQuantity((q) => Math.max(1, q - 1))} disabled={quantity <= 1 || adding} className="flex h-full w-11 items-center justify-center disabled:opacity-40" aria-label="Decrease quantity">
+          <div className="flex h-12 items-center border border-border rounded-lg bg-surface-container-low/40" role="group" aria-label="Quantity">
+            <button type="button" onClick={() => setQuantity((q) => Math.max(1, q - 1))} disabled={quantity <= 1 || adding} className="flex h-full w-11 items-center justify-center disabled:opacity-40 hover:bg-surface-container-low transition-colors" aria-label="Decrease quantity">
               <MinusIcon className="size-4" aria-hidden />
             </button>
-            <output className="w-8 text-center text-sm tabular-nums" aria-live="polite" data-testid="product-quantity">
+            <output className="w-8 text-center font-label-sm text-sm tabular-nums font-bold" aria-live="polite" data-testid="product-quantity">
               {quantity}
             </output>
-            <button type="button" onClick={() => setQuantity((q) => Math.min(max, q + 1))} disabled={quantity >= max || adding || !inStock} className="flex h-full w-11 items-center justify-center disabled:opacity-40" aria-label="Increase quantity">
+            <button type="button" onClick={() => setQuantity((q) => Math.min(max, q + 1))} disabled={quantity >= max || adding || !inStock} className="flex h-full w-11 items-center justify-center disabled:opacity-40 hover:bg-surface-container-low transition-colors" aria-label="Increase quantity">
               <PlusIcon className="size-4" aria-hidden />
             </button>
           </div>
-          <Button type="submit" size="lg" className="h-12 flex-1" disabled={!inStock || adding} aria-busy={adding} data-testid="add-product-button">
+          <Button type="submit" size="lg" className="h-12 flex-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-label-md tracking-wider uppercase font-semibold shadow-xs" disabled={!inStock || adding} aria-busy={adding} data-testid="add-product-button">
             {adding ? <Loader2Icon className="animate-spin" aria-hidden /> : added ? <CheckIcon aria-hidden /> : null}
             {label}
           </Button>
@@ -190,15 +193,15 @@ export function PurchasePanel({ product }: { product: Product }) {
       </form>
 
       {/* Small screens: keep the buy button in reach while reading details. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t bg-background/95 p-3 backdrop-blur lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-border/80 bg-surface-container-lowest/95 p-3 backdrop-blur shadow-lg lg:hidden">
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-xs text-muted-foreground">
             {product.title}
             {selected?.title ? ` · ${selected.title}` : ""}
           </span>
-          {price !== null && <span className="text-sm font-bold tabular-nums">{formatMoney(price, currency)}</span>}
+          {price !== null && <span className="text-sm font-bold tabular-nums text-foreground">{formatMoney(price, currency)}</span>}
         </div>
-        <Button type="submit" form="product-form" size="lg" disabled={!inStock || adding} aria-busy={adding}>
+        <Button type="submit" form="product-form" size="lg" className="rounded-lg bg-primary text-primary-foreground font-label-md uppercase tracking-wider font-semibold shadow-xs" disabled={!inStock || adding} aria-busy={adding}>
           {adding ? <Loader2Icon className="animate-spin" aria-hidden /> : null}
           {adding ? "Adding" : !selected ? "Unavailable" : inStock ? "Add to bag" : "Sold out"}
         </Button>

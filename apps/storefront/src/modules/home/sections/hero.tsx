@@ -1,48 +1,74 @@
 import { Button } from "@/components/ui/button"
-import { Container } from "@/components/store/container"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { NEW_IN_HREF } from "@modules/shell/header"
 import { ArrowRightIcon } from "lucide-react"
 import Image from "next/image"
-import heroImage from "../../../../public/images/editorial/hero-street.jpg"
+import heroImage from "../../../../public/images/editorial/hero-editorial.jpg"
 
-/** Full-bleed lifestyle hero with a heavy condensed headline. */
+/**
+ * Stitch Editorial Hero Banner:
+ * High-impact campaign photography, architectural typography,
+ * negative letter spacing, and refined CTA actions.
+ */
 export function Hero() {
   return (
-    <section aria-labelledby="hero-title" className="relative isolate flex h-[min(78svh,760px)] min-h-[520px] items-end overflow-hidden bg-invert text-invert-foreground lg:h-[min(86svh,860px)]">
-      <Image
-        src={heroImage}
-        alt="A man in a black jacket and hood on a busy city street"
-        fill
-        preload
-        loading="eager"
-        fetchPriority="high"
-        placeholder="blur"
-        sizes="100vw"
-        className="-z-10 object-cover object-[50%_35%]"
-      />
-      <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
-      <Container className="flex flex-col gap-6 pt-32 pb-12 lg:pb-20">
-        <span className="w-fit bg-accent px-2.5 py-1 text-[11px] font-bold tracking-[0.14em] text-accent-foreground uppercase">
-          New season
-        </span>
-        <h1 id="hero-title" className="max-w-4xl font-display-tight text-[clamp(3.5rem,11vw,9.5rem)] text-balance">
-          Built for every day.
-        </h1>
-        <p className="max-w-md text-base text-white/85 sm:text-lg">
-          Tees, sweats and pants cut for comfort and made to be worn on repeat.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <Button asChild size="lg" className="bg-white text-black hover:bg-white/90">
-            <LocalizedClientLink href="/store">
-              Shop all <ArrowRightIcon data-icon="inline-end" aria-hidden />
-            </LocalizedClientLink>
-          </Button>
-          <Button asChild size="lg" variant="outline" className="border-white bg-transparent text-white hover:bg-white hover:text-black">
-            <LocalizedClientLink href={NEW_IN_HREF}>New in</LocalizedClientLink>
-          </Button>
+    <section aria-labelledby="hero-title" className="max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-10 my-4 sm:my-6">
+      <div className="relative w-full rounded-2xl overflow-hidden bg-surface-container-high shadow-sm">
+        <div className="w-full min-h-[520px] md:min-h-[620px] flex flex-col justify-end p-6 sm:p-10 md:p-16 relative">
+          <Image
+            src={heroImage}
+            alt="Editorial portrait of Everwear modern collection in warm courtyard light"
+            fill
+            priority
+            loading="eager"
+            placeholder="blur"
+            sizes="(min-width: 1440px) 1440px, 100vw"
+            className="object-cover object-[50%_25%]"
+          />
+          <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-primary/95 via-primary/50 to-transparent" />
+
+          <div className="relative z-10 max-w-3xl flex flex-col gap-4 text-white">
+            <div className="flex items-center gap-3">
+              <span className="px-3 py-1 rounded bg-white/20 backdrop-blur-md font-label-caps text-[10px] sm:text-[11px] uppercase tracking-widest text-white font-semibold">
+                Spring / Summer &apos;25 Campaign
+              </span>
+              <span className="hidden sm:inline font-label-sm text-xs text-surface-container-high">
+                Curated for Everwear Europe &amp; India
+              </span>
+            </div>
+
+            <h1
+              id="hero-title"
+              className="font-display-hero text-3xl sm:text-5xl lg:text-6xl font-light tracking-tight text-white leading-tight max-w-2xl"
+            >
+              Contemporary Masculine Elegance
+            </h1>
+
+            <p className="font-body-lg text-sm sm:text-base lg:text-lg text-surface-container-highest max-w-xl font-normal leading-relaxed opacity-95">
+              Tailored essentials meet modern craftsmanship. From 350 GSM heavyweight textured knits to breezy Maheshwari handspun silks crafted for elevated, effortless daily rituals.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3 pt-3">
+              <Button asChild size="lg" className="rounded-lg bg-white text-black hover:bg-surface-container-high font-label-md tracking-wider uppercase shadow-md font-semibold">
+                <LocalizedClientLink href="/store" className="flex items-center gap-2 group">
+                  Shop New Season
+                  <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
+                </LocalizedClientLink>
+              </Button>
+
+              <Button asChild size="lg" variant="outline" className="rounded-lg bg-white/15 backdrop-blur-md border-white/30 text-white hover:bg-white/25 hover:text-white font-label-md tracking-wider uppercase transition-colors">
+                <LocalizedClientLink href={NEW_IN_HREF}>
+                  Explore Collections
+                </LocalizedClientLink>
+              </Button>
+
+              <span className="hidden lg:inline text-surface-container-high/80 ml-4 font-label-caps text-[11px] uppercase tracking-widest">
+                Free Express Delivery above ₹1,999 / €49
+              </span>
+            </div>
+          </div>
         </div>
-      </Container>
+      </div>
     </section>
   )
 }

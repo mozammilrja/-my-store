@@ -19,7 +19,7 @@ function AddressForm({ address, countries, onDone }: { address?: Saved; countrie
   }, [sent, pending, state.error, onDone])
 
   return (
-    <form action={action} onSubmit={() => setSent(true)} className="grid gap-4 border p-5 sm:grid-cols-2" data-testid="address-form">
+    <form action={action} onSubmit={() => setSent(true)} className="grid gap-4 rounded-xl border border-stone-200/80 bg-card p-5 sm:grid-cols-2" data-testid="address-form">
       {address && <input type="hidden" name="addressId" value={address.id} />}
       <Input label="First name" name="firstName" defaultValue={address?.firstName} required />
       <Input label="Last name" name="lastName" defaultValue={address?.lastName} required />
@@ -80,7 +80,7 @@ export function AddressBook({ customer, countries }: { customer: Customer; count
               <AddressForm address={a} countries={countries} onDone={close} />
             </li>
           ) : (
-            <li key={a.id} className="flex flex-col justify-between gap-4 border p-5 text-sm" data-testid="address-container">
+            <li key={a.id} className="flex flex-col justify-between gap-4 rounded-xl border border-stone-200/80 bg-card p-5 text-sm shadow-xs" data-testid="address-container">
               <p>
                 <span className="font-semibold">
                   {a.firstName} {a.lastName}

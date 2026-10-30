@@ -3,36 +3,29 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { getBaseURL } from "@lib/util/env"
 import { STORE_NAME } from "@lib/util/site"
 import { Metadata, Viewport } from "next"
-import { Archivo, Inter_Tight } from "next/font/google"
+import { Inter } from "next/font/google"
 import "styles/globals.css"
 
-// Archivo's width axis gives the condensed, heavy headlines of the brand.
-const displaySans = Archivo({
+const inter = Inter({
   subsets: ["latin"],
-  axes: ["wdth"],
-  variable: "--font-display-sans",
-  display: "swap",
-})
-
-const body = Inter_Tight({
-  subsets: ["latin"],
-  variable: "--font-body",
+  variable: "--font-sans",
+  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
 })
 
 export const metadata: Metadata = {
   metadataBase: new URL(getBaseURL()),
   title: {
-    default: STORE_NAME,
+    default: `${STORE_NAME} | Everyday Style. Your Way.`,
     template: `%s | ${STORE_NAME}`,
   },
   description:
-    "Everwear: clothing and everyday essentials, delivered across Europe and India.",
+    "Everwear: Contemporary fashion and everyday essentials delivered across Europe and India.",
   applicationName: STORE_NAME,
 }
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
+  themeColor: "#fbf9f8",
 }
 
 export default function RootLayout(props: { children: React.ReactNode }) {
@@ -40,10 +33,9 @@ export default function RootLayout(props: { children: React.ReactNode }) {
     <html
       lang="en"
       data-mode="light"
-      className={`${displaySans.variable} ${body.variable}`}
+      className={`${inter.variable}`}
     >
-      <head>
-      </head>
+      <head />
       <body>
         <TooltipProvider>
           <main className="relative">{props.children}</main>

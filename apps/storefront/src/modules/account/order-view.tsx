@@ -46,7 +46,7 @@ export function OrderView({ order }: { order: Order }) {
       <ul className="divide-y border-b" data-testid="order-items">
         {order.items.map((item) => (
           <li key={item.id} className="grid grid-cols-[5rem_1fr_auto] gap-4 py-4 text-sm">
-            <div className="relative aspect-[4/5] overflow-hidden bg-surface">
+            <div className="relative aspect-[4/5] overflow-hidden rounded-md bg-surface">
               {item.thumbnail && <Image src={item.thumbnail} alt="" fill sizes="80px" className="object-cover" />}
             </div>
             <div className="flex flex-col gap-1">

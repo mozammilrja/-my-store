@@ -15,21 +15,21 @@ export default async function AccountOverview() {
 
   return (
     <div className="flex flex-col gap-10">
-      <h1 className="font-display-tight text-6xl" data-testid="welcome-message">
+      <h1 className="font-display-hero text-4xl sm:text-5xl font-light tracking-tight" data-testid="welcome-message">
         Hi {customer.firstName || "there"}
       </h1>
       <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className="border p-5">
-          <dt className="text-xs font-bold tracking-[0.12em] text-muted-foreground uppercase">Orders</dt>
-          <dd className="mt-2 font-display-tight text-4xl">{orders.length}</dd>
+        <div className="rounded-xl border border-stone-200/80 bg-card p-5 shadow-xs">
+          <dt className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Orders</dt>
+          <dd className="mt-2 font-headline-lg text-3xl font-light tabular-nums">{orders.length}</dd>
         </div>
-        <div className="border p-5">
-          <dt className="text-xs font-bold tracking-[0.12em] text-muted-foreground uppercase">Saved addresses</dt>
-          <dd className="mt-2 font-display-tight text-4xl">{customer.addresses.length}</dd>
+        <div className="rounded-xl border border-stone-200/80 bg-card p-5 shadow-xs">
+          <dt className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Saved addresses</dt>
+          <dd className="mt-2 font-headline-lg text-3xl font-light tabular-nums">{customer.addresses.length}</dd>
         </div>
       </dl>
       <section className="flex flex-col gap-4">
-        <h2 className="font-display-tight text-3xl">Recent orders</h2>
+        <h2 className="font-headline-sm text-2xl font-normal tracking-tight">Recent orders</h2>
         {orders.length === 0 ? (
           <div className="flex flex-col items-start gap-4">
             <p className="text-sm text-muted-foreground">No orders yet.</p>

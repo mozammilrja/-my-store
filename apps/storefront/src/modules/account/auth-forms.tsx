@@ -32,7 +32,7 @@ export function AuthForms() {
     return (
       <div className="mx-auto flex w-full max-w-sm flex-col gap-6" data-testid="register-page">
         <div className="flex flex-col gap-2">
-          <h1 className="font-display-tight text-5xl">Create account</h1>
+          <h1 className="font-display-hero text-3xl sm:text-4xl font-light tracking-tight">Create account</h1>
           <p className="text-sm text-muted-foreground">Track orders and check out faster.</p>
         </div>
         <form action={signupAction} onSubmit={() => setSubmitted(true)} className="flex flex-col gap-4">
@@ -61,7 +61,7 @@ export function AuthForms() {
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col gap-6" data-testid="login-page">
       <div className="flex flex-col gap-2">
-        <h1 className="font-display-tight text-5xl">Sign in</h1>
+        <h1 className="font-display-hero text-3xl sm:text-4xl font-light tracking-tight">Sign in</h1>
         <p className="text-sm text-muted-foreground">See your orders and saved addresses.</p>
       </div>
       <form action={loginAction} onSubmit={() => setSubmitted(true)} className="flex flex-col gap-4">

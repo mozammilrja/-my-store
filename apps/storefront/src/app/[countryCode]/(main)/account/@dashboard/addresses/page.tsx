@@ -12,7 +12,7 @@ export default async function AddressesPage() {
   const countries = regions.flatMap((r) => r.countries).sort((a, b) => a.name.localeCompare(b.name))
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="font-display-tight text-6xl">Addresses</h1>
+      <h1 className="font-display-hero text-4xl sm:text-5xl font-light tracking-tight">Addresses</h1>
       <AddressBook customer={customer} countries={countries} />
     </div>
   )

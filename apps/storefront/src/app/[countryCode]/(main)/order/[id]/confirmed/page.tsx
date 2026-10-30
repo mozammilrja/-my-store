@@ -18,7 +18,7 @@ export default async function OrderConfirmed(props: { params: Promise<{ id: stri
     <Container className="flex max-w-4xl flex-col gap-10 py-14" data-testid="order-complete-container">
       <div className="flex flex-col gap-4">
         <CheckCircle2Icon className="size-10 text-success" aria-hidden />
-        <h1 className="font-display-tight text-6xl sm:text-7xl">Thank you!</h1>
+        <h1 className="font-display-hero text-4xl sm:text-5xl font-light tracking-tight">Thank you!</h1>
         <p className="max-w-xl text-muted-foreground">
           Your order <span className="font-semibold text-foreground">#{order.displayId}</span> is placed. You&apos;ll pay in
           cash when it&apos;s delivered. We&apos;ll use <span className="font-semibold text-foreground" data-testid="order-email">{order.email}</span> if we

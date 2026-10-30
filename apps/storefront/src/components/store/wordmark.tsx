@@ -1,11 +1,23 @@
 import { cn } from "@/lib/utils"
 
-/** The Everwear wordmark: heavy condensed caps with a volt slash. */
-export function Wordmark({ className }: { className?: string }) {
+/** Everwear editorial wordmark from Stitch: bold architectural uppercase with clean letter-spaced subtitle. */
+export function Wordmark({
+  className,
+  showSubtitle = true,
+}: {
+  className?: string
+  showSubtitle?: boolean
+}) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 font-display-tight text-[1.65rem] leading-none", className)}>
-      Everwear
-      <span aria-hidden className="inline-block h-[0.7em] w-[0.32em] -skew-x-12 bg-accent" />
-    </span>
+    <div className={cn("flex flex-col group select-none text-left", className)}>
+      <span className="font-headline-lg text-xl sm:text-2xl font-bold tracking-[-0.04em] text-foreground uppercase leading-none">
+        EVERWEAR
+      </span>
+      {showSubtitle && (
+        <span className="font-label-caps text-[9px] sm:text-[10px] tracking-[0.14em] text-muted-foreground uppercase mt-1 font-semibold leading-none">
+          Everyday Style. Your Way.
+        </span>
+      )}
+    </div>
   )
 }

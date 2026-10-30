@@ -10,7 +10,7 @@ export default async function ProfilePage() {
   if (!customer) notFound()
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="font-display-tight text-6xl">Profile</h1>
+      <h1 className="font-display-hero text-4xl sm:text-5xl font-light tracking-tight">Profile</h1>
       <ProfileForm customer={customer} />
     </div>
   )

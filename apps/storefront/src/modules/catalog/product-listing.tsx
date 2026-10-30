@@ -5,17 +5,31 @@ import { cn } from "@/lib/utils"
 import type { Category } from "@lib/api/types"
 import { getFacets, listProducts } from "@lib/data/catalog"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, SlidersHorizontalIcon, XIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, SearchXIcon, SlidersHorizontalIcon, XIcon } from "lucide-react"
 import { listingHref, SORTS, toggle, type Listing } from "./params"
 
 const PER_PAGE = 12
 
-const SWATCH: Record<string, string> = { black: "#111111", white: "#ffffff" }
+const SWATCH: Record<string, string> = {
+  black: "#111111",
+  white: "#ffffff",
+  grey: "#9ca3af",
+  gray: "#9ca3af",
+  navy: "#1e2a4a",
+  blue: "#2440d6",
+  green: "#3f6b47",
+  red: "#c8291d",
+  beige: "#d8c8a8",
+  brown: "#7a5236",
+  sand: "#e7e5e4",
+  mocha: "#785b4f",
+  ivory: "#fbf9f8",
+}
 
 /**
- * Server-rendered product grid with filters, sorting and pagination. Every
- * control is a link, so it works without JavaScript and every view is
- * crawlable and shareable.
+ * Stitch Editorial Product Listing:
+ * Refined 4-tier filter sidebar, active criteria pills, curated recommendation sort,
+ * and 4-column product grid with zero-CLS pagination.
  */
 export async function ProductListing({
   countryCode,
@@ -23,11 +37,9 @@ export async function ProductListing({
   listing,
   categoryIds = [],
   collectionIds = [],
-  /** Category filter shown on /store; omitted on category pages. */
   categories,
 }: {
   countryCode: string
-  /** Page path without the country prefix, e.g. `/collections/winter-layers`. */
   path: string
   listing: Listing
   categoryIds?: string[]
@@ -64,10 +76,10 @@ export async function ProductListing({
   ]
 
   const filterPanel = (
-    <div className="flex flex-col divide-y">
+    <div className="flex flex-col gap-4">
       {categories && categories.length > 0 && (
-        <FilterGroup title="Category">
-          <ul className="flex flex-col">
+        <FilterGroup title="Department Category">
+          <ul className="flex flex-col gap-1.5">
             {categories.map((c) => {
               const active = listing.categories.includes(c.handle)
               return (
@@ -75,14 +87,21 @@ export async function ProductListing({
                   <LocalizedClientLink
                     href={href({ categories: toggle(listing.categories, c.handle) })}
                     aria-current={active ? "true" : undefined}
-                    className="flex min-h-9 items-center gap-2.5 text-sm hover:underline"
+                    className="flex min-h-8 items-center gap-2.5 text-xs sm:text-sm font-body-sm text-foreground hover:text-secondary transition-colors"
                     data-testid="refinement-category"
                   >
-                    <span className={cn("flex size-4.5 items-center justify-center border", active ? "border-foreground bg-foreground text-background" : "border-input")}>
+                    <span
+                      className={cn(
+                        "flex size-4 items-center justify-center rounded border transition-colors",
+                        active ? "border-primary bg-primary text-primary-foreground" : "border-input bg-surface-container-lowest"
+                      )}
+                    >
                       {active && <CheckIcon className="size-3" aria-hidden />}
                     </span>
-                    <span className="flex-1">{c.name}</span>
-                    <span className="text-xs tabular-nums text-muted-foreground">{c.productCount ?? 0}</span>
+                    <span className="flex-1 truncate">{c.name}</span>
+                    <span className="text-[11px] tabular-nums font-label-caps text-muted-foreground">
+                      {c.productCount ?? 0}
+                    </span>
                   </LocalizedClientLink>
                 </li>
               )
@@ -90,9 +109,10 @@ export async function ProductListing({
           </ul>
         </FilterGroup>
       )}
+
       {facets.options.map((group) => (
         <FilterGroup key={group.title} title={group.title}>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {group.values.map((v) => {
               const key = `${group.title}:${v.value}`
               const active = listing.options.includes(key)
@@ -103,60 +123,110 @@ export async function ProductListing({
                   href={href({ options: toggle(listing.options, key) })}
                   aria-current={active ? "true" : undefined}
                   className={cn(
-                    "inline-flex h-9 min-w-11 items-center justify-center gap-1.5 border px-3 text-sm transition-colors",
-                    active ? "border-foreground bg-foreground text-background" : "border-border hover:border-foreground"
+                    "inline-flex h-8 min-w-9 items-center justify-center gap-1.5 rounded-md border px-2.5 font-label-sm text-xs transition-colors",
+                    active
+                      ? "border-primary bg-primary text-primary-foreground font-semibold shadow-2xs"
+                      : "border-border bg-surface-container-lowest text-foreground hover:border-primary/50"
                   )}
                   data-testid="option-refinement"
                 >
-                  {swatch && <span aria-hidden className="size-3 rounded-full border border-black/20" style={{ backgroundColor: swatch }} />}
+                  {swatch && (
+                    <span
+                      aria-hidden
+                      className="size-2.5 rounded-full border border-black/20"
+                      style={{ backgroundColor: swatch }}
+                    />
+                  )}
                   {v.value}
-                  <span className={cn("text-xs tabular-nums", active ? "text-background/70" : "text-muted-foreground")}>{v.count}</span>
+                  <span
+                    className={cn(
+                      "text-[10px] tabular-nums",
+                      active ? "text-primary-foreground/80" : "text-muted-foreground"
+                    )}
+                  >
+                    {v.count}
+                  </span>
                 </LocalizedClientLink>
               )
             })}
           </div>
         </FilterGroup>
       ))}
+
       {(facets.onSaleCount > 0 || listing.sale) && (
-      <FilterGroup title="Offers">
-        <LocalizedClientLink
-          href={href({ sale: !listing.sale })}
-          aria-current={listing.sale ? "true" : undefined}
-          className="flex min-h-9 items-center gap-2.5 text-sm hover:underline"
-          data-testid="on-sale-toggle"
-        >
-          <span className={cn("flex size-4.5 items-center justify-center border", listing.sale ? "border-foreground bg-foreground text-background" : "border-input")}>
-            {listing.sale && <CheckIcon className="size-3" aria-hidden />}
-          </span>
-          On sale only
-          <span className="ml-auto text-xs tabular-nums text-muted-foreground">{facets.onSaleCount}</span>
-        </LocalizedClientLink>
-      </FilterGroup>
+        <FilterGroup title="Merchandising & Offers">
+          <LocalizedClientLink
+            href={href({ sale: !listing.sale })}
+            aria-current={listing.sale ? "true" : undefined}
+            className="flex min-h-8 items-center gap-2.5 text-xs sm:text-sm font-body-sm hover:text-secondary transition-colors"
+            data-testid="on-sale-toggle"
+          >
+            <span
+              className={cn(
+                "flex size-4 items-center justify-center rounded border transition-colors",
+                listing.sale ? "border-primary bg-primary text-primary-foreground" : "border-input bg-surface-container-lowest"
+              )}
+            >
+              {listing.sale && <CheckIcon className="size-3" aria-hidden />}
+            </span>
+            <span className="font-medium text-foreground">Archive Sale Only</span>
+            <span className="ml-auto font-label-caps text-[10px] bg-secondary-container text-on-secondary-fixed px-1.5 py-0.2 rounded font-bold">
+              Up to 50%
+            </span>
+          </LocalizedClientLink>
+        </FilterGroup>
       )}
     </div>
   )
 
   return (
-    <Container className="grid gap-10 py-10 lg:grid-cols-[16rem_1fr] lg:gap-12" data-testid="category-container">
+    <Container className="grid gap-8 py-8 lg:grid-cols-[17rem_1fr] lg:gap-10" data-testid="category-container">
+      {/* Desktop Filter Sidebar */}
       <aside className="hidden lg:block" aria-label="Filters">
-        <div className="sticky top-28">{filterPanel}</div>
+        <div className="sticky top-28 bg-surface-container-low/70 border border-border/50 p-4 rounded-2xl shadow-2xs">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/60">
+            <span className="font-label-caps text-xs uppercase tracking-wider text-foreground font-bold">
+              Curated Filters
+            </span>
+            {chips.length > 0 && (
+              <LocalizedClientLink
+                href={path}
+                className="font-label-caps text-[10px] uppercase text-secondary hover:underline font-bold"
+              >
+                Reset All
+              </LocalizedClientLink>
+            )}
+          </div>
+          {filterPanel}
+        </div>
       </aside>
 
+      {/* Main Catalog View */}
       <div className="flex min-w-0 flex-col gap-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
-          <span className="text-sm tabular-nums text-muted-foreground" data-testid="product-count">
-            {result.count} {result.count === 1 ? "product" : "products"}
-          </span>
-          <nav aria-label="Sort products" data-testid="sort-by-container">
-            <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+        {/* Active Filter Chips & Sort Controls */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-3.5 bg-surface-container-low/70 border border-border/50 rounded-xl">
+          <div className="flex items-center gap-3">
+            <span className="font-body-sm text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
+              Showing <strong className="text-foreground font-bold" data-testid="product-count">{result.count}</strong> {result.count === 1 ? "product" : "products"}
+            </span>
+          </div>
+
+          {/* Sort Menu */}
+          <nav aria-label="Sort products" data-testid="sort-by-container" className="self-end md:self-auto">
+            <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-label-sm">
+              <span className="font-label-caps text-[10px] text-muted-foreground uppercase tracking-widest mr-1">
+                Sort:
+              </span>
               {SORTS.map((s) => (
                 <li key={s.value}>
                   <LocalizedClientLink
                     href={href({ sort: s.value })}
                     aria-current={s.value === listing.sort ? "true" : undefined}
                     className={cn(
-                      "underline-offset-[6px] hover:text-foreground",
-                      s.value === listing.sort ? "font-semibold underline decoration-2" : "text-muted-foreground"
+                      "transition-colors",
+                      s.value === listing.sort
+                        ? "text-foreground font-bold underline decoration-2 underline-offset-4"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {s.label}
@@ -167,44 +237,65 @@ export async function ProductListing({
           </nav>
         </div>
 
-        <details className="group border lg:hidden">
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs font-bold tracking-[0.12em] uppercase">
-            <SlidersHorizontalIcon className="size-4" aria-hidden /> Filters
-            {chips.length > 0 && <span className="text-muted-foreground">({chips.length})</span>}
+        {/* Mobile Filter Trigger */}
+        <details className="group border border-border/60 rounded-xl bg-surface-container-low/60 lg:hidden overflow-hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-label-sm uppercase tracking-wider font-bold text-foreground">
+            <span className="flex items-center gap-2">
+              <SlidersHorizontalIcon className="size-4" aria-hidden /> Filter Criteria
+              {chips.length > 0 && (
+                <span className="font-label-caps text-[10px] bg-primary text-primary-foreground px-1.5 py-0.2 rounded font-bold">
+                  {chips.length}
+                </span>
+              )}
+            </span>
+            <ChevronDownIcon className="size-4 group-open:rotate-180 transition-transform" />
           </summary>
-          <div className="border-t px-4">{filterPanel}</div>
+          <div className="border-t border-border/60 p-4 bg-surface-container-lowest">{filterPanel}</div>
         </details>
 
+        {/* Active Criterion Tokens */}
         {chips.length > 0 && (
           <div className="flex flex-wrap items-center gap-2" aria-label="Active filters">
+            <span className="font-label-caps text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mr-1">
+              Active:
+            </span>
             {chips.map((chip) => (
               <LocalizedClientLink
                 key={chip.href + chip.label}
                 href={chip.href}
-                className="inline-flex h-8 items-center gap-1.5 border border-border px-3 text-xs hover:border-foreground"
+                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-surface-container-lowest px-2.5 font-label-sm text-xs text-foreground hover:border-foreground transition-colors shadow-2xs group"
               >
-                {chip.label}
-                <XIcon className="size-3" aria-hidden />
+                <span>{chip.label}</span>
+                <XIcon className="size-3 text-muted-foreground group-hover:text-destructive transition-colors" aria-hidden />
                 <span className="sr-only">Remove filter</span>
               </LocalizedClientLink>
             ))}
-            <LocalizedClientLink href={path} className="text-xs font-semibold underline underline-offset-4">
+            <LocalizedClientLink
+              href={path}
+              className="font-label-caps text-[11px] text-secondary hover:underline uppercase font-bold ml-1"
+            >
               Clear all
             </LocalizedClientLink>
           </div>
         )}
 
+        {/* Catalog Grid */}
         {result.products.length === 0 ? (
-          <div className="flex flex-col items-start gap-4 py-16" data-testid="no-products">
-            <p className="text-sm text-muted-foreground">
-              {chips.length ? "No products match these filters. Try removing one." : "There are no products here yet."}
+          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center bg-surface-container-low/40 rounded-2xl border border-dashed border-border" data-testid="no-products">
+            <div className="size-14 rounded-full bg-surface-container flex items-center justify-center text-muted-foreground">
+              <SearchXIcon className="size-6 text-muted-foreground" />
+            </div>
+            <p className="font-body-md text-sm text-muted-foreground max-w-sm">
+              {chips.length ? "No garments match these active filters. Try removing a filter criterion." : "There are no products in this capsule yet."}
             </p>
-            <Button asChild variant="outline" size="sm">
-              <LocalizedClientLink href={chips.length ? path : "/store"}>{chips.length ? "Clear filters" : "Shop all products"}</LocalizedClientLink>
+            <Button asChild variant="outline" size="sm" className="font-label-md">
+              <LocalizedClientLink href={chips.length ? path : "/store"}>
+                {chips.length ? "Reset Filters" : "Shop All Collections"}
+              </LocalizedClientLink>
             </Button>
           </div>
         ) : (
-          <ul className="grid grid-cols-2 gap-x-3 gap-y-10 sm:grid-cols-3 sm:gap-x-4 xl:grid-cols-4" data-testid="products-list">
+          <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4" data-testid="products-list">
             {result.products.map((product, i) => (
               <li key={product.id}>
                 <ProductCard product={product} priority={i < 4} headingLevel="h2" sizes="(min-width: 1280px) 22vw, (min-width: 640px) 33vw, 50vw" />
@@ -213,19 +304,20 @@ export async function ProductListing({
           </ul>
         )}
 
+        {/* Pagination */}
         {result.pages > 1 && (
-          <nav aria-label="Pagination" className="flex items-center justify-center gap-4 pt-8 text-sm" data-testid="product-pagination">
-            <Button variant="outline" size="icon-sm" asChild className={cn(listing.page <= 1 && "pointer-events-none opacity-40")}>
+          <nav aria-label="Pagination" className="flex items-center justify-center gap-4 pt-10 text-sm" data-testid="product-pagination">
+            <Button variant="outline" size="icon-sm" asChild className={cn(listing.page <= 1 && "pointer-events-none opacity-40", "rounded-md")}>
               <LocalizedClientLink href={href({ page: listing.page - 1 })} aria-label="Previous page" aria-disabled={listing.page <= 1}>
-                <ChevronLeftIcon aria-hidden />
+                <ChevronLeftIcon className="size-4" aria-hidden />
               </LocalizedClientLink>
             </Button>
-            <span className="tabular-nums">
+            <span className="tabular-nums font-label-sm text-xs font-semibold text-foreground">
               Page {listing.page} of {result.pages}
             </span>
-            <Button variant="outline" size="icon-sm" asChild className={cn(listing.page >= result.pages && "pointer-events-none opacity-40")}>
+            <Button variant="outline" size="icon-sm" asChild className={cn(listing.page >= result.pages && "pointer-events-none opacity-40", "rounded-md")}>
               <LocalizedClientLink href={href({ page: listing.page + 1 })} aria-label="Next page" aria-disabled={listing.page >= result.pages}>
-                <ChevronRightIcon aria-hidden />
+                <ChevronRightIcon className="size-4" aria-hidden />
               </LocalizedClientLink>
             </Button>
           </nav>
@@ -237,9 +329,11 @@ export async function ProductListing({
 
 function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="flex flex-col gap-3 py-5 first:pt-0">
-      <h2 className="text-xs font-bold tracking-[0.12em] uppercase">{title}</h2>
+    <div className="flex flex-col gap-2.5 bg-surface-container-lowest border border-border/50 p-3.5 rounded-xl shadow-2xs">
+      <span className="font-label-caps text-[11px] font-bold tracking-wider uppercase text-foreground">
+        {title}
+      </span>
       {children}
-    </section>
+    </div>
   )
 }

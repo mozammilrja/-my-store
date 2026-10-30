@@ -72,12 +72,12 @@ export function ProductTemplate({
               {collection && (
                 <LocalizedClientLink
                   href={`/collections/${collection.handle}`}
-                  className="w-fit text-xs font-semibold tracking-widest uppercase text-primary hover:underline"
+                  className="w-fit font-label-caps text-[10px] sm:text-[11px] font-bold tracking-[0.14em] uppercase text-secondary hover:underline"
                 >
                   {collection.title}
                 </LocalizedClientLink>
               )}
-              <h1 className="font-display-tight text-5xl sm:text-6xl" data-testid="product-title">
+              <h1 className="font-display-hero text-3xl sm:text-4xl lg:text-5xl font-light tracking-tight text-foreground leading-[1.1]" data-testid="product-title">
                 {product.title}
               </h1>
               {product.subtitle && <p className="text-muted-foreground">{product.subtitle}</p>}

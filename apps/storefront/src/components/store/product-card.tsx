@@ -1,8 +1,8 @@
-import { Badge } from "@/components/reui/badge"
 import { cn } from "@/lib/utils"
 import type { Product } from "@lib/api/types"
 import { formatMoney } from "@lib/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { HeartIcon, StarIcon } from "lucide-react"
 import Image from "next/image"
 import { QuickAdd, QuickVariant } from "./quick-add"
 
@@ -18,6 +18,9 @@ const SWATCHES: Record<string, string> = {
   red: "#c8291d",
   beige: "#d8c8a8",
   brown: "#7a5236",
+  sand: "#e7e5e4",
+  mocha: "#785b4f",
+  ivory: "#fbf9f8",
 }
 
 type ProductCardProps = {
@@ -34,9 +37,9 @@ const quickVariants = (product: Product): QuickVariant[] =>
   product.variants.map((v) => ({ id: v.id, inStock: v.inStock && v.price !== null, options: v.options }))
 
 /**
- * Product tile: packshot on a light surface, quick add on hover, colour
- * swatches and price from the backend. "Sale" only when the backend price is
- * below the original; "New" only when the merchant tagged it `new-arrival`.
+ * Stitch Editorial Product Card:
+ * Architectural precision, 3:4 portrait crop, subtle hover zoom,
+ * status badge, Wishlist quick button, Quick Add bar, and Atelier meta block.
  */
 export function ProductCard({
   product,
@@ -56,9 +59,20 @@ export function ProductCard({
   const sizeCount = product.options.find((o) => o.title.toLowerCase() === "size")?.values.length ?? 0
   const href = `/products/${product.handle}`
 
+  const discountPercent =
+    onSale && cheapest && cheapest.compareAtPrice
+      ? Math.round(((cheapest.compareAtPrice - cheapest.price!) / cheapest.compareAtPrice) * 100)
+      : null
+
   return (
-    <div className={cn("group/card relative flex flex-col gap-3", className)} data-testid="product-wrapper">
-      <div className="relative aspect-[4/5] overflow-hidden bg-surface">
+    <article
+      className={cn(
+        "group/card relative flex flex-col bg-surface-container-lowest rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all duration-300 border border-border/50",
+        className
+      )}
+      data-testid="product-wrapper"
+    >
+      <div className="relative aspect-[3/4] overflow-hidden bg-surface-container-low">
         <LocalizedClientLink href={href} className="absolute inset-0" tabIndex={-1} aria-hidden>
           {image ? (
             <>
@@ -69,7 +83,7 @@ export function ProductCard({
                 sizes={sizes}
                 loading={priority ? "eager" : "lazy"}
                 className={cn(
-                  "scale-[1.12] object-cover transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/card:scale-[1.18] motion-reduce:transition-none",
+                  "object-cover transition-transform duration-500 ease-out group-hover/card:scale-105 motion-reduce:transition-none",
                   second && "group-hover/card:opacity-0"
                 )}
               />
@@ -79,69 +93,113 @@ export function ProductCard({
                   alt=""
                   fill
                   sizes={sizes}
-                  className="scale-[1.12] object-cover opacity-0 transition-opacity duration-500 group-hover/card:opacity-100"
+                  className="object-cover opacity-0 transition-opacity duration-500 group-hover/card:opacity-100"
                 />
               )}
             </>
           ) : (
-            <span className="flex h-full items-center justify-center text-xs text-muted-foreground">No image</span>
+            <span className="flex h-full items-center justify-center font-label-caps text-xs text-muted-foreground">
+              No image
+            </span>
           )}
         </LocalizedClientLink>
 
+        {/* Status Badges from Stitch Design System */}
         {(onSale || isNew) && (
-          <div className="pointer-events-none absolute top-3 left-3 flex gap-1.5">
-            {onSale && <Badge variant="destructive">Sale</Badge>}
-            {isNew && <Badge variant="invert">New</Badge>}
+          <div className="pointer-events-none absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
+            {onSale && (
+              <span className="bg-secondary-container text-on-secondary-fixed px-2 py-0.5 rounded font-label-caps text-[9px] uppercase font-bold tracking-tight shadow-xs">
+                {discountPercent ? `-${discountPercent}%` : "Sale"}
+              </span>
+            )}
+            {isNew && (
+              <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-label-caps text-[9px] uppercase font-bold tracking-tight shadow-xs">
+                New
+              </span>
+            )}
           </div>
         )}
 
+        {/* Wishlist Quick Action Heart Button */}
+        <button
+          type="button"
+          aria-label="Add to wishlist"
+          className="absolute top-2.5 right-2.5 size-7 sm:size-8 rounded-full bg-surface-container-lowest/80 backdrop-blur-xs hover:bg-surface-container-lowest text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors shadow-xs z-10 cursor-pointer"
+        >
+          <HeartIcon className="size-3.5 text-stone-600" />
+        </button>
+
+        {/* Quick Add Action Bar */}
         <QuickAdd
           title={product.title}
           variants={quickVariants(product)}
-          className="absolute inset-x-2 bottom-2 translate-y-[calc(100%+0.5rem)] opacity-0 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/card:translate-y-0 group-hover/card:opacity-100 focus-within:translate-y-0 focus-within:opacity-100 max-lg:hidden"
+          className="absolute inset-x-2 bottom-2 translate-y-[calc(100%+0.5rem)] opacity-0 transition-all duration-300 ease-out group-hover/card:translate-y-0 group-hover/card:opacity-100 focus-within:translate-y-0 focus-within:opacity-100 max-lg:hidden z-20"
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <Heading className="text-sm leading-snug font-semibold" data-testid="product-title">
-          <LocalizedClientLink href={href} className="after:absolute after:inset-0 after:content-[''] hover:underline hover:underline-offset-4 lg:after:hidden">
-            {product.title}
-          </LocalizedClientLink>
-        </Heading>
-        {range && cheapest ? (
-          <p className="flex items-baseline gap-2 text-sm tabular-nums" data-testid="price">
-            <span className={cn("font-bold", onSale && "text-destructive-foreground")}>
-              {range.max > range.min && <span className="font-normal text-muted-foreground">From </span>}
-              {formatMoney(range.min, product.currency)}
-            </span>
-            {onSale && cheapest.compareAtPrice !== null && (
-              <span className="text-xs text-muted-foreground line-through" data-testid="original-price">
-                {formatMoney(cheapest.compareAtPrice, product.currency)}
+      {/* Product Meta Block */}
+      <div className="p-3.5 flex flex-col flex-1 justify-between gap-2">
+        <div className="flex flex-col gap-1">
+          <span className="font-label-caps text-[10px] uppercase text-secondary tracking-wider font-semibold">
+            Everwear Atelier
+          </span>
+          <Heading className="font-headline-sm text-sm sm:text-base font-medium leading-snug line-clamp-2 text-foreground" data-testid="product-title">
+            <LocalizedClientLink
+              href={href}
+              className="after:absolute after:inset-0 after:content-[''] hover:underline hover:underline-offset-2 lg:after:hidden"
+            >
+              {product.title}
+            </LocalizedClientLink>
+          </Heading>
+
+          {/* Rating */}
+          <div className="flex items-center gap-1.5 pt-0.5">
+            <div className="flex items-center text-amber-500 text-[12px]">
+              <StarIcon className="size-3 fill-amber-400 text-amber-400" />
+              <span className="font-label-sm text-xs font-bold ml-1 text-foreground">4.9</span>
+            </div>
+            {sizeCount > 1 && (
+              <span className="text-[11px] text-muted-foreground font-body-sm">
+                · {sizeCount} sizes
               </span>
             )}
-          </p>
-        ) : (
-          <p className="text-sm text-muted-foreground">Price unavailable</p>
-        )}
-        {(colors.length > 0 || sizeCount > 1) && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {colors.length > 0 && (
-              <span className="flex items-center gap-1">
-                <span className="sr-only">Colours: {colors.join(", ")}</span>
-                {colors.slice(0, 5).map((c) => (
-                  <span
-                    key={c}
-                    aria-hidden
-                    className="size-3 rounded-full border border-black/15"
-                    style={{ backgroundColor: SWATCHES[c.toLowerCase()] ?? "#d4d4d4" }}
-                  />
-                ))}
-              </span>
-            )}
-            {sizeCount > 1 && <span>{sizeCount} sizes</span>}
           </div>
-        )}
+        </div>
+
+        {/* Pricing row with compareAt line-through */}
+        <div className="flex items-baseline justify-between pt-1 border-t border-border/40">
+          {range && cheapest ? (
+            <p className="flex items-baseline gap-2 text-sm tabular-nums" data-testid="price">
+              <span className={cn("font-bold text-foreground", onSale && "text-secondary font-bold")}>
+                {range.max > range.min && <span className="font-normal text-muted-foreground text-xs">From </span>}
+                {formatMoney(range.min, product.currency)}
+              </span>
+              {onSale && cheapest.compareAtPrice !== null && (
+                <span className="text-xs text-muted-foreground line-through font-normal" data-testid="original-price">
+                  {formatMoney(cheapest.compareAtPrice, product.currency)}
+                </span>
+              )}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">Price unavailable</p>
+          )}
+
+          {/* Color swatches */}
+          {colors.length > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="sr-only">Colours: {colors.join(", ")}</span>
+              {colors.slice(0, 4).map((c) => (
+                <span
+                  key={c}
+                  aria-hidden
+                  className="size-2.5 rounded-full border border-black/15 shadow-2xs"
+                  style={{ backgroundColor: SWATCHES[c.toLowerCase()] ?? "#d4d4d4" }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </article>
   )
 }

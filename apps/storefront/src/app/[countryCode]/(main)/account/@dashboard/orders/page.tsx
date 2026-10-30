@@ -13,7 +13,7 @@ export default async function OrdersPage() {
   const orders = await listOrders()
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="font-display-tight text-6xl">Orders</h1>
+      <h1 className="font-display-hero text-4xl sm:text-5xl font-light tracking-tight">Orders</h1>
       {orders.length === 0 ? (
         <p className="text-sm text-muted-foreground" data-testid="no-orders">You haven&apos;t placed any orders yet.</p>
       ) : (

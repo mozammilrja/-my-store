@@ -6,6 +6,7 @@ import { CategoryChips } from "@modules/home/sections/category-chips"
 import { CategoryTiles } from "@modules/home/sections/category-tiles"
 import { CollectionBand } from "@modules/home/sections/collection-band"
 import { Hero } from "@modules/home/sections/hero"
+import { MetricsTicker } from "@modules/home/sections/metrics-ticker"
 import { ProductRow } from "@modules/home/sections/product-row"
 import { PromoSplit } from "@modules/home/sections/promo-split"
 import { NEW_IN_HREF } from "@modules/shell/header"
@@ -104,6 +105,7 @@ export default async function Home(props: {
         dangerouslySetInnerHTML={{ __html: toJsonLd(structuredData) }}
       />
       <Hero />
+      <MetricsTicker />
       <CategoryChips categories={home.categories} />
       <ProductRow
         id="bestsellers-title"

@@ -35,9 +35,17 @@ export async function Related({ product, countryCode }: { product: Product; coun
   return (
     <section aria-labelledby="related-title" className="border-t py-20" data-testid="related-products-container">
       <Container className="flex flex-col gap-10">
-        <h2 id="related-title" className="font-display-tight text-5xl">
-          {title}
-        </h2>
+        <div className="flex flex-col gap-1 pb-2 border-b border-border/40">
+          <div className="flex items-center gap-2">
+            <span className="size-1.5 rounded-full bg-secondary" />
+            <span className="font-label-caps text-[10px] sm:text-[11px] font-bold tracking-[0.14em] text-secondary uppercase">
+              Curated Recommendations
+            </span>
+          </div>
+          <h2 id="related-title" className="font-headline-xl text-2xl sm:text-4xl font-light tracking-tight text-foreground">
+            {title}
+          </h2>
+        </div>
         <ul className="grid grid-cols-2 gap-x-3 gap-y-10 sm:gap-x-4 lg:grid-cols-4">
           {related.map((p) => (
             <li key={p.id}>

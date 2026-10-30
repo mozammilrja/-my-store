@@ -4,7 +4,7 @@ import type { Product } from "@lib/api/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { ArrowRightIcon } from "lucide-react"
 
-/** A titled grid of products with a "view all" link. */
+/** A titled grid of products styled with Stitch editorial precision. */
 export function ProductRow({
   id,
   title,
@@ -25,24 +25,31 @@ export function ProductRow({
   if (shown.length === 0) return null
 
   return (
-    <section aria-labelledby={id} className="py-14 lg:py-20">
-      <Container className="flex flex-col gap-8">
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-          <div className="flex flex-col gap-2">
-            {eyebrow && <span className="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">{eyebrow}</span>}
-            <h2 id={id} className="font-display-tight text-5xl sm:text-6xl">
+    <section aria-labelledby={id} className="py-12 sm:py-16">
+      <Container className="flex flex-col gap-6">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pb-2 border-b border-border/40">
+          <div className="flex flex-col gap-1.5">
+            {eyebrow && (
+              <div className="flex items-center gap-2">
+                <span className="size-1.5 rounded-full bg-secondary" />
+                <span className="font-label-caps text-[10px] sm:text-[11px] font-bold tracking-[0.14em] text-secondary uppercase">
+                  {eyebrow}
+                </span>
+              </div>
+            )}
+            <h2 id={id} className="font-headline-xl text-2xl sm:text-4xl lg:text-5xl font-light tracking-tight text-foreground">
               {title}
             </h2>
           </div>
           <LocalizedClientLink
             href={href}
-            className="group inline-flex shrink-0 items-center gap-2 text-xs font-bold tracking-[0.12em] uppercase"
+            className="group inline-flex shrink-0 items-center gap-1.5 font-label-sm text-xs uppercase tracking-wider font-bold text-foreground hover:text-secondary transition-colors"
           >
             {linkLabel}
-            <ArrowRightIcon className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
+            <ArrowRightIcon className="size-3.5 transition-transform group-hover:translate-x-1" aria-hidden />
           </LocalizedClientLink>
         </div>
-        <ul className="grid grid-cols-2 gap-x-3 gap-y-10 sm:gap-x-4 lg:grid-cols-4">
+        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
           {shown.map((product, i) => (
             <li key={product.id}>
               <ProductCard product={product} priority={i < 4} />

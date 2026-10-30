@@ -3,7 +3,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-
 @layer utilities {
   /* Chrome, Safari and Opera */
   .no-scrollbar::-webkit-scrollbar {
@@ -18,7 +17,6 @@
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
   }
-
 
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
@@ -42,47 +40,47 @@
   }
 }
 
-/* Everwear brand tokens. Bold fashion palette: white, ink, volt accent. Light theme only. Contrast checked to WCAG AA. */
+/* Everwear brand tokens from Stitch design system. High-end editorial shopping experience: warm ivory gallery canvas, royal plum editorial accents, architectural precision. */
 :root {
-  --radius: 0rem;
+  --radius: 0.25rem;
 
-  --background: #ffffff;
-  --foreground: #0b0b0c;
+  --background: #fbf9f8;
+  --foreground: #1b1c1b;
   --card: #ffffff;
-  --card-foreground: #0b0b0c;
+  --card-foreground: #1b1c1b;
   --popover: #ffffff;
-  --popover-foreground: #0b0b0c;
-  --primary: #0b0b0c;
+  --popover-foreground: #1b1c1b;
+  --primary: #18181b;
   --primary-foreground: #ffffff;
-  --secondary: #f4f4f2;
-  --secondary-foreground: #0b0b0c;
-  --muted: #f4f4f2;
-  --muted-foreground: #636363;
-  --accent: #d4f53c;
-  --accent-foreground: #0b0b0c;
-  --destructive: #c8291d;
-  --destructive-foreground: #b42318;
-  --border: #e6e6e3;
-  --input: #cfcfcb;
-  --ring: #2440d6;
+  --secondary: #f5f3f2;
+  --secondary-foreground: #1b1c1b;
+  --muted: #f5f3f2;
+  --muted-foreground: #47464b;
+  --accent: #913b94;
+  --accent-foreground: #ffffff;
+  --destructive: #ba1a1a;
+  --destructive-foreground: #ba1a1a;
+  --border: #e7e5e4;
+  --input: #d6d3d1;
+  --ring: #18181b;
 
-  --success: #15803d;
-  --success-foreground: #15803d;
-  --info: #2440d6;
-  --info-foreground: #1a2fa3;
-  --warning: #b7791f;
-  --warning-foreground: #7a4a00;
-  --invert: #0b0b0c;
-  --invert-foreground: #ffffff;
+  --success: #065f46;
+  --success-foreground: #ffffff;
+  --info: #1b1b1e;
+  --info-foreground: #ffffff;
+  --warning: #c2410c;
+  --warning-foreground: #ffffff;
+  --invert: #1b1b1e;
+  --invert-foreground: #fbf9f8;
 
-  --brand-deep: #2b2b2e;
-  --sale: #c8291d;
-  --surface: #f4f4f2;
+  --brand-deep: #1b1b1e;
+  --sale: #c2410c;
+  --surface: #f5f3f2;
 }
 
 @theme inline {
-  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -115,10 +113,49 @@
   --color-sale: var(--sale);
   --color-surface: var(--surface);
 
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
+  /* Stitch Design Tokens */
+  --color-surface-dim: #dbdad9;
+  --color-surface-bright: #fbf9f8;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f5f3f2;
+  --color-surface-container: #efedec;
+  --color-surface-container-high: #eae8e7;
+  --color-surface-container-highest: #e4e2e1;
+  --color-on-surface: #1b1c1b;
+  --color-on-surface-variant: #47464b;
+  --color-inverse-surface: #303030;
+  --color-inverse-on-surface: #f2f0ef;
+  --color-outline: #77767b;
+  --color-outline-variant: #c8c5cb;
+  --color-primary-container: #1b1b1e;
+  --color-on-primary-container: #858387;
+  --color-secondary-container: #fe9bfc;
+  --color-on-secondary-container: #7d2781;
+  --color-secondary-fixed: #ffd6f9;
+  --color-secondary-fixed-dim: #ffa9fb;
+  --color-on-secondary-fixed: #37003b;
+  --color-on-secondary-fixed-variant: #75207a;
+  --color-tertiary: #000000;
+  --color-tertiary-container: #390c00;
+  --color-on-tertiary-container: #e15724;
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  --spacing-margin: 3rem;
+  --spacing-margin-mobile: 1rem;
+  --spacing-gutter: 1.5rem;
+  --spacing-gutter-mobile: 0.75rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-xl: 2.5rem;
+
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
 }
 
 @layer base {
@@ -132,8 +169,8 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
   ::selection {
-    background: var(--accent);
-    color: var(--accent-foreground);
+    background: var(--color-secondary-container);
+    color: var(--color-on-secondary-fixed);
   }
   @media (prefers-reduced-motion: reduce) {
     *,
@@ -147,15 +184,93 @@
   }
 }
 
+/* Stitch Editorial Typographic Utilities */
+@utility font-display-hero {
+  font-family: var(--font-sans);
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  font-weight: 300;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
 
+@utility font-headline-xl {
+  font-family: var(--font-sans);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
 
-/* Heavy condensed display type: headlines, wordmark, banners. */
-@utility font-display-tight {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-stretch: 75%;
-  font-variation-settings: "wdth" 75;
+@utility font-headline-lg {
+  font-family: var(--font-sans);
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+@utility font-headline-sm {
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+}
+
+@utility font-label-caps {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@utility font-label-md {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
   letter-spacing: -0.005em;
-  line-height: 0.92;
+}
+
+@utility font-label-sm {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1rem;
+  letter-spacing: 0.01em;
+}
+
+@utility font-body-lg {
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+}
+
+@utility font-body-md {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: 0em;
+}
+
+@utility font-body-sm {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.005em;
+}
+
+/* Backward compatibility for legacy classes while using Inter */
+@utility font-display-tight {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
   text-transform: uppercase;
 }

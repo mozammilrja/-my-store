@@ -12,33 +12,45 @@ export function Promises({ policies, currencyCode }: { policies: RegionPolicies 
   const items = [
     {
       icon: TruckIcon,
-      title: "Delivery",
-      body: `${deliveryDays(policies)} business days, from ${formatMoney(policies.shippingRate, currencyCode)}`,
+      title: "Regional Delivery",
+      body: `${deliveryDays(policies)} business days, standard shipping from ${formatMoney(policies.shippingRate, currencyCode)}`,
       href: "/shipping",
     },
     {
       icon: RotateCcwIcon,
-      title: `${policies.returnWindowDays}-day returns`,
-      body: policies.freeReturns ? "Change your mind for free" : "Plenty of time to change your mind",
+      title: `${policies.returnWindowDays}-Day Returns`,
+      body: policies.freeReturns ? "Complimentary doorstep exchange & returns" : "Hassle-free regional returns and pickup",
       href: "/returns",
     },
-    { icon: MessageCircleIcon, title: "Here to help", body: "Questions about sizing or an order", href: "/contact" },
+    {
+      icon: MessageCircleIcon,
+      title: "Client Concierge",
+      body: "Expert advice on fit, fabrics, sizing, and order tracking",
+      href: "/contact",
+    },
   ]
 
   return (
-    <section aria-label="Store services" className="border-y bg-surface">
+    <section aria-label="Store services and guarantees" className="py-12 border-t border-border/60 bg-surface-container-low/40">
       <Container>
-        <ul className="grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <ul className="grid gap-4 sm:grid-cols-3">
           {items.map(({ icon: Icon, title, body, href }) => (
             <li key={title}>
-              <LocalizedClientLink href={href} className="group flex items-center gap-4 py-6 sm:px-6 sm:first:pl-0">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
+              <LocalizedClientLink
+                href={href}
+                className="group flex items-start gap-4 p-5 rounded-xl bg-surface-container-lowest border border-border/50 hover:border-foreground/30 shadow-2xs hover:shadow-xs transition-all h-full"
+              >
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-surface-container-low text-foreground border border-border/40 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                   <Icon className="size-5" aria-hidden />
-                </span>
-                <span className="flex flex-col">
-                  <span className="text-sm font-bold uppercase tracking-wide group-hover:underline">{title}</span>
-                  <span className="text-sm text-muted-foreground">{body}</span>
-                </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="font-label-sm text-sm font-bold text-foreground group-hover:text-secondary transition-colors">
+                    {title}
+                  </span>
+                  <span className="font-body-sm text-xs text-muted-foreground leading-relaxed">
+                    {body}
+                  </span>
+                </div>
               </LocalizedClientLink>
             </li>
           ))}

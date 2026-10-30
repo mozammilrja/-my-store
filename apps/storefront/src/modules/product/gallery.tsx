@@ -40,7 +40,7 @@ export function Gallery({ product }: { product: Product }) {
 
   return (
     <div className="flex flex-col gap-3 lg:flex-row-reverse lg:gap-4" data-testid="product-gallery">
-      <div className="relative aspect-[4/5] flex-1 overflow-hidden bg-muted">
+      <div className="relative aspect-[4/5] flex-1 overflow-hidden rounded-2xl bg-surface-container-low border border-border/50 shadow-xs">
         <Image
           src={current}
           alt={`${product.title}${images.length > 1 ? `, image ${active + 1} of ${images.length}` : ""}`}
@@ -53,7 +53,7 @@ export function Gallery({ product }: { product: Product }) {
         />
       </div>
       {images.length > 1 && (
-        <ul className="flex gap-2 overflow-x-auto lg:w-20 lg:flex-col lg:overflow-visible" aria-label="Product images">
+        <ul className="flex gap-2.5 overflow-x-auto lg:w-20 lg:flex-col lg:overflow-visible no-scrollbar" aria-label="Product images">
           {images.map((image, index) => (
             <li key={image} className="shrink-0">
               <button
@@ -62,8 +62,8 @@ export function Gallery({ product }: { product: Product }) {
                 aria-label={`Show image ${index + 1}`}
                 aria-current={index === active ? "true" : undefined}
                 className={cn(
-                  "relative block aspect-[4/5] w-16 overflow-hidden bg-muted outline-none ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring lg:w-20",
-                  index === active ? "ring-1 ring-foreground" : "opacity-70 hover:opacity-100"
+                  "relative block aspect-[4/5] w-16 overflow-hidden rounded-lg bg-surface-container-low border outline-none ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring lg:w-20 transition-all",
+                  index === active ? "border-primary ring-1 ring-primary shadow-xs" : "border-border/60 opacity-70 hover:opacity-100"
                 )}
               >
                 <Image src={image} alt="" fill sizes="80px" className="object-cover" />

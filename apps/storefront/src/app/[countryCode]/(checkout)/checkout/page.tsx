@@ -44,7 +44,7 @@ export default async function Checkout(props: { searchParams: Promise<{ step?: s
   return (
     <Container className="grid gap-12 py-10 lg:grid-cols-12 lg:py-14">
       <div className="flex flex-col lg:col-span-7">
-        <h1 className="font-display-tight text-6xl">Checkout</h1>
+        <h1 className="font-display-hero text-4xl sm:text-5xl font-light tracking-tight">Checkout</h1>
 
         <Step number={1} title="Delivery address" state={stateOf("address")} editHref="/checkout?step=address" testId="address-step">
           {step === "address" ? (

@@ -21,7 +21,7 @@ export function Step({
   return (
     <section className={cn("border-b pb-8", state === "upcoming" && "opacity-50")} aria-labelledby={`step-${number}`} data-testid={testId}>
       <div className="flex items-center justify-between gap-4 py-6">
-        <h2 id={`step-${number}`} className="flex items-center gap-3 font-display-tight text-3xl">
+        <h2 id={`step-${number}`} className="flex items-center gap-3 font-headline-sm text-2xl font-normal tracking-tight">
           <span
             className={cn(
               "flex size-8 items-center justify-center rounded-full text-sm font-bold",

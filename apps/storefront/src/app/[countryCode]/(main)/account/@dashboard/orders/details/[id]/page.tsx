@@ -16,7 +16,7 @@ export default async function OrderDetailsPage(props: { params: Promise<{ id: st
       <LocalizedClientLink href="/account/orders" className="inline-flex w-fit items-center gap-2 text-sm hover:underline">
         <ArrowLeftIcon className="size-4" aria-hidden /> All orders
       </LocalizedClientLink>
-      <h1 className="font-display-tight text-6xl">Order #{order.displayId}</h1>
+      <h1 className="font-display-hero text-3xl sm:text-4xl font-light tracking-tight">Order #{order.displayId}</h1>
       <OrderView order={order} />
     </div>
   )

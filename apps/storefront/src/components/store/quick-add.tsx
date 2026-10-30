@@ -62,15 +62,17 @@ export function QuickAdd({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 bg-background/95 p-3 backdrop-blur",
+        "flex flex-col gap-1.5 rounded-lg border border-border/60 bg-surface-container-lowest/95 p-2.5 backdrop-blur-xs shadow-md",
         className
       )}
       data-testid="quick-add"
     >
       {sizes.length > 0 ? (
         <>
-          <span className="text-[11px] font-bold tracking-[0.12em] uppercase">Quick add</span>
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Add ${title} to bag, choose a size`}>
+          <span className="font-label-caps text-[10px] font-bold tracking-[0.12em] text-foreground uppercase">
+            Quick Add Size
+          </span>
+          <div className="flex flex-wrap gap-1" role="group" aria-label={`Add ${title} to bag, choose a size`}>
             {sizes.map((size) => {
               const available = !!pick(size)
               return (
@@ -80,9 +82,9 @@ export function QuickAdd({
                   disabled={!available || !!pending}
                   onClick={() => add(size, size)}
                   aria-label={`Add size ${size} to bag`}
-                  className="flex h-9 min-w-10 items-center justify-center border border-border bg-background px-2 text-xs font-semibold transition-colors hover:border-foreground hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:text-muted-foreground disabled:line-through"
+                  className="flex h-8 min-w-8 items-center justify-center rounded border border-border bg-surface-container-lowest px-2 font-label-sm text-xs font-semibold text-foreground transition-all hover:border-foreground hover:bg-foreground hover:text-white disabled:cursor-not-allowed disabled:text-muted-foreground disabled:line-through shadow-2xs"
                 >
-                  {pending === size ? <Loader2Icon className="size-3.5 animate-spin" aria-hidden /> : size}
+                  {pending === size ? <Loader2Icon className="size-3 animate-spin" aria-hidden /> : size}
                 </button>
               )
             })}
@@ -93,10 +95,10 @@ export function QuickAdd({
           type="button"
           disabled={!!pending}
           onClick={() => add("one")}
-          className="flex h-10 items-center justify-center gap-2 bg-foreground text-xs font-bold tracking-[0.12em] text-background uppercase transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="flex h-9 items-center justify-center gap-1.5 rounded-md bg-primary text-xs font-label-md tracking-[0.1em] text-primary-foreground uppercase font-bold transition-opacity hover:opacity-90 disabled:opacity-60 shadow-2xs cursor-pointer"
         >
-          {pending ? <Loader2Icon className="size-3.5 animate-spin" aria-hidden /> : <PlusIcon className="size-3.5" aria-hidden />}
-          Add to bag
+          {pending ? <Loader2Icon className="size-3 animate-spin" aria-hidden /> : <PlusIcon className="size-3" aria-hidden />}
+          Add to Bag
         </button>
       )}
     </div>

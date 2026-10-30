@@ -7,7 +7,7 @@ export const formatShippingRate = (rate: number, currency: string) => (rate === 
 
 export const PolicyPage = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <Container className="max-w-3xl py-14" data-testid="policy-page">
-    <h1 className="mb-8 font-display-tight text-6xl">{title}</h1>
+    <h1 className="mb-8 font-display-hero text-4xl sm:text-5xl font-light tracking-tight">{title}</h1>
     <div className="flex flex-col gap-6 text-base leading-relaxed">{children}</div>
   </Container>
 )

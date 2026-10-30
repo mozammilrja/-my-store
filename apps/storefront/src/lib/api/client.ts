@@ -1,6 +1,6 @@
 import "server-only"
 
-const API_URL = process.env.EVERWEAR_API_URL ?? "http://localhost:9100"
+const API_URL = process.env.EVERWEAR_API_URL ?? (process.env.NODE_ENV === "production" ? "http://backend:9100" : "http://localhost:9100")
 
 /** An error returned by the Everwear API, with a message safe to show shoppers. */
 export class ApiError extends Error {

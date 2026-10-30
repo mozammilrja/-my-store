@@ -1,0 +1,89 @@
+# ==============================================================================
+# EVERWEAR COMMERCE PLATFORM - LOCAL / STAGING DOCKER COMPOSE
+# Quick local multi-container development and verification
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0-jammy
+    container_name: everwear-mongo-local
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo_local_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "try { rs.status().ok } catch(e) { rs.initiate().ok }"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: everwear-backend-local
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 9100
+      MONGODB_URI: mongodb://mongodb:27017/everwear?replicaSet=rs0
+      MONGODB_DB: everwear
+      JWT_SECRET: swp75Hx2vfjsW59JDiUQS6HfZZeWGgkUqQC6pJHkgUawDiqQwSG0NYH5FzVf9F3D
+      STORE_CORS: http://localhost:8001,http://localhost:8000
+      ADMIN_CORS: http://localhost:7001
+      API_PUBLIC_URL: http://localhost:9100
+      UPLOADS_DIR: /app/apps/backend/uploads
+    volumes:
+      - backend_local_uploads:/app/apps/backend/uploads
+    ports:
+      - "9100:9100"
+
+  storefront:
+    build:
+      context: .
+      dockerfile: apps/storefront/Dockerfile
+      args:
+        EVERWEAR_API_URL: http://backend:9100
+        NEXT_PUBLIC_API_PUBLIC_URL: http://localhost:9100
+        NEXT_PUBLIC_BASE_URL: http://localhost:8001
+        NEXT_PUBLIC_DEFAULT_REGION: in
+    container_name: everwear-storefront-local
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8001
+      EVERWEAR_API_URL: http://backend:9100
+      NEXT_PUBLIC_API_PUBLIC_URL: http://localhost:9100
+      NEXT_PUBLIC_BASE_URL: http://localhost:8001
+      NEXT_PUBLIC_DEFAULT_REGION: in
+    ports:
+      - "8001:8001"
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:9100
+    container_name: everwear-admin-local
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "7001:7001"
+
+volumes:
+  mongo_local_data:
+  backend_local_uploads:

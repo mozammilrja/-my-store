@@ -30,7 +30,8 @@ export const getSiteOrigin = async (): Promise<string> => {
     return configured
   }
   const requestHeaders = await headers()
-  return originFromHeaders((name) => requestHeaders.get(name)) || "http://localhost:8000"
+  const fallback = process.env.NODE_ENV === "production" ? "https://everwear.com" : "http://localhost:8001"
+  return originFromHeaders((name) => requestHeaders.get(name)) || fallback
 }
 
 export const listCountryCodes = (regions: { countries: { code: string }[] }[]): string[] =>

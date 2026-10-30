@@ -57,16 +57,32 @@ export default async function SearchPage(props: Props) {
                 placeholder="Search products, materials, styles..."
                 defaultValue={query}
                 maxLength={MAX_QUERY}
-                className="h-11 w-full rounded-full border border-stone-300 bg-surface-container-lowest/80 pl-4 pr-10 text-sm outline-none transition-all focus:border-stone-500 focus:bg-background focus:ring-1 focus:ring-stone-400"
+                className="h-12 w-full rounded-full border border-border bg-surface-container-lowest pl-4 pr-10 text-sm outline-none transition-all focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/20"
                 data-testid="search-page-input"
               />
-              <SearchIcon className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 size-4 text-stone-400" aria-hidden />
+              <SearchIcon className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" aria-hidden />
             </div>
           </div>
-          <Button type="submit" size="default" className="rounded-full px-6">
+          <Button type="submit" size="default" className="rounded-full px-6 bg-primary text-on-primary hover:bg-primary-container transition-colors">
             Search
           </Button>
         </form>
+
+        {/* Quick Discovery Tags */}
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-label-caps">
+            Popular:
+          </span>
+          {["Linen Shirt", "Pleated Trousers", "Heavyweight Polo", "Tailoring", "Silk Kurta", "Blazer"].map((tag) => (
+            <a
+              key={tag}
+              href={`/${countryCode}/search?q=${encodeURIComponent(tag)}`}
+              className="px-3 py-1 rounded-full text-xs bg-surface-container-low hover:bg-surface-container text-foreground border border-border/60 transition-colors"
+            >
+              {tag}
+            </a>
+          ))}
+        </div>
       </div>
 
       {!result ? (
@@ -74,9 +90,22 @@ export default async function SearchPage(props: Props) {
           Search isn&apos;t available right now. Please try again in a moment.
         </p>
       ) : query && result.products.length === 0 ? (
-        <p className="text-muted-foreground" data-testid="search-no-results">
-          Nothing matches &ldquo;{query}&rdquo;. Check the spelling or try a broader word.
-        </p>
+        <div className="flex flex-col items-center justify-center py-12 gap-3 text-center" data-testid="search-no-results">
+          <p className="text-muted-foreground">
+            Nothing matches &ldquo;{query}&rdquo;. Check the spelling or try a broader term.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 mt-2">
+            {["Linen", "Shirt", "Pants", "Jacket", "Silk"].map((suggestion) => (
+              <a
+                key={suggestion}
+                href={`/${countryCode}/search?q=${encodeURIComponent(suggestion)}`}
+                className="px-3 py-1 rounded-full text-xs bg-surface-container-low hover:bg-surface-container text-primary font-medium border border-border/60"
+              >
+                Try &ldquo;{suggestion}&rdquo;
+              </a>
+            ))}
+          </div>
+        </div>
       ) : (
         <>
           {query && (

@@ -10,12 +10,14 @@ import { ApiError } from "./lib/errors.js"
 import { cartRoutes } from "./routes/store/carts.js"
 import { catalogRoutes } from "./routes/store/catalog.js"
 import { customerRoutes } from "./routes/store/customers.js"
+import { storePaymentRoutes } from "./routes/store/payments.js"
 import { adminAuthRoutes, requireAdmin } from "./routes/admin/auth.js"
 import { adminSettingsRoutes } from "./routes/admin/settings.js"
 import { adminUserRoutes } from "./routes/admin/users.js"
 import { adminOrderRoutes } from "./routes/admin/orders.js"
 import { adminProductRoutes } from "./routes/admin/products.js"
 import { adminStoreRoutes } from "./routes/admin/store.js"
+import { adminLogisticsRoutes } from "./routes/admin/logistics.js"
 
 /** Turns anything thrown by a route into the API's error shape. */
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
@@ -60,8 +62,15 @@ export function createApp(): Express {
   app.use("/store", cors({ origin: env.STORE_CORS, credentials: true }))
   app.use("/admin", cors({ origin: env.ADMIN_CORS, credentials: true }))
 
-  // 1 MB for JSON; image uploads are multipart and carry their own limit.
-  app.use(express.json({ limit: "1mb" }))
+  // 1 MB for JSON; captures raw buffer for webhook signature validation
+  app.use(
+    express.json({
+      limit: "1mb",
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf
+      },
+    })
+  )
 
   // Uploaded product images. Long cache: file names change when content does.
   app.use(
@@ -79,11 +88,11 @@ export function createApp(): Express {
     res.json({ status: "ok" })
   })
 
-  app.use("/store", catalogRoutes, customerRoutes, cartRoutes)
+  app.use("/store", catalogRoutes, customerRoutes, cartRoutes, storePaymentRoutes)
 
   app.use("/admin", adminAuthRoutes)
   // Everything past the login route needs a signed-in admin.
-  app.use("/admin", ...requireAdmin, adminOrderRoutes, adminProductRoutes, adminStoreRoutes, adminSettingsRoutes, adminUserRoutes)
+  app.use("/admin", ...requireAdmin, adminOrderRoutes, adminProductRoutes, adminStoreRoutes, adminSettingsRoutes, adminUserRoutes, adminLogisticsRoutes)
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "not_found", message: "Route not found" } })

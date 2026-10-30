@@ -7,7 +7,7 @@ import { optionalAuth, requireAuth } from "../../lib/auth.js"
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
 import { regionForCountry } from "../../lib/regions.js"
-import { assetUrl, isInStock } from "../../lib/serialize.js"
+import { assetUrl, isInStock, toStoreOrder } from "../../lib/serialize.js"
 import { computeTotals, promotionUsable } from "../../lib/totals.js"
 import { address, email } from "../../lib/validation.js"
 
@@ -377,32 +377,7 @@ cartRoutes.post("/carts/:id/complete", async (req, res) => {
   res.status(201).json({ order: toStoreOrder(order) })
 })
 
-export const toStoreOrder = (o: OrderDoc) => ({
-  id: o._id,
-  displayId: o.displayId,
-  email: o.email,
-  currency: o.currency,
-  items: o.items.map((i) => ({
-    id: i._id,
-    productTitle: i.productTitle,
-    productHandle: i.productHandle,
-    variantTitle: i.variantTitle,
-    thumbnail: i.thumbnail ? assetUrl(i.thumbnail) : null,
-    quantity: i.quantity,
-    unitPrice: i.unitPrice,
-    total: i.unitPrice * i.quantity,
-  })),
-  shippingAddress: o.shippingAddress,
-  billingAddress: o.billingAddress,
-  shippingOption: { id: o.shippingOption._id, name: o.shippingOption.name, amount: o.shippingOption.amount },
-  promoCodes: o.promoCodes,
-  totals: o.totals,
-  paymentMethod: o.paymentMethod,
-  paymentStatus: o.paymentStatus,
-  fulfillmentStatus: o.fulfillmentStatus,
-  status: o.status,
-  createdAt: o.createdAt,
-})
+export { toStoreOrder }
 
 /**
  * An order is visible to its customer (token) or to whoever holds the cart it

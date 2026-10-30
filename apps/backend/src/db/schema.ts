@@ -165,6 +165,24 @@ export type OrderTotals = {
   total: number
 }
 
+export type PaymentDetails = {
+  provider: "cod" | "razorpay" | "stripe"
+  transactionId?: string
+  paymentIntentId?: string
+  razorpayOrderId?: string
+  razorpayPaymentId?: string
+  razorpaySignature?: string
+  paidAt?: Date
+  failureReason?: string
+  refunds?: {
+    id: string
+    amount: number
+    reason: string
+    createdAt: Date
+    providerRefundId?: string
+  }[]
+}
+
 export type OrderDoc = {
   _id: string
   /** Human-friendly sequential number shown to customers (#1001). */
@@ -180,9 +198,29 @@ export type OrderDoc = {
   shippingOption: { _id: string; name: string; amount: number }
   promoCodes: string[]
   totals: OrderTotals
-  paymentMethod: "cod"
+  paymentMethod: "cod" | "razorpay" | "stripe"
   paymentStatus: "awaiting" | "paid" | "refunded"
+  paymentDetails?: PaymentDetails
   fulfillmentStatus: "unfulfilled" | "shipped" | "delivered" | "returned"
+  shipment?: {
+    carrier: "delhivery" | "bluedart" | "custom"
+    awb: string
+    status: string
+    labelUrl?: string
+    pickupScheduledAt?: Date
+    estimatedDelivery?: Date
+    shippedAt?: Date
+    deliveredAt?: Date
+  }
+  returnRequest?: {
+    status: "requested" | "approved" | "pickup_scheduled" | "received" | "inspected" | "refunded" | "rejected"
+    reason: string
+    items: { itemId: string; quantity: number }[]
+    returnAwb?: string
+    carrier?: string
+    requestedAt: Date
+    updatedAt: Date
+  }
   status: "pending" | "completed" | "canceled"
   createdAt: Date
   updatedAt: Date
@@ -204,6 +242,123 @@ export type PromotionDoc = {
   updatedAt: Date
 }
 
+export type ShipmentDoc = {
+  _id: string
+  orderId: string
+  displayId: number
+  carrier: "delhivery" | "bluedart" | "custom"
+  awb: string
+  status: "manifested" | "pickup_scheduled" | "in_transit" | "out_for_delivery" | "delivered" | "rto" | "canceled"
+  trackingEvents: {
+    timestamp: Date
+    status: string
+    location: string
+    note: string
+  }[]
+  pickupDate?: Date
+  labelUrl?: string
+  isReturn: boolean
+  customer: {
+    name: string
+    phone?: string
+    city: string
+    postalCode: string
+  }
+  itemsCount: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type InventoryDoc = {
+  _id: string
+  productId: string
+  variantId: string
+  sku: string
+  productTitle: string
+  variantTitle: string
+  hubId: string
+  stock: number
+  allocated: number
+  reorderPoint: number
+  updatedAt: Date
+}
+
+export type SupplierDoc = {
+  _id: string
+  name: string
+  contactPerson: string
+  email: string
+  phone: string
+  categories: string[]
+  rating: number
+  status: "active" | "inactive"
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type PurchaseOrderDoc = {
+  _id: string
+  poNumber: string
+  supplierId: string
+  supplierName: string
+  hubId: string
+  items: {
+    sku: string
+    name: string
+    quantity: number
+    unitCost: number
+    received: number
+  }[]
+  status: "draft" | "submitted" | "partially_received" | "received" | "canceled"
+  expectedDate?: Date
+  totalAmount: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type InvoiceDoc = {
+  _id: string
+  invoiceNumber: string
+  orderId: string
+  displayId: number
+  customerName: string
+  customerGstin?: string
+  shippingAddress: Address
+  billingAddress: Address
+  items: {
+    name: string
+    sku: string
+    hsn: string
+    quantity: number
+    unitPrice: number
+    taxableValue: number
+    gstRate: number
+    cgst: number
+    sgst: number
+    igst: number
+  }[]
+  subtotal: number
+  cgstTotal: number
+  sgstTotal: number
+  igstTotal: number
+  grandTotal: number
+  currency: string
+  status: "issued" | "paid" | "canceled"
+  issuedAt: Date
+}
+
+export type CreditNoteDoc = {
+  _id: string
+  creditNoteNumber: string
+  invoiceNumber: string
+  orderId: string
+  customerName: string
+  refundAmount: number
+  reason: string
+  status: "issued" | "settled" | "canceled"
+  createdAt: Date
+}
+
 export type CounterDoc = { _id: string; seq: number }
 
 /** Typed collection accessors. */
@@ -217,6 +372,12 @@ export const db = {
   carts: (): Collection<CartDoc> => getDb().collection("carts"),
   orders: (): Collection<OrderDoc> => getDb().collection("orders"),
   promotions: (): Collection<PromotionDoc> => getDb().collection("promotions"),
+  shipments: (): Collection<ShipmentDoc> => getDb().collection("shipments"),
+  inventory: (): Collection<InventoryDoc> => getDb().collection("inventory"),
+  suppliers: (): Collection<SupplierDoc> => getDb().collection("suppliers"),
+  purchaseOrders: (): Collection<PurchaseOrderDoc> => getDb().collection("purchase_orders"),
+  invoices: (): Collection<InvoiceDoc> => getDb().collection("invoices"),
+  creditNotes: (): Collection<CreditNoteDoc> => getDb().collection("credit_notes"),
   counters: (): Collection<CounterDoc> => getDb().collection("counters"),
   settings: (): Collection<SettingsDoc> => getDb().collection("settings"),
 }
@@ -229,6 +390,7 @@ export async function ensureIndexes() {
     db.collections().createIndex({ handle: 1 }, { unique: true }),
     db.products().createIndex({ handle: 1 }, { unique: true }),
     db.products().createIndex({ status: 1, createdAt: -1 }),
+    db.products().createIndex({ status: 1, categoryIds: 1 }),
     db.products().createIndex({ categoryIds: 1 }),
     db.products().createIndex({ collectionId: 1 }),
     db.products().createIndex({ "variants._id": 1 }, { unique: true }),
@@ -241,8 +403,17 @@ export async function ensureIndexes() {
     db.carts().createIndex({ updatedAt: 1 }),
     db.orders().createIndex({ displayId: 1 }, { unique: true }),
     db.orders().createIndex({ customerId: 1, createdAt: -1 }),
+    db.orders().createIndex({ status: 1, createdAt: -1 }),
     db.orders().createIndex({ createdAt: -1 }),
     db.orders().createIndex({ cartId: 1 }, { unique: true }),
     db.promotions().createIndex({ code: 1 }, { unique: true }),
+    db.shipments().createIndex({ awb: 1 }, { unique: true }),
+    db.shipments().createIndex({ orderId: 1 }),
+    db.inventory().createIndex({ sku: 1, hubId: 1 }, { unique: true }),
+    db.suppliers().createIndex({ email: 1 }, { unique: true }),
+    db.purchaseOrders().createIndex({ poNumber: 1 }, { unique: true }),
+    db.invoices().createIndex({ invoiceNumber: 1 }, { unique: true }),
+    db.invoices().createIndex({ orderId: 1 }),
+    db.creditNotes().createIndex({ creditNoteNumber: 1 }, { unique: true }),
   ])
 }

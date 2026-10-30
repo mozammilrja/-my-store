@@ -1,4 +1,4 @@
-import type { ProductDoc, RegionDoc } from "../db/schema.js"
+import type { ProductDoc, RegionDoc, OrderDoc } from "../db/schema.js"
 import { env } from "../env.js"
 
 export const assetUrl = (path: string) => {
@@ -56,3 +56,35 @@ export function toStoreProduct(product: ProductDoc, region: RegionDoc) {
 }
 
 export type StoreProduct = ReturnType<typeof toStoreProduct>
+
+/** Order as the storefront shopper sees it: sanitized IDs, computed line totals, resolved asset URLs. */
+export function toStoreOrder(o: OrderDoc) {
+  return {
+    id: o._id,
+    displayId: o.displayId,
+    email: o.email,
+    currency: o.currency,
+    items: o.items.map((i) => ({
+      id: i._id,
+      productTitle: i.productTitle,
+      productHandle: i.productHandle,
+      variantTitle: i.variantTitle,
+      thumbnail: i.thumbnail ? assetUrl(i.thumbnail) : null,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+      total: i.unitPrice * i.quantity,
+    })),
+    shippingAddress: o.shippingAddress,
+    billingAddress: o.billingAddress,
+    shippingOption: { id: o.shippingOption._id, name: o.shippingOption.name, amount: o.shippingOption.amount },
+    promoCodes: o.promoCodes,
+    totals: o.totals,
+    paymentMethod: o.paymentMethod,
+    paymentStatus: o.paymentStatus,
+    fulfillmentStatus: o.fulfillmentStatus,
+    status: o.status,
+    createdAt: o.createdAt,
+  }
+}
+
+export type StoreOrder = ReturnType<typeof toStoreOrder>

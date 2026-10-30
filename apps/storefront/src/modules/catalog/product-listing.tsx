@@ -5,31 +5,15 @@ import { cn } from "@/lib/utils"
 import type { Category } from "@lib/api/types"
 import { getFacets, listProducts } from "@lib/data/catalog"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, SearchXIcon, SlidersHorizontalIcon, XIcon } from "lucide-react"
-import { listingHref, SORTS, toggle, type Listing } from "./params"
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, SearchXIcon, SlidersHorizontalIcon, XIcon } from "lucide-react"
+import { listingHref, SORTS, type Listing } from "./params"
+import { CatalogFilterSidebar } from "./catalog-filter-sidebar"
 
 const PER_PAGE = 12
 
-const SWATCH: Record<string, string> = {
-  black: "#111111",
-  white: "#ffffff",
-  grey: "#9ca3af",
-  gray: "#9ca3af",
-  navy: "#1e2a4a",
-  blue: "#2440d6",
-  green: "#3f6b47",
-  red: "#c8291d",
-  beige: "#d8c8a8",
-  brown: "#7a5236",
-  sand: "#e7e5e4",
-  mocha: "#785b4f",
-  ivory: "#fbf9f8",
-}
-
 /**
- * Stitch Editorial Product Listing:
- * Refined 4-tier filter sidebar, active criteria pills, curated recommendation sort,
- * and 4-column product grid with zero-CLS pagination.
+ * Editorial Product Listing with Hierarchical Faceted Filter Sidebar:
+ * Collapsible accordions, active criteria tokens, category tree, brand search, and price ranges.
  */
 export async function ProductListing({
   countryCode,
@@ -71,135 +55,34 @@ export async function ProductListing({
       label: categories?.find((c) => c.handle === handle)?.name ?? handle,
       href: href({ categories: listing.categories.filter((c) => c !== handle) }),
     })),
-    ...listing.options.map((o) => ({ label: o.split(":")[1]!, href: href({ options: listing.options.filter((x) => x !== o) }) })),
+    ...listing.options.map((o) => {
+      const parts = o.split(":")
+      return {
+        label: `${parts[0]}: ${parts[1]}`,
+        href: href({ options: listing.options.filter((x) => x !== o) }),
+      }
+    }),
     ...(listing.sale ? [{ label: "On sale", href: href({ sale: false }) }] : []),
   ]
 
-  const filterPanel = (
-    <div className="flex flex-col gap-4">
-      {categories && categories.length > 0 && (
-        <FilterGroup title="Department Category">
-          <ul className="flex flex-col gap-1.5">
-            {categories.map((c) => {
-              const active = listing.categories.includes(c.handle)
-              return (
-                <li key={c.id}>
-                  <LocalizedClientLink
-                    href={href({ categories: toggle(listing.categories, c.handle) })}
-                    aria-current={active ? "true" : undefined}
-                    className="flex min-h-8 items-center gap-2.5 text-xs sm:text-sm font-body-sm text-foreground hover:text-secondary transition-colors"
-                    data-testid="refinement-category"
-                  >
-                    <span
-                      className={cn(
-                        "flex size-4 items-center justify-center rounded border transition-colors",
-                        active ? "border-primary bg-primary text-primary-foreground" : "border-input bg-surface-container-lowest"
-                      )}
-                    >
-                      {active && <CheckIcon className="size-3" aria-hidden />}
-                    </span>
-                    <span className="flex-1 truncate">{c.name}</span>
-                    <span className="text-[11px] tabular-nums font-label-caps text-muted-foreground">
-                      {c.productCount ?? 0}
-                    </span>
-                  </LocalizedClientLink>
-                </li>
-              )
-            })}
-          </ul>
-        </FilterGroup>
-      )}
-
-      {facets.options.map((group) => (
-        <FilterGroup key={group.title} title={group.title}>
-          <div className="flex flex-wrap gap-1.5">
-            {group.values.map((v) => {
-              const key = `${group.title}:${v.value}`
-              const active = listing.options.includes(key)
-              const swatch = group.title.toLowerCase() === "color" ? SWATCH[v.value.toLowerCase()] : undefined
-              return (
-                <LocalizedClientLink
-                  key={key}
-                  href={href({ options: toggle(listing.options, key) })}
-                  aria-current={active ? "true" : undefined}
-                  className={cn(
-                    "inline-flex h-8 min-w-9 items-center justify-center gap-1.5 rounded-md border px-2.5 font-label-sm text-xs transition-colors",
-                    active
-                      ? "border-primary bg-primary text-primary-foreground font-semibold shadow-2xs"
-                      : "border-border bg-surface-container-lowest text-foreground hover:border-primary/50"
-                  )}
-                  data-testid="option-refinement"
-                >
-                  {swatch && (
-                    <span
-                      aria-hidden
-                      className="size-2.5 rounded-full border border-black/20"
-                      style={{ backgroundColor: swatch }}
-                    />
-                  )}
-                  {v.value}
-                  <span
-                    className={cn(
-                      "text-[10px] tabular-nums",
-                      active ? "text-primary-foreground/80" : "text-muted-foreground"
-                    )}
-                  >
-                    {v.count}
-                  </span>
-                </LocalizedClientLink>
-              )
-            })}
-          </div>
-        </FilterGroup>
-      ))}
-
-      {(facets.onSaleCount > 0 || listing.sale) && (
-        <FilterGroup title="Merchandising & Offers">
-          <LocalizedClientLink
-            href={href({ sale: !listing.sale })}
-            aria-current={listing.sale ? "true" : undefined}
-            className="flex min-h-8 items-center gap-2.5 text-xs sm:text-sm font-body-sm hover:text-secondary transition-colors"
-            data-testid="on-sale-toggle"
-          >
-            <span
-              className={cn(
-                "flex size-4 items-center justify-center rounded border transition-colors",
-                listing.sale ? "border-primary bg-primary text-primary-foreground" : "border-input bg-surface-container-lowest"
-              )}
-            >
-              {listing.sale && <CheckIcon className="size-3" aria-hidden />}
-            </span>
-            <span className="font-medium text-foreground">Archive Sale Only</span>
-            <span className="ml-auto font-label-caps text-[10px] bg-secondary-container text-on-secondary-fixed px-1.5 py-0.2 rounded font-bold">
-              Up to 50%
-            </span>
-          </LocalizedClientLink>
-        </FilterGroup>
-      )}
-    </div>
-  )
+  const currentCategoryHandle = categoryIds[0]
+    ? categories?.find((c) => c.id === categoryIds[0])?.handle
+    : undefined
 
   return (
-    <Container className="grid gap-8 py-8 lg:grid-cols-[17rem_1fr] lg:gap-10" data-testid="category-container">
+    <Container className="grid gap-8 py-8 lg:grid-cols-[18rem_1fr] lg:gap-8" data-testid="category-container">
       {/* Desktop Filter Sidebar */}
-      <aside className="hidden lg:block" aria-label="Filters">
-        <div className="sticky top-28 bg-surface-container-low/70 border border-border/50 p-4 rounded-2xl shadow-2xs">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/60">
-            <span className="font-label-caps text-xs uppercase tracking-wider text-foreground font-bold">
-              Curated Filters
-            </span>
-            {chips.length > 0 && (
-              <LocalizedClientLink
-                href={path}
-                className="font-label-caps text-[10px] uppercase text-secondary hover:underline font-bold"
-              >
-                Reset All
-              </LocalizedClientLink>
-            )}
-          </div>
-          {filterPanel}
+      <div className="hidden lg:block w-72 shrink-0" aria-label="Filters">
+        <div className="sticky top-28">
+          <CatalogFilterSidebar
+            path={path}
+            listing={listing}
+            categories={categories}
+            facets={facets}
+            currentCategoryHandle={currentCategoryHandle}
+          />
         </div>
-      </aside>
+      </div>
 
       {/* Main Catalog View */}
       <div className="flex min-w-0 flex-col gap-6">
@@ -241,7 +124,7 @@ export async function ProductListing({
         <details className="group border border-border/60 rounded-xl bg-surface-container-low/60 lg:hidden overflow-hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-label-sm uppercase tracking-wider font-bold text-foreground">
             <span className="flex items-center gap-2">
-              <SlidersHorizontalIcon className="size-4" aria-hidden /> Filter Criteria
+              <SlidersHorizontalIcon className="size-4" aria-hidden /> Filters &amp; Refinements
               {chips.length > 0 && (
                 <span className="font-label-caps text-[10px] bg-primary text-primary-foreground px-1.5 py-0.2 rounded font-bold">
                   {chips.length}
@@ -250,7 +133,15 @@ export async function ProductListing({
             </span>
             <ChevronDownIcon className="size-4 group-open:rotate-180 transition-transform" />
           </summary>
-          <div className="border-t border-border/60 p-4 bg-surface-container-lowest">{filterPanel}</div>
+          <div className="border-t border-border/60 p-2 bg-surface-container-lowest">
+            <CatalogFilterSidebar
+              path={path}
+              listing={listing}
+              categories={categories}
+              facets={facets}
+              currentCategoryHandle={currentCategoryHandle}
+            />
+          </div>
         </details>
 
         {/* Active Criterion Tokens */}
@@ -324,16 +215,5 @@ export async function ProductListing({
         )}
       </div>
     </Container>
-  )
-}
-
-function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2.5 bg-surface-container-lowest border border-border/50 p-3.5 rounded-xl shadow-2xs">
-      <span className="font-label-caps text-[11px] font-bold tracking-wider uppercase text-foreground">
-        {title}
-      </span>
-      {children}
-    </div>
   )
 }

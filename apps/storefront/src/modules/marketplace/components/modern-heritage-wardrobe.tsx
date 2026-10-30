@@ -2,7 +2,7 @@
 
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 import { addToCart } from "@lib/data/shop"
@@ -72,6 +72,7 @@ const PRODUCTS = [
 ]
 
 export function ModernHeritageWardrobe() {
+  const router = useRouter()
   const params = useParams()
   const countryCode = (params?.countryCode as string) || "in"
   const [favorites, setFavorites] = useState<Record<string, boolean>>({})
@@ -101,7 +102,7 @@ export function ModernHeritageWardrobe() {
       toast.success(`Added ${prod.title} (Size M) to your bag`)
     } catch {
       toast.info(`Opening ${prod.title}...`)
-      window.location.href = `/${countryCode}/products/${prod.handle}`
+      router.push(`/${countryCode}/products/${prod.handle}`)
     } finally {
       setAddingId(null)
     }

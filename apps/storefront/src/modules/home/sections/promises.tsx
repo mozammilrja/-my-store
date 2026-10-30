@@ -1,5 +1,5 @@
 import { Container } from "@/components/store/container"
-import { formatMoney } from "@/components/store/money"
+import { formatMoney } from "@lib/money"
 import type { RegionPolicies } from "@lib/api/types"
 import { deliveryDays } from "@lib/util/policies"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"

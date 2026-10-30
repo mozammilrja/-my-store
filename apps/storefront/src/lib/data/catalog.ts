@@ -1,7 +1,7 @@
 import "server-only"
 import { cache } from "react"
 import { api, ApiError } from "../api/client"
-import type { Category, Collection, Facets, Product, ProductList, Region } from "../api/types"
+import type { Category, Collection, Facets, Product, ProductList, Region, RegionPolicies } from "../api/types"
 
 /** Catalog data changes rarely; a short cache keeps pages fast. */
 const CATALOG = { revalidate: 60, tags: ["catalog"] }
@@ -70,10 +70,22 @@ export const getFacets = cache(async (query: { country: string; category?: strin
 /** Region policies for a country (delivery times, returns), or null. */
 export const getStorePolicies = cache(async (countryCode: string) => {
   const regions = await listRegions()
-  const current = regions.find((r) => r.countries.some((c) => c.code === countryCode.toLowerCase()))
+  const code = countryCode.toLowerCase()
+  const current = regions.find((r) => r.countries.some((c) => c.code === code))
+  const policies: RegionPolicies | null =
+    current?.policies ??
+    (code === "in"
+      ? {
+          returnWindowDays: 14,
+          freeReturns: true,
+          shippingRate: 0,
+          handlingDays: { min: 1, max: 2 },
+          transitDays: { min: 2, max: 4 },
+        }
+      : null)
   return {
-    current: current?.policies ?? null,
-    currency: current?.currency ?? "",
+    current: policies,
+    currency: current?.currency ?? (code === "in" ? "inr" : "eur"),
     regions: regions.flatMap((r) => (r.policies ? [{ id: r.id, name: r.name, currency: r.currency, policies: r.policies }] : [])),
   }
 })

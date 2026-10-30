@@ -82,7 +82,9 @@ export function ProductTemplate({
               </h1>
               {product.subtitle && <p className="text-muted-foreground">{product.subtitle}</p>}
             </div>
-            <PurchasePanel product={product} />
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <PurchasePanel product={product} />
+            </Suspense>
             <Details product={product} policies={policies} currencyCode={currencyCode} />
           </div>
         </div>

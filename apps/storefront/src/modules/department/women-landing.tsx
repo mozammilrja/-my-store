@@ -145,7 +145,7 @@ export function WomenDepartmentLanding({
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-4 gap-2">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full bg-secondary" />
+              <span className="w-2 h-2 rounded-full bg-accent" />
               <span className="font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant font-semibold">
                 Department Taxonomy
               </span>
@@ -163,9 +163,9 @@ export function WomenDepartmentLanding({
             <LocalizedClientLink
               key={idx}
               href={sub.href}
-              className="group flex flex-col bg-surface-container-lowest rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all border border-border/40"
+              className="group flex flex-col bg-surface-container-lowest rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all border border-border/60"
             >
-              <div className="relative w-full aspect-[4/3] bg-surface-container-high overflow-hidden">
+              <div className="relative w-full aspect-[4/3] bg-surface-container-low overflow-hidden">
                 <Image
                   src={sub.image}
                   alt={sub.title}
@@ -178,7 +178,7 @@ export function WomenDepartmentLanding({
                 </span>
               </div>
               <div className="p-3.5 flex flex-col justify-between flex-1">
-                <span className="font-label-md text-xs sm:text-sm font-semibold text-on-surface group-hover:text-secondary transition-colors">
+                <span className="font-label-md text-xs sm:text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">
                   {sub.title}
                 </span>
                 <span className="font-body-sm text-xs text-on-surface-variant mt-1">{sub.price}</span>

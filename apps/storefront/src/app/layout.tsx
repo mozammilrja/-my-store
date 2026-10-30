@@ -40,7 +40,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#F5F1E9",
+  themeColor: "#ffffff",
 }
 
 export default function RootLayout(props: { children: React.ReactNode }) {
@@ -50,12 +50,6 @@ export default function RootLayout(props: { children: React.ReactNode }) {
       data-mode="light"
       className={`${inter.variable} ${display.variable}`}
     >
-      <head>
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
-        />
-      </head>
       <body>
         <TooltipProvider>
           <main className="relative">{props.children}</main>

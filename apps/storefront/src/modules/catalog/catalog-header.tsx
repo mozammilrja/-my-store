@@ -14,7 +14,7 @@ export function CatalogHeader({
   count?: number
 }) {
   return (
-    <section className="pt-4 pb-2 border-b border-border/40 bg-surface/30">
+    <section className="pt-4 pb-3 border-b border-border/60 bg-surface-container-low/40">
       <Container className="flex flex-col gap-2">
         {/* Minimal Breadcrumb Line */}
         <nav

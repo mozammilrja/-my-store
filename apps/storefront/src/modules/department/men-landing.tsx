@@ -122,30 +122,30 @@ export function MenDepartmentLanding({
       </section>
 
       {/* Metric Badges Ticker */}
-      <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin py-4">
+      <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin py-3">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-surface-container-low rounded-lg p-3.5 flex items-center gap-3">
+          <div className="bg-surface-container-low rounded-xl p-3.5 flex items-center gap-3 border border-border/60">
             <span className="material-symbols-outlined text-primary text-[24px]">dry_cleaning</span>
             <div>
               <span className="font-label-sm text-xs font-semibold text-on-surface block">Pre-Shrunk 100% Cotton</span>
               <span className="font-body-sm text-[11px] text-on-surface-variant">Lab-tested color fastness</span>
             </div>
           </div>
-          <div className="bg-surface-container-low rounded-lg p-3.5 flex items-center gap-3">
+          <div className="bg-surface-container-low rounded-xl p-3.5 flex items-center gap-3 border border-border/60">
             <span className="material-symbols-outlined text-primary text-[24px]">straighten</span>
             <div>
               <span className="font-label-sm text-xs font-semibold text-on-surface block">Calibrated Indian Fit</span>
               <span className="font-body-sm text-[11px] text-on-surface-variant">Sized XS to 4XL tailored precision</span>
             </div>
           </div>
-          <div className="bg-surface-container-low rounded-lg p-3.5 flex items-center gap-3">
+          <div className="bg-surface-container-low rounded-xl p-3.5 flex items-center gap-3 border border-border/60">
             <span className="material-symbols-outlined text-primary text-[24px]">local_shipping</span>
             <div>
               <span className="font-label-sm text-xs font-semibold text-on-surface block">Same-Day Dispatch</span>
               <span className="font-body-sm text-[11px] text-on-surface-variant">In 18 metro hub pincodes</span>
             </div>
           </div>
-          <div className="bg-surface-container-low rounded-lg p-3.5 flex items-center gap-3">
+          <div className="bg-surface-container-low rounded-xl p-3.5 flex items-center gap-3 border border-border/60">
             <span className="material-symbols-outlined text-primary text-[24px]">swap_horizontal_circle</span>
             <div>
               <span className="font-label-sm text-xs font-semibold text-on-surface block">Doorstep Try &amp; Exchange</span>
@@ -160,7 +160,7 @@ export function MenDepartmentLanding({
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-4 gap-2">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full bg-secondary" />
+              <span className="w-2 h-2 rounded-full bg-accent" />
               <span className="font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant font-semibold">
                 Department Taxonomy
               </span>
@@ -178,9 +178,9 @@ export function MenDepartmentLanding({
             <LocalizedClientLink
               key={idx}
               href={sub.href}
-              className="group flex flex-col bg-surface-container-lowest rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all border border-border/40"
+              className="group flex flex-col bg-surface-container-lowest rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all border border-border/60"
             >
-              <div className="relative w-full aspect-[4/3] bg-surface-container-high overflow-hidden">
+              <div className="relative w-full aspect-[4/3] bg-surface-container-low overflow-hidden">
                 <Image
                   src={sub.image}
                   alt={sub.title}
@@ -193,7 +193,7 @@ export function MenDepartmentLanding({
                 </span>
               </div>
               <div className="p-3.5 flex flex-col justify-between flex-1">
-                <span className="font-label-md text-xs sm:text-sm font-semibold text-on-surface group-hover:text-secondary transition-colors">
+                <span className="font-label-md text-xs sm:text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">
                   {sub.title}
                 </span>
                 <span className="font-body-sm text-xs text-on-surface-variant mt-1">{sub.price}</span>

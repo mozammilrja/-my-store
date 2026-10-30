@@ -16,21 +16,21 @@ const PREDICTIONS = [
     title: "Mulberry Silk Dresses",
     subtitle: "in Women / Western Evening",
     count: "64 items",
-    href: "/store",
+    href: "/search?q=Silk+Dress",
   },
   {
     icon: SparklesIcon,
     title: "Chanderi Zari Dupatta",
     subtitle: "in Indian Festive / Handloom",
     count: "112 items",
-    href: "/store",
+    href: "/search?q=Chanderi",
   },
   {
     icon: TrendingUpIcon,
     title: "Structured Linen Overshirts",
     subtitle: "in Men / Summer Essentials",
     count: "48 items",
-    href: "/store",
+    href: "/search?q=Linen+Shirt",
   },
 ]
 
@@ -58,7 +58,7 @@ export function QuickPredictionsPanel({ visible = true }: { visible?: boolean })
             {FEATURED_HOUSES.map((house, idx) => (
               <LocalizedClientLink
                 key={idx}
-                href="/store"
+                href={`/search?q=${encodeURIComponent(house)}`}
                 className="px-2.5 py-1 rounded-full bg-surface-container-lowest border border-border/60 text-foreground font-label-caps text-[10px] font-bold uppercase tracking-wider hover:border-foreground transition-colors shrink-0 shadow-2xs"
               >
                 {house}

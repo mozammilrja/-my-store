@@ -1150,7 +1150,7 @@ export function MegaMenu({
                 </div>
 
                 {/* Sleek Merchandising Bottom Strip */}
-                <div className="bg-[#f9f8f6] dark:bg-zinc-800/60 border-t border-border/50 px-6 py-2.5 flex items-center justify-between text-[11px] text-muted-foreground">
+                <div className="bg-surface-container-low border-t border-border/50 px-6 py-2.5 flex items-center justify-between text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: dept.accentColor || "#ee5f73" }} />
                     <span className="font-semibold text-foreground">Everwear Guaranteed:</span> 100% Certified Authentic & Handcrafted Heritage Pieces

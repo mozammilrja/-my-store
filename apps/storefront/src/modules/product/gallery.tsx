@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import type { Product } from "@lib/api/types"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 
 const imagesFor = (product: Product, variantId?: string | null) => {
   const variant = variantId ? product.variants.find((v) => v.id === variantId) : undefined
@@ -17,9 +17,7 @@ const imagesFor = (product: Product, variantId?: string | null) => {
  */
 export function Gallery({ product }: { product: Product }) {
   const searchParams = useSearchParams()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
-  const variantId = mounted ? searchParams.get("v_id") : null
+  const variantId = searchParams.get("v_id")
 
   const images = useMemo(() => {
     const list = imagesFor(product, variantId)
@@ -27,7 +25,12 @@ export function Gallery({ product }: { product: Product }) {
   }, [product, variantId])
 
   const [active, setActive] = useState(0)
-  useEffect(() => setActive(0), [variantId])
+  const [prevVariantId, setPrevVariantId] = useState(variantId)
+  if (variantId !== prevVariantId) {
+    setPrevVariantId(variantId)
+    setActive(0)
+  }
+
   const current = images[Math.min(active, images.length - 1)]
 
   if (!current) {

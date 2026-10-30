@@ -10,7 +10,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { formatMoney } from "@/components/store/money"
+import { formatMoney } from "@lib/money"
 import { deleteLineItem, retrieveCart } from "@lib/data/shop"
 import { CART_UPDATED_EVENT, notifyCartUpdated } from "@lib/util/cart-events"
 import type { Cart } from "@lib/api/types"
@@ -60,7 +60,11 @@ export function CartDrawer() {
     return () => window.removeEventListener(CART_UPDATED_EVENT, load)
   }, [])
 
-  useEffect(() => setOpen(false), [pathname])
+  const [prevPathname, setPrevPathname] = useState(pathname)
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname)
+    setOpen(false)
+  }
 
   const count = countItems(cart)
   // Newest first: the API keeps items in the order they were added.

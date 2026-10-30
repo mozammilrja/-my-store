@@ -4,7 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { formatMoney } from "@/components/store/money"
+import { formatMoney } from "@lib/money"
 import type { Product, RegionPolicies } from "@lib/api/types"
 import { formatDayRange } from "@lib/util/policies"
 

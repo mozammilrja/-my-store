@@ -1,6 +1,6 @@
 "use client"
 
-import { formatMoney } from "@/components/store/money"
+import { formatMoney } from "@lib/money"
 import { cn } from "@/lib/utils"
 import { deleteLineItem, updateLineItem } from "@lib/data/shop"
 import { notifyCartUpdated } from "@lib/util/cart-events"

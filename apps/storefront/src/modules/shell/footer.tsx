@@ -162,7 +162,7 @@ export function Footer() {
           </div>
 
           {/* The Weekly Editorial (2 columns) */}
-          <div className="col-span-2 flex flex-col gap-4 bg-surface-container-lowest p-space-lg rounded-xl">
+          <div className="col-span-2 flex flex-col gap-4 bg-surface-container-lowest p-space-lg rounded-xl border border-border/70 shadow-xs">
             <div className="flex flex-col gap-1">
               <span className="font-label-caps text-label-caps text-on-surface uppercase tracking-wider font-semibold">
                 The Weekly Editorial
@@ -173,7 +173,7 @@ export function Footer() {
             </div>
             <form onSubmit={handleSubmit} className="flex gap-2">
               <input
-                className="flex-1 bg-surface-container-low border border-outline-variant px-3 py-2 text-body-sm text-on-surface placeholder:text-outline rounded focus:outline-none focus:border-primary font-body-sm"
+                className="flex-1 bg-surface-container-low border border-border px-3 py-2 text-body-sm text-on-surface placeholder:text-muted-foreground rounded focus:outline-none focus:border-primary font-body-sm"
                 placeholder="Enter your personal email"
                 type="email"
                 value={email}
@@ -182,7 +182,7 @@ export function Footer() {
               />
               <button
                 type="submit"
-                className="px-4 py-2 bg-primary text-on-primary font-label-sm text-label-sm uppercase tracking-wide rounded hover:bg-surface-container-highest hover:text-on-surface transition-colors shrink-0 font-semibold cursor-pointer"
+                className="px-4 py-2 bg-primary text-on-primary font-label-sm text-label-sm uppercase tracking-wide rounded hover:bg-neutral-800 transition-colors shrink-0 font-semibold cursor-pointer"
               >
                 Join
               </button>
@@ -218,19 +218,19 @@ export function Footer() {
               Payment Methods
             </span>
             <div className="flex items-center gap-1.5">
-              <span className="px-2 py-1 bg-surface rounded text-[11px] font-semibold text-on-surface">
+              <span className="px-2 py-1 bg-surface-container-lowest border border-border/70 rounded text-[11px] font-semibold text-on-surface">
                 UPI
               </span>
-              <span className="px-2 py-1 bg-surface rounded text-[11px] font-semibold text-on-surface">
+              <span className="px-2 py-1 bg-surface-container-lowest border border-border/70 rounded text-[11px] font-semibold text-on-surface">
                 VISA
               </span>
-              <span className="px-2 py-1 bg-surface rounded text-[11px] font-semibold text-on-surface">
+              <span className="px-2 py-1 bg-surface-container-lowest border border-border/70 rounded text-[11px] font-semibold text-on-surface">
                 MASTERCARD
               </span>
-              <span className="px-2 py-1 bg-surface rounded text-[11px] font-semibold text-on-surface">
+              <span className="px-2 py-1 bg-surface-container-lowest border border-border/70 rounded text-[11px] font-semibold text-on-surface">
                 RUPAY
               </span>
-              <span className="px-2 py-1 bg-surface rounded text-[11px] font-semibold text-on-surface">
+              <span className="px-2 py-1 bg-surface-container-lowest border border-border/70 rounded text-[11px] font-semibold text-on-surface">
                 NETBANKING
               </span>
             </div>

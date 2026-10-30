@@ -7,8 +7,8 @@ import { addToCart } from "@lib/data/shop"
 import { formatMoney } from "@lib/money"
 import { notifyCartUpdated } from "@lib/util/cart-events"
 import { CheckIcon, Loader2Icon, MinusIcon, PlusIcon } from "lucide-react"
-import { useParams, usePathname, useRouter } from "next/navigation"
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation"
+import { FormEvent, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 const MAX_PER_ORDER = 10
@@ -29,40 +29,41 @@ const buyable = (v: Variant) => v.inStock && v.price !== null
 export function PurchasePanel({ product }: { product: Product }) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { countryCode } = useParams<{ countryCode: string }>()
   const variants = product.variants
 
-  const [options, setOptions] = useState<Options>(() => ({ ...(variants.find(buyable) ?? variants[0])?.options }))
+  const vIdFromUrl = searchParams.get("v_id")
+
+  const [options, setOptions] = useState<Options>(() => {
+    if (vIdFromUrl) {
+      const match = variants.find((v) => v.id === vIdFromUrl)
+      if (match) return { ...match.options }
+    }
+    return { ...(variants.find(buyable) ?? variants[0])?.options }
+  })
   const [quantity, setQuantity] = useState(1)
   const [adding, setAdding] = useState(false)
   const [added, setAdded] = useState(false)
   const lock = useRef(false)
-  const [urlApplied, setUrlApplied] = useState(false)
 
   const selected = useMemo(() => variants.find((v) => matches(v, options)), [variants, options])
   const inStock = !!selected && buyable(selected)
   const max = selected ? Math.max(1, Math.min(MAX_PER_ORDER, selected.available)) : 1
+  const effectiveQuantity = Math.min(quantity, max)
 
-  // Apply ?v_id= after hydration (the page is statically rendered).
-  useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("v_id")
-    const variant = variants.find((v) => v.id === id)
-    if (variant) setOptions({ ...variant.options })
-    setUrlApplied(true)
-  }, [variants])
-
-  // Keep ?v_id= in sync so a chosen variant can be shared.
-  useEffect(() => {
-    if (!urlApplied) return
-    const params = new URLSearchParams(window.location.search)
-    const value = selected?.id ?? null
-    if (params.get("v_id") === value) return
-    if (value) params.set("v_id", value)
-    else params.delete("v_id")
+  const selectOption = (title: string, value: string) => {
+    const nextOptions = { ...options, [title]: value }
+    setOptions(nextOptions)
+    const nextVariant = variants.find((v) => matches(v, nextOptions))
+    const params = new URLSearchParams(searchParams.toString())
+    if (nextVariant?.id) {
+      params.set("v_id", nextVariant.id)
+    } else {
+      params.delete("v_id")
+    }
     router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-  }, [selected, urlApplied, pathname, router])
-
-  useEffect(() => setQuantity((q) => Math.min(q, max)), [max])
+  }
 
   const valueAvailable = (title: string, value: string) =>
     variants.some((v) => matches(v, { ...options, [title]: value }) && buyable(v))
@@ -77,7 +78,7 @@ export function PurchasePanel({ product }: { product: Product }) {
     lock.current = true
     setAdding(true)
     try {
-      await addToCart({ variantId: selected.id, quantity, countryCode })
+      await addToCart({ variantId: selected.id, quantity: effectiveQuantity, countryCode })
       notifyCartUpdated()
       setAdded(true)
       setTimeout(() => setAdded(false), 2000)
@@ -98,7 +99,7 @@ export function PurchasePanel({ product }: { product: Product }) {
     lock.current = true
     setAdding(true)
     try {
-      await addToCart({ variantId: selected.id, quantity, countryCode })
+      await addToCart({ variantId: selected.id, quantity: effectiveQuantity, countryCode })
       notifyCartUpdated()
       router.push(`/${countryCode}/checkout`)
     } catch (e) {
@@ -121,7 +122,7 @@ export function PurchasePanel({ product }: { product: Product }) {
       <form id="product-form" method="post" action={`/${countryCode}/cart/add`} onSubmit={submit} className="flex flex-col gap-6" data-testid="product-actions">
         <input type="hidden" name="handle" value={product.handle} />
         <input type="hidden" name="variant_id" value={selected?.id ?? ""} />
-        <input type="hidden" name="quantity" value={quantity} />
+        <input type="hidden" name="quantity" value={effectiveQuantity} />
 
         {/* 1. Rating & Reviews Badge */}
         <div className="flex flex-wrap items-center gap-2.5">
@@ -228,7 +229,7 @@ export function PurchasePanel({ product }: { product: Product }) {
                         name={`options[${option.title}]`}
                         value={value}
                         checked={checked}
-                        onChange={() => setOptions((prev) => ({ ...prev, [option.title]: value }))}
+                        onChange={() => selectOption(option.title, value)}
                         disabled={adding}
                         className="sr-only"
                         data-testid="option-button"
@@ -319,7 +320,7 @@ export function PurchasePanel({ product }: { product: Product }) {
               <MinusIcon className="size-4" aria-hidden />
             </button>
             <output className="w-8 text-center font-label-sm text-sm tabular-nums font-bold" aria-live="polite" data-testid="product-quantity">
-              {quantity}
+              {effectiveQuantity}
             </output>
             <button type="button" onClick={() => setQuantity((q) => Math.min(max, q + 1))} disabled={quantity >= max || adding || !inStock} className="flex h-full w-10 items-center justify-center disabled:opacity-40 hover:bg-surface-container-low transition-colors" aria-label="Increase quantity">
               <PlusIcon className="size-4" aria-hidden />

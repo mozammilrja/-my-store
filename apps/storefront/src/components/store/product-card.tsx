@@ -140,7 +140,7 @@ export function ProductCard({
       {/* Product Meta Block */}
       <div className="p-3.5 flex flex-col flex-1 justify-between gap-2">
         <div className="flex flex-col gap-1">
-          <span className="font-label-caps text-[10px] uppercase text-secondary tracking-wider font-semibold">
+          <span className="font-label-caps text-[10px] uppercase text-muted-foreground tracking-wider font-semibold">
             Everwear Atelier
           </span>
           <Heading className="font-headline-sm text-sm sm:text-base font-medium leading-snug line-clamp-2 text-foreground" data-testid="product-title">

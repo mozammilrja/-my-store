@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { usersList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
+import { useUsersQuery, useCreateUserMutation, useDeleteUserMutation } from '../../hooks/useAdminQueries';
 
 export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   const [selectedUserKey, setSelectedUserKey] = useState('vikram');
   const [activeTab, setActiveTab] = useState('directory'); // 'directory', 'matrix', 'nodes', 'audit'
   const [filterText, setFilterText] = useState('');
+  
+  // TanStack Query for users
+  const { data: usersData, isLoading: isUsersLoading } = useUsersQuery();
+  const createUserMutation = useCreateUserMutation();
+  const deleteUserMutation = useDeleteUserMutation();
+
   const [dbUsers, setDbUsers] = useState([]);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -16,20 +23,11 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
     role: 'staff',
   });
 
-  const loadUsers = async () => {
-    try {
-      const res = await adminApi.users();
-      if (res?.users) {
-        setDbUsers(res.users);
-      }
-    } catch (err) {
-      console.warn('Could not load users from backend:', err?.message);
-    }
-  };
-
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (usersData?.users) {
+      setDbUsers(usersData.users);
+    }
+  }, [usersData]);
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
@@ -44,7 +42,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
 
     setIsSubmitting(true);
     try {
-      const res = await adminApi.createUser({
+      const res = await createUserMutation.mutateAsync({
         email: inviteForm.email,
         password: inviteForm.password,
         name: inviteForm.name || undefined,
@@ -57,7 +55,6 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       });
       setIsInviteModalOpen(false);
       setInviteForm({ name: '', email: '', password: '', role: 'staff' });
-      await loadUsers();
     } catch (err) {
       onShowToast?.({
         type: 'error',
@@ -72,13 +69,12 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   const handleDeleteUser = async (userId, userName) => {
     if (!confirm(`Are you sure you want to remove ${userName}? This will revoke all admin access.`)) return;
     try {
-      await adminApi.deleteUser(userId);
+      await deleteUserMutation.mutateAsync(userId);
       onShowToast?.({
         type: 'info',
         title: 'Access Revoked',
         message: `Admin privileges removed for ${userName}.`,
       });
-      await loadUsers();
     } catch (err) {
       onShowToast?.({
         type: 'error',

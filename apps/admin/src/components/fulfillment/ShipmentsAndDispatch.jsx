@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Select } from '../ui/select';
 import { shipmentList } from '../../data/mockData';
+import { adminApi } from '../../lib/api';
+import { useShipmentsQuery } from '../../hooks/useAdminQueries';
 
 export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
   const [activeTab, setActiveTab] = useState('queue'); // 'queue', 'radar', 'ndr'
@@ -12,6 +14,10 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDockScannerMode, setIsDockScannerMode] = useState(false);
   const [barcodeInputValue, setBarcodeInputValue] = useState('');
+  const [shipmentsData, setShipmentsData] = useState(shipmentList);
+
+  // TanStack Query for shipments
+  const { data: shipmentsApiData, isLoading: isShipmentsLoading } = useShipmentsQuery();
   const [scannedLogs, setScannedLogs] = useState([
     {
       id: 'AWB #8492019481',
@@ -22,10 +28,32 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
   const [scanProgress, setScanProgress] = useState(92.8);
   const [isHandoverCompleted, setIsHandoverCompleted] = useState(false);
 
-
+  useEffect(() => {
+    if (shipmentsApiData?.shipments?.length) {
+      const live = shipmentsApiData.shipments.map(s => ({
+        awb: s.awb,
+        orderId: `EVR-${s.displayId}`,
+        carrier: s.carrier === 'delhivery' ? 'Delhivery Surface / Express' : s.carrier === 'bluedart' ? 'BlueDart Express' : 'Direct Dispatch',
+        carrierCode: s.carrier,
+        destination: `${s.customer?.city || 'Local'} (${s.customer?.postalCode || '560038'})`,
+        node: 'BLR-FC1',
+        speed: 'Express',
+        status: s.status,
+        stageBadge: s.status.toUpperCase(),
+        bagNo: `BAG-${s.awb.slice(-4)}`,
+        slaRemaining: 'On Track',
+        slaHealthy: true,
+        boxType: 'Eco-Kraft Box',
+        weight: '480g',
+        dispatchDock: 'Dock 4B',
+        labelUrl: s.labelUrl,
+      }));
+      setShipmentsData(prev => [...live, ...prev.filter(p => !live.some(l => l.awb === p.awb))]);
+    }
+  }, [shipmentsApiData]);
 
   const filteredShipments = useMemo(() => {
-    return shipmentList.filter(item => {
+    return shipmentsData.filter(item => {
       if (activeTab === 'ndr' && item.awb !== '1084920391') return false;
       if (activeTab === 'radar' && item.awb === 'SFX99201942') return false;
 

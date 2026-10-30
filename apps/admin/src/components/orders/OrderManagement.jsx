@@ -4,6 +4,7 @@ import { adminApi } from '../../lib/api';
 import { formatMoney, formatDate } from '../../lib/format';
 import { OrderDetailDrawer } from './OrderDetailDrawer';
 import { CreateOrderModal } from './CreateOrderModal';
+import { useOrdersQuery, useCancelOrderMutation, useUpdateOrderStatusMutation } from '../../hooks/useAdminQueries';
 import {
   Card,
   CardContent,
@@ -40,117 +41,116 @@ export function OrderManagement({
   const [internalActiveId, setInternalActiveId] = useState('EVR-984210-BLR');
   const [drawerOpen, setDrawerOpen] = useState(true);
 
-  // Fetch real orders from Everwear API on mount
+  // TanStack Query: orders data fetching and mutations
+  const { data: apiData, isLoading: isOrdersLoading, refetch: refetchOrders } = useOrdersQuery({ limit: 50 });
+  const cancelOrderMutation = useCancelOrderMutation();
+  const updateStatusMutation = useUpdateOrderStatusMutation();
+
+  // Sync orders whenever query data changes
   useEffect(() => {
-    adminApi.orders({ limit: 50 })
-      .then((data) => {
-        if (data?.orders && data.orders.length > 0) {
-          const apiOrders = data.orders.map((ord, idx) => {
-            const customerName = ord.shippingAddress 
-              ? `${ord.shippingAddress.firstName || ''} ${ord.shippingAddress.lastName || ''}`.trim() || ord.email.split('@')[0]
-              : ord.email.split('@')[0];
-            const phone = ord.shippingAddress?.phone || '+91 98800 12345';
-            const city = ord.shippingAddress?.city || 'Bengaluru';
-            const address = ord.shippingAddress 
-              ? `${ord.shippingAddress.address1 || ''}, ${ord.shippingAddress.city || ''}`
-              : 'Bengaluru, India';
-            const totalAmount = ord.totals?.total ? formatMoney(ord.totals.total, ord.currency) : (ord.total ? formatMoney(ord.total, ord.currency) : '₹4,890.00');
+    if (apiData?.orders && apiData.orders.length > 0) {
+      const apiOrders = apiData.orders.map((ord, idx) => {
+        const customerName = ord.shippingAddress 
+          ? `${ord.shippingAddress.firstName || ''} ${ord.shippingAddress.lastName || ''}`.trim() || ord.email.split('@')[0]
+          : ord.email.split('@')[0];
+        const phone = ord.shippingAddress?.phone || '+91 98800 12345';
+        const city = ord.shippingAddress?.city || 'Bengaluru';
+        const address = ord.shippingAddress 
+          ? `${ord.shippingAddress.address1 || ''}, ${ord.shippingAddress.city || ''}`
+          : 'Bengaluru, India';
+        const totalAmount = ord.totals?.total ? formatMoney(ord.totals.total, ord.currency) : (ord.total ? formatMoney(ord.total, ord.currency) : '₹4,890.00');
 
-            const orderIdFormatted = ord.displayId ? `EVR-${ord.displayId}-${currentHub.id.slice(0, 3)}` : ord.id;
-            const isDelivered = ord.fulfillmentStatus === 'delivered';
-            const isShipped = ord.fulfillmentStatus === 'shipped';
-            const isAwaiting = ord.paymentStatus === 'awaiting';
+        const orderIdFormatted = ord.displayId ? `EVR-${ord.displayId}-${currentHub?.id?.slice(0, 3) || 'BLR'}` : ord.id;
+        const isDelivered = ord.fulfillmentStatus === 'delivered';
+        const isShipped = ord.fulfillmentStatus === 'shipped';
+        const isAwaiting = ord.paymentStatus === 'awaiting';
 
-            return {
-              id: orderIdFormatted,
-              rawId: ord.id,
-              channel: 'Everwear Online Flagship',
-              orderDate: ord.createdAt ? formatDate(ord.createdAt) : 'Today',
-              timeAgo: `${idx * 4 + 2}m ago`,
-              nodeFc: idx % 2 === 0 ? 'BLR-FC1' : 'BOM-FC2',
-              status: isDelivered ? 'Delivered' : isShipped ? 'Dispatched' : 'Packed & Staged',
-              stageBadge: isDelivered ? 'DELIVERED' : isShipped ? 'IN TRANSIT' : 'READY TO HANDOVER',
-              isExpress: idx % 2 === 0,
-              expressLabel: idx % 2 === 0 ? '⚡ 24h Express' : undefined,
-              customer: {
-                name: customerName,
-                shortName: customerName.split(' ')[0],
-                email: ord.email,
-                phone: phone.replace(/(\d{5})\d+/, '$1•••••'),
-                fullPhone: phone,
-                tier: idx === 0 ? 'VIP COUTURE' : 'GOLD TIER',
-                tierBadgeClass: 'bg-primary-fixed text-on-primary-fixed font-bold',
-                address,
-                cityRegion: `${city}, India`,
-                deliveryInstructions: 'Fragile luxury garment packaging'
-              },
-              items: ord.items?.map((it, i) => ({
-                id: it.id || `item-${i}`,
-                name: it.productTitle || 'Everwear Luxury Style',
-                variant: it.variantTitle || 'Default',
-                qty: it.quantity || 1,
-                price: it.unitPrice ? formatMoney(it.unitPrice, ord.currency) : '₹2,445.00',
-                sku: `EVR-${it.variantId?.slice(-6) || 'SKU'}`,
-                hsn: '6204.49.00',
-                image: it.thumbnail || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6'
-              })) || [
-                {
-                  id: 'item-1',
-                  name: 'Pleated Mulberry Silk Maxi Dress',
-                  variant: 'Emerald / M',
-                  qty: 1,
-                  price: totalAmount,
-                  sku: 'EVR-WDR-EMR-M',
-                  hsn: '6204.49.00',
-                  image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6'
-                }
-              ],
-              courier: {
-                partner: idx % 2 === 0 ? 'BlueDart Express' : 'Delhivery Air',
-                awb: `BLR${890000000 + idx}`,
-                serviceTier: 'Guaranteed 24h SLA',
-                bagId: `BAG-882-${idx}`,
-                pickupSlot: '16:00 - 18:00 IST'
-              },
-              payment: {
-                type: ord.paymentStatus === 'paid' ? 'prepaid' : 'cod',
-                method: ord.paymentStatus === 'paid' ? 'Razorpay UPI (Instant)' : 'Cash on Delivery',
-                totalPaid: totalAmount,
-                subtotal: totalAmount,
-                discount: '₹0.00',
-                shipping: '₹0.00',
-                cgst: '₹240.00',
-                sgst: '₹240.00',
-                igst: '₹0.00',
-                statusBadge: ord.paymentStatus === 'paid' ? 'PAID (VERIFIED)' : 'PENDING ON DELIVERY',
-                statusVariant: ord.paymentStatus === 'paid' ? 'success' : 'warning'
-              },
-              currentTimelineStep: isDelivered ? 9 : isShipped ? 7 : 5,
-              timeline: [
-                { step: 1, title: 'Order Ingested', time: '14:28 IST', desc: 'Validated & Fraud Scored', done: true },
-                { step: 2, title: 'Payment Reconciled', time: '14:28 IST', desc: 'Payment Gateway Verified', done: true },
-                { step: 3, title: 'Hub Inventory Allocated', time: '14:31 IST', desc: 'BLR-FC1 Matched via SLA', done: true },
-                { step: 4, title: 'Item Picked from Bin', time: '15:15 IST', desc: 'Aisle C-12 / Bin 5 Scanned', done: true },
-                { step: 5, title: 'QC & Packaging', time: '15:35 IST', desc: 'Studio Boxed with Ribbon', done: true, isCurrent: !isShipped && !isDelivered },
-                { step: 6, title: 'AWB Manifest Generated', time: '15:45 IST', desc: 'BlueDart Tracking Ingested', done: isShipped || isDelivered },
-                { step: 7, title: 'Handed to Courier Partner', time: '16:30 IST', desc: 'Dock 4 Departure', done: isShipped || isDelivered, isCurrent: isShipped },
-                { step: 8, title: 'Out for Final Delivery', time: 'Tomorrow 10:00', desc: 'Delivery Associate Outbound', done: isDelivered },
-                { step: 9, title: 'Delivered & Signature Collected', time: 'Tomorrow 12:30', desc: 'OTP Verified at Doorstep', done: isDelivered, isCurrent: isDelivered },
-              ],
-              rawBackend: ord
-            };
-          });
-
-          setOrders([...apiOrders, ...INITIAL_ORDERS]);
-          if (apiOrders.length > 0) {
-            setInternalActiveId(apiOrders[0].id);
-          }
-        }
-      })
-      .catch((err) => {
-        console.warn('Backend orders fetch notice:', err?.message);
+        return {
+          id: orderIdFormatted,
+          rawId: ord.id,
+          channel: 'Everwear Online Flagship',
+          orderDate: ord.createdAt ? formatDate(ord.createdAt) : 'Today',
+          timeAgo: `${idx * 4 + 2}m ago`,
+          nodeFc: idx % 2 === 0 ? 'BLR-FC1' : 'BOM-FC2',
+          status: isDelivered ? 'Delivered' : isShipped ? 'Dispatched' : 'Packed & Staged',
+          stageBadge: isDelivered ? 'DELIVERED' : isShipped ? 'IN TRANSIT' : 'READY TO HANDOVER',
+          isExpress: idx % 2 === 0,
+          expressLabel: idx % 2 === 0 ? '⚡ 24h Express' : undefined,
+          customer: {
+            name: customerName,
+            shortName: customerName.split(' ')[0],
+            email: ord.email,
+            phone: phone.replace(/(\d{5})\d+/, '$1•••••'),
+            fullPhone: phone,
+            tier: idx === 0 ? 'VIP COUTURE' : 'GOLD TIER',
+            tierBadgeClass: 'bg-primary-fixed text-on-primary-fixed font-bold',
+            address,
+            cityRegion: `${city}, India`,
+            deliveryInstructions: 'Fragile luxury garment packaging'
+          },
+          items: ord.items?.map((it, i) => ({
+            id: it.id || `item-${i}`,
+            name: it.productTitle || 'Everwear Luxury Style',
+            variant: it.variantTitle || 'Default',
+            qty: it.quantity || 1,
+            price: it.unitPrice ? formatMoney(it.unitPrice, ord.currency) : '₹2,445.00',
+            sku: `EVR-${it.variantId?.slice(-6) || 'SKU'}`,
+            hsn: '6204.49.00',
+            image: it.thumbnail || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6'
+          })) || [
+            {
+              id: 'item-1',
+              name: 'Pleated Mulberry Silk Maxi Dress',
+              variant: 'Emerald / M',
+              qty: 1,
+              price: totalAmount,
+              sku: 'EVR-WDR-EMR-M',
+              hsn: '6204.49.00',
+              image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6'
+            }
+          ],
+          courier: {
+            partner: idx % 2 === 0 ? 'BlueDart Express' : 'Delhivery Air',
+            awb: `BLR${890000000 + idx}`,
+            serviceTier: 'Guaranteed 24h SLA',
+            bagId: `BAG-882-${idx}`,
+            pickupSlot: '16:00 - 18:00 IST'
+          },
+          payment: {
+            type: ord.paymentStatus === 'paid' ? 'prepaid' : 'cod',
+            method: ord.paymentStatus === 'paid' ? 'Razorpay UPI (Instant)' : 'Cash on Delivery',
+            totalPaid: totalAmount,
+            subtotal: totalAmount,
+            discount: '₹0.00',
+            shipping: '₹0.00',
+            cgst: '₹240.00',
+            sgst: '₹240.00',
+            igst: '₹0.00',
+            statusBadge: ord.paymentStatus === 'paid' ? 'PAID (VERIFIED)' : 'PENDING ON DELIVERY',
+            statusVariant: ord.paymentStatus === 'paid' ? 'success' : 'warning'
+          },
+          currentTimelineStep: isDelivered ? 9 : isShipped ? 7 : 5,
+          timeline: [
+            { step: 1, title: 'Order Ingested', time: '14:28 IST', desc: 'Validated & Fraud Scored', done: true },
+            { step: 2, title: 'Payment Reconciled', time: '14:28 IST', desc: 'Payment Gateway Verified', done: true },
+            { step: 3, title: 'Hub Inventory Allocated', time: '14:31 IST', desc: 'BLR-FC1 Matched via SLA', done: true },
+            { step: 4, title: 'Item Picked from Bin', time: '15:15 IST', desc: 'Aisle C-12 / Bin 5 Scanned', done: true },
+            { step: 5, title: 'QC & Packaging', time: '15:35 IST', desc: 'Studio Boxed with Ribbon', done: true, isCurrent: !isShipped && !isDelivered },
+            { step: 6, title: 'AWB Manifest Generated', time: '15:45 IST', desc: 'BlueDart Tracking Ingested', done: isShipped || isDelivered },
+            { step: 7, title: 'Handed to Courier Partner', time: '16:30 IST', desc: 'Dock 4 Departure', done: isShipped || isDelivered, isCurrent: isShipped },
+            { step: 8, title: 'Out for Final Delivery', time: 'Tomorrow 10:00', desc: 'Delivery Associate Outbound', done: isDelivered },
+            { step: 9, title: 'Delivered & Signature Collected', time: 'Tomorrow 12:30', desc: 'OTP Verified at Doorstep', done: isDelivered, isCurrent: isDelivered },
+          ],
+          rawBackend: ord
+        };
       });
-  }, [currentHub.id]);
+
+      setOrders([...apiOrders, ...INITIAL_ORDERS]);
+      if (apiOrders.length > 0) {
+        setInternalActiveId(apiOrders[0].id);
+      }
+    }
+  }, [apiData, currentHub?.id]);
 
   // Currently inspected order
   const activeOrder = useMemo(() => {
@@ -225,9 +225,12 @@ export function OrderManagement({
     if (updatedOrder.rawBackend?.id) {
       try {
         if (updatedOrder.status === 'Cancelled') {
-          await adminApi.cancelOrder(updatedOrder.rawBackend.id);
+          await cancelOrderMutation.mutateAsync(updatedOrder.rawBackend.id);
         } else if (updatedOrder.status === 'Dispatched') {
-          await adminApi.setOrderStatus(updatedOrder.rawBackend.id, { fulfillmentStatus: 'shipped' });
+          await updateStatusMutation.mutateAsync({
+            orderId: updatedOrder.rawBackend.id,
+            status: { fulfillmentStatus: 'shipped' }
+          });
         }
       } catch (err) {
         console.warn('Backend order update notice:', err?.message);

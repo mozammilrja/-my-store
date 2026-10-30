@@ -1,28 +1,63 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { HUBS } from './data/mockData';
 import { ensureAdminAuth } from './lib/api';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
-import { ExecutiveOverview } from './components/overview/ExecutiveOverview';
-import { OrderManagement } from './components/orders/OrderManagement';
-import { ProductCatalog } from './components/products/ProductCatalog';
-import { ReturnsAndExchanges } from './components/returns/ReturnsAndExchanges';
-import InventoryWarehouseManagement from './components/inventory/InventoryWarehouseManagement';
-import GstInvoiceManagement from './components/finance/GstInvoiceManagement';
-import { AnalyticsAndReports } from './components/analytics/AnalyticsAndReports';
-import { PaymentsAndReconciliation } from './components/finance/PaymentsAndReconciliation';
-import { PurchaseOrdersAndSuppliers } from './components/procurement/PurchaseOrdersAndSuppliers';
-import { ShipmentsAndDispatch } from './components/fulfillment/ShipmentsAndDispatch';
-import { CategoriesAndCollections } from './components/catalog/CategoriesAndCollections';
-import { CustomersAndLoyalty } from './components/customers/CustomersAndLoyalty';
-import { CreditNotesAndRefunds } from './components/finance/CreditNotesAndRefunds';
-import { PromotionsAndCoupons } from './components/promotions/PromotionsAndCoupons';
-import { UsersAndRoleAccess } from './components/admin/UsersAndRoleAccess';
-import { SystemSettings } from './components/settings/SystemSettings';
-import { GenericView } from './components/common/GenericView';
 import { CommandPalette } from './components/common/CommandPalette';
 import { NotificationsModal } from './components/common/NotificationsModal';
 import { Toast } from './components/common/Toast';
+
+// Lazy-loaded domain module chunks for performance and code-splitting
+const ExecutiveOverview = React.lazy(() => import('./components/overview/ExecutiveOverview').then(m => ({ default: m.ExecutiveOverview })));
+const OrderManagement = React.lazy(() => import('./components/orders/OrderManagement').then(m => ({ default: m.OrderManagement })));
+const ProductCatalog = React.lazy(() => import('./components/products/ProductCatalog').then(m => ({ default: m.ProductCatalog })));
+const ReturnsAndExchanges = React.lazy(() => import('./components/returns/ReturnsAndExchanges').then(m => ({ default: m.ReturnsAndExchanges })));
+const InventoryWarehouseManagement = React.lazy(() => import('./components/inventory/InventoryWarehouseManagement'));
+const GstInvoiceManagement = React.lazy(() => import('./components/finance/GstInvoiceManagement'));
+const AnalyticsAndReports = React.lazy(() => import('./components/analytics/AnalyticsAndReports'));
+const PaymentsAndReconciliation = React.lazy(() => import('./components/finance/PaymentsAndReconciliation'));
+const PurchaseOrdersAndSuppliers = React.lazy(() => import('./components/procurement/PurchaseOrdersAndSuppliers'));
+const ShipmentsAndDispatch = React.lazy(() => import('./components/fulfillment/ShipmentsAndDispatch').then(m => ({ default: m.ShipmentsAndDispatch })));
+const CategoriesAndCollections = React.lazy(() => import('./components/catalog/CategoriesAndCollections').then(m => ({ default: m.CategoriesAndCollections })));
+const CustomersAndLoyalty = React.lazy(() => import('./components/customers/CustomersAndLoyalty').then(m => ({ default: m.CustomersAndLoyalty })));
+const CreditNotesAndRefunds = React.lazy(() => import('./components/finance/CreditNotesAndRefunds').then(m => ({ default: m.CreditNotesAndRefunds })));
+const PromotionsAndCoupons = React.lazy(() => import('./components/promotions/PromotionsAndCoupons').then(m => ({ default: m.PromotionsAndCoupons })));
+const UsersAndRoleAccess = React.lazy(() => import('./components/admin/UsersAndRoleAccess').then(m => ({ default: m.UsersAndRoleAccess })));
+const SystemSettings = React.lazy(() => import('./components/settings/SystemSettings').then(m => ({ default: m.SystemSettings })));
+const GenericView = React.lazy(() => import('./components/common/GenericView').then(m => ({ default: m.GenericView })));
+
+const KNOWN_MODULES = new Set([
+  'overview',
+  'analytics-and-reports',
+  'order-management',
+  'products',
+  'returns-and-exchanges',
+  'inventory-and-warehouses',
+  'purchase-orders-and-suppliers',
+  'gst-and-tax-invoices',
+  'payments-and-reconciliation',
+  'categories-and-collections',
+  'shipments-and-dispatch',
+  'customers-and-loyalty',
+  'credit-notes-and-refunds',
+  'promotions-and-coupons',
+  'users-and-role-access',
+  'system-settings',
+]);
+
+function ViewLoadingFallback() {
+  return (
+    <div className="w-full flex flex-col gap-6 animate-pulse p-4" aria-busy="true" aria-label="Loading module">
+      <div className="h-8 w-64 bg-surface-container-high rounded-md" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-28 bg-surface-container-low border border-border/50 rounded-xl" />
+        ))}
+      </div>
+      <div className="h-96 bg-surface-container-low border border-border/50 rounded-xl w-full" />
+    </div>
+  );
+}
 
 const getInitialPath = () => {
   const hash = window.location.hash.replace(/^#\/?/, '').trim();
@@ -35,7 +70,6 @@ export function App() {
   const [selectedOrderId, setSelectedOrderId] = useState('EVR-984210-BLR');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [toast, setToast] = useState(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -59,15 +93,6 @@ export function App() {
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, [currentPath]);
-
-  // Toggle Dark Mode on html root
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
 
   const showToast = (toastObj) => {
     if (typeof toastObj === 'string') {
@@ -159,8 +184,6 @@ export function App() {
           isCollapsed={isCollapsed}
           onOpenCommandPalette={() => setCommandPaletteOpen(true)}
           onOpenNotifications={() => setNotificationsOpen(true)}
-          isDarkMode={isDarkMode}
-          onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
           currentHub={currentHub}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -170,7 +193,8 @@ export function App() {
 
         {/* Dynamic Route View */}
         <main className="w-full pt-16 bg-surface-canvas min-h-screen px-4 md:px-space-lg py-4 md:py-space-lg">
-          {currentPath === 'overview' && (
+          <Suspense fallback={<ViewLoadingFallback />}>
+            {currentPath === 'overview' && (
             <ExecutiveOverview
               onNavigate={handleNavigate}
               onShowToast={showToast}
@@ -285,28 +309,14 @@ export function App() {
             />
           )}
 
-          {currentPath !== 'overview' && 
-           currentPath !== 'analytics-and-reports' &&
-           currentPath !== 'order-management' && 
-           currentPath !== 'products' && 
-           currentPath !== 'returns-and-exchanges' && 
-           currentPath !== 'inventory-and-warehouses' && 
-           currentPath !== 'purchase-orders-and-suppliers' &&
-           currentPath !== 'gst-and-tax-invoices' && 
-           currentPath !== 'payments-and-reconciliation' &&
-           currentPath !== 'categories-and-collections' &&
-           currentPath !== 'shipments-and-dispatch' &&
-           currentPath !== 'customers-and-loyalty' &&
-           currentPath !== 'credit-notes-and-refunds' &&
-           currentPath !== 'promotions-and-coupons' &&
-           currentPath !== 'users-and-role-access' &&
-           currentPath !== 'system-settings' && (
-            <GenericView
-              path={currentPath}
-              onNavigate={handleNavigate}
-              onShowToast={showToast}
-            />
-          )}
+            {!KNOWN_MODULES.has(currentPath) && (
+              <GenericView
+                path={currentPath}
+                onNavigate={handleNavigate}
+                onShowToast={showToast}
+              />
+            )}
+          </Suspense>
         </main>
       </div>
 

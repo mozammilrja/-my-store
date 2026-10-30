@@ -2,6 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Select } from '../ui/select';
 import { collectionsData } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
+import {
+  useCategoriesQuery,
+  useCollectionsQuery,
+  useCreateCategoryMutation,
+  useDeleteCategoryMutation,
+  useCreateCollectionMutation
+} from '../../hooks/useAdminQueries';
 
 export function CategoriesAndCollections({ onNavigate, onShowToast }) {
   const [activeTab, setActiveTab] = useState('drops'); // 'drops', 'tree', 'rules', 'channels'
@@ -13,7 +20,13 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
   const [viewDensity, setViewDensity] = useState('list'); // 'list' | 'grid'
   const [selectedCheckboxes, setSelectedCheckboxes] = useState({ 'col-1': true });
 
-  // Live Backend Data State
+  // TanStack Query for categories and collections
+  const { data: categoriesData, isLoading: isCategoriesLoading } = useCategoriesQuery();
+  const { data: collectionsDataRes, isLoading: isCollectionsLoading } = useCollectionsQuery();
+  const createCategoryMutation = useCreateCategoryMutation();
+  const deleteCategoryMutation = useDeleteCategoryMutation();
+  const createCollectionMutation = useCreateCollectionMutation();
+
   const [dbCategories, setDbCategories] = useState([]);
   const [dbCollections, setDbCollections] = useState([]);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -31,29 +44,24 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
     handle: '',
   });
 
-  const loadTaxonomy = async () => {
-    try {
-      const [catsRes, colsRes] = await Promise.all([
-        adminApi.categories(),
-        adminApi.collections(),
-      ]);
-      if (catsRes?.categories) setDbCategories(catsRes.categories);
-      if (colsRes?.collections) setDbCollections(colsRes.collections);
-    } catch (err) {
-      console.warn('Could not load categories or collections:', err?.message);
+  useEffect(() => {
+    if (categoriesData?.categories) {
+      setDbCategories(categoriesData.categories);
     }
-  };
+  }, [categoriesData]);
 
   useEffect(() => {
-    loadTaxonomy();
-  }, []);
+    if (collectionsDataRes?.collections) {
+      setDbCollections(collectionsDataRes.collections);
+    }
+  }, [collectionsDataRes]);
 
   const handleCreateCategory = async (e) => {
     e.preventDefault();
     if (!categoryForm.name || !categoryForm.handle) return;
     setIsSubmitting(true);
     try {
-      await adminApi.createCategory({
+      await createCategoryMutation.mutateAsync({
         name: categoryForm.name,
         handle: categoryForm.handle.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
         description: categoryForm.description || undefined,
@@ -65,7 +73,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
       });
       setIsCategoryModalOpen(false);
       setCategoryForm({ name: '', handle: '', description: '' });
-      await loadTaxonomy();
     } catch (err) {
       onShowToast?.({
         type: 'error',
@@ -80,13 +87,12 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
   const handleDeleteCategory = async (catId, catName) => {
     if (!confirm(`Delete category "${catName}"?`)) return;
     try {
-      await adminApi.deleteCategory(catId);
+      await deleteCategoryMutation.mutateAsync(catId);
       onShowToast?.({
         type: 'info',
         title: 'Category Removed',
         message: `Category "${catName}" removed.`,
       });
-      await loadTaxonomy();
     } catch (err) {
       onShowToast?.({
         type: 'error',
@@ -101,7 +107,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
     if (!collectionForm.title || !collectionForm.handle) return;
     setIsSubmitting(true);
     try {
-      await adminApi.createCollection({
+      await createCollectionMutation.mutateAsync({
         title: collectionForm.title,
         handle: collectionForm.handle.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
       });
@@ -112,7 +118,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
       });
       setIsCollectionModalOpen(false);
       setCollectionForm({ title: '', handle: '' });
-      await loadTaxonomy();
     } catch (err) {
       onShowToast?.({
         type: 'error',

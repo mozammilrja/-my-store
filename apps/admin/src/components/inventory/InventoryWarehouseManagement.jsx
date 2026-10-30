@@ -9,6 +9,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '
 import { Alert } from '../ui/alert';
 import { INITIAL_INVENTORY, INITIAL_INVENTORY_METRICS, HUBS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
+import { useProductsQuery, useInventoryQuery, useAdjustInventoryMutation } from '../../hooks/useAdminQueries';
 
 export default function InventoryWarehouseManagement({ currentHub, onShowToast }) {
   const [inventoryList, setInventoryList] = useState(INITIAL_INVENTORY);
@@ -17,46 +18,70 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
   const [stockHealthFilter, setStockHealthFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch real products from backend to populate stock allocations
-  useEffect(() => {
-    adminApi.products({ limit: 50 })
-      .then(res => {
-        if (res?.products?.length > 0) {
-          const liveItems = [];
-          res.products.forEach(p => {
-            (p.variants || []).forEach((v, vIdx) => {
-              const stock = v.inventoryQuantity ?? 25;
-              liveItems.push({
-                id: `live-inv-${p.id}-${v.id || vIdx}`,
-                productId: p.id,
-                variantId: v.id,
-                name: p.title,
-                sku: v.sku || `EVR-${p.handle.slice(0, 4).toUpperCase()}-${v.title || 'M'}`,
-                variant: v.title || 'Standard',
-                ean: `89044${Math.floor(1000000 + Math.random() * 9000000)}`,
-                category: p.categoryIds?.[0] ? 'Apparel' : 'Fashion Wear',
-                hub: 'BLR-FC1',
-                bin: `Aisle ${(vIdx % 5) + 1} / Bin ${(vIdx % 12) + 1}`,
-                onHand: stock,
-                reserved: Math.min(stock, Math.floor(stock * 0.15)),
-                ats: Math.max(0, stock - Math.floor(stock * 0.15)),
-                safety: 10,
-                status: stock === 0 ? 'Depleted' : stock < 10 ? 'Critical Low-Stock' : stock > 100 ? 'Overstocked' : 'Healthy',
-                image: p.thumbnail || p.images?.[0] || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=200',
-              });
-            });
-          });
+  // TanStack Query for direct inventory telemetry and adjustment mutation
+  const { data: inventoryData, isLoading: isInventoryLoading } = useInventoryQuery();
+  const { data: productsData, isLoading: isProductsLoading } = useProductsQuery({ limit: 50 });
+  const adjustInventoryMutation = useAdjustInventoryMutation();
 
-          if (liveItems.length > 0) {
-            setInventoryList(prev => [...liveItems, ...prev.filter(m => !liveItems.some(l => l.sku === m.sku))]);
-          }
-        }
-      })
-      .catch(err => {
-        console.warn('Could not load products for inventory view:', err?.message);
+  // Populate stock allocations from real backend inventory telemetry
+  useEffect(() => {
+    if (inventoryData?.inventory?.length > 0) {
+      const liveItems = inventoryData.inventory.map((inv, idx) => {
+        const stock = inv.stock ?? 25;
+        const reserved = inv.allocated ?? Math.min(stock, Math.floor(stock * 0.15));
+        const ats = Math.max(0, stock - reserved);
+        return {
+          id: `live-inv-${inv.productId}-${inv.id || idx}`,
+          productId: inv.productId,
+          variantId: inv.id,
+          name: inv.productTitle,
+          sku: inv.sku,
+          variant: inv.variantTitle || 'Standard',
+          ean: `89044${Math.floor(1000000 + Math.random() * 9000000)}`,
+          category: 'Apparel & Couture',
+          hub: inv.hubId || 'BLR-FC1',
+          bin: `Aisle ${(idx % 5) + 1} / Bin ${(idx % 12) + 1}`,
+          onHand: stock,
+          reserved,
+          ats,
+          safety: inv.reorderPoint || 10,
+          status: stock === 0 ? 'Depleted' : ats < (inv.reorderPoint || 10) ? 'Critical Low-Stock' : stock > 100 ? 'Overstocked' : 'Healthy',
+          image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=200',
+        };
       });
-  }, []);
-  
+      setInventoryList(prev => [...liveItems, ...prev.filter(m => !liveItems.some(l => l.sku === m.sku))]);
+    } else if (productsData?.products?.length > 0) {
+      const liveItems = [];
+      productsData.products.forEach(p => {
+        (p.variants || []).forEach((v, vIdx) => {
+          const stock = v.inventoryQuantity ?? 25;
+          liveItems.push({
+            id: `live-inv-${p.id}-${v.id || vIdx}`,
+            productId: p.id,
+            variantId: v.id,
+            name: p.title,
+            sku: v.sku || `EVR-${p.handle.slice(0, 4).toUpperCase()}-${v.title || 'M'}`,
+            variant: v.title || 'Standard',
+            ean: `89044${Math.floor(1000000 + Math.random() * 9000000)}`,
+            category: p.categoryIds?.[0] ? 'Apparel' : 'Fashion Wear',
+            hub: 'BLR-FC1',
+            bin: `Aisle ${(vIdx % 5) + 1} / Bin ${(vIdx % 12) + 1}`,
+            onHand: stock,
+            reserved: Math.min(stock, Math.floor(stock * 0.15)),
+            ats: Math.max(0, stock - Math.floor(stock * 0.15)),
+            safety: 10,
+            status: stock === 0 ? 'Depleted' : stock < 10 ? 'Critical Low-Stock' : stock > 100 ? 'Overstocked' : 'Healthy',
+            image: p.thumbnail || p.images?.[0] || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=200',
+          });
+        });
+      });
+
+      if (liveItems.length > 0) {
+        setInventoryList(prev => [...liveItems, ...prev.filter(m => !liveItems.some(l => l.sku === m.sku))]);
+      }
+    }
+  }, [inventoryData, productsData]);
+
   // Selected SKU for right adjustment drawer
   const [selectedItemId, setSelectedItemId] = useState('inv-2');
   const [isDrawerOpen, setIsDrawerOpen] = useState(true);
@@ -145,6 +170,15 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
       }
       return item;
     }));
+
+    if (selectedItem.productId && selectedItem.variantId && adjustmentDelta !== 0) {
+      adjustInventoryMutation.mutateAsync({
+        productId: selectedItem.productId,
+        variantId: selectedItem.variantId,
+        adjustment: adjustmentDelta,
+        reason: adjustmentReason,
+      }).catch(err => console.warn('Could not persist inventory adjustment:', err));
+    }
 
     if (onShowToast) {
       onShowToast(`Stock adjusted for ${selectedItem.sku}: ${adjustmentDelta >= 0 ? '+' : ''}${adjustmentDelta} pcs saved to ${targetHub} ledger.`);

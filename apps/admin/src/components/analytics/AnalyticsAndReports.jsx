@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
+import { useDashboardQuery } from '../../hooks/useAdminQueries';
 
 export function AnalyticsAndReports({ onNavigate, onShowToast }) {
   const [dateRange, setDateRange] = useState('30d'); // '30d', 'mtd', 'q2'
   const [skuTab, setSkuTab] = useState('top-margin'); // 'top-margin', 'high-returns'
+
+  // TanStack Query for live dashboard analytics data
+  const { data: dashboardData, isLoading: isDashboardLoading } = useDashboardQuery();
 
   const handleExportCsv = () => {
     const headers = ['Channel Name', 'Orders Vol', 'Gross GMV', 'Conv. Rate', 'AOV (INR)', 'Return Rate', 'Take Rate / Comm.', 'CM2 Margin'];

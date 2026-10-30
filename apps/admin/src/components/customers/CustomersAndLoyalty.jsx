@@ -3,6 +3,7 @@ import { Select } from '../ui/select';
 import { customerList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
+import { useCustomersQuery, useCustomerQuery } from '../../hooks/useAdminQueries';
 
 export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
   const [activeSegment, setActiveSegment] = useState('all'); // 'all', 'vip', 'risk', 'dormant', 'rfm'
@@ -18,30 +19,24 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
   const [dbCustomers, setDbCustomers] = useState([]);
   const [customerOrders, setCustomerOrders] = useState([]);
 
-  useEffect(() => {
-    adminApi.customers({ limit: 50 })
-      .then(res => {
-        if (res?.customers) {
-          setDbCustomers(res.customers);
-        }
-      })
-      .catch(err => {
-        console.warn('Could not load customers from API:', err?.message);
-      });
-  }, []);
+  // TanStack Query for customers list and individual customer details
+  const { data: customersData, isLoading: isCustomersLoading } = useCustomersQuery({ limit: 50 });
+  const targetDbCustomerId = selectedCustomerId?.startsWith('cust_') ? selectedCustomerId : null;
+  const { data: singleCustomerData } = useCustomerQuery(targetDbCustomerId);
 
-  // When a db customer is selected, fetch their real order history
   useEffect(() => {
-    if (selectedCustomerId && selectedCustomerId.startsWith('cust_')) {
-      adminApi.customer(selectedCustomerId)
-        .then(res => {
-          if (res?.orders) setCustomerOrders(res.orders);
-        })
-        .catch(() => setCustomerOrders([]));
-    } else {
+    if (customersData?.customers) {
+      setDbCustomers(customersData.customers);
+    }
+  }, [customersData]);
+
+  useEffect(() => {
+    if (singleCustomerData?.orders) {
+      setCustomerOrders(singleCustomerData.orders);
+    } else if (!targetDbCustomerId) {
       setCustomerOrders([]);
     }
-  }, [selectedCustomerId]);
+  }, [singleCustomerData, targetDbCustomerId]);
 
   const mergedCustomers = useMemo(() => {
     const fromDb = dbCustomers.map((c, idx) => {

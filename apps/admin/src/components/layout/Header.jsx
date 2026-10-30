@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
 import { Badge, Button, Input, Avatar, AvatarImage, AvatarFallback } from '../ui';
+import { clearToken } from '../../lib/api';
+import { useTheme } from '../../lib/theme';
 
 export function Header({ 
   isCollapsed, 
   onOpenCommandPalette, 
   onOpenNotifications, 
-  isDarkMode, 
-  onToggleDarkMode, 
   currentHub,
   searchQuery,
   onSearchChange,
   unreadCount = 3,
   onToggleMobileMenu
 }) {
+  const { theme, toggleTheme, isDark } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
 
   const todayStr = new Intl.DateTimeFormat('en-IN', {
@@ -108,17 +109,17 @@ export function Header({
             <span className="material-symbols-outlined text-[20px]">help_outline</span>
           </Button>
 
-          {/* Theme Toggle (Dark / Light) */}
+          {/* Theme Toggle (Dark / Light / System) */}
           <Button 
             variant="ghost"
             size="icon"
-            onClick={onToggleDarkMode}
+            onClick={toggleTheme}
             className="h-9 w-9 text-secondary hover:text-text-primary" 
-            title={`Switch to ${isDarkMode ? 'Light' : 'Dark'} Mode`} 
+            title={`Current theme: ${theme.toUpperCase()} (Click to toggle)`} 
             type="button"
           >
             <span className="material-symbols-outlined text-[20px]">
-              {isDarkMode ? 'dark_mode' : 'light_mode'}
+              {theme === 'system' ? 'brightness_auto' : isDark ? 'dark_mode' : 'light_mode'}
             </span>
           </Button>
         </div>
@@ -175,7 +176,11 @@ export function Header({
                 <span>Role & API Keys</span>
               </button>
               <button 
-                onClick={() => setProfileOpen(false)}
+                onClick={() => {
+                  clearToken();
+                  setProfileOpen(false);
+                  window.location.reload();
+                }}
                 className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-surface-subtle text-status-danger flex items-center gap-2"
                 type="button"
               >

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { INITIAL_PRODUCTS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
+import { useProductsQuery, useUpdateProductMutation } from '../../hooks/useAdminQueries';
 import {
   Card,
   CardContent,
@@ -84,51 +85,49 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     }
   }, [product]);
 
-  // Fetch real catalog from backend API on mount
+  // TanStack Query: catalog products and mutations
+  const { data: catalogData, isLoading: isCatalogLoading } = useProductsQuery({ limit: 100 });
+  const updateProductMutation = useUpdateProductMutation();
+
+  // Sync products when query cache updates
   useEffect(() => {
-    adminApi.products({ limit: 100 })
-      .then((data) => {
-        if (data?.products && data.products.length > 0) {
-          const apiProducts = data.products.map((p, idx) => {
-            const firstPrice = p.variants?.[0]?.prices?.inr || p.variants?.[0]?.prices?.eur || 4890;
-            const priceINR = firstPrice > 1000 ? Math.round(firstPrice / 100) : firstPrice;
-            return {
-              id: p.id,
-              styleCode: p.handle ? p.handle.toUpperCase() : `EVR-SKU-${idx + 1}`,
-              title: p.title,
-              brand: 'Everwear Atelier',
-              collection: 'Autumn / Festive 24',
-              department: idx % 2 === 0 ? 'Women' : 'Men',
-              category: idx % 3 === 0 ? "Women's Ethnic" : idx % 3 === 1 ? "Women's Western" : "Men's Casual",
-              seasonTag: 'AUTUMN / ATELIER 24',
-              fabricComposition: p.material || 'Premium Woven Fabric',
-              silhouette: 'Tailored Fit',
-              pattern: 'Solid / Subtle Texture',
-              washCare: 'Dry Clean Recommended',
-              origin: 'India Atelier Workshop',
-              hsnCode: '6204.49.00',
-              gstRate: 12,
-              mrp: Math.round(priceINR * 1.4),
-              b2cPrice: priceINR,
-              procurementCost: Math.round(priceINR * 0.4),
-              storefrontSync: p.status === 'published',
-              codActive: true,
-              expressShip: true,
-              thumbnail: p.thumbnail || (p.images && p.images[0]) || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBY9Tgm6nn9TMViDB2K0jV_IgnR1CTQzPSh4UF1qP0xioyqkpMq3i7rxekw2L-XzIqJ7t0oI4QqiK1ZfohmEgXR501aua43kgyya37eW_Pnzg1T4YVEcL0PZnC5nDOlZkUy2t-rC3JITisM8eYFYMI4d6TLZtJcydeuJ8KukkLzD8BdJmW5hA7Jm3FflcjpsXIW5n5FvIgEXboyVtaKgQdoBRB4-htL-mHupOCj5v7x',
-              mediaAssets: p.images && p.images.length > 0 
-                ? p.images.map((img, i) => ({ slot: `Perspective ${i + 1}`, url: img, isPrimary: i === 0 }))
-                : [{ slot: 'Primary Editorial', url: p.thumbnail, isPrimary: true }],
-              rawBackend: p
-            };
-          });
-          // Merge with initial rich styles
-          setAllProducts([...INITIAL_PRODUCTS, ...apiProducts]);
-        }
-      })
-      .catch((err) => {
-        console.warn('Backend products read Notice:', err?.message);
+    if (catalogData?.products && catalogData.products.length > 0) {
+      const apiProducts = catalogData.products.map((p, idx) => {
+        const firstPrice = p.variants?.[0]?.prices?.inr || p.variants?.[0]?.prices?.eur || 4890;
+        const priceINR = firstPrice > 1000 ? Math.round(firstPrice / 100) : firstPrice;
+        return {
+          id: p.id,
+          styleCode: p.handle ? p.handle.toUpperCase() : `EVR-SKU-${idx + 1}`,
+          title: p.title,
+          brand: 'Everwear Atelier',
+          collection: 'Autumn / Festive 24',
+          department: idx % 2 === 0 ? 'Women' : 'Men',
+          category: idx % 3 === 0 ? "Women's Ethnic" : idx % 3 === 1 ? "Women's Western" : "Men's Casual",
+          seasonTag: 'AUTUMN / ATELIER 24',
+          fabricComposition: p.material || 'Premium Woven Fabric',
+          silhouette: 'Tailored Fit',
+          pattern: 'Solid / Subtle Texture',
+          washCare: 'Dry Clean Recommended',
+          origin: 'India Atelier Workshop',
+          hsnCode: '6204.49.00',
+          gstRate: 12,
+          mrp: Math.round(priceINR * 1.4),
+          b2cPrice: priceINR,
+          procurementCost: Math.round(priceINR * 0.4),
+          storefrontSync: p.status === 'published',
+          codActive: true,
+          expressShip: true,
+          thumbnail: p.thumbnail || (p.images && p.images[0]) || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBY9Tgm6nn9TMViDB2K0jV_IgnR1CTQzPSh4UF1qP0xioyqkpMq3i7rxekw2L-XzIqJ7t0oI4QqiK1ZfohmEgXR501aua43kgyya37eW_Pnzg1T4YVEcL0PZnC5nDOlZkUy2t-rC3JITisM8eYFYMI4d6TLZtJcydeuJ8KukkLzD8BdJmW5hA7Jm3FflcjpsXIW5n5FvIgEXboyVtaKgQdoBRB4-htL-mHupOCj5v7x',
+          mediaAssets: p.images && p.images.length > 0 
+            ? p.images.map((img, i) => ({ slot: `Perspective ${i + 1}`, url: img, isPrimary: i === 0 }))
+            : [{ slot: 'Primary Editorial', url: p.thumbnail, isPrimary: true }],
+          rawBackend: p
+        };
       });
-  }, []);
+      // Merge with initial rich styles
+      setAllProducts([...INITIAL_PRODUCTS, ...apiProducts]);
+    }
+  }, [catalogData]);
 
   // Filtered styles based on activeCategory
   const filteredProducts = useMemo(() => {
@@ -152,10 +151,13 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     try {
       // If product has a rawBackend id, send real PATCH to backend
       if (product.rawBackend?.id || product.id?.startsWith('prod_')) {
-        await adminApi.updateProduct(product.id, {
-          title,
-          status: 'published',
-          description: `${silhouette} in ${fabric}. ${pattern}.`,
+        await updateProductMutation.mutateAsync({
+          productId: product.id,
+          data: {
+            title,
+            status: 'published',
+            description: `${silhouette} in ${fabric}. ${pattern}.`,
+          }
         });
       }
 
@@ -187,9 +189,12 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     setIsSaving(true);
     try {
       if (product.rawBackend?.id || product.id?.startsWith('prod_')) {
-        await adminApi.updateProduct(product.id, {
-          title,
-          status: 'draft',
+        await updateProductMutation.mutateAsync({
+          productId: product.id,
+          data: {
+            title,
+            status: 'draft',
+          }
         });
       }
       onShowToast({

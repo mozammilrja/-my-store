@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { TOP_SELLING_SKUS, OPERATIONAL_INCIDENTS } from '../../data/mockData';
-import { adminApi } from '../../lib/api';
+import { useDashboardQuery } from '../../hooks/useAdminQueries';
 import { formatMoney, formatDate } from '../../lib/format';
 import {
   Card,
@@ -29,10 +29,9 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
   const [chartMode, setChartMode] = useState('Hourly GMV');
   const [incidents, setIncidents] = useState(OPERATIONAL_INCIDENTS);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [dashboardData, setDashboardData] = useState(null);
+  const { data: dashboardData, isLoading, refetch } = useDashboardQuery();
 
-  // Live orders stream
-  const [recentOrders, setRecentOrders] = useState([
+  const defaultOrders = useMemo(() => [
     {
       ref: '#EW-892401',
       fullId: 'EVR-984210-BLR',
@@ -113,59 +112,43 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
       slaStatus: 'Dispatched',
       slaVariant: 'success',
     },
-  ]);
+  ], []);
 
-  // Fetch real dashboard stats from backend
-  const fetchDashboard = () => {
-    adminApi.dashboard()
-      .then((data) => {
-        if (data) {
-          setDashboardData(data);
-          if (data.recentOrders && data.recentOrders.length > 0) {
-            const mappedOrders = data.recentOrders.map((ro, i) => {
-              const val = ro.totals?.total ? formatMoney(ro.totals.total, ro.currency) : '₹4,890';
-              const name = ro.shippingAddress ? `${ro.shippingAddress.firstName || ''} ${ro.shippingAddress.lastName || ''}`.trim() : ro.email.split('@')[0];
-              return {
-                ref: `#EW-${ro.displayId || 1000 + i}`,
-                fullId: `EVR-${ro.displayId || 1000 + i}-BLR`,
-                timeAgo: 'Just now',
-                customer: name,
-                tier: 'VIP COUTURE',
-                tierVariant: 'vip',
-                email: ro.email,
-                items: `${ro.items?.length || 1} items`,
-                value: val,
-                payMode: ro.paymentStatus === 'paid' ? 'UPI (Instant)' : 'Cash on Delivery',
-                payIcon: ro.paymentStatus === 'paid' ? 'qr_code_2' : 'local_atm',
-                node: 'BLR-FC1',
-                slaStatus: ro.fulfillmentStatus === 'shipped' ? 'Dispatched' : 'Picking',
-                slaVariant: ro.fulfillmentStatus === 'shipped' ? 'success' : 'info',
-              };
-            });
-            setRecentOrders(mappedOrders);
-          }
-        }
-      })
-      .catch((err) => {
-        console.warn('Dashboard live telemetry read notice:', err?.message);
+  const recentOrders = useMemo(() => {
+    if (dashboardData?.recentOrders && dashboardData.recentOrders.length > 0) {
+      return dashboardData.recentOrders.map((ro, i) => {
+        const val = ro.totals?.total ? formatMoney(ro.totals.total, ro.currency) : '₹4,890';
+        const name = ro.shippingAddress ? `${ro.shippingAddress.firstName || ''} ${ro.shippingAddress.lastName || ''}`.trim() : ro.email?.split('@')[0] || 'Customer';
+        return {
+          ref: `#EW-${ro.displayId || 1000 + i}`,
+          fullId: `EVR-${ro.displayId || 1000 + i}-BLR`,
+          timeAgo: 'Just now',
+          customer: name,
+          tier: 'VIP COUTURE',
+          tierVariant: 'vip',
+          email: ro.email,
+          items: `${ro.items?.length || 1} items`,
+          value: val,
+          payMode: ro.paymentStatus === 'paid' ? 'UPI (Instant)' : 'Cash on Delivery',
+          payIcon: ro.paymentStatus === 'paid' ? 'qr_code_2' : 'local_atm',
+          node: 'BLR-FC1',
+          slaStatus: ro.fulfillmentStatus === 'shipped' ? 'Dispatched' : 'Picking',
+          slaVariant: ro.fulfillmentStatus === 'shipped' ? 'success' : 'info',
+        };
       });
-  };
+    }
+    return defaultOrders;
+  }, [dashboardData, defaultOrders]);
 
-  useEffect(() => {
-    fetchDashboard();
-  }, []);
-
-  const handleFlashSync = () => {
+  const handleFlashSync = async () => {
     setIsSyncing(true);
-    fetchDashboard();
-    setTimeout(() => {
-      setIsSyncing(false);
-      onShowToast({
-        type: 'success',
-        title: 'Flash Sync Complete',
-        message: 'Telemetry refreshed across all 4 national fulfillment clusters (Cluster BLR-FC1 live).',
-      });
-    }, 600);
+    await refetch();
+    setIsSyncing(false);
+    onShowToast({
+      type: 'success',
+      title: 'Flash Sync Complete',
+      message: 'Telemetry refreshed across all 4 national fulfillment clusters (Cluster BLR-FC1 live).',
+    });
   };
 
   const handleDownloadPdf = () => {

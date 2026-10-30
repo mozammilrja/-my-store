@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { notesList } from '../../data/mockData';
+import { adminApi } from '../../lib/api';
+import { useCreditNotesQuery } from '../../hooks/useAdminQueries';
 
 export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
   const [selectedNoteId, setSelectedNoteId] = useState('#CN-2024-001420');
@@ -7,12 +9,34 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
   const [disbursementFilter, setDisbursementFilter] = useState('All');
   const [statusTab, setStatusTab] = useState('all'); // 'all', 'reconciled', 'syncing', 'disputed'
   const [searchFilter, setSearchFilter] = useState('');
+  const [notesData, setNotesData] = useState(notesList);
 
+  // TanStack Query for credit notes
+  const { data: creditNotesData, isLoading: isCreditNotesLoading } = useCreditNotesQuery();
 
+  useEffect(() => {
+    if (creditNotesData?.creditNotes?.length) {
+      const live = creditNotesData.creditNotes.map(cn => ({
+        id: `#${cn.creditNoteNumber}`,
+        invoice: `#${cn.invoiceNumber}`,
+        date: new Date(cn.createdAt).toLocaleDateString(),
+        customer: cn.customerName,
+        type: 'Return Refund',
+        reason: cn.reason,
+        originalAmt: `₹${(cn.refundAmount / 100).toLocaleString()}`,
+        taxReversal: `₹${Math.round((cn.refundAmount * 0.12) / 100).toLocaleString()}`,
+        refundAmt: `₹${(cn.refundAmount / 100).toLocaleString()}`,
+        disbursement: 'Source Payment Gateway',
+        status: 'Reconciled',
+        statusClass: 'bg-status-success-bg text-status-success',
+      }));
+      setNotesData(prev => [...live, ...prev.filter(p => !live.some(l => l.id === p.id))]);
+    }
+  }, [creditNotesData]);
 
-  const selectedNote = notesList.find(n => n.id === selectedNoteId) || notesList[0];
+  const selectedNote = notesData.find(n => n.id === selectedNoteId) || notesData[0];
 
-  const filteredNotes = notesList.filter(note => {
+  const filteredNotes = notesData.filter(note => {
     if (statusTab === 'reconciled' && note.status !== 'Reconciled') return false;
     if (statusTab === 'syncing' && note.status !== 'GSTR-1 Synced') return false;
     if (statusTab === 'disputed' && note.status !== 'Disputed / Hold') return false;

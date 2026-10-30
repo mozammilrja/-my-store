@@ -3,7 +3,7 @@
  * Connects directly to the Everwear Commerce API (apps/backend on port 9100).
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:9100';
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9100' : 'https://api.everwear.com');
 const TOKEN_KEY = 'everwear_admin_token';
 const DEFAULT_EMAIL = 'admin@everwear.test';
 const DEFAULT_PASSWORD = 'adminpassword123';
@@ -33,18 +33,39 @@ export const setToken = (token) => {
   }
 };
 
+const onClearTokenListeners = new Set();
+
+export const registerOnClearToken = (listener) => {
+  if (typeof listener === 'function') {
+    onClearTokenListeners.add(listener);
+    return () => onClearTokenListeners.delete(listener);
+  }
+};
+
 export const clearToken = () => {
   try {
     localStorage.removeItem(TOKEN_KEY);
   } catch {
     // Ignore
   }
+  onClearTokenListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch {
+      // Ignore listener errors during teardown
+    }
+  });
 };
 
-/** Ensures an active admin authentication token exists, auto-signing in if needed */
+/** Ensures an active admin authentication token exists, auto-signing in if needed in dev */
 export async function ensureAdminAuth() {
   const existingToken = getToken();
   if (existingToken) return existingToken;
+
+  // In production builds, do not attempt auto-login with default developer credentials
+  if (import.meta.env.PROD) {
+    return null;
+  }
 
   try {
     const res = await fetch(`${API_URL}/admin/auth/login`, {
@@ -94,7 +115,7 @@ export async function api(path, options = {}) {
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
   } catch (err) {
-    throw new ApiError(503, 'unavailable', "Can't reach the API at http://localhost:9100. Is the backend running?");
+    throw new ApiError(503, 'unavailable', `Can't reach the API at ${API_URL}. Is the backend running?`);
   }
 
   // Handle unauthorized by attempting one re-auth
@@ -209,4 +230,24 @@ export const adminApi = {
   // Settings
   settings: () => api('/admin/settings'),
   updateSettings: (body) => api('/admin/settings', { method: 'PATCH', body }),
+
+  // Shipments & Logistics
+  shipments: () => api('/admin/shipments'),
+  createShipment: (orderId, body = {}) => api(`/admin/orders/${orderId}/shipment`, { method: 'POST', body }),
+  trackShipment: (orderId) => api(`/admin/orders/${orderId}/track`),
+  returnAction: (orderId, body) => api(`/admin/orders/${orderId}/return-request`, { method: 'POST', body }),
+
+  // Invoices & Credit Notes (GST & Tax)
+  invoices: () => api('/admin/invoices'),
+  creditNotes: () => api('/admin/credit-notes'),
+
+  // Procurement & Suppliers
+  suppliers: () => api('/admin/suppliers'),
+  createSupplier: (body) => api('/admin/suppliers', { method: 'POST', body }),
+  purchaseOrders: () => api('/admin/purchase-orders'),
+  createPurchaseOrder: (body) => api('/admin/purchase-orders', { method: 'POST', body }),
+
+  // Inventory & Warehouse Telemetry
+  inventory: () => api('/admin/inventory'),
+  adjustInventory: (body) => api('/admin/inventory/adjust', { method: 'POST', body }),
 };

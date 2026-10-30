@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Select } from '../ui/select';
 import { adminApi } from '../../lib/api';
+import { useSettingsQuery, useUpdateSettingsMutation } from '../../hooks/useAdminQueries';
 
 export function SystemSettings({ onNavigate, onShowToast }) {
   const [activeSection, setActiveSection] = useState('general');
@@ -10,32 +11,28 @@ export function SystemSettings({ onNavigate, onShowToast }) {
   const [cloudSyncInterval, setCloudSyncInterval] = useState('15');
   const [activeLogLevel, setActiveLogLevel] = useState('INFO');
 
+  // TanStack Query for store settings
+  const { data: settingsData, isLoading } = useSettingsQuery();
+  const updateSettingsMutation = useUpdateSettingsMutation();
+
   // Backend store settings
   const [storeName, setStoreName] = useState('Everwear');
   const [lowStockThreshold, setLowStockThreshold] = useState(5);
   const [supportEmail, setSupportEmail] = useState('concierge@everwear.test');
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    adminApi.settings()
-      .then(res => {
-        if (res?.settings) {
-          if (res.settings.storeName) setStoreName(res.settings.storeName);
-          if (res.settings.lowStockThreshold !== undefined) setLowStockThreshold(res.settings.lowStockThreshold);
-          if (res.settings.supportEmail) setSupportEmail(res.settings.supportEmail);
-        }
-      })
-      .catch(err => {
-        console.warn('Failed to fetch settings from API:', err?.message);
-      })
-      .finally(() => setIsLoading(false));
-  }, []);
+    if (settingsData?.settings) {
+      if (settingsData.settings.storeName) setStoreName(settingsData.settings.storeName);
+      if (settingsData.settings.lowStockThreshold !== undefined) setLowStockThreshold(settingsData.settings.lowStockThreshold);
+      if (settingsData.settings.supportEmail) setSupportEmail(settingsData.settings.supportEmail);
+    }
+  }, [settingsData]);
 
   const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
-      await adminApi.updateSettings({
+      await updateSettingsMutation.mutateAsync({
         storeName,
         lowStockThreshold: Number(lowStockThreshold),
         supportEmail: supportEmail || null,

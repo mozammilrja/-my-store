@@ -2,6 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Select } from '../ui/select';
 import { campaigns } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
+import {
+  usePromotionsQuery,
+  useCreatePromotionMutation,
+  useTogglePromotionMutation,
+  useDeletePromotionMutation
+} from '../../hooks/useAdminQueries';
 
 export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
   const [selectedCode, setSelectedCode] = useState('FESTIVE20');
@@ -11,7 +17,12 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
   const [channelFilter, setChannelFilter] = useState('omni');
   const [selectedRows, setSelectedRows] = useState({ 'FESTIVE20': true });
 
-  // Live Backend Promotions State
+  // TanStack Query for promotions
+  const { data: promotionsData, isLoading: isPromotionsLoading } = usePromotionsQuery();
+  const createPromotionMutation = useCreatePromotionMutation();
+  const togglePromotionMutation = useTogglePromotionMutation();
+  const deletePromotionMutation = useDeletePromotionMutation();
+
   const [dbPromotions, setDbPromotions] = useState([]);
   const [isCreatePromoOpen, setIsCreatePromoOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -25,20 +36,11 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     active: true,
   });
 
-  const loadPromotions = async () => {
-    try {
-      const res = await adminApi.promotions();
-      if (res?.promotions) {
-        setDbPromotions(res.promotions);
-      }
-    } catch (err) {
-      console.warn('Could not load promotions from API:', err?.message);
-    }
-  };
-
   useEffect(() => {
-    loadPromotions();
-  }, []);
+    if (promotionsData?.promotions) {
+      setDbPromotions(promotionsData.promotions);
+    }
+  }, [promotionsData]);
 
   const handleCreatePromo = async (e) => {
     e.preventDefault();
@@ -46,7 +48,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
 
     setIsSubmitting(true);
     try {
-      await adminApi.createPromotion({
+      await createPromotionMutation.mutateAsync({
         code: promoForm.code.toUpperCase().trim(),
         type: promoForm.type,
         value: promoForm.type === 'percentage' ? Number(promoForm.value) : Number(promoForm.value) * 100, // convert major to minor paise if fixed
@@ -62,7 +64,6 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       });
       setIsCreatePromoOpen(false);
       setPromoForm({ code: '', type: 'percentage', value: 20, currency: 'inr', usageLimit: '', active: true });
-      await loadPromotions();
     } catch (err) {
       onShowToast?.({
         type: 'error',
@@ -76,13 +77,12 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
 
   const handleToggleActive = async (promoId, currentActive, promoCode) => {
     try {
-      await adminApi.setPromotionActive(promoId, !currentActive);
+      await togglePromotionMutation.mutateAsync({ promoId, active: !currentActive });
       onShowToast?.({
         type: 'info',
         title: 'Status Updated',
         message: `Promo ${promoCode} is now ${!currentActive ? 'active' : 'inactive'}.`,
       });
-      await loadPromotions();
     } catch (err) {
       onShowToast?.({
         type: 'error',
@@ -95,13 +95,12 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
   const handleDeletePromo = async (promoId, promoCode) => {
     if (!confirm(`Are you sure you want to delete promo ${promoCode}?`)) return;
     try {
-      await adminApi.deletePromotion(promoId);
+      await deletePromotionMutation.mutateAsync(promoId);
       onShowToast?.({
         type: 'info',
         title: 'Promotion Deleted',
         message: `Promo code ${promoCode} deleted.`,
       });
-      await loadPromotions();
     } catch (err) {
       onShowToast?.({
         type: 'error',

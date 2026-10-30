@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -14,9 +14,40 @@ import {
   INITIAL_CREDIT_NOTES,
   INITIAL_EWAY_BILLS
 } from '../../data/mockData';
+import { adminApi } from '../../lib/api';
+import { useInvoicesQuery } from '../../hooks/useAdminQueries';
 
 export default function GstInvoiceManagement({ currentHub, onShowToast }) {
   const [invoices, setInvoices] = useState(INITIAL_GST_INVOICES);
+
+  // TanStack Query for GST invoices
+  const { data: invoicesData, isLoading: isInvoicesLoading } = useInvoicesQuery();
+
+  useEffect(() => {
+    if (invoicesData?.invoices?.length) {
+      const live = invoicesData.invoices.map(inv => ({
+        id: inv._id,
+        invoiceNo: inv.invoiceNumber,
+        date: new Date(inv.issuedAt).toLocaleDateString(),
+        orderId: `EVR-${inv.displayId}`,
+        customer: inv.customerName,
+        customerGstin: inv.customerGstin || 'Unregistered',
+        placeOfSupply: `${inv.shippingAddress?.city || 'Karnataka'} (${inv.shippingAddress?.postalCode?.slice(0, 2) || '29'})`,
+        taxableValue: Math.round(inv.subtotal / 100),
+        cgst: Math.round(inv.cgstTotal / 100),
+        sgst: Math.round(inv.sgstTotal / 100),
+        igst: Math.round(inv.igstTotal / 100),
+        totalTax: Math.round((inv.cgstTotal + inv.sgstTotal + inv.igstTotal) / 100),
+        invoiceTotal: Math.round(inv.grandTotal / 100),
+        status: inv.status === 'paid' ? 'Active' : 'Generated',
+        ewayBillStatus: 'Not Required (< ₹50k)',
+        ewayBillNo: null,
+        irnStatus: 'Auto-Generated',
+        hsnSummary: inv.items?.map(i => i.hsn).join(', ') || '6204',
+      }));
+      setInvoices(prev => [...live, ...prev.filter(p => !live.some(l => l.invoiceNo === p.invoiceNo))]);
+    }
+  }, [invoicesData]);
   const [activeTab, setActiveTab] = useState('invoices'); // invoices, hsn, credit-notes, eway-bills, reconciliation
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('inv-gst-1');
 

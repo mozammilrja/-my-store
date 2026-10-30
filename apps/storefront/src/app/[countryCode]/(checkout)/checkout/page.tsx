@@ -9,7 +9,7 @@ import { ReviewStep } from "@modules/checkout/review-step"
 import { Step } from "@modules/checkout/step"
 import { CheckoutSummary } from "@modules/checkout/summary"
 import { Metadata } from "next"
-import { notFound } from "next/navigation"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
 
 export const metadata: Metadata = {
   title: "Checkout",
@@ -25,7 +25,35 @@ export default async function Checkout(props: { searchParams: Promise<{ step?: s
     retrieveCustomer().catch(() => null),
     listRegions(),
   ])
-  if (!cart || cart.items.length === 0) notFound()
+  if (!cart || cart.items.length === 0) {
+    return (
+      <Container className="py-16 md:py-24 max-w-xl text-center flex flex-col items-center gap-6 mx-auto">
+        <div className="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant">
+          <span className="material-symbols-outlined text-[32px]">shopping_bag</span>
+        </div>
+        <div className="flex flex-col gap-2">
+          <h1 className="font-display-hero text-3xl sm:text-4xl font-light text-on-surface">Your Bag is Empty</h1>
+          <p className="font-body-md text-on-surface-variant">
+            There are no items in your shopping bag to checkout. Explore our latest arrivals or seasonal collections.
+          </p>
+        </div>
+        <div className="flex items-center gap-4 pt-2">
+          <LocalizedClientLink
+            href="/store"
+            className="px-6 py-3 rounded bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider font-semibold hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+          >
+            Explore Catalog
+          </LocalizedClientLink>
+          <LocalizedClientLink
+            href="/cart"
+            className="px-6 py-3 rounded bg-surface-container-low text-on-surface font-label-md text-label-md uppercase tracking-wider font-semibold hover:bg-surface-container transition-colors"
+          >
+            View Bag
+          </LocalizedClientLink>
+        </div>
+      </Container>
+    )
+  }
 
   const hasAddress = !!cart.email && !!cart.shippingAddress
   const hasDelivery = hasAddress && !!cart.shippingOptionId

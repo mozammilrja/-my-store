@@ -68,13 +68,28 @@ const nextConfig = {
     formats: ["image/avif", "image/webp"],
     qualities: [50, 75],
     // The API runs on localhost in development, which the optimizer refuses by default.
-    dangerouslyAllowLocalIP: !isProd,
+    dangerouslyAllowLocalIP: true,
     remotePatterns: [
       {
         protocol: api.protocol.replace(":", ""),
         hostname: api.hostname,
         ...(api.port ? { port: api.port } : {}),
-        pathname: "/uploads/**",
+        pathname: "/**",
+      },
+      {
+        protocol: "http",
+        hostname: "localhost",
+        pathname: "/**",
+      },
+      {
+        protocol: "http",
+        hostname: "127.0.0.1",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+        pathname: "/**",
       },
     ],
   },

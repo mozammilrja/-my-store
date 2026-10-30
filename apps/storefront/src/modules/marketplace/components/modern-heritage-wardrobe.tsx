@@ -2,8 +2,11 @@
 
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
+import { useParams } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
+import { addToCart } from "@lib/data/shop"
+import { notifyCartUpdated } from "@lib/util/cart-events"
 
 const PRODUCTS = [
   {
@@ -19,6 +22,7 @@ const PRODUCTS = [
     note: "Free alteration incl.",
     noteClass: "text-on-surface-variant",
     handle: "sculpted-linen-boyfriend-blazer",
+    variantId: "variant_sculpted_m_1",
   },
   {
     id: "emerald-zari-kurta",
@@ -28,11 +32,12 @@ const PRODUCTS = [
     brand: "Heritage Loom 1984",
     brandClass: "text-secondary font-semibold",
     title: "Emerald Zari Chanderi Kurta Set",
-    subtitle: "3-piece ensemble with Scalloped Organza Dupatta",
+    subtitle: "3-piece ensemble with ScallOrganza Dupatta",
     price: "₹8,990",
     note: "Privilege 10% Cash",
     noteClass: "text-secondary font-bold",
     handle: "emerald-zari-chanderi-kurta-set",
+    variantId: "variant_emeraldz_m_1",
   },
   {
     id: "woven-kolhapuri-mule",
@@ -47,6 +52,7 @@ const PRODUCTS = [
     note: "Restocked today",
     noteClass: "text-on-surface-variant",
     handle: "woven-kolhapuri-block-mule",
+    variantId: "variant_wovenkol_m_1",
   },
   {
     id: "baroque-tourmaline-choker",
@@ -61,11 +67,15 @@ const PRODUCTS = [
     note: "Includes certificate",
     noteClass: "text-on-surface-variant",
     handle: "baroque-tourmaline-silver-choker",
+    variantId: "variant_baroquet_m_1",
   },
 ]
 
 export function ModernHeritageWardrobe() {
+  const params = useParams()
+  const countryCode = (params?.countryCode as string) || "in"
   const [favorites, setFavorites] = useState<Record<string, boolean>>({})
+  const [addingId, setAddingId] = useState<string | null>(null)
 
   const toggleFavorite = (id: string, e: React.MouseEvent) => {
     e.preventDefault()
@@ -77,10 +87,24 @@ export function ModernHeritageWardrobe() {
     })
   }
 
-  const handleQuickAdd = (title: string, e: React.MouseEvent) => {
+  const handleQuickAdd = async (prod: (typeof PRODUCTS)[number], e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    toast.success(`Added ${title} to your bag`)
+    setAddingId(prod.id)
+    try {
+      await addToCart({
+        variantId: prod.variantId,
+        quantity: 1,
+        countryCode,
+      })
+      notifyCartUpdated()
+      toast.success(`Added ${prod.title} (Size M) to your bag`)
+    } catch {
+      toast.info(`Opening ${prod.title}...`)
+      window.location.href = `/${countryCode}/products/${prod.handle}`
+    } finally {
+      setAddingId(null)
+    }
   }
 
   return (
@@ -102,14 +126,20 @@ export function ModernHeritageWardrobe() {
           </h2>
         </div>
         <div className="flex items-center gap-3">
-          <button className="px-4 py-2 rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-surface-container transition-colors flex items-center gap-2">
+          <LocalizedClientLink
+            href="/store"
+            className="px-4 py-2 rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-surface-container transition-colors flex items-center gap-2"
+          >
             <span className="material-symbols-outlined text-[18px]">filter_list</span>
             <span>Refine Filters</span>
-          </button>
-          <button className="px-4 py-2 rounded bg-primary text-on-primary font-label-sm text-label-sm hover:bg-surface-container-highest hover:text-on-surface transition-colors flex items-center gap-2 font-medium">
+          </LocalizedClientLink>
+          <LocalizedClientLink
+            href="/store?sort=curated"
+            className="px-4 py-2 rounded bg-primary text-on-primary font-label-sm text-label-sm hover:bg-surface-container-highest hover:text-on-surface transition-colors flex items-center gap-2 font-medium"
+          >
             <span>Sort: Curated Editorial</span>
             <span className="material-symbols-outlined text-[16px]">expand_more</span>
-          </button>
+          </LocalizedClientLink>
         </div>
       </div>
 
@@ -120,7 +150,10 @@ export function ModernHeritageWardrobe() {
             key={prod.id}
             className="group flex flex-col bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300"
           >
-            <LocalizedClientLink href="/store" className="relative aspect-[3/4] bg-surface-container-low overflow-hidden block">
+            <LocalizedClientLink
+              href={`/products/${prod.handle}`}
+              className="relative aspect-[3/4] bg-surface-container-low overflow-hidden block"
+            >
               <Image
                 src={prod.image}
                 alt={prod.title}
@@ -155,7 +188,7 @@ export function ModernHeritageWardrobe() {
                 >
                   {prod.brand}
                 </span>
-                <LocalizedClientLink href="/store">
+                <LocalizedClientLink href={`/products/${prod.handle}`}>
                   <h5 className="font-headline-sm text-[16px] text-on-surface font-medium mt-1 leading-snug hover:text-secondary transition-colors">
                     {prod.title}
                   </h5>
@@ -175,10 +208,11 @@ export function ModernHeritageWardrobe() {
                   </span>
                 </div>
                 <button
-                  onClick={(e) => handleQuickAdd(prod.title, e)}
-                  className="px-3 py-1.5 rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-primary hover:text-on-primary transition-colors font-medium active:scale-95"
+                  disabled={addingId === prod.id}
+                  onClick={(e) => handleQuickAdd(prod, e)}
+                  className="px-3 py-1.5 rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-primary hover:text-on-primary transition-colors font-medium active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
-                  Quick Add
+                  {addingId === prod.id ? "Adding..." : "Quick Add"}
                 </button>
               </div>
             </div>

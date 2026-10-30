@@ -1,5 +1,6 @@
 "use client"
 
+import { SearchIcon, SparklesIcon, TrendingUpIcon } from "lucide-react"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 
 const FEATURED_HOUSES = [
@@ -11,21 +12,21 @@ const FEATURED_HOUSES = [
 
 const PREDICTIONS = [
   {
-    icon: "search",
+    icon: SearchIcon,
     title: "Mulberry Silk Dresses",
     subtitle: "in Women / Western Evening",
     count: "64 items",
     href: "/store",
   },
   {
-    icon: "auto_awesome",
+    icon: SparklesIcon,
     title: "Chanderi Zari Dupatta",
     subtitle: "in Indian Festive / Handloom",
     count: "112 items",
     href: "/store",
   },
   {
-    icon: "trending_up",
+    icon: TrendingUpIcon,
     title: "Structured Linen Overshirts",
     subtitle: "in Men / Summer Essentials",
     count: "48 items",
@@ -38,26 +39,27 @@ export function QuickPredictionsPanel({ visible = true }: { visible?: boolean })
 
   return (
     <div
-      className="relative w-full z-30 bg-surface-container-low shadow-[0_16px_32px_-8px_rgba(27,28,27,0.08)] py-6 px-margin-mobile md:px-margin transition-all"
+      className="relative w-full z-20 bg-surface-container-low/40 border-b border-border/60 py-4 px-margin-mobile md:px-margin transition-all"
       id="search-autocomplete-panel"
     >
-      <div className="max-w-[1440px] mx-auto flex flex-col gap-5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-on-surface-variant">
-            <span className="material-symbols-outlined text-[20px] text-secondary">flare</span>
-            <span className="font-label-caps text-label-caps uppercase tracking-wider font-semibold text-on-surface">
-              Omnichannel Quick Predictions
+      <div className="max-w-[1440px] mx-auto flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 text-foreground">
+            <SparklesIcon className="size-4 text-secondary" />
+            <span className="font-label-caps text-xs uppercase tracking-wider font-bold">
+              Trending Curations &amp; Predictions
             </span>
           </div>
+
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-            <span className="font-label-caps text-[10px] text-on-surface-variant uppercase shrink-0">
-              Featured Houses:
+            <span className="font-label-caps text-[10px] text-muted-foreground uppercase tracking-wider shrink-0 font-semibold">
+              Curated Ateliers:
             </span>
             {FEATURED_HOUSES.map((house, idx) => (
               <LocalizedClientLink
                 key={idx}
                 href="/store"
-                className="px-2.5 py-0.5 rounded-full bg-surface-container-lowest text-on-surface font-label-caps text-[11px] font-medium shadow-sm shrink-0 cursor-pointer hover:bg-surface-container transition-colors"
+                className="px-2.5 py-1 rounded-full bg-surface-container-lowest border border-border/60 text-foreground font-label-caps text-[10px] font-bold uppercase tracking-wider hover:border-foreground transition-colors shrink-0 shadow-2xs"
               >
                 {house}
               </LocalizedClientLink>
@@ -65,31 +67,34 @@ export function QuickPredictionsPanel({ visible = true }: { visible?: boolean })
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {PREDICTIONS.map((item, idx) => (
-            <LocalizedClientLink
-              key={idx}
-              href={item.href}
-              className="flex items-center justify-between p-3 rounded-lg bg-surface-container-lowest hover:bg-surface transition-colors cursor-pointer group shadow-sm"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded bg-surface-container-low flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
-                  <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {PREDICTIONS.map((item, idx) => {
+            const Icon = item.icon
+            return (
+              <LocalizedClientLink
+                key={idx}
+                href={item.href}
+                className="flex items-center justify-between p-3 rounded-xl bg-surface-container-lowest border border-border/60 hover:border-foreground/30 hover:shadow-xs transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="size-8 rounded-lg bg-surface-container-low flex items-center justify-center text-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
+                    <Icon className="size-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-label-sm text-xs text-foreground font-semibold group-hover:text-secondary transition-colors truncate">
+                      {item.title}
+                    </p>
+                    <span className="font-body-sm text-[11px] text-muted-foreground truncate block">
+                      {item.subtitle}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-label-sm text-label-sm text-on-surface font-medium group-hover:text-secondary transition-colors">
-                    {item.title}
-                  </p>
-                  <span className="font-body-sm text-[11px] text-on-surface-variant">
-                    {item.subtitle}
-                  </span>
-                </div>
-              </div>
-              <span className="font-label-caps text-[10px] text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded">
-                {item.count}
-              </span>
-            </LocalizedClientLink>
-          ))}
+                <span className="font-label-caps text-[10px] text-muted-foreground bg-surface-container-low px-2 py-0.5 rounded font-bold shrink-0 ml-2">
+                  {item.count}
+                </span>
+              </LocalizedClientLink>
+            )
+          })}
         </div>
       </div>
     </div>

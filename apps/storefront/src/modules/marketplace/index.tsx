@@ -9,7 +9,7 @@ import { ServiceGuarantee } from "./components/service-guarantee"
 
 export function MarketplaceView() {
   const [activeTab, setActiveTab] = useState("womens-atelier")
-  const [searchLensActive, setSearchLensActive] = useState(true)
+  const [searchLensActive, setSearchLensActive] = useState(false)
   const [dismissed, setDismissed] = useState(false)
 
   return (

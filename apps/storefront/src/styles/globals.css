@@ -114,8 +114,14 @@
   --color-surface: var(--surface);
 
   /* Stitch Design Tokens */
+  --color-on-primary: #ffffff;
+  --color-on-secondary: #ffffff;
+  --color-on-tertiary: #ffffff;
+  --color-on-error: #ffffff;
+  --color-on-background: #1b1c1b;
   --color-surface-dim: #dbdad9;
   --color-surface-bright: #fbf9f8;
+  --color-surface-variant: #e4e2e1;
   --color-surface-container-lowest: #ffffff;
   --color-surface-container-low: #f5f3f2;
   --color-surface-container: #efedec;
@@ -125,8 +131,13 @@
   --color-on-surface-variant: #47464b;
   --color-inverse-surface: #303030;
   --color-inverse-on-surface: #f2f0ef;
+  --color-inverse-primary: #c8c5ca;
   --color-outline: #77767b;
   --color-outline-variant: #c8c5cb;
+  --color-primary-fixed: #e4e1e6;
+  --color-primary-fixed-dim: #c8c5ca;
+  --color-on-primary-fixed: #1b1b1e;
+  --color-on-primary-fixed-variant: #47464a;
   --color-primary-container: #1b1b1e;
   --color-on-primary-container: #858387;
   --color-secondary-container: #fe9bfc;
@@ -138,6 +149,10 @@
   --color-tertiary: #000000;
   --color-tertiary-container: #390c00;
   --color-on-tertiary-container: #e15724;
+  --color-tertiary-fixed: #ffdbd0;
+  --color-tertiary-fixed-dim: #ffb59d;
+  --color-on-tertiary-fixed: #390c00;
+  --color-on-tertiary-fixed-variant: #832600;
   --color-error: #ba1a1a;
   --color-error-container: #ffdad6;
   --color-on-error-container: #93000a;
@@ -274,3 +289,20 @@
   line-height: 1.05;
   text-transform: uppercase;
 }
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+

@@ -1,23 +1,21 @@
 import { Metadata } from "next"
 
-import { getRegion, getStorePolicies, listRegions } from "@lib/data/catalog"
-import { getHomeData } from "@modules/home/data"
-import { CategoryChips } from "@modules/home/sections/category-chips"
-import { CategoryTiles } from "@modules/home/sections/category-tiles"
-import { CollectionBand } from "@modules/home/sections/collection-band"
-import { Hero } from "@modules/home/sections/hero"
-import { MetricsTicker } from "@modules/home/sections/metrics-ticker"
-import { ProductRow } from "@modules/home/sections/product-row"
-import { PromoSplit } from "@modules/home/sections/promo-split"
-import { NEW_IN_HREF } from "@modules/shell/header"
-import { Promises } from "@modules/home/sections/promises"
-import { notFound } from "next/navigation"
-import { toJsonLd } from "@lib/util/product-structured-data"
+import { getRegion, listRegions } from "@lib/data/catalog"
 import { getSiteOrigin, listCountryCodes, STORE_NAME } from "@lib/util/site"
 import { buildReturnPolicy } from "@lib/util/policies"
+import { toJsonLd } from "@lib/util/product-structured-data"
+import { notFound } from "next/navigation"
 
-export const dynamic = "force-static"
-export const revalidate = 60
+import { BreadcrumbBar } from "@modules/home/sections/breadcrumb"
+import { Hero } from "@modules/home/sections/hero"
+import { MetricsTicker } from "@modules/home/sections/metrics-ticker"
+import { SubcategoryMatrix } from "@modules/home/sections/subcategory-matrix"
+import { CuratedLookbooks } from "@modules/home/sections/curated-lookbooks"
+import { TrendingGrid } from "@modules/home/sections/trending-grid"
+import { WardrobeDirectory } from "@modules/home/sections/wardrobe-directory"
+import { AtelierSpotlights } from "@modules/home/sections/atelier-spotlights"
+import { BespokeService } from "@modules/home/sections/bespoke-service"
+
 
 export async function generateMetadata(props: {
   params: Promise<{ countryCode: string }>
@@ -26,12 +24,12 @@ export async function generateMetadata(props: {
   const [origin, regions] = await Promise.all([getSiteOrigin(), listRegions()])
 
   return {
-    title: { absolute: `${STORE_NAME} | Everyday clothing and essentials` },
+    title: { absolute: `${STORE_NAME} | Men's Fashion & Lifestyle Department` },
     description:
-      "Shop shirts, sweatshirts, pants and everyday essentials at Everwear. Prices and delivery shown for your region.",
+      "Explore contemporary masculine elegance at Everwear. Tailored essentials meet modern Indian craftsmanship, from heavyweight textured knits to breezy Maheshwari handspun silks.",
     openGraph: {
-      title: STORE_NAME,
-      description: "Everyday clothing and essentials.",
+      title: `${STORE_NAME} | Men's Department`,
+      description: "Contemporary Masculine Elegance. Tailored essentials meet modern craftsmanship.",
       url: `${origin}/${countryCode}`,
       siteName: STORE_NAME,
       type: "website",
@@ -55,32 +53,25 @@ export default async function Home(props: {
   params: Promise<{ countryCode: string }>
 }) {
   const params = await props.params
-
   const { countryCode } = params
 
   const region = await getRegion(countryCode)
-
   if (!region) {
     notFound()
   }
 
-  const [home, policies] = await Promise.all([
-    getHomeData(countryCode),
-    getStorePolicies(countryCode).catch(() => null),
-  ])
-
   const [origin, regions] = await Promise.all([getSiteOrigin(), listRegions()])
   const homeUrl = `${origin}/${countryCode}`
-  const returnPolicies = regions.flatMap((r) => (r.policies ? r.countries.map((c) => buildReturnPolicy(r.policies!, c.code)) : []))
+  const returnPolicies = regions.flatMap((r) =>
+    r.policies ? r.countries.map((c) => buildReturnPolicy(r.policies!, c.code)) : []
+  )
   const structuredData = [
     {
       "@context": "https://schema.org",
       "@type": "Organization",
       name: STORE_NAME,
       url: origin,
-      ...(returnPolicies.length
-        ? { hasMerchantReturnPolicy: returnPolicies }
-        : {}),
+      ...(returnPolicies.length ? { hasMerchantReturnPolicy: returnPolicies } : {}),
     },
     {
       "@context": "https://schema.org",
@@ -104,32 +95,17 @@ export default async function Home(props: {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: toJsonLd(structuredData) }}
       />
-      <Hero />
-      <MetricsTicker />
-      <CategoryChips categories={home.categories} />
-      <ProductRow
-        id="bestsellers-title"
-        eyebrow={home.bestsellersTagged ? "Most wanted" : "Shop the range"}
-        title={home.bestsellersTagged ? "Bestsellers" : "More to explore"}
-        products={home.bestsellers}
-        href="/store"
-        linkLabel="Shop all"
-      />
-      <PromoSplit categories={home.categories} />
-      <ProductRow
-        id="new-in-title"
-        eyebrow="Just landed"
-        title="New in"
-        products={home.latest}
-        href={NEW_IN_HREF}
-        linkLabel="View all new"
-      />
-      <CategoryTiles categories={home.categories} />
-      <CollectionBand collections={home.collections} />
-      <Promises
-        policies={policies?.current ?? null}
-        currencyCode={policies?.currency || region.currency}
-      />
+      <div className="flex flex-col w-full bg-background font-body-md text-on-surface antialiased selection:bg-secondary-container selection:text-on-secondary-fixed">
+        <BreadcrumbBar />
+        <Hero />
+        <MetricsTicker />
+        <SubcategoryMatrix />
+        <CuratedLookbooks />
+        <TrendingGrid />
+        <WardrobeDirectory />
+        <AtelierSpotlights />
+        <BespokeService />
+      </div>
     </>
   )
 }

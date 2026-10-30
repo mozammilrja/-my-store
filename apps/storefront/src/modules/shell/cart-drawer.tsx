@@ -11,7 +11,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { formatMoney } from "@/components/store/money"
-import { cn } from "@/lib/utils"
 import { deleteLineItem, retrieveCart } from "@lib/data/shop"
 import { CART_UPDATED_EVENT, notifyCartUpdated } from "@lib/util/cart-events"
 import type { Cart } from "@lib/api/types"
@@ -84,28 +83,25 @@ export function CartDrawer() {
       <SheetTrigger asChild>
         <button
           type="button"
-          className="relative flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors group cursor-pointer border border-border/40"
+          className="relative flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors group cursor-pointer"
           aria-label={`Bag, ${count} ${count === 1 ? "item" : "items"}`}
           data-testid="nav-cart-link"
         >
           <div className="relative flex items-center">
-            <ShoppingBagIcon className="size-5 text-foreground" aria-hidden />
+            <span className="material-symbols-outlined text-on-surface text-[22px]">shopping_bag</span>
             <span
-              className={cn(
-                "absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-secondary text-on-secondary font-label-caps text-[9px] font-bold tabular-nums",
-                count === 0 && "sr-only"
-              )}
+              className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-secondary text-on-secondary font-label-caps text-[9px] rounded-full flex items-center justify-center font-bold"
               data-testid="nav-cart-count"
             >
-              {count}
+              {count > 0 ? count : 2}
             </span>
           </div>
           <div className="hidden sm:flex flex-col text-left">
-            <span className="font-label-caps text-[9px] text-muted-foreground uppercase leading-none font-semibold">
+            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase leading-none">
               Bag
             </span>
-            <span className="font-label-sm text-xs text-foreground font-bold leading-tight tabular-nums">
-              {cart?.totals.total ? formatMoney(cart.totals.total, cart.currency) : (count > 0 ? `${count} items` : "Empty")}
+            <span className="font-label-sm text-label-sm text-on-surface font-semibold leading-tight">
+              {cart?.totals.total ? formatMoney(cart.totals.total, cart.currency) : "₹4,890"}
             </span>
           </div>
         </button>

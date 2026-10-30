@@ -2,7 +2,6 @@ import { listCategories, listRegions, getStorePolicies } from "@lib/data/catalog
 import { deliveryDays } from "@lib/util/policies"
 import { Wordmark } from "@/components/store/wordmark"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { HeadphonesIcon, HeartIcon, UserIcon } from "lucide-react"
 import { Announcement } from "./announcement"
 import { CartDrawer } from "./cart-drawer"
 import { MegaMenu } from "./mega-menu"
@@ -39,11 +38,11 @@ export async function Header({ countryCode }: { countryCode: string }) {
   return (
     <>
       <Announcement countryCode={countryCode} deliveryInfo={deliveryInfo} />
-      <header className="sticky top-0 z-40 bg-surface/95 backdrop-blur-md shadow-[0_1px_8px_rgba(0,0,0,0.04)] border-b border-border/60">
-        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10">
-          <div className="h-20 flex items-center justify-between gap-4 lg:gap-8">
+      <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md shadow-[0_1px_8px_rgba(0,0,0,0.04)] border-b border-border/60">
+        <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+          <div className="h-20 flex items-center justify-between gap-space-lg">
             {/* Left: Mobile Trigger & Brand Wordmark */}
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-space-md shrink-0">
               <MobileNav links={links} regions={regions} />
               <LocalizedClientLink
                 href="/"
@@ -56,28 +55,29 @@ export async function Header({ countryCode }: { countryCode: string }) {
             </div>
 
             {/* Center: Omnichannel Search Bar from Stitch */}
-            <div className="flex-1 max-w-xl hidden md:flex items-center">
+            <div className="flex-1 max-w-2xl hidden md:flex items-center">
               <SearchDialog desktopBar={true} />
             </div>
 
             {/* Right: Concierge, Wishlist, Search (mobile), Bag, Profile */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-space-md shrink-0">
               <LocalizedClientLink
                 href="/contact"
-                className="hidden lg:flex flex-col items-center px-2 py-1 text-muted-foreground hover:text-foreground transition-colors"
+                className="hidden lg:flex flex-col items-center px-2 py-1 text-on-surface-variant hover:text-on-surface transition-colors"
               >
-                <HeadphonesIcon className="size-4.5" aria-hidden />
-                <span className="font-label-caps text-[9px] uppercase mt-1 font-bold">
-                  Concierge
-                </span>
+                <span className="material-symbols-outlined text-[22px]">support_agent</span>
+                <span className="font-label-caps text-label-caps uppercase mt-1">Concierge</span>
               </LocalizedClientLink>
 
               <LocalizedClientLink
                 href="/account"
-                className="relative hidden sm:flex flex-col items-center px-2 py-1 text-muted-foreground hover:text-foreground transition-colors"
+                className="relative flex flex-col items-center px-2 py-1 text-on-surface-variant hover:text-on-surface transition-colors"
               >
-                <HeartIcon className="size-4.5" aria-hidden />
-                <span className="font-label-caps text-[9px] uppercase mt-1 font-bold">
+                <span className="material-symbols-outlined text-[22px]">favorite</span>
+                <span className="absolute top-0 right-1 w-4 h-4 bg-primary text-on-primary font-label-caps text-[9px] rounded-full flex items-center justify-center font-bold">
+                  3
+                </span>
+                <span className="hidden lg:inline font-label-caps text-label-caps uppercase mt-1">
                   Wishlist
                 </span>
               </LocalizedClientLink>
@@ -88,14 +88,18 @@ export async function Header({ countryCode }: { countryCode: string }) {
 
               <CartDrawer />
 
-              <LocalizedClientLink
-                href="/account"
-                aria-label="Account profile"
-                data-testid="nav-account-link"
-                className="flex items-center justify-center size-8 sm:size-9 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-opacity ml-1"
-              >
-                <UserIcon className="size-4" aria-hidden />
-              </LocalizedClientLink>
+              <div className="flex items-center gap-2 pl-2">
+                <LocalizedClientLink
+                  href="/account"
+                  aria-label="Account profile"
+                  data-testid="nav-account-link"
+                  className="flex items-center gap-2 group"
+                >
+                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                    <span className="material-symbols-outlined text-on-primary text-[18px]">person</span>
+                  </div>
+                </LocalizedClientLink>
+              </div>
             </div>
           </div>
         </div>

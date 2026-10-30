@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { XIcon } from "lucide-react"
 
 export function Announcement({
   countryCode,
@@ -23,19 +22,19 @@ export function Announcement({
   return (
     <div
       id="top-promo-banner"
-      className="w-full bg-primary text-primary-foreground py-2 px-4 transition-all duration-300 text-xs"
+      className="w-full bg-primary text-on-primary py-1.5 px-margin-mobile md:px-margin transition-all duration-300"
     >
-      <div className="max-w-[1440px] mx-auto flex items-center justify-between gap-2 text-center">
-        <div className="flex-1 text-center truncate sm:overflow-visible">
-          <span className="font-label-caps text-[11px] uppercase tracking-wider text-surface-container-high font-semibold">
+      <div className="max-w-[1440px] mx-auto flex items-center justify-between text-center">
+        <div className="flex-1 text-center">
+          <span className="font-label-caps text-label-caps uppercase tracking-wider text-surface-container-high">
             Mid-Season Spring Edit
           </span>
-          <span className="mx-2 opacity-40">|</span>
-          <span className="font-body-sm text-xs text-surface-bright">
+          <span className="mx-2 opacity-30">|</span>
+          <span className="font-body-sm text-body-sm text-surface-bright">
             {deliveryText}
           </span>
-          <span className="hidden sm:inline mx-2 opacity-40">|</span>
-          <span className="hidden sm:inline font-label-caps text-[10px] bg-white/10 px-2 py-0.5 rounded text-surface-bright font-bold tracking-wider">
+          <span className="hidden sm:inline mx-2 opacity-30">|</span>
+          <span className="hidden sm:inline font-label-caps text-label-caps bg-surface/10 px-2 py-0.5 rounded text-surface-bright">
             Code: EVERSPRING
           </span>
         </div>
@@ -43,9 +42,9 @@ export function Announcement({
           type="button"
           aria-label="Dismiss announcement"
           onClick={() => setDismissed(true)}
-          className="p-1 text-primary-foreground/60 hover:text-primary-foreground transition-colors flex items-center justify-center shrink-0 cursor-pointer"
+          className="p-1 text-on-primary/60 hover:text-on-primary transition-colors flex items-center justify-center shrink-0 cursor-pointer"
         >
-          <XIcon className="size-3.5" aria-hidden />
+          <span className="material-symbols-outlined text-[16px]">close</span>
         </button>
       </div>
     </div>

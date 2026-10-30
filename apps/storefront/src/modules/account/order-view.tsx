@@ -81,8 +81,21 @@ export function OrderView({ order }: { order: Order }) {
           <div>
             <h3 className="mb-2 font-semibold">Delivery</h3>
             <p className="text-muted-foreground">{order.shippingOption.name}</p>
+            {order.shipment && (
+              <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
+                <p>Carrier: <span className="font-medium text-foreground uppercase">{order.shipment.carrier}</span></p>
+                <p>AWB: <span className="font-mono font-medium text-foreground">{order.shipment.awb}</span></p>
+                <p>Status: <span className="text-emerald-600 font-medium capitalize">{order.shipment.status}</span></p>
+              </div>
+            )}
             <h3 className="mt-4 mb-2 font-semibold">Payment</h3>
-            <p className="text-muted-foreground" data-testid="payment-method">Cash on delivery</p>
+            <p className="text-muted-foreground" data-testid="payment-method">
+              {order.paymentMethod === "razorpay"
+                ? "Prepaid Online (Razorpay UPI / Cards)"
+                : order.paymentMethod === "stripe"
+                ? "Prepaid Online (Stripe Card)"
+                : "Cash on delivery"}
+            </p>
           </div>
         </div>
         <Totals totals={order.totals} currency={order.currency} shippingChosen />

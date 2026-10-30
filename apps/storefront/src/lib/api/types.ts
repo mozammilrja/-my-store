@@ -144,9 +144,11 @@ export type Order = {
   shippingOption: ShippingOption
   promoCodes: string[]
   totals: Totals
-  paymentMethod: "cod"
+  paymentMethod: "cod" | "razorpay" | "stripe"
   paymentStatus: "awaiting" | "paid" | "refunded"
   fulfillmentStatus: "unfulfilled" | "shipped" | "delivered" | "returned"
+  shipment?: { carrier: string; awb: string; status: string; labelUrl?: string; pickupScheduledAt?: string; estimatedDelivery?: string }
+  returnRequest?: { status: string; returnAwb?: string; carrier?: string }
   status: "pending" | "completed" | "canceled"
   createdAt: string
 }

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Container } from "@/components/store/container"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { TruckIcon, PackageCheckIcon } from "lucide-react"
 
 export default function OrderTrackingPage() {
   const params = useParams()
@@ -82,9 +83,9 @@ export default function OrderTrackingPage() {
             <div className="md:col-span-2 pt-2">
               <button
                 type="submit"
-                className="w-full sm:w-auto px-8 py-3 rounded bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider font-semibold hover:bg-surface-container-highest hover:text-on-surface transition-colors cursor-pointer flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-8 py-3 rounded-full bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider font-semibold hover:bg-neutral-800 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
               >
-                <span className="material-symbols-outlined text-[18px]">local_shipping</span>
+                <TruckIcon className="size-4 shrink-0" aria-hidden />
                 <span>Track Consignment</span>
               </button>
             </div>
@@ -92,8 +93,8 @@ export default function OrderTrackingPage() {
 
           {searched && (
             <div className="mt-4 p-5 rounded-lg bg-surface-container-low border border-border/80 flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-secondary font-semibold font-label-sm">
-                <span className="material-symbols-outlined text-[20px]">inventory_2</span>
+              <div className="flex items-center gap-2 text-primary font-semibold font-label-sm">
+                <PackageCheckIcon className="size-5 shrink-0" aria-hidden />
                 <span>Status for #{orderId}: Prepared for Dispatch</span>
               </div>
               <p className="font-body-sm text-xs text-on-surface-variant">

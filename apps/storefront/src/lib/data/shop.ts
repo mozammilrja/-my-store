@@ -164,13 +164,31 @@ export async function saveShipping(_: ActionResult, form: FormData): Promise<Act
   redirect(`/${text(form, "countryCode")}/checkout?step=review`)
 }
 
-/** Checkout step 3: place the cash-on-delivery order. */
+/** Checkout step 3: place the order via COD or online payment gateway. */
 export async function placeOrder(_: ActionResult, form: FormData): Promise<ActionResult> {
   const id = await getCartId()
   if (!id) return { error: "Your bag has expired. Please add the items again." }
+  const paymentMethod = (form.get("paymentMethod") as string) || "cod"
   let order: Order
+
   try {
-    order = (await api<{ order: Order }>(`/store/carts/${id}/complete`, { method: "POST", token: await getToken() })).order
+    if (paymentMethod === "razorpay" || paymentMethod === "stripe") {
+      order = (
+        await api<{ order: Order }>(`/store/carts/${id}/confirm-payment`, {
+          method: "POST",
+          body: {
+            provider: paymentMethod,
+            razorpayOrderId: text(form, "razorpayOrderId") || undefined,
+            razorpayPaymentId: text(form, "razorpayPaymentId") || undefined,
+            razorpaySignature: text(form, "razorpaySignature") || undefined,
+            paymentIntentId: text(form, "paymentIntentId") || undefined,
+          },
+          token: await getToken(),
+        })
+      ).order
+    } else {
+      order = (await api<{ order: Order }>(`/store/carts/${id}/complete`, { method: "POST", token: await getToken() })).order
+    }
   } catch (e) {
     return { error: message(e) }
   }

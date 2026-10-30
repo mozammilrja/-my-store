@@ -60,3 +60,6 @@ Thumbs.db
 **/test-results
 **/playwright-report
 *.tsbuildinfo
+
+# Stitch design exports: downloaded prototypes, not source
+stitch_*/

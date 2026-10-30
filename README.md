@@ -1,205 +1,149 @@
-# Everwear
+# Everwear Commerce Platform
 
-Everwear is an online store for clothing and everyday essentials, with delivery across Europe and India. It is a headless e-commerce app: a standalone commerce API, a Next.js storefront and a separate admin dashboard, in one Turborepo monorepo.
+**Everwear** is a multi-region direct-to-consumer online fashion and apparel commerce platform serving Europe and India. Engineered as a high-performance headless commerce architecture inside a Turborepo monorepo, Everwear connects an Express/MongoDB transactional commerce backend, a modern Next.js 16 storefront, and a 16-module operational administrative suite.
 
-The API is a plain Node and Express service, independent of any frontend, so the storefront, the admin dashboard and a future mobile app all talk to the same HTTP endpoints.
+---
 
-## Features
+## 1. Monorepo Architecture
 
-- Multi-region storefront with automatic country detection (Europe and India)
-- Product catalog with faceted search, filters and variant selection
-- Cart with promotion codes
-- Multi-step checkout with cash on delivery
-- Customer accounts with order history and address management
-- Admin dashboard with sales figures, orders, products and customers
-- Stock and order placement in MongoDB transactions, so the last unit is never sold twice
+| App | Package | Technology Stack | Default URL | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| **`apps/backend`** | `@dtc/backend` | Node.js 22, Express 5, MongoDB 7, Zod, JWT | `http://localhost:9100` | Commerce API: catalog, carts, checkout, multi-document transactions, webhooks, payments, carriers, and admin endpoints. |
+| **`apps/storefront`** | `@dtc/storefront` | Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui + ReUI | `http://localhost:8001` | Customer shop: faceted catalog search, typeahead, currency & region routing, bag, checkout, payments, customer portal. |
+| **`apps/admin`** | `@dtc/admin` | React 18/19, Vite 6, Tailwind CSS, Lucide | `http://localhost:7001` | Operations console: 16 integrated modules for live orders, inventory telemetry, dispatch manifests, GST compliance, and CRM. |
 
-## Tech stack
+---
 
-| Layer | Technology |
-| --- | --- |
-| API | Node.js 22, Express 5, TypeScript, Zod |
-| Database | MongoDB 7 (single-node replica set) |
-| Storefront | Next.js 16 (App Router), React 19, Tailwind CSS 4 |
-| Admin | React 19, Vite 8, React Router, TanStack Query, Tailwind CSS 4, shadcn/ui and ReUI |
-| Monorepo | Turborepo, npm workspaces |
-| Tests | `node:test` (API), Playwright (storefront end-to-end) |
+## 2. Key Features
 
-## Apps
+### Storefront & Customer Experience
+- **Multi-Region & Currency Detection**: Automatic geo-detection routing for India (INR / `in`) and European territories (EUR / `dk`, `de`, `fr`).
+- **Faceted Catalog Discovery**: Fast text search, category trees, collection landings, color/size variant selector, price filtering, and out-of-stock indicators.
+- **Transactional Cart & Checkout**: Promotion coupon engine, dynamic shipping option pricing, address book selection, and stock reservation.
+- **Dual Payment Engine**: Razorpay (UPI, NetBanking, Cards) for INR and Stripe (Credit Cards, Apple Pay) for EUR, alongside Cash On Delivery (COD).
+- **Customer Self-Service Portal**: Order history, live carrier waybill tracking, return requests, and multi-address management.
 
-| Path | Package | What it is | Dev URL |
-| --- | --- | --- | --- |
-| `apps/backend` | `@dtc/backend` | The Everwear API | http://localhost:9100 |
-| `apps/storefront` | `@dtc/storefront` | The shop | http://localhost:8001 |
-| `apps/admin` | `@dtc/admin` | The admin dashboard | http://localhost:7001 |
+### Operational Admin Suite (16 Modules)
+1. **Executive Overview**: Real-time revenue metrics, regional fulfillment node telemetry, and operations alerts.
+2. **Order Management**: Order lifecycle controls, packing state transitions, payment status verification, and itemized customer inspection.
+3. **Product Catalog**: SKU management, multi-variant generation, pricing per region, and image uploads.
+4. **Categories & Collections**: Hierarchical taxonomies, marketing collections, and seasonal drop scheduling.
+5. **Inventory & Warehouses**: Real-time inventory tracking, low-stock threshold triggers, and multi-warehouse bin adjustments.
+6. **Fulfillment & Dispatch**: Carrier manifest creation, one-click AWB generation, packing slip generation, and tracking telemetry.
+7. **Returns & Exchanges**: Inspection workflow, return authorizations, reverse courier pickups, and automated credit note issuance.
+8. **Customers & Loyalty**: VIP tier segmentation, lifetime value telemetry, order frequency metrics, and customer notes.
+9. **Promotions & Coupons**: Percentage and fixed-discount vouchers, minimum cart thresholds, and expiry management.
+10. **GST & Tax Invoices**: Automatic GST invoice generation, CGST/SGST/IGST breakdown, and compliance export.
+11. **Payments & Reconciliation**: Gateway settlement tracking, payment method audit, and reconciliation ledgers.
+12. **Credit Notes & Refunds**: Automated legal credit note generation and gateway refund triggers.
+13. **Purchase Orders & Suppliers**: Vendor management, procurement PO lifecycles, and restock receipts.
+14. **Analytics & Reports**: Sales velocity, regional revenue distribution, conversion metrics, and CSV data export.
+15. **Users & Role Access (RBAC)**: Fine-grained admin role management (Owner, Admin, Staff) with protection against last-owner removal.
+16. **System Settings**: Global operational rules, default fulfillment hubs, return windows, and store policies.
 
-## Getting started
+---
 
-**Prerequisites:** Node.js 22+, npm 10+, and MongoDB 7 running as a **single-node replica set**. The replica set is required: placing an order uses a multi-document transaction, which standalone MongoDB does not support.
+## 3. Getting Started (Local Development)
 
-1. Clone the repo and install dependencies:
+### Prerequisites
+- **Node.js 22+** and **npm 10+**
+- **MongoDB 7.0+** running as a **single-node replica set** (`rs0`). Multi-document transactions require a replica set.
 
+### Quick Start with Docker
+```bash
+# Clone the repository
+git clone https://github.com/mozammilrja/-my-store.git
+cd -- -my-store
+
+# Copy root environment
+cp .env.example .env
+
+# Start full stack via Docker Compose
+docker compose up -d
+```
+
+### Manual Local Setup
+
+1. **Install dependencies**:
    ```bash
-   git clone https://github.com/mozammilrja/-my-store.git
-   cd -- -my-store
    npm install
    ```
 
-2. Set up the API environment:
-
+2. **Configure API environment**:
    ```bash
    cp apps/backend/.env.template apps/backend/.env
    ```
-
-   Then set `JWT_SECRET` in `apps/backend/.env` to a random string of at least 32 characters, and check that `MONGODB_URI` points at your replica set.
-
-3. Create an admin user:
-
-   ```bash
-   cd apps/backend && npm run admin:create -- admin@example.com '<password>' "Your Name"
+   Set `JWT_SECRET` (minimum 32 characters) and verify `MONGODB_URI` points to your replica set:
+   ```ini
+   MONGODB_URI=mongodb://localhost:27017/?replicaSet=rs0&directConnection=true
+   JWT_SECRET=replace_with_a_secure_random_string_of_at_least_32_characters
    ```
 
-4. Set up the storefront and admin environments:
+3. **Generate First Admin Account**:
+   ```bash
+   cd apps/backend && npm run admin:create -- admin@everwear.test "adminpassword123" "Lead Admin"
+   cd ../..
+   ```
 
+4. **Configure Storefront & Admin environments**:
    ```bash
    cp apps/storefront/.env.template apps/storefront/.env.local
-   cp apps/admin/.env.template apps/admin/.env.local
+   cp apps/admin/.env.example apps/admin/.env.local
    ```
 
-5. Start everything from the repo root:
-
+5. **Start Dev Server (All Apps)**:
    ```bash
    npm run dev
    ```
 
-| Service | URL (dev) |
-| --- | --- |
-| Storefront | http://localhost:8001 (port 8000 with `npm run start`) |
-| API | http://localhost:9100 |
-| Admin dashboard | http://localhost:7001 |
-| Health check | http://localhost:9100/health |
+| Service | Local Dev URL |
+| :--- | :--- |
+| **Storefront** | http://localhost:8001 |
+| **Admin Console** | http://localhost:7001 |
+| **Backend API** | http://localhost:9100 |
+| **API Health Check** | http://localhost:9100/health |
 
-## Configuration
+---
 
-Never commit `.env` or `.env.local`. Each app's `.env.template` documents its variables.
+## 4. Verification & Testing
 
-API variables (`apps/backend/.env`):
-
-| Variable | Description | Default |
-| --- | --- | --- |
-| `PORT` | Port the API listens on | `9100` |
-| `MONGODB_URI` | Connection string, replica set required | required |
-| `MONGODB_DB` | Database name | `everwear` |
-| `JWT_SECRET` | Signs customer and admin tokens; 32+ characters | required |
-| `STORE_CORS` | Browser origins allowed to call `/store` | — |
-| `ADMIN_CORS` | Browser origins allowed to call `/admin` | — |
-| `API_PUBLIC_URL` | Public base URL, used to build image links | `http://localhost:9100` |
-| `UPLOADS_DIR` | Folder for uploaded product images | `uploads` |
-
-The API validates all of these at startup and exits with a clear message if any are missing or invalid.
-
-Storefront variables (`apps/storefront/.env.local`):
-
-| Variable | Description | Default |
-| --- | --- | --- |
-| `EVERWEAR_API_URL` | Address of the API; server-side only | `http://localhost:9100` |
-| `NEXT_PUBLIC_API_PUBLIC_URL` | Public address for API-hosted images, if different | optional |
-| `NEXT_PUBLIC_DEFAULT_REGION` | Country shown at `/` | `dk` |
-| `NEXT_PUBLIC_BASE_URL` | Public URL of the storefront | `http://localhost:8001` |
-
-Admin variables (`apps/admin/.env.local`):
-
-| Variable | Description | Default |
-| --- | --- | --- |
-| `VITE_API_URL` | Address of the API. The admin is a browser app, so this must be reachable from the browser and ends up in the bundle. | `http://localhost:9100` |
-
-Sign in at http://localhost:7001 with the admin created in step 3. The admin's origin must appear in the API's `ADMIN_CORS`.
-
-## API
-
-Two audiences, each with its own CORS origins:
-
-- `/store/*` — the shop. Catalog, carts, checkout and customer accounts. Customers get a Bearer token from `/store/auth/login`.
-- `/admin/*` — the dashboard. Everything past `/admin/auth/login` needs an admin Bearer token.
-
-Both use stateless JWTs in an `Authorization: Bearer <token>` header rather than cookies, so a native mobile client can use the same endpoints as the browser. Every error response has the shape `{ "error": { "code": "...", "message": "..." } }`, and all money is an integer in the currency's minor unit (cents, paise).
-
-## Scripts
-
-Run from the repo root:
-
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Start every app in dev mode |
-| `npm run backend:dev` | Start only the API |
-| `npm run admin:dev` | Start only the admin dashboard |
-| `npm run storefront:dev` | Start only the storefront |
-| `npm run build` | Build all apps |
-| `npm run start` | Build, then start in production mode (storefront on port 8000) |
-| `npm run lint` | Lint the frontend apps |
-| `npm run typecheck` | Type-check every app that defines the task |
-| `npm test` | Run each app's tests |
-
-From `apps/backend`:
-
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Watch mode on `PORT` |
-| `npm run build` / `npm start` | Compile to `dist/`, then run it |
-| `npm run typecheck` | `tsc`, no emit |
-| `npm test` | API suites; needs MongoDB |
-| `npm run admin:create -- <email> <password> ["Name"]` | Create or reset an admin |
-| `npm run migrate:medusa` | One-off import of a catalog from an old Medusa PostgreSQL database |
-| `npm run catalog:localize` | One-off pass that pulls remote product images into `uploads/` |
-
-The storefront's production build reads the sitemap from the API, so the API must be running while you build.
-
-## Testing
+Everwear features test suites across all layers:
 
 ```bash
-# API (from apps/backend) — needs MongoDB; drops its own test databases
-npm test
+# Backend Test Suites (32 tests in 9 suites: auth, orders, products, payments, logistics, E2E)
+npm test --workspace=@dtc/backend
 
-# Storefront (from apps/storefront, with the API running)
-npx tsc --noEmit
-npx playwright test
+# Type-checking across all packages
+npm run typecheck
+
+# Code quality and linting
+npm run lint
+
+# Production compilation
+npm run build
 ```
 
-The checkout and account tests create real orders and customers in the local database. Don't run them against production.
+---
 
-## Project structure
+## 5. Production & Infrastructure Documentation
 
-```text
-apps/
-├── backend/        # Everwear API: Express app, routes, MongoDB access, scripts, tests
-│   ├── scripts/
-│   ├── test/
-│   └── src/
-│       ├── app.ts      # Express app: middleware, routers, error handler
-│       ├── index.ts    # Server start and shutdown
-│       ├── db/         # MongoDB client, schema types, indexes
-│       ├── lib/        # auth, errors, validation, totals, regions, serialize, ids
-│       └── routes/     # store/* and admin/* routers
-├── admin/          # Admin dashboard: a Vite single-page app
-│   ├── index.html
-│   └── src/
-│       ├── main.tsx    # Router and query client
-│       ├── routes/     # login, dashboard, orders, products, customers
-│       ├── components/ # app shell, resource grid, ui/ + reui/ primitives
-│       └── lib/        # API client, response types, formatters
-├── storefront/     # Next.js storefront
-│   ├── e2e/        # Playwright tests
-│   └── src/
-│       ├── app/        # Routes (under [countryCode]/)
-│       ├── lib/api/    # Server-side API client
-│       └── modules/    # Feature UI: shell, catalog, product, bag, checkout, account, order
-docs/PROJECT.md     # Architecture, design system, and known issues
-AGENTS.md           # Conventions and commands for coding agents
-```
+Detailed guides are available in the repository:
 
-For architecture, design tokens and known issues, see [`docs/PROJECT.md`](./docs/PROJECT.md).
+- 📖 **[DEPLOYMENT.md](./DEPLOYMENT.md)** — Production deployment, Docker Compose, systemd, SSL/TLS, and Nginx reverse proxy.
+- 💳 **[PAYMENT_SETUP.md](./PAYMENT_SETUP.md)** — Razorpay and Stripe configuration, webhook setup, and refund settlement.
+- 🚚 **[SHIPPING_SETUP.md](./SHIPPING_SETUP.md)** — Delhivery and BlueDart carrier credentials and waybill generation.
+- 💾 **[BACKUP_RECOVERY.md](./BACKUP_RECOVERY.md)** — MongoDB backups, automated cron scripts, and disaster recovery.
+- 🏛️ **[PROJECT.md](./docs/PROJECT.md)** — Core architecture, design tokens, and technical reference.
 
-## Branches
+---
 
-- `main`: stable code
-- `develop`: ongoing work; open pull requests against this branch
+## 6. Monorepo Scripts Reference
+
+Run from repository root:
+- `npm run dev`: Starts all workspace applications in watch mode.
+- `npm run backend:dev`: Starts only the Backend API.
+- `npm run admin:dev`: Starts only the Admin Console.
+- `npm run storefront:dev`: Starts only the Next.js Storefront.
+- `npm run build`: Runs production compilation across all packages.
+- `npm run lint`: Runs ESLint checks across all apps.
+- `npm run typecheck`: Runs TypeScript compiler type-checks.

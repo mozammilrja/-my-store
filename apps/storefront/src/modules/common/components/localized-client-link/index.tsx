@@ -5,10 +5,10 @@ import { useParams } from "next/navigation"
 import React from "react"
 
 /**
- * Use this component to create a Next.js `<Link />` that persists the current country code in the url,
- * without having to explicitly pass it as a prop.
+ * Persists the current country code in Next.js `<Link />`,
+ * handling root routes, pre-localized routes, and fallback gracefully.
  */
-const LocalizedClientLink = ({
+export default function LocalizedClientLink({
   children,
   href,
   ...props
@@ -16,17 +16,37 @@ const LocalizedClientLink = ({
   children?: React.ReactNode
   href: string
   className?: string
-  onClick?: () => void
+  onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void
   passHref?: true
   [x: string]: unknown
-}) => {
-  const { countryCode } = useParams()
+}) {
+  const params = useParams()
+  const countryCode = (params?.countryCode as string) || "in"
+
+  if (!href) {
+    return <span {...(props as React.HTMLAttributes<HTMLSpanElement>)}>{children}</span>
+  }
+
+  // Pass through external URLs or anchors
+  if (href.startsWith("http") || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) {
+    return (
+      <a href={href} {...(props as React.AnchorHTMLAttributes<HTMLAnchorElement>)}>
+        {children}
+      </a>
+    )
+  }
+
+  const cleanHref = href.startsWith("/") ? href : `/${href}`
+  const target =
+    cleanHref === "/"
+      ? `/${countryCode}`
+      : cleanHref.startsWith(`/${countryCode}/`) || cleanHref === `/${countryCode}`
+        ? cleanHref
+        : `/${countryCode}${cleanHref}`
 
   return (
-    <Link href={`/${countryCode}${href}`} {...props}>
+    <Link href={target} {...props}>
       {children}
     </Link>
   )
 }
-
-export default LocalizedClientLink

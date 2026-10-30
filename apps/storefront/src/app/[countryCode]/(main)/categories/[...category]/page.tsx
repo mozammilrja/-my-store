@@ -1,11 +1,12 @@
 import { Metadata } from "next"
-import { notFound } from "next/navigation"
 
-import { getCategory } from "@lib/data/catalog"
+import { getCategory, listCategories } from "@lib/data/catalog"
 import { getSiteOrigin } from "@lib/util/site"
 import { CatalogHeader } from "@modules/catalog/catalog-header"
 import { parseListing, type ListingParams } from "@modules/catalog/params"
 import { ProductListing } from "@modules/catalog/product-listing"
+import { MenDepartmentLanding } from "@modules/department/men-landing"
+import { WomenDepartmentLanding } from "@modules/department/women-landing"
 
 type Props = {
   params: Promise<{ category: string[]; countryCode: string }>
@@ -17,29 +18,60 @@ const handleOf = (segments: string[]) => segments.at(-1) ?? ""
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const { category, countryCode } = await props.params
-  const found = await getCategory(handleOf(category))
-  if (!found) notFound()
+  const handle = handleOf(category)
+  const found = await getCategory(handle)
+  const title = found ? found.name : handle.charAt(0).toUpperCase() + handle.slice(1).replace(/-/g, " ")
   const origin = await getSiteOrigin()
   return {
-    title: found.name,
-    description: found.description || `Shop ${found.name} at Everwear.`,
+    title,
+    description: found?.description || `Explore ${title} collection at Everwear.`,
     alternates: { canonical: `${origin}/${countryCode}/categories/${category.join("/")}` },
   }
 }
 
 export default async function CategoryPage(props: Props) {
   const { category, countryCode } = await props.params
-  const found = await getCategory(handleOf(category))
-  if (!found) notFound()
+  const handle = handleOf(category)
+  const [found, allCategories, searchParams] = await Promise.all([
+    getCategory(handle),
+    listCategories().catch(() => []),
+    props.searchParams,
+  ])
+  const title = found ? found.name : handle.charAt(0).toUpperCase() + handle.slice(1).replace(/-/g, " ")
+  const description = found?.description || `Curated selections and timeless craftsmanship for ${title}.`
+  const listing = parseListing(searchParams)
+
+  if (handle === "men" && found) {
+    return (
+      <MenDepartmentLanding
+        countryCode={countryCode}
+        category={found}
+        categories={allCategories}
+        listing={listing}
+      />
+    )
+  }
+
+  if (handle === "women" && found) {
+    return (
+      <WomenDepartmentLanding
+        countryCode={countryCode}
+        category={found}
+        categories={allCategories}
+        listing={listing}
+      />
+    )
+  }
 
   return (
     <>
-      <CatalogHeader eyebrow="Category" title={found.name} description={found.description} />
+      <CatalogHeader eyebrow="Category" title={title} description={description} />
       <ProductListing
         countryCode={countryCode}
         path={`/categories/${category.join("/")}`}
-        listing={parseListing(await props.searchParams)}
-        categoryIds={[found.id]}
+        listing={listing}
+        categoryIds={found ? [found.id] : undefined}
+        categories={allCategories}
       />
     </>
   )

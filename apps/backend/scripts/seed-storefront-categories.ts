@@ -1,8 +1,15 @@
-import { MongoClient } from "mongodb"
+import { connect, disconnect } from "../src/db/client.js"
+import { db, ensureIndexes, type ProductDoc, type VariantDoc } from "../src/db/schema.js"
+import { newId } from "../src/lib/ids.js"
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/everwear"
+interface CategorySeed {
+  handle: string
+  name: string
+  description: string
+  rank: number
+}
 
-const CATEGORIES = [
+const CATEGORIES: CategorySeed[] = [
   { handle: "men", name: "Men", description: "Contemporary masculine tailoring, structured blazers, linen shirts, and heirloom essentials.", rank: 0 },
   { handle: "women", name: "Women", description: "Heirloom weaves, fine Chanderi, contemporary silhouettes, and sculpted tailoring.", rank: 1 },
   { handle: "kids", name: "Kids", description: "Playful everyday staples crafted in soft breathable organic cotton.", rank: 2 },
@@ -19,32 +26,32 @@ const CATEGORIES = [
 ]
 
 async function seed() {
-  const client = new MongoClient(MONGODB_URI)
-  await client.connect()
-  const db = client.db()
+  await connect()
+  await ensureIndexes()
+  const now = new Date()
 
   console.log("Upserting categories...")
-  const catMap = {}
+  const catMap: Record<string, string> = {}
   for (const cat of CATEGORIES) {
-    const existing = await db.collection("categories").findOne({ handle: cat.handle })
+    const existing = await db.categories().findOne({ handle: cat.handle })
     if (existing) {
       catMap[cat.handle] = existing._id
-      await db.collection("categories").updateOne(
+      await db.categories().updateOne(
         { _id: existing._id },
-        { $set: { name: cat.name, description: cat.description, rank: cat.rank, updatedAt: new Date() } }
+        { $set: { name: cat.name, description: cat.description, rank: cat.rank, updatedAt: now } }
       )
     } else {
-      const _id = `pcat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+      const _id = newId("category")
       catMap[cat.handle] = _id
-      await db.collection("categories").insertOne({
+      await db.categories().insertOne({
         _id,
         handle: cat.handle,
         name: cat.name,
         description: cat.description,
         parentId: null,
         rank: cat.rank,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: now,
+        updatedAt: now,
       })
     }
   }
@@ -56,7 +63,7 @@ async function seed() {
       title: "Sculpted Linen Boyfriend Blazer",
       subtitle: "Ecru Raw Flax / Single-breasted horn buttons",
       description: "Ecru Raw Flax. Single-breasted horn buttons with a modern architectural silhouette. Includes complimentary bespoke alterations.",
-      status: "published",
+      status: "published" as const,
       thumbnail: "/images/women/product-1-sculpted-linen-blazer.jpg",
       images: [
         "/images/women/product-1-sculpted-linen-blazer.jpg",
@@ -73,7 +80,7 @@ async function seed() {
       title: "Emerald Zari Chanderi Kurta Set",
       subtitle: "3-piece ensemble with Scalloped Organza Dupatta",
       description: "3-piece ensemble featuring handspun Chanderi silk with delicate gold zari borders, paired with a scalloped organza dupatta.",
-      status: "published",
+      status: "published" as const,
       thumbnail: "/images/women/product-2-emerald-zari-kurta.jpg",
       images: [
         "/images/women/product-2-emerald-zari-kurta.jpg",
@@ -90,7 +97,7 @@ async function seed() {
       title: "Woven Kolhapuri Block Mule",
       subtitle: "Full Grain Saddle Leather / 45mm Block Heel",
       description: "Full grain saddle leather handcrafted by master cobblers. Features a comfortable 45mm stacked block heel and woven upper.",
-      status: "published",
+      status: "published" as const,
       thumbnail: "/images/women/product-3-woven-kolhapuri-mule.jpg",
       images: ["/images/women/product-3-woven-kolhapuri-mule.jpg"],
       categoryHandles: ["women", "footwear"],
@@ -104,7 +111,7 @@ async function seed() {
       title: "Baroque Tourmaline Silver Choker",
       subtitle: "925 Sterling Silver / Hand-beaten filigree",
       description: "925 Sterling Silver hand-beaten filigree choker set with natural raw baroque tourmaline gemstones. Certified authentic hallmark.",
-      status: "published",
+      status: "published" as const,
       thumbnail: "/images/women/product-4-baroque-tourmaline-choker.jpg",
       images: ["/images/women/product-4-baroque-tourmaline-choker.jpg"],
       categoryHandles: ["women", "jewellery", "accessories"],
@@ -116,10 +123,10 @@ async function seed() {
   ]
 
   for (const sp of stitchProducts) {
-    const existing = await db.collection("products").findOne({ handle: sp.handle })
-    const categoryIds = sp.categoryHandles.map((h) => catMap[h]).filter(Boolean)
+    const existing = await db.products().findOne({ handle: sp.handle })
+    const categoryIds = sp.categoryHandles.map((h) => catMap[h]).filter((id): id is string => Boolean(id))
     const sizes = ["S", "M", "L", "XL"]
-    const variants = sizes.map((sz, idx) => ({
+    const variants: VariantDoc[] = sizes.map((sz, idx) => ({
       _id: `variant_${sp.handle.replace(/-/g, "").substring(0, 8)}_${sz.toLowerCase()}_${idx}`,
       sku: `${sp.handle.toUpperCase().substring(0, 10)}-${sz}`,
       title: sz,
@@ -130,12 +137,12 @@ async function seed() {
       stock: 50,
     }))
 
-    const doc = {
+    const doc: Omit<ProductDoc, "_id" | "createdAt"> = {
       handle: sp.handle,
       title: sp.title,
       subtitle: sp.subtitle,
       description: sp.description,
-      status: "published",
+      status: sp.status,
       thumbnail: sp.thumbnail,
       images: sp.images,
       categoryIds,
@@ -144,30 +151,31 @@ async function seed() {
       options: [{ title: "Size", values: sizes }],
       variants,
       weight: 500,
-      updatedAt: new Date(),
+      updatedAt: now,
     }
 
     if (existing) {
-      await db.collection("products").updateOne({ _id: existing._id }, { $set: doc })
+      await db.products().updateOne({ _id: existing._id }, { $set: doc })
     } else {
-      const _id = `prod_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
-      await db.collection("products").insertOne({
+      const _id = newId("product")
+      await db.products().insertOne({
         _id,
         ...doc,
-        createdAt: new Date(),
+        createdAt: now,
       })
     }
   }
 
   // Also distribute some demo products into men, kids, sports, accessories, beauty
   console.log("Distributing categories across demo products...")
-  const allProds = await db.collection("products").find({}).toArray()
+  const allProds = await db.products().find({}).toArray()
   for (let i = 0; i < allProds.length; i++) {
     const p = allProds[i]
+    if (!p) continue
     if (stitchProducts.some((sp) => sp.handle === p.handle)) continue
 
     const currentCatIds = p.categoryIds || []
-    const newCatIds = new Set(currentCatIds)
+    const newCatIds = new Set<string>(currentCatIds)
 
     // Evenly map items to departments
     if (i % 2 === 0 && catMap["men"]) newCatIds.add(catMap["men"])
@@ -178,17 +186,20 @@ async function seed() {
     if (i % 11 === 0 && catMap["beauty"]) newCatIds.add(catMap["beauty"])
     if (i % 13 === 0 && catMap["home"]) newCatIds.add(catMap["home"])
 
-    await db.collection("products").updateOne(
+    await db.products().updateOne(
       { _id: p._id },
       { $set: { categoryIds: Array.from(newCatIds) } }
     )
   }
 
   console.log("Categories and products successfully synced in MongoDB!")
-  await client.close()
 }
 
-seed().catch((err) => {
+try {
+  await seed()
+} catch (err) {
   console.error("Seeding failed:", err)
   process.exit(1)
-})
+} finally {
+  await disconnect()
+}

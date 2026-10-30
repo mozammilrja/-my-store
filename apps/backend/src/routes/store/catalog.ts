@@ -1,10 +1,10 @@
 import { Router } from "express"
 import type { Document, Filter } from "mongodb"
 import { z } from "zod"
-import { db, type ProductDoc } from "../../db/schema.js"
+import { db, type CategoryDoc, type ProductDoc } from "../../db/schema.js"
 import { notFound } from "../../lib/errors.js"
 import { regionForCountry } from "../../lib/regions.js"
-import { toStoreProduct } from "../../lib/serialize.js"
+import { toStoreProduct, assetUrl } from "../../lib/serialize.js"
 
 const country = z.string().regex(/^[a-zA-Z]{2}$/, "country must be a 2-letter code")
 const handle = z.string().regex(/^[a-z0-9][a-z0-9-]{0,99}$/, "invalid handle")
@@ -99,6 +99,123 @@ catalogRoutes.get("/collections/:handle", async (req, res) => {
   const collection = await db.collections().findOne({ handle: handle.parse(req.params.handle) })
   if (!collection) throw notFound("Collection")
   res.json({ collection: { id: collection._id, handle: collection.handle, title: collection.title } })
+})
+
+/**
+ * Real-time search suggestions & autocomplete inspired by Myntra's type-ahead architecture.
+ * Returns query completions, category suggestions, and fast visual product previews.
+ */
+catalogRoutes.get("/search/suggest", async (req, res) => {
+  const querySchema = z.object({
+    country,
+    q: z.string().trim().min(1).max(100),
+    scope: z.string().trim().optional(),
+    limit: z.coerce.number().int().min(1).max(20).default(6),
+  })
+  const query = querySchema.parse(req.query)
+  const region = await regionForCountry(query.country)
+  const currency = region.currency
+
+  const escaped = query.q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const wordBoundaryRegex = new RegExp(`(^|\\s)${escaped}`, "i")
+  const looseRegex = new RegExp(escaped, "i")
+
+  let scopeCategoryIds: string[] = []
+  if (query.scope && query.scope !== "all") {
+    const scopeCat = await db.categories().findOne({
+      $or: [{ handle: query.scope.toLowerCase() }, { name: new RegExp(`^${query.scope}$`, "i") }],
+    })
+    if (scopeCat) {
+      const childCategories = await db.categories().find({ parentId: scopeCat._id }).toArray()
+      scopeCategoryIds = [scopeCat._id, ...childCategories.map((c) => c._id)]
+    }
+  }
+
+  const categoryFilter: Filter<CategoryDoc> = {
+    $or: [{ name: looseRegex }, { handle: looseRegex }],
+  }
+  if (scopeCategoryIds.length) {
+    categoryFilter._id = { $in: scopeCategoryIds }
+  }
+
+  const [matchedCategories, matchedProducts] = await Promise.all([
+    db.categories().find(categoryFilter, { limit: 4 }).toArray(),
+    db.products().find(
+      {
+        status: "published",
+        $or: [
+          { title: wordBoundaryRegex },
+          { tags: looseRegex },
+          { material: looseRegex },
+          { description: looseRegex },
+        ],
+        ...(scopeCategoryIds.length ? { categoryIds: { $in: scopeCategoryIds } } : {}),
+      },
+      { limit: query.limit }
+    ).toArray(),
+  ])
+
+  const suggestions: Array<{
+    text: string
+    type: "query" | "category"
+    categoryHandle?: string
+  }> = []
+  const seen = new Set<string>()
+
+  // 1. Matching categories (e.g. "Jackets" or "Linen")
+  for (const cat of matchedCategories) {
+    const key = `cat:${cat.name.toLowerCase()}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      suggestions.push({
+        text: cat.name,
+        type: "category",
+        categoryHandle: cat.handle,
+      })
+    }
+  }
+
+  // 2. Matching product titles and tags
+  for (const p of matchedProducts) {
+    const titleKey = `q:${p.title.toLowerCase()}`
+    if (!seen.has(titleKey) && suggestions.length < 8) {
+      seen.add(titleKey)
+      suggestions.push({ text: p.title, type: "query" })
+    }
+    for (const tag of p.tags ?? []) {
+      if (looseRegex.test(tag)) {
+        const tagKey = `tag:${tag.toLowerCase()}`
+        if (!seen.has(tagKey) && suggestions.length < 8) {
+          seen.add(tagKey)
+          suggestions.push({ text: tag, type: "query" })
+        }
+      }
+    }
+  }
+
+  // 3. Top product preview cards
+  const productPreviews = matchedProducts.slice(0, 4).map((p) => {
+    const prices = p.variants
+      .map((v) => v.prices[currency])
+      .filter((pr): pr is number => typeof pr === "number")
+    const minPrice = prices.length ? Math.min(...prices) : null
+    const thumbnail = p.thumbnail ?? p.images[0] ?? null
+
+    return {
+      id: p._id,
+      handle: p.handle,
+      title: p.title,
+      thumbnail: thumbnail ? assetUrl(thumbnail) : null,
+      price: minPrice,
+      currency,
+    }
+  })
+
+  res.json({
+    query: query.q,
+    suggestions: suggestions.slice(0, 6),
+    products: productPreviews,
+  })
 })
 
 catalogRoutes.get("/products", async (req, res) => {

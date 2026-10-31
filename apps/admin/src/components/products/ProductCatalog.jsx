@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import confetti from 'canvas-confetti';
-import { INITIAL_PRODUCTS } from '../../data/mockData';
-import { adminApi } from '../../lib/api';
+import { adminApi, describeUploadProblem } from '../../lib/api';
+import { cn } from '../../lib/utils';
 import { useProductsQuery, useUpdateProductMutation } from '../../hooks/useAdminQueries';
 import { Icon,
   Card,
@@ -23,25 +23,31 @@ import { Icon,
   ContentGrid,
   StatsCard,
   StatusBadge,
+  EmptyState,
   ErrorState,
   SkeletonPage,
   Thumbnail,
   ColorSwatch,
 } from '../ui';
 
+const EMPTY_PRODUCT = {};
+
 export function ProductCatalog({ onShowToast, currentHub }) {
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeTab, setActiveTab] = useState(1);
-  const [allProducts, setAllProducts] = useState(INITIAL_PRODUCTS);
-  const [selectedProductId, setSelectedProductId] = useState(INITIAL_PRODUCTS[0].id);
+  const [allProducts, setAllProducts] = useState([]);
+  const [selectedProductId, setSelectedProductId] = useState(null);
   const [activeMediaSlot, setActiveMediaSlot] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [uploads, setUploads] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
 
   // Active product being edited
-  const product = useMemo(() => {
-    return allProducts.find(p => p.id === selectedProductId) || allProducts[0];
-  }, [allProducts, selectedProductId]);
+  // Empty rather than null so the form initialisers below stay simple; the
+  // editor itself is gated on there being a real product to edit.
+  const product = useMemo(
+    () => allProducts.find((p) => p.id === selectedProductId) || allProducts[0] || EMPTY_PRODUCT,
+    [allProducts, selectedProductId]
+  );
 
   // Form states initialized from active product
   const [title, setTitle] = useState(product.title);
@@ -133,16 +139,28 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           codActive: true,
           expressShip: true,
           thumbnail: p.thumbnail || (p.images && p.images[0]) || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBY9Tgm6nn9TMViDB2K0jV_IgnR1CTQzPSh4UF1qP0xioyqkpMq3i7rxekw2L-XzIqJ7t0oI4QqiK1ZfohmEgXR501aua43kgyya37eW_Pnzg1T4YVEcL0PZnC5nDOlZkUy2t-rC3JITisM8eYFYMI4d6TLZtJcydeuJ8KukkLzD8BdJmW5hA7Jm3FflcjpsXIW5n5FvIgEXboyVtaKgQdoBRB4-htL-mHupOCj5v7x',
-          mediaAssets: p.images && p.images.length > 0 
-            ? p.images.map((img, i) => ({ slot: `Perspective ${i + 1}`, url: img, isPrimary: i === 0 }))
-            : [{ slot: 'Primary Editorial', url: p.thumbnail, isPrimary: true }],
+          mediaAssets: p.images && p.images.length > 0
+            ? p.images.map((img, i) => ({ slot: `Perspective ${i + 1}`, url: img, path: img, isPrimary: i === 0 }))
+            : p.thumbnail
+              ? [{ slot: 'Primary Editorial', url: p.thumbnail, path: p.thumbnail, isPrimary: true }]
+              : [],
           rawBackend: p
         };
       });
-      // Merge with initial rich styles
-      setAllProducts([...INITIAL_PRODUCTS, ...apiProducts]);
+      setAllProducts(apiProducts);
     }
   }, [catalogData]);
+
+  // Keep a real selection as the catalog loads or the list changes under it.
+  useEffect(() => {
+    if (!allProducts.length) {
+      if (selectedProductId) setSelectedProductId(null);
+      return;
+    }
+    if (!allProducts.some((p) => p.id === selectedProductId)) {
+      setSelectedProductId(allProducts[0].id);
+    }
+  }, [allProducts, selectedProductId]);
 
   // Filtered styles based on activeCategory
   const filteredProducts = useMemo(() => {
@@ -191,9 +209,9 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       });
     } catch (err) {
       onShowToast({
-        type: 'success',
-        title: 'Garment Style Published',
-        message: `${title} published to catalog (${err?.message || 'Updated locally'}).`,
+        type: 'error',
+        title: 'Publish failed',
+        message: err?.message || `${title} could not be published. Nothing was changed.`,
       });
     } finally {
       setIsSaving(false);
@@ -217,11 +235,11 @@ export function ProductCatalog({ onShowToast, currentHub }) {
         title: 'Draft Saved',
         message: `${title} saved as inactive draft in catalog master.`,
       });
-    } catch {
+    } catch (err) {
       onShowToast({
-        type: 'info',
-        title: 'Draft Saved',
-        message: `${title} saved locally as inactive draft.`,
+        type: 'error',
+        title: 'Could not save draft',
+        message: err?.message || `${title} was not saved.`,
       });
     } finally {
       setIsSaving(false);
@@ -267,38 +285,121 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     });
   };
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const isUploading = uploads.some((u) => u.status === 'uploading');
 
-    setIsUploading(true);
+  /** The backend id to PATCH, or null when this row only exists in the client. */
+  const backendProductId = product.rawBackend?.id || (product.id?.startsWith('prod_') ? product.id : null);
+
+  /** `/uploads/...` for assets we host, which is what the products API stores. */
+  const assetPath = (asset) => asset.path || asset.url;
+
+  /**
+   * Writes the image list onto the product so an upload survives a refresh.
+   * Throws on failure, so the caller can keep the tile in an error state
+   * rather than claiming the asset was saved.
+   */
+  const persistImages = async (assets) => {
+    if (!backendProductId) return;
+    await updateProductMutation.mutateAsync({
+      productId: backendProductId,
+      data: { images: assets.map(assetPath).filter(Boolean) },
+    });
+  };
+
+  const runUpload = async (file, uploadId) => {
+    setUploads((prev) =>
+      prev.map((u) => (u.id === uploadId ? { ...u, status: 'uploading', progress: 0, error: null } : u))
+    );
+
     try {
-      const uploadRes = await adminApi.uploadImage(file);
-      if (uploadRes?.url) {
-        const newAsset = {
-          slot: `Perspective ${mediaAssets.length + 1}`,
-          url: uploadRes.url,
-          isPrimary: false
-        };
-        setMediaAssets([...mediaAssets, newAsset]);
-        onShowToast({
-          type: 'success',
-          title: 'Hi-Res Image Uploaded',
-          message: `Saved ${file.name} to CDN catalog storage.`,
-        });
-      }
-    } catch {
-      // Create local preview if backend upload has an issue
-      const localUrl = URL.createObjectURL(file);
-      setMediaAssets([...mediaAssets, { slot: `Uploaded ${file.name}`, url: localUrl, isPrimary: false }]);
+      const res = await adminApi.uploadImage(file, {
+        onProgress: (percent) =>
+          setUploads((prev) => prev.map((u) => (u.id === uploadId ? { ...u, progress: percent } : u))),
+      });
+
+      const asset = {
+        slot: `Perspective ${mediaAssets.length + 1}`,
+        url: res.url,
+        path: res.path,
+        isPrimary: mediaAssets.length === 0,
+      };
+      const next = [...mediaAssets, asset];
+      await persistImages(next);
+
+      setMediaAssets(next);
+      setUploads((prev) => {
+        prev.filter((u) => u.id === uploadId).forEach((u) => URL.revokeObjectURL(u.previewUrl));
+        return prev.filter((u) => u.id !== uploadId);
+      });
       onShowToast({
         type: 'success',
-        title: 'Asset Added to Lookbook',
-        message: `Loaded image asset ${file.name}.`,
+        title: 'Image saved',
+        message: `${file.name} is now on this product.`,
       });
-    } finally {
-      setIsUploading(false);
+    } catch (err) {
+      // The asset is deliberately not added: saying it saved when it did not
+      // is worse than showing the failure. Previously saved images are
+      // untouched, so a failed replacement leaves the product as it was.
+      setUploads((prev) =>
+        prev.map((u) =>
+          u.id === uploadId
+            ? { ...u, status: 'error', error: err?.message || 'The image could not be uploaded.' }
+            : u
+        )
+      );
+      onShowToast({
+        type: 'error',
+        title: 'Upload failed',
+        message: err?.message || `${file.name} could not be uploaded.`,
+      });
     }
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    // Reset the input so choosing the same file again still fires a change.
+    e.target.value = '';
+    if (!file) return;
+
+    const problem = describeUploadProblem(file);
+    if (problem) {
+      onShowToast({ type: 'error', title: 'Unsupported image', message: problem });
+      return;
+    }
+
+    // Guard against the same file being queued twice by a double click.
+    const duplicate = uploads.some(
+      (u) => u.status === 'uploading' && u.name === file.name && u.size === file.size
+    );
+    if (duplicate) return;
+
+    const uploadId = `upl_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    setUploads((prev) => [
+      ...prev,
+      {
+        id: uploadId,
+        name: file.name,
+        size: file.size,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        progress: 0,
+        status: 'uploading',
+        error: null,
+      },
+    ]);
+    await runUpload(file, uploadId);
+  };
+
+  const retryUpload = (uploadId) => {
+    const entry = uploads.find((u) => u.id === uploadId);
+    if (entry) runUpload(entry.file, uploadId);
+  };
+
+  const dismissUpload = (uploadId) => {
+    setUploads((prev) => {
+      prev.filter((u) => u.id === uploadId).forEach((u) => URL.revokeObjectURL(u.previewUrl));
+      return prev.filter((u) => u.id !== uploadId);
+    });
   };
 
   const handleRunQc = () => {
@@ -339,6 +440,30 @@ export function ProductCatalog({ onShowToast, currentHub }) {
 
   if (isCatalogLoading) {
     return <SkeletonPage variant="cards" stats={6} statsCols={6} label="Loading product catalog" />;
+  }
+
+  if (isCatalogError) {
+    return (
+      <PageContainer>
+        <ErrorState
+          title="Product catalog could not be loaded"
+          message={catalogError?.message}
+          onRetry={() => refetchCatalog()}
+        />
+      </PageContainer>
+    );
+  }
+
+  if (!allProducts.length) {
+    return (
+      <PageContainer>
+        <EmptyState
+          icon="inventory_2"
+          title="No products yet"
+          message="Products created in the catalog will appear here, ready to edit and publish."
+        />
+      </PageContainer>
+    );
   }
 
   return (
@@ -743,18 +868,27 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                     <Icon name="perm_media" className="material-symbols-outlined text-accent text-icon-lg" />
                     <span>Studio 360° Photography & Swatch Assets</span>
                   </h3>
-                  <label className="text-label text-accent font-medium cursor-pointer hover:underline inline-flex items-center gap-1">
+                  <label
+                    className={cn(
+                      'text-label font-medium inline-flex items-center gap-1',
+                      isUploading
+                        ? 'text-disabled cursor-not-allowed'
+                        : 'text-accent cursor-pointer hover:underline'
+                    )}
+                  >
                     <Icon name="add_photo_alternate" className="material-symbols-outlined text-icon" />
-                    <span>{isUploading ? 'Uploading...' : '+ Upload Photo'}</span>
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      className="hidden" 
+                    <span>{isUploading ? 'Uploading...' : 'Upload photo'}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
                       onChange={handleFileUpload}
                       disabled={isUploading}
                     />
                   </label>
                 </div>
+
+                <p className="text-meta text-muted">PNG, JPEG or WebP, up to 5 MB. The first image becomes the thumbnail.</p>
 
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-space-sm">
                   {mediaAssets.map((asset, idx) => (
@@ -776,7 +910,69 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                       </div>
                     </div>
                   ))}
+
+                  {uploads.map((upload) => (
+                    <div
+                      key={upload.id}
+                      className={cn(
+                        'relative aspect-[3/4] overflow-hidden rounded-lg border bg-surface-subtle',
+                        upload.status === 'error' ? 'border-status-danger/50' : 'border-subtle'
+                      )}
+                    >
+                      <img
+                        src={upload.previewUrl}
+                        alt=""
+                        aria-hidden="true"
+                        className="h-full w-full object-cover opacity-40"
+                      />
+                      <div className="absolute inset-0 flex flex-col justify-end gap-1 bg-scrim/70 p-2">
+                        <span className="truncate text-micro font-semibold text-on-accent">{upload.name}</span>
+                        {upload.status === 'uploading' ? (
+                          <>
+                            <span className="text-micro text-on-accent" role="status">
+                              {upload.progress === null ? 'Uploading' : `Uploading ${upload.progress}%`}
+                            </span>
+                            <div className="h-1 w-full overflow-hidden rounded-full bg-surface-raised/40">
+                              <div
+                                className={cn(
+                                  'h-full rounded-full bg-status-success-solid',
+                                  upload.progress === null && 'w-1/3 animate-pulse'
+                                )}
+                                style={
+                                  upload.progress === null ? undefined : { width: `${upload.progress}%` }
+                                }
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-micro text-on-accent">{upload.error}</span>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => retryUpload(upload.id)}
+                                className="rounded bg-surface-raised px-1.5 py-px text-micro font-semibold text-primary"
+                              >
+                                Retry
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => dismissUpload(upload.id)}
+                                className="rounded px-1.5 py-px text-micro font-semibold text-on-accent underline"
+                              >
+                                Dismiss
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
+
+                {mediaAssets.length === 0 && uploads.length === 0 && (
+                  <p className="text-meta text-muted">No images on this product yet.</p>
+                )}
               </CardContent>
             </Card>
           </div>

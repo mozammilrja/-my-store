@@ -21,12 +21,21 @@ const handle = z.string().regex(/^[a-z0-9][a-z0-9-]{0,99}$/, "Use lowercase lett
 const text = (max: number) => z.string().trim().max(max)
 const optionValue = z.string().trim().min(1).max(40)
 
-/** Accepts absolute API URLs or stored paths; keeps only our own /uploads paths or https URLs. */
+/**
+ * Accepts absolute API URLs or stored paths; keeps only paths we serve or https URLs.
+ *
+ * `/images/` is in the list because assetUrl serves those seeded storefront
+ * assets back unchanged. Without it, reading a product and writing it again
+ * fails on the product's own images, so an upload can never be appended to one.
+ */
 const imagePath = z
   .string()
   .max(500)
   .transform((u) => (u.startsWith(env.API_PUBLIC_URL) ? u.slice(env.API_PUBLIC_URL.length) : u))
-  .refine((u) => u.startsWith("/uploads/") || u.startsWith("https://"), "Upload images first")
+  .refine(
+    (u) => u.startsWith("/uploads/") || u.startsWith("/images/") || u.startsWith("https://"),
+    "Upload images first"
+  )
 
 const slugify = (s: string) =>
   s

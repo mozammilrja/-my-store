@@ -24,7 +24,7 @@ test("the initial load shows a content-shaped skeleton, then the real content", 
   await seed(context, { token: await getAdminToken(request) })
   const release = stallRoute(page, `${API_URL}/admin/orders*`)
 
-  await page.goto("/#/order-management", { waitUntil: "load" })
+  await page.goto("/order-management", { waitUntil: "load" })
 
   const skeleton = page.locator(SKELETON)
   await expect(skeleton).toBeVisible()
@@ -51,7 +51,7 @@ test("each module's skeleton matches the shape of that module", async ({ page, c
 
   // Settings is a form module: its skeleton must show form rows, not a table.
   let release = stallRoute(page, `${API_URL}/admin/settings*`)
-  await page.goto("/#/system-settings", { waitUntil: "load" })
+  await page.goto("/system-settings", { waitUntil: "load" })
   let skeleton = page.locator(SKELETON)
   await expect(skeleton).toBeVisible()
   expect(await skeleton.locator("table").count()).toBe(0)
@@ -60,7 +60,7 @@ test("each module's skeleton matches the shape of that module", async ({ page, c
 
   // The dashboard is a chart module: its skeleton must show KPI tiles.
   release = stallRoute(page, `${API_URL}/admin/dashboard*`)
-  await page.goto("/#/overview", { waitUntil: "load" })
+  await page.goto("/overview", { waitUntil: "load" })
   skeleton = page.locator(SKELETON)
   await expect(skeleton).toBeVisible()
   expect(await skeleton.locator("div.min-h-\\[7\\.5rem\\]").count()).toBeGreaterThanOrEqual(4)
@@ -72,8 +72,18 @@ test("a loading pass does not shift the layout under it", async ({ page, context
   await seed(context, { token: await getAdminToken(request) })
   const release = stallRoute(page, `${API_URL}/admin/orders*`)
 
-  await page.goto("/#/order-management", { waitUntil: "load" })
+  await page.goto("/order-management", { waitUntil: "load" })
   await expect(page.locator(SKELETON)).toBeVisible()
+
+  /*
+   * Let the web fonts settle before the observer starts. Inter swapping in for
+   * the fallback reflows every line of text, which the browser reports as a
+   * layout shift; counted here it looked like the skeleton swap had moved the
+   * page, and only on runs where the font was not already cached.
+   */
+  await page.waitForFunction(() => document.fonts.status === "loaded", undefined, {
+    timeout: 15_000,
+  })
 
   await page.evaluate(() => {
     window.__cls = 0
@@ -81,7 +91,7 @@ test("a loading pass does not shift the layout under it", async ({ page, context
       for (const entry of list.getEntries()) {
         if (!entry.hadRecentInput) window.__cls += entry.value
       }
-    }).observe({ type: "layout-shift", buffered: true })
+    }).observe({ type: "layout-shift" })
   })
 
   release()
@@ -106,7 +116,7 @@ test("a failed request shows an error state with a retry, never an endless skele
     })
   )
 
-  await page.goto("/#/credit-notes-and-refunds", { waitUntil: "load" })
+  await page.goto("/credit-notes-and-refunds", { waitUntil: "load" })
 
   const alert = page.getByRole("alert").first()
   await expect(alert).toBeVisible({ timeout: 30_000 })
@@ -162,7 +172,7 @@ test("reduced motion stops the shimmer", async ({ browser, request, baseURL }) =
     const page = await context.newPage()
     const release = stallRoute(page, `${API_URL}/admin/orders*`)
 
-    await page.goto("/#/order-management", { waitUntil: "load" })
+    await page.goto("/order-management", { waitUntil: "load" })
     const skeleton = page.locator(SKELETON)
     await expect(skeleton).toBeVisible()
 

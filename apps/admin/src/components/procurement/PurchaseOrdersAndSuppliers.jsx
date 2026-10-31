@@ -1,5 +1,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Select } from '../ui/select';
+import {
+  Icon,
+  Button,
+  Badge,
+  Select,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+  FilterBar,
+  FilterDropdown,
+} from '../ui';
 import { adminApi } from '../../lib/api';
 import { usePurchaseOrdersQuery, useCreatePurchaseOrderMutation } from '../../hooks/useAdminQueries';
 
@@ -460,253 +472,151 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
   };
 
   return (
-    <div className="flex flex-col w-full space-y-6">
+    <PageContainer>
       {/* Top Breadcrumb & Header Action Suite */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary tracking-wider">
-          <span className="hover:text-text-primary transition-colors cursor-pointer" onClick={() => onNavigate && onNavigate('overview')}>
-            EVERWEAR ADMIN
-          </span>
-          <span>/</span>
-          <span>CATALOG &amp; INVENTORY</span>
-          <span>/</span>
-          <span className="text-primary-container font-bold">PURCHASE ORDERS &amp; SUPPLIERS</span>
-        </div>
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-text-primary tracking-tight">
-              Fashion Procurement, Mill Suppliers &amp; Purchase Orders
-            </h1>
-            <p className="text-sm text-text-secondary mt-0.5">
-              Orchestrate raw fiber sourcing, batch lot spinning, dyeing milestones, and multi-hub GRN receipts across primary Indian textile clusters.
-            </p>
-          </div>
-          {/* Action Button Group */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
+      <PageHeader
+        breadcrumb={['Everwear Admin', 'Catalog & Inventory', 'Purchase Orders & Suppliers']}
+        title="Fashion Procurement, Mill Suppliers & Purchase Orders"
+        description="Orchestrate raw fiber sourcing, batch lot spinning, dyeing milestones, and multi-hub GRN receipts across primary Indian textile clusters."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => onShowToast && onShowToast('Syncing mill catalogs and vendor product master from Surat & Jaipur...')}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-surface-subtle text-text-primary text-xs font-semibold hover:bg-surface-container transition-colors shadow-sm border border-border-subtle cursor-pointer"
+              className="gap-1.5"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px] text-secondary">cloud_download</span>
+              <Icon name="cloud_download" className="material-symbols-outlined text-[16px] text-secondary" />
               <span>Import Catalog</span>
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => onShowToast && onShowToast('Opening GRN & Quality Dock Inward Scanner...')}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-surface-subtle text-text-primary text-xs font-semibold hover:bg-surface-container transition-colors shadow-sm border border-border-subtle cursor-pointer"
+              className="gap-1.5"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px] text-secondary">verified</span>
-              <span>GRN &amp; Quality Inward</span>
-            </button>
-            <button
+              <Icon name="verified" className="material-symbols-outlined text-[16px] text-secondary" />
+              <span>GRN & Quality Inward</span>
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
               onClick={() => setIsCreatePoModalOpen(true)}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-primary-container text-on-primary text-xs font-semibold hover:bg-primary transition-all shadow-md cursor-pointer"
+              className="gap-1.5 bg-primary-container text-on-primary hover:bg-primary shadow-sm"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">add_circle</span>
+              <Icon name="add_circle" className="material-symbols-outlined text-[18px]" />
               <span>Create Purchase Order</span>
-            </button>
-          </div>
-        </div>
-      </div>
+            </Button>
+          </>
+        }
+      />
 
-      {/* Operational KPI Cards (Bento Ribbon with Editorial Density) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
-        {/* KPI 1 */}
-        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow border border-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-text-secondary uppercase">Active Purchase Orders</span>
-            <span className="p-1 rounded-md bg-surface-container-low text-primary-container material-symbols-outlined text-[18px]">
-              receipt_long
-            </span>
-          </div>
-          <div className="mt-3">
-            <div className="flex items-baseline gap-2">
-              <span className="text-[26px] leading-8 font-bold text-text-primary">48 POs</span>
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-xs text-text-secondary font-medium">Valuation ₹3.84 Cr</span>
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success text-[11px] font-bold">
-                <span className="material-symbols-outlined text-[12px]">trending_up</span>+8.4% MoM
-              </span>
-            </div>
-          </div>
-          <div className="w-full bg-surface-subtle h-1 rounded-full mt-3 overflow-hidden">
-            <div className="bg-primary-container h-full w-[72%] rounded-full"></div>
-          </div>
-        </div>
-
-        {/* KPI 2 */}
-        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow border border-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-text-secondary uppercase">Inward Pipeline (7D)</span>
-            <span className="p-1 rounded-md bg-status-info-bg text-status-info material-symbols-outlined text-[18px]">
-              local_shipping
-            </span>
-          </div>
-          <div className="mt-3">
-            <div className="flex items-baseline gap-2">
-              <span className="text-[26px] leading-8 font-bold text-text-primary">18,400</span>
-              <span className="text-xs text-text-secondary font-medium">garments</span>
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-xs text-text-secondary font-medium">BLR-FC1 &amp; BOM-FC2</span>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-info-bg text-status-info text-[11px] font-bold">
-                9 consignments
-              </span>
-            </div>
-          </div>
-          <div className="w-full bg-surface-subtle h-1 rounded-full mt-3 overflow-hidden">
-            <div className="bg-status-info h-full w-[54%] rounded-full"></div>
-          </div>
-        </div>
-
-        {/* KPI 3 */}
-        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow border border-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-text-secondary uppercase">Overdue Shipments</span>
-            <span className="p-1 rounded-md bg-status-danger-bg text-status-danger material-symbols-outlined text-[18px]">
-              warning
-            </span>
-          </div>
-          <div className="mt-3">
-            <div className="flex items-baseline gap-2">
-              <span className="text-[26px] leading-8 font-bold text-status-danger">3 POs</span>
-              <span className="text-xs text-status-danger font-semibold">Delayed</span>
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-xs text-text-secondary font-medium">SLA Escalation Alert</span>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-danger-bg text-status-danger text-[11px] font-bold">
-                Critical
-              </span>
-            </div>
-          </div>
-          <div className="w-full bg-surface-subtle h-1 rounded-full mt-3 overflow-hidden">
-            <div className="bg-status-danger h-full w-[24%] rounded-full"></div>
-          </div>
-        </div>
-
-        {/* KPI 4 */}
-        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow border border-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-text-secondary uppercase">Quality Acceptance</span>
-            <span className="p-1 rounded-md bg-status-success-bg text-status-success material-symbols-outlined text-[18px]">
-              verified_user
-            </span>
-          </div>
-          <div className="mt-3">
-            <div className="flex items-baseline gap-2">
-              <span className="text-[26px] leading-8 font-bold text-text-primary">98.2%</span>
-              <span className="text-xs text-status-success font-bold">Grade-A</span>
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-xs text-text-secondary font-medium">Fabrics &amp; Stitch Pass</span>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success text-[11px] font-bold">
-                &gt; 97.5% Target
-              </span>
-            </div>
-          </div>
-          <div className="w-full bg-surface-subtle h-1 rounded-full mt-3 overflow-hidden">
-            <div className="bg-status-success h-full w-[98%] rounded-full"></div>
-          </div>
-        </div>
-
-        {/* KPI 5 */}
-        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow border border-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-text-secondary uppercase">Vendor Network</span>
-            <span className="p-1 rounded-md bg-surface-container-low text-primary-container material-symbols-outlined text-[18px]">
-              storefront
-            </span>
-          </div>
-          <div className="mt-3">
-            <div className="flex items-baseline gap-2">
-              <span className="text-[26px] leading-8 font-bold text-text-primary">34 Mills</span>
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-xs text-text-secondary font-medium truncate">Surat, Jaipur, Tirupur, Ludhiana</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 mt-3">
-            <span className="w-2 h-2 rounded-full bg-status-success"></span>
-            <span className="text-[11px] font-bold text-text-secondary">100% Tier-1 Audited</span>
-          </div>
-        </div>
-      </div>
+      {/* Operational KPI Cards */}
+      <ContentGrid columns={5}>
+        <StatsCard
+          title="Active Purchase Orders"
+          value="48 POs"
+          icon="receipt_long"
+          trend="+8.4% MoM"
+          trendType="up"
+          trendLabel="Valuation ₹3.84 Cr"
+        />
+        <StatsCard
+          title="Inward Pipeline (7D)"
+          value="18,400"
+          icon="local_shipping"
+          iconColor="text-status-info"
+          badge="9 consignments"
+          badgeVariant="info"
+          trendLabel="BLR-FC1 & BOM-FC2"
+        />
+        <StatsCard
+          title="Overdue Shipments"
+          value="3 POs"
+          icon="warning"
+          iconColor="text-status-danger"
+          badge="Critical"
+          badgeVariant="destructive"
+          trendLabel="SLA Escalation Alert"
+        />
+        <StatsCard
+          title="Quality Acceptance"
+          value="98.2%"
+          icon="verified_user"
+          iconColor="text-status-success"
+          badge="Grade-A"
+          badgeVariant="success"
+          trendLabel="> 97.5% Target"
+        />
+        <StatsCard
+          title="Vendor Network"
+          value="34 Mills"
+          icon="storefront"
+          badge="Tier-1"
+          badgeVariant="secondary"
+          trendLabel="Surat, Jaipur, Tirupur, Ludhiana"
+        />
+      </ContentGrid>
 
       {/* Filter Bar & Slicers */}
-      <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 border border-border-subtle">
-        {/* Quick Status Pill Filter */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 scrollbar-none text-xs">
-          {[
-            { id: 'ALL', label: 'All (48)' },
-            { id: 'Draft', label: 'Draft (4)' },
-            { id: 'Issued', label: 'Issued (8)' },
-            { id: 'In Production', label: 'In Production (19)' },
-            { id: 'Shipped', label: 'Shipped (7)' },
-            { id: 'Inward QC', label: 'Inward QC (6)' },
-            { id: 'Closed', label: 'Closed (4)' }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-lg font-semibold shrink-0 transition-colors cursor-pointer ${
-                statusFilter === tab.id
-                  ? 'bg-primary-container text-on-primary shadow-sm'
-                  : 'bg-surface-subtle text-text-secondary hover:text-text-primary hover:bg-surface-container'
-              }`}
+      <FilterBar
+        tabs={[
+          { id: 'ALL', label: 'All', count: '48' },
+          { id: 'Draft', label: 'Draft', count: '4' },
+          { id: 'Issued', label: 'Issued', count: '8' },
+          { id: 'In Production', label: 'In Production', count: '19' },
+          { id: 'Shipped', label: 'Shipped', count: '7' },
+          { id: 'Inward QC', label: 'Inward QC', count: '6' },
+          { id: 'Closed', label: 'Closed', count: '4' },
+        ]}
+        activeTab={statusFilter}
+        onTabChange={setStatusFilter}
+        filters={
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterDropdown
+              value={supplierFilter}
+              onChange={setSupplierFilter}
+              options={[
+                { value: 'ALL', label: 'All Suppliers / Mills' },
+                { value: 'Jaipur', label: 'Jaipur Weaves & Prints (RJ)' },
+                { value: 'Tirupur', label: 'Tirupur Knitwear Hub (TN)' },
+                { value: 'Surat', label: 'Surat Synthetic Silks (GJ)' },
+                { value: 'Ludhiana', label: 'Ludhiana Woolens & Blends (PB)' },
+                { value: 'Varanasi', label: 'Varanasi Brocades Guild (UP)' },
+              ]}
+              className="w-56"
+            />
+            <FilterDropdown
+              value={targetHubFilter}
+              onChange={setTargetHubFilter}
+              options={[
+                { value: 'ALL', label: 'Target Hub: All FCs' },
+                { value: 'BLR', label: 'BLR-Fulfillment-FC1' },
+                { value: 'BOM', label: 'BOM- Bhiwandi-FC2' },
+                { value: 'DEL', label: 'DEL-NCR-FC3' },
+              ]}
+              className="w-52"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setStatusFilter('ALL');
+                setSupplierFilter('ALL');
+                setTargetHubFilter('ALL');
+              }}
+              className="h-8.5 px-2.5 text-secondary hover:text-text-primary"
+              title="Reset Filters"
               type="button"
             >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Dropdowns & Secondary Selectors */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <div className="w-56">
-            <Select
-              value={supplierFilter}
-              onChange={(e) => setSupplierFilter(e.target.value)}
-              className="h-9"
-            >
-              <option value="ALL">All Suppliers / Mills</option>
-              <option value="Jaipur">Jaipur Weaves &amp; Prints (RJ)</option>
-              <option value="Tirupur">Tirupur Knitwear Hub (TN)</option>
-              <option value="Surat">Surat Synthetic Silks (GJ)</option>
-              <option value="Ludhiana">Ludhiana Woolens &amp; Blends (PB)</option>
-              <option value="Varanasi">Varanasi Brocades Guild (UP)</option>
-            </Select>
+              <Icon name="restart_alt" className="material-symbols-outlined text-[16px]" />
+            </Button>
           </div>
-
-          <div className="w-52">
-            <Select
-              value={targetHubFilter}
-              onChange={(e) => setTargetHubFilter(e.target.value)}
-              className="h-9"
-            >
-              <option value="ALL">Target Hub: All FCs</option>
-              <option value="BLR">BLR-Fulfillment-FC1</option>
-              <option value="BOM">BOM- Bhiwandi-FC2</option>
-              <option value="DEL">DEL-NCR-FC3</option>
-            </Select>
-          </div>
-
-          <button
-            onClick={() => {
-              setStatusFilter('ALL');
-              setSupplierFilter('ALL');
-              setTargetHubFilter('ALL');
-            }}
-            className="h-9 px-2.5 rounded-lg bg-surface-subtle hover:bg-surface-container text-secondary hover:text-text-primary transition-colors flex items-center justify-center border border-border-subtle cursor-pointer"
-            title="Reset Filters"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px]">restart_alt</span>
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Split Grid: Comprehensive PO Ledger (8 cols) + Selected PO Detailed Inspector (4 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -715,7 +625,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
           {/* Table Header Bar */}
           <div className="px-4 py-3 bg-surface-subtle flex items-center justify-between border-b border-border-subtle">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px] text-primary-container">inventory_2</span>
+              <Icon name="inventory_2" className="material-symbols-outlined text-[18px] text-primary-container" />
               <span className="text-sm font-bold text-text-primary">Procurement Order Ledger</span>
               <span className="px-2 py-0.5 rounded-full bg-surface-container text-text-secondary text-[10px] font-bold">
                 Showing {filteredPoList.length} of 48 POs
@@ -728,7 +638,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                 title="Export Ledger as CSV"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">download</span>
+                <Icon name="download" className="material-symbols-outlined text-[18px]" />
               </button>
             </div>
           </div>
@@ -797,7 +707,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                           {po.milestonePulse ? (
                             <span className="w-1.5 h-1.5 rounded-full bg-status-info animate-pulse"></span>
                           ) : (
-                            <span className="material-symbols-outlined text-[12px]">dock</span>
+                            <Icon name="dock" className="material-symbols-outlined text-[12px]" />
                           )}
                           {po.milestone}
                         </span>
@@ -812,7 +722,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                           title="Inspect PO Details"
                           type="button"
                         >
-                          <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                          <Icon name="chevron_right" className="material-symbols-outlined text-[18px]" />
                         </button>
                       </td>
                     </tr>
@@ -869,7 +779,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
               title="Print PO Specification Sheet"
               type="button"
             >
-              <span className="material-symbols-outlined text-[20px]">print</span>
+              <Icon name="print" className="material-symbols-outlined text-[20px]" />
             </button>
           </div>
 
@@ -940,7 +850,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                   <div key={sIdx} className="relative flex items-center justify-between group">
                     {isCompleted ? (
                       <div className="absolute -left-6 w-5 h-5 rounded-full bg-status-success text-on-primary flex items-center justify-center shadow-sm">
-                        <span className="material-symbols-outlined text-[13px]">check</span>
+                        <Icon name="check" className="material-symbols-outlined text-[13px]" />
                       </div>
                     ) : isCurrent ? (
                       <div className="absolute -left-6 w-5 h-5 rounded-full bg-primary-container text-on-primary flex items-center justify-center ring-4 ring-primary-fixed shadow-md">
@@ -970,7 +880,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
           <div className="p-3.5 rounded-lg bg-surface-subtle space-y-2 border border-border-subtle">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[16px] text-primary-container">fact_check</span>
+                <Icon name="fact_check" className="material-symbols-outlined text-[16px] text-primary-container" />
                 <span className="text-xs font-bold text-text-primary">GRN Intake &amp; Discrepancy Checker</span>
               </div>
               <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${selectedPo.grnSummary.toleranceColor}`}>
@@ -1003,7 +913,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                 type="button"
               >
                 <span>Authorize GRN Docket</span>
-                <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                <Icon name="open_in_new" className="material-symbols-outlined text-[12px]" />
               </button>
             </div>
           </div>
@@ -1015,7 +925,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
               className="flex-1 h-9 rounded-lg bg-surface-container hover:bg-surface-container-high text-text-primary text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 border border-border-subtle cursor-pointer"
               type="button"
             >
-              <span className="material-symbols-outlined text-[16px] text-secondary">chat</span>
+              <Icon name="chat" className="material-symbols-outlined text-[16px] text-secondary" />
               <span>Contact Mill Master</span>
             </button>
             <button
@@ -1023,7 +933,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
               className="flex-1 h-9 rounded-lg bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
               type="button"
             >
-              <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
+              <Icon name="qr_code_scanner" className="material-symbols-outlined text-[16px]" />
               <span>Dock Scan Release</span>
             </button>
           </div>
@@ -1037,7 +947,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
           <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-primary-container">military_tech</span>
+                <Icon name="military_tech" className="material-symbols-outlined text-[18px] text-primary-container" />
                 <span className="text-sm font-bold text-text-primary">Top Performing Mill Partners</span>
               </div>
               <span className="text-[10px] font-bold text-text-secondary uppercase">May 2024</span>
@@ -1086,7 +996,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
           <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-fashion-magenta">pie_chart</span>
+                <Icon name="pie_chart" className="material-symbols-outlined text-[18px] text-fashion-magenta" />
                 <span className="text-sm font-bold text-text-primary">Material Allocation Mix</span>
               </div>
               <span className="text-[10px] font-bold text-text-secondary uppercase">Current Pipeline</span>
@@ -1139,7 +1049,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
           <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-status-warning">report</span>
+                <Icon name="report" className="material-symbols-outlined text-[18px] text-status-warning" />
                 <span className="text-sm font-bold text-text-primary">QC Dock Defect Watch</span>
               </div>
               <span className="px-1.5 py-0.5 rounded bg-status-warning-bg text-status-warning text-[10px] font-bold">
@@ -1148,7 +1058,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
             </div>
             <div className="mt-3 p-3 rounded-lg bg-status-warning-bg space-y-1.5 border border-status-warning/30">
               <div className="flex items-center gap-1.5 text-status-warning">
-                <span className="material-symbols-outlined text-[16px]">priority_high</span>
+                <Icon name="priority_high" className="material-symbols-outlined text-[16px]" />
                 <span className="text-xs font-bold">Surat Synthetics: Weft Skewing</span>
               </div>
               <p className="text-xs text-text-primary leading-tight font-medium">
@@ -1179,7 +1089,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
           >
             <div className="flex items-center justify-between border-b border-border-subtle pb-3">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary-container text-[22px]">add_circle</span>
+                <Icon name="add_circle" className="material-symbols-outlined text-primary-container text-[22px]" />
                 <h3 className="text-lg font-bold text-text-primary">Generate Purchase Order</h3>
               </div>
               <button
@@ -1187,7 +1097,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                 onClick={() => setIsCreatePoModalOpen(false)}
                 className="p-1 text-text-secondary hover:text-text-primary rounded-lg transition-colors"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
+                <Icon name="close" className="material-symbols-outlined text-[20px]" />
               </button>
             </div>
 
@@ -1280,7 +1190,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
           </form>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

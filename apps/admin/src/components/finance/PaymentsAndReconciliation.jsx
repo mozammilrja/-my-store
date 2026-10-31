@@ -1,5 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Select } from '../ui/select';
+import {
+  Icon,
+  Button,
+  Badge,
+  Select,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+} from '../ui';
 import { adminApi } from '../../lib/api';
 import { useOrdersQuery } from '../../hooks/useAdminQueries';
 
@@ -343,166 +353,104 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
   };
 
   return (
-    <div className="flex flex-col w-full">
-      <div className="flex flex-col gap-6">
-        {/* Top Breadcrumb & Actions Bar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary tracking-wider">
-              <span className="hover:text-text-primary transition-colors cursor-pointer" onClick={() => onNavigate && onNavigate('overview')}>
-                EVERWEAR ADMIN
-              </span>
-              <span className="text-secondary/40">/</span>
-              <span>FINANCE &amp; COMPLIANCE</span>
-              <span className="text-secondary/40">/</span>
-              <span className="text-primary-container font-bold">PAYMENTS &amp; RECONCILIATION</span>
-            </div>
-            <div className="flex items-baseline gap-3">
-              <h1 className="text-2xl font-bold text-text-primary tracking-tight">
-                Payment Gateway Settlement &amp; Financial Reconciliation
-              </h1>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-status-success-bg text-status-success text-[11px] font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse"></span>
-                LEDGER SYNC: CURRENT
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <button
+    <PageContainer>
+      {/* Top Breadcrumb & Actions Bar */}
+      <PageHeader
+        breadcrumb={['Everwear Admin', 'Finance & Compliance', 'Payments & Reconciliation']}
+        title="Payment Gateway Settlement & Financial Reconciliation"
+        badge="LEDGER SYNC: CURRENT"
+        badgeVariant="success"
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleTriggerSync}
               disabled={isSyncing}
-              className="relative inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface-container-lowest text-text-primary hover:bg-surface-subtle shadow-sm transition-all text-xs font-semibold border border-border-subtle cursor-pointer"
+              className="gap-2"
               type="button"
             >
-              <span className={`material-symbols-outlined text-[18px] text-secondary ${isSyncing ? 'animate-spin' : ''}`}>
-                sync
-              </span>
+              <Icon name="sync" className={`material-symbols-outlined text-[16px] text-secondary ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'Syncing...' : 'Trigger Gateway Sync'}</span>
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleDownloadLedger}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface-container-lowest text-text-primary hover:bg-surface-subtle shadow-sm transition-all text-xs font-semibold border border-border-subtle cursor-pointer"
+              className="gap-2"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px] text-secondary">download</span>
+              <Icon name="download" className="material-symbols-outlined text-[16px] text-secondary" />
               <span>Export Tally / Zoho XML</span>
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
               onClick={() => setIsDisputesModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-container text-on-primary hover:bg-primary transition-all shadow-sm text-xs font-semibold cursor-pointer"
+              className="gap-2 bg-primary-container text-on-primary hover:bg-primary shadow-sm"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">gavel</span>
+              <Icon name="gavel" className="material-symbols-outlined text-[16px]" />
               <span>Dispute Resolution Center</span>
               <span className="ml-1 px-1.5 py-0.2 rounded-full bg-status-danger text-on-error text-[10px] font-bold">
                 8
               </span>
-            </button>
-          </div>
-        </div>
+            </Button>
+          </>
+        }
+      />
 
-        {/* 5 Top Summary Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-          <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between border border-border-subtle">
-            <div className="absolute -right-3 -top-3 w-16 h-16 bg-primary-container/5 rounded-full blur-xl pointer-events-none"></div>
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">
-                  SETTLED FUNDS (MTD)
-                </span>
-                <span className="material-symbols-outlined text-[18px] text-status-success">verified</span>
-              </div>
-              <div className="mt-2 text-[26px] leading-8 font-bold text-text-primary tracking-tight">
-                ₹12,48,90,400
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between text-text-secondary text-[11px]">
-              <span className="truncate">Razorpay, Cashfree, Stripe, PayU</span>
-              <span className="text-status-success font-bold shrink-0">+14.2%</span>
-            </div>
-          </div>
-
-          <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between border border-border-subtle">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">
-                  IN-TRANSIT / UNCLEARED
-                </span>
-                <span className="material-symbols-outlined text-[18px] text-status-info">hourglass_top</span>
-              </div>
-              <div className="mt-2 text-[26px] leading-8 font-bold text-text-primary tracking-tight">
-                ₹84,20,500
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between text-text-secondary text-[11px]">
-              <span>T+2 Settlement Window</span>
-              <span className="text-status-info font-bold">1,420 Txns</span>
-            </div>
-          </div>
-
-          <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between border border-border-subtle">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">
-                  COD CASH-IN-TRANSIT
-                </span>
-                <span className="material-symbols-outlined text-[18px] text-status-warning">local_shipping</span>
-              </div>
-              <div className="mt-2 text-[26px] leading-8 font-bold text-text-primary tracking-tight">
-                ₹32,15,000
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between text-text-secondary text-[11px]">
-              <span className="truncate">BlueDart, Delhivery, SFX</span>
-              <span className="text-status-warning font-bold">312 Hubs</span>
-            </div>
-          </div>
-
-          <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between border border-border-subtle">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">
-                  GATEWAY FEE &amp; MDR DEDUCTION
-                </span>
-                <span className="material-symbols-outlined text-[18px] text-secondary">pie_chart</span>
-              </div>
-              <div className="mt-2 text-[26px] leading-8 font-bold text-text-primary tracking-tight">
-                ₹18,45,210
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between text-text-secondary text-[11px]">
-              <span>Blended Effective Rate</span>
-              <span className="font-bold text-text-primary">1.48% MDR</span>
-            </div>
-          </div>
-
-          <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between border border-border-subtle">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">
-                  UNRECONCILED VARIANCE
-                </span>
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-status-danger text-on-error text-[11px] font-bold">
-                  3
-                </span>
-              </div>
-              <div className="mt-2 text-[26px] leading-8 font-bold text-status-danger tracking-tight">
-                ₹12,450
-              </div>
-            </div>
-            <div className="mt-3 flex items-center justify-between text-text-secondary text-[11px]">
-              <span>0.001% Total Exposure</span>
-              <span className="text-status-danger font-bold">Manual Action</span>
-            </div>
-          </div>
-        </div>
+      {/* 5 Top Summary Metric Cards */}
+      <ContentGrid columns={5}>
+        <StatsCard
+          title="Settled Funds (MTD)"
+          value="₹12,48,90,400"
+          icon="verified"
+          iconColor="text-status-success"
+          trend="+14.2%"
+          trendType="up"
+          trendLabel="Razorpay, Cashfree, Stripe, PayU"
+        />
+        <StatsCard
+          title="In-Transit / Uncleared"
+          value="₹84,20,500"
+          icon="hourglass_top"
+          iconColor="text-status-info"
+          badge="1,420 Txns"
+          badgeVariant="info"
+          trendLabel="T+2 Settlement Window"
+        />
+        <StatsCard
+          title="COD Cash-in-Transit"
+          value="₹32,15,000"
+          icon="local_shipping"
+          iconColor="text-status-warning"
+          badge="312 Hubs"
+          badgeVariant="warning"
+          trendLabel="BlueDart, Delhivery, SFX"
+        />
+        <StatsCard
+          title="Gateway Fee & MDR"
+          value="₹18,45,210"
+          icon="pie_chart"
+          trendLabel="Blended Rate: 1.48% MDR"
+        />
+        <StatsCard
+          title="Unreconciled Variance"
+          value="₹12,450"
+          icon="warning"
+          iconColor="text-status-danger"
+          badge="3 Flagged"
+          badgeVariant="destructive"
+          trendLabel="Manual Action Required"
+        />
+      </ContentGrid>
 
         {/* Gateway Status & Ingestion Pipes (4 Gateway Cards) */}
         <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm border border-border-subtle">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-3">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[20px] text-primary-container">lan</span>
+              <Icon name="lan" className="material-symbols-outlined text-[20px] text-primary-container" />
               <h2 className="text-base font-bold text-text-primary">Reconciled Gateway Status &amp; Ingestion Pipes</h2>
             </div>
             <div className="flex items-center gap-4 text-text-secondary text-[11px] font-semibold">
@@ -517,7 +465,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
             <div className="bg-surface-subtle p-3 rounded-lg flex flex-col justify-between gap-2.5 border border-border-subtle">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px] text-primary-container">account_balance</span>
+                  <Icon name="account_balance" className="material-symbols-outlined text-[18px] text-primary-container" />
                   <span className="text-sm font-bold text-text-primary">Razorpay UPI</span>
                 </div>
                 <span className="text-xs font-bold text-status-success">99.8% Match</span>
@@ -536,7 +484,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
             <div className="bg-surface-subtle p-3 rounded-lg flex flex-col justify-between gap-2.5 border border-border-subtle">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px] text-status-info">domain</span>
+                  <Icon name="domain" className="material-symbols-outlined text-[18px] text-status-info" />
                   <span className="text-sm font-bold text-text-primary">HDFC NetBanking</span>
                 </div>
                 <span className="text-xs font-bold text-status-success">100.0% Match</span>
@@ -554,7 +502,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
             <div className="bg-surface-subtle p-3 rounded-lg flex flex-col justify-between gap-2.5 border border-border-subtle">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px] text-status-warning">local_shipping</span>
+                  <Icon name="local_shipping" className="material-symbols-outlined text-[18px] text-status-warning" />
                   <span className="text-sm font-bold text-text-primary">COD Remittance</span>
                 </div>
                 <span className="text-xs font-bold text-status-warning">98.2% Match</span>
@@ -573,7 +521,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
             <div className="bg-surface-subtle p-3 rounded-lg flex flex-col justify-between gap-2.5 border border-border-subtle">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px] text-fashion-magenta">credit_card</span>
+                  <Icon name="credit_card" className="material-symbols-outlined text-[18px] text-fashion-magenta" />
                   <span className="text-sm font-bold text-text-primary">PayU Credit Cards</span>
                 </div>
                 <span className="text-xs font-bold text-status-success">99.9% Match</span>
@@ -676,7 +624,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                   type="button"
                   onClick={handleTriggerSync}
                 >
-                  <span className="material-symbols-outlined text-[20px]">refresh</span>
+                  <Icon name="refresh" className="material-symbols-outlined text-[20px]" />
                 </button>
               </div>
             </div>
@@ -685,9 +633,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
             <div className="p-4 bg-surface-subtle/50 flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle">
               <div className="flex items-center gap-2.5 flex-1 min-w-[280px]">
                 <div className="relative w-full max-w-sm">
-                  <span className="material-symbols-outlined absolute left-2.5 top-2.5 text-[18px] text-secondary pointer-events-none">
-                    search
-                  </span>
+                  <Icon name="search" className="material-symbols-outlined absolute left-2.5 top-2.5 text-[18px] text-secondary pointer-events-none" />
                   <input
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -784,9 +730,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                         </td>
                         <td className="py-2.5 px-3">
                           <span className="inline-flex items-center gap-1 font-medium text-text-primary">
-                            <span className={`material-symbols-outlined text-[16px] ${t.methodColor}`}>
-                              {t.methodIcon}
-                            </span>
+                            <Icon name={t.methodIcon} className={`material-symbols-outlined text-[16px] ${t.methodColor}`} />
                             {t.method}
                           </span>
                         </td>
@@ -811,7 +755,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                         </td>
                         <td className="py-2.5 px-3">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${t.reconBadge}`}>
-                            <span className="material-symbols-outlined text-[14px]">{t.reconIcon}</span>
+                            <Icon name={t.reconIcon} className="material-symbols-outlined text-[14px]" />
                             {t.reconMatch}
                           </span>
                         </td>
@@ -827,7 +771,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                               title="Resolve Discrepancy"
                               type="button"
                             >
-                              <span className="material-symbols-outlined text-[18px]">build</span>
+                              <Icon name="build" className="material-symbols-outlined text-[18px]" />
                             </button>
                           ) : (
                             <button
@@ -839,7 +783,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                               title="View Breakdown"
                               type="button"
                             >
-                              <span className="material-symbols-outlined text-[18px]">visibility</span>
+                              <Icon name="visibility" className="material-symbols-outlined text-[18px]" />
                             </button>
                           )}
                         </td>
@@ -877,7 +821,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
           <div className="w-full xl:w-[410px] shrink-0 bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden sticky top-20 border border-border-subtle">
             <div className="p-4 bg-surface-container-low flex items-center justify-between border-b border-border-subtle">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[20px] text-primary-container">receipt_long</span>
+                <Icon name="receipt_long" className="material-symbols-outlined text-[20px] text-primary-container" />
                 <span className="text-sm font-bold text-text-primary">Detailed Settlement Breakdown</span>
               </div>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${selectedTxn.statusBadge}`}>
@@ -934,7 +878,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                   <span className="text-[11px] font-bold text-text-secondary uppercase">
                     BANKING &amp; BATCH TELEMETRY
                   </span>
-                  <span className="material-symbols-outlined text-[16px] text-status-success">account_balance</span>
+                  <Icon name="account_balance" className="material-symbols-outlined text-[16px] text-status-success" />
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
@@ -982,7 +926,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                   className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary text-xs font-semibold transition-colors border border-border-subtle cursor-pointer"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[16px]">receipt</span>
+                  <Icon name="receipt" className="material-symbols-outlined text-[16px]" />
                   <span>Tax Invoice</span>
                 </button>
                 <button
@@ -990,7 +934,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                   className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-primary-container text-on-primary hover:bg-primary text-xs font-semibold transition-colors shadow-sm cursor-pointer"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[16px]">rule</span>
+                  <Icon name="rule" className="material-symbols-outlined text-[16px]" />
                   <span>Manual Re-Match</span>
                 </button>
               </div>
@@ -1069,7 +1013,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
               </p>
               <div className="p-2.5 rounded-lg bg-surface-subtle flex items-center justify-between border border-border-subtle">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px] text-primary-container">sync_saved_locally</span>
+                  <Icon name="sync_saved_locally" className="material-symbols-outlined text-[18px] text-primary-container" />
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-text-primary">Ledger Sync Auto-Lock</span>
                     <span className="text-[10px] text-text-secondary font-medium">Day closing snapshot enabled</span>
@@ -1090,7 +1034,6 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
             </div>
           </div>
         </div>
-      </div>
 
       {/* Disputes Resolution Modal */}
       {isDisputesModalOpen && (
@@ -1098,7 +1041,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
           <div className="bg-surface-container-lowest rounded-2xl max-w-2xl w-full p-6 shadow-xl border border-border-subtle space-y-4">
             <div className="flex items-center justify-between border-b border-border-subtle pb-3">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-status-danger text-[22px]">gavel</span>
+                <Icon name="gavel" className="material-symbols-outlined text-status-danger text-[22px]" />
                 <h3 className="text-lg font-bold text-text-primary">Dispute &amp; Chargeback Resolution Desk</h3>
               </div>
               <button
@@ -1106,7 +1049,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                 className="p-1 text-text-secondary hover:text-text-primary rounded-lg transition-colors"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
+                <Icon name="close" className="material-symbols-outlined text-[20px]" />
               </button>
             </div>
             <p className="text-xs text-text-secondary">
@@ -1163,7 +1106,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
           >
             <div className="flex items-center justify-between border-b border-border-subtle pb-3">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary-container text-[22px]">rule</span>
+                <Icon name="rule" className="material-symbols-outlined text-primary-container text-[22px]" />
                 <h3 className="text-lg font-bold text-text-primary">Manual Settlement Override</h3>
               </div>
               <button
@@ -1171,7 +1114,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                 onClick={() => setIsReMatchModalOpen(false)}
                 className="p-1 text-text-secondary hover:text-text-primary rounded-lg transition-colors"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
+                <Icon name="close" className="material-symbols-outlined text-[20px]" />
               </button>
             </div>
             <div className="text-xs text-text-secondary">
@@ -1220,7 +1163,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
           </form>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

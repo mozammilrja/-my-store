@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import {
+import { Icon,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -118,7 +118,7 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
       <DialogContent className="max-w-xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-4 border-b border-border-subtle flex flex-row items-center justify-between bg-surface-subtle">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-[22px]">add_shopping_cart</span>
+            <Icon name="add_shopping_cart" className="material-symbols-outlined text-primary text-[22px]" />
             <div>
               <DialogTitle>Create Manual Order</DialogTitle>
               <DialogDescription className="text-xs">
@@ -132,7 +132,7 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
             onClick={onClose}
             className="h-8 w-8 text-secondary hover:text-text-primary"
           >
-            <span className="material-symbols-outlined text-[18px]">close</span>
+            <Icon name="close" className="material-symbols-outlined text-[18px]" />
           </Button>
         </DialogHeader>
 
@@ -310,7 +310,7 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
               size="sm"
               className="gap-1.5 text-xs shadow-md"
             >
-              <span className="material-symbols-outlined text-[16px]">check</span>
+              <Icon name="check" className="material-symbols-outlined text-[16px]" />
               <span>Create & Dispatch Order</span>
             </Button>
           </DialogFooter>

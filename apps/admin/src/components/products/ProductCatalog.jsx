@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { INITIAL_PRODUCTS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useProductsQuery, useUpdateProductMutation } from '../../hooks/useAdminQueries';
-import {
+import { Icon,
   Card,
   CardContent,
   Button,
@@ -18,6 +18,11 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
 } from '../ui';
 
 export function ProductCatalog({ onShowToast, currentHub }) {
@@ -323,137 +328,106 @@ export function ProductCatalog({ onShowToast, currentHub }) {
   ];
 
   return (
-    <div className="flex flex-col w-full space-y-space-xl">
+    <PageContainer>
       {/* Context Breadcrumb & Editorial Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider">
-            <span>Everwear Admin</span>
-            <span className="text-secondary/40">/</span>
-            <span>Catalog</span>
-            <span className="text-secondary/40">/</span>
-            <span className="text-primary font-semibold">Products</span>
-          </div>
-          <h1 className="font-headline-lg text-headline-lg font-bold text-text-primary tracking-tight">
-            Fashion Product Catalog & Variant Master
-          </h1>
-          <p className="font-body-sm text-body-sm text-text-secondary">
-            Omnichannel garment provisioning, multi-hub HSN/GST compliance & dynamic matrix management.
-          </p>
-        </div>
-
-        {/* Global Catalog Action Buttons */}
-        <div className="flex flex-wrap items-center gap-space-xs">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onShowToast({ type: 'info', title: 'Excel Import', message: 'Ready to import catalog spreadsheet (XLSX template v2.4).' })}
-            className="gap-1.5 h-9"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px]">upload_file</span>
-            <span>Import Excel</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCsv}
-            className="gap-1.5 h-9"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px]">file_download</span>
-            <span>Export CSV</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onShowToast({ type: 'success', title: 'Storefront Synced', message: 'POS & Myntra catalog channels synchronized successfully.' })}
-            className="gap-1.5 h-9"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px]">sync_alt</span>
-            <span>Sync Storefront / POS</span>
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleAddNewStyle}
-            className="gap-1.5 h-9 shadow-sm"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px]">add_circle</span>
-            <span>Add New Style</span>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        breadcrumb={['Everwear Admin', 'Catalog', 'Products']}
+        title="Fashion Product Catalog & Variant Master"
+        description="Omnichannel garment provisioning, multi-hub HSN/GST compliance & dynamic matrix management."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast({ type: 'info', title: 'Excel Import', message: 'Ready to import catalog spreadsheet (XLSX template v2.4).' })}
+              className="gap-1.5 h-9"
+              type="button"
+            >
+              <Icon name="upload_file" className="material-symbols-outlined text-[18px]" />
+              <span>Import Excel</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCsv}
+              className="gap-1.5 h-9"
+              type="button"
+            >
+              <Icon name="file_download" className="material-symbols-outlined text-[18px]" />
+              <span>Export CSV</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast({ type: 'success', title: 'Storefront Synced', message: 'POS & Myntra catalog channels synchronized successfully.' })}
+              className="gap-1.5 h-9"
+              type="button"
+            >
+              <Icon name="sync_alt" className="material-symbols-outlined text-[18px]" />
+              <span>Sync Storefront / POS</span>
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleAddNewStyle}
+              className="gap-1.5 h-9 shadow-sm"
+              type="button"
+            >
+              <Icon name="add_circle" className="material-symbols-outlined text-[18px]" />
+              <span>Add New Style</span>
+            </Button>
+          </>
+        }
+      />
 
       {/* Operational Stat Band */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-space-md">
-        <Card className="hover:border-primary/30 transition-all">
-          <CardContent className="p-space-md flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary font-semibold">Total Products</span>
-              <span className="p-1 rounded-lg bg-surface-subtle text-secondary material-symbols-outlined text-[18px]">checkroom</span>
-            </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className="font-metric-stat text-metric-stat text-text-primary tabular-nums">{allProducts.length}</span>
-              <Badge variant="success" className="text-label-xs-caps">+3.4% mo</Badge>
-            </div>
-          </CardContent>
-        </Card>
+      <ContentGrid cols={5}>
+        <StatsCard
+          title="Total Products"
+          value={allProducts.length}
+          icon="checkroom"
+          trend="+3.4% mo"
+          trendType="up"
+        />
 
-        <Card className="hover:border-blue-300 transition-all">
-          <CardContent className="p-space-md flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary font-semibold">Active Variants (SKUs)</span>
-              <span className="p-1 rounded-lg bg-surface-subtle text-primary material-symbols-outlined text-[18px]">view_in_ar</span>
-            </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className="font-metric-stat text-metric-stat text-text-primary tabular-nums">24,190</span>
-              <Badge variant="info" className="text-label-xs-caps">Live in 12 Hubs</Badge>
-            </div>
-          </CardContent>
-        </Card>
+        <StatsCard
+          title="Active Variants (SKUs)"
+          value="24,190"
+          icon="view_in_ar"
+          iconColor="text-primary"
+          badge="Live in 12 Hubs"
+          badgeVariant="info"
+        />
 
-        <Card className="hover:border-border-subtle transition-all">
-          <CardContent className="p-space-md flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary font-semibold">Draft Catalog</span>
-              <span className="p-1 rounded-lg bg-surface-subtle text-text-secondary material-symbols-outlined text-[18px]">edit_note</span>
-            </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className="font-metric-stat text-metric-stat text-text-primary tabular-nums">38</span>
-              <Badge variant="secondary" className="text-label-xs-caps">Work in progress</Badge>
-            </div>
-          </CardContent>
-        </Card>
+        <StatsCard
+          title="Draft Catalog"
+          value="38"
+          icon="edit_note"
+          iconColor="text-text-secondary"
+          badge="Work in progress"
+          badgeVariant="secondary"
+        />
 
-        <Card className="hover:border-rose-300 transition-all">
-          <CardContent className="p-space-md flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary font-semibold">Stock Depleted</span>
-              <span className="p-1 rounded-lg bg-status-danger-bg text-status-danger material-symbols-outlined text-[18px]">inventory_2</span>
-            </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className="font-metric-stat text-metric-stat text-status-danger tabular-nums">86</span>
-              <Badge variant="destructive" className="text-label-xs-caps">Urgent Reorder</Badge>
-            </div>
-          </CardContent>
-        </Card>
+        <StatsCard
+          className="hover:border-status-danger/40"
+          title="Stock Depleted"
+          value="86"
+          icon="inventory_2"
+          iconColor="text-status-danger"
+          badge="Urgent Reorder"
+          badgeVariant="destructive"
+        />
 
-        <Card className="hover:border-amber-300 transition-all">
-          <CardContent className="p-space-md flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary font-semibold">Pending Studio QC</span>
-              <span className="p-1 rounded-lg bg-status-warning-bg text-status-warning material-symbols-outlined text-[18px]">photo_camera</span>
-            </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className="font-metric-stat text-metric-stat text-status-warning tabular-nums">14</span>
-              <Badge variant="warning" className="text-label-xs-caps">Asset Review</Badge>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <StatsCard
+          className="hover:border-status-warning/40"
+          title="Pending Studio QC"
+          value="14"
+          icon="photo_camera"
+          iconColor="text-status-warning"
+          badge="Asset Review"
+          badgeVariant="warning"
+        />
+      </ContentGrid>
 
       {/* Category Nav Chips & Style Switcher Bar */}
       <Card>
@@ -562,7 +536,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 onSelect={() => setActiveTab(tab.id)}
                 className="gap-2 font-label-md text-label-md whitespace-nowrap"
               >
-                <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+                <Icon name={tab.icon} className="material-symbols-outlined text-[18px]" />
                 <span>{tab.label}</span>
               </TabsTrigger>
             ))}
@@ -578,7 +552,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between pb-2 border-b border-border-subtle/50">
                   <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-[20px]">apparel</span>
+                    <Icon name="apparel" className="material-symbols-outlined text-primary text-[20px]" />
                     <span>Garment Identification & Merchandising</span>
                   </h3>
                   <span className="font-label-xs-caps text-label-xs-caps text-text-secondary font-semibold">
@@ -676,7 +650,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
             <Card className="bg-surface-canvas border-border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary text-[20px]">texture</span>
+                  <Icon name="texture" className="material-symbols-outlined text-primary text-[20px]" />
                   <span>Material, Fit & Manufacturing Composition</span>
                 </h3>
 
@@ -728,9 +702,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                         onChange={(e) => setWashCare(e.target.value)}
                         className="h-10 bg-surface-container-lowest pr-9"
                       />
-                      <span className="material-symbols-outlined text-[18px] text-secondary absolute right-3 top-2.5">
-                        local_laundry_service
-                      </span>
+                      <Icon name="local_laundry_service" className="material-symbols-outlined text-[18px] text-secondary absolute right-3 top-2.5" />
                     </div>
                   </div>
                   <div className="space-y-1.5">
@@ -753,11 +725,11 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between">
                   <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-[20px]">perm_media</span>
+                    <Icon name="perm_media" className="material-symbols-outlined text-primary text-[20px]" />
                     <span>Studio 360° Photography & Swatch Assets</span>
                   </h3>
                   <label className="font-label-sm text-label-sm text-primary font-medium cursor-pointer hover:underline inline-flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[16px]">add_photo_alternate</span>
+                    <Icon name="add_photo_alternate" className="material-symbols-outlined text-[16px]" />
                     <span>{isUploading ? 'Uploading...' : '+ Upload Photo'}</span>
                     <input 
                       type="file" 
@@ -805,7 +777,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between pb-2 border-b border-border-subtle/50">
                   <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-[20px]">currency_rupee</span>
+                    <Icon name="currency_rupee" className="material-symbols-outlined text-primary text-[20px]" />
                     <span>Commercial Pricing & Margins</span>
                   </h3>
                   <Badge variant="success" className="text-label-xs-caps">
@@ -878,7 +850,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between pb-2 border-b border-border-subtle/50">
                   <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-[20px]">receipt_long</span>
+                    <Icon name="receipt_long" className="material-symbols-outlined text-primary text-[20px]" />
                     <span>Statutory HSN & GST Split</span>
                   </h3>
                   <span className="font-label-xs-caps text-label-xs-caps text-text-secondary font-semibold">
@@ -941,7 +913,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-[20px]">layers</span>
+                      <Icon name="layers" className="material-symbols-outlined text-primary text-[20px]" />
                       <span>Active SKU Variant Matrix</span>
                     </h3>
                     <p className="font-body-sm text-body-sm text-text-secondary">Emerald &amp; Wine Colorways • XS–XL</p>
@@ -1062,7 +1034,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               className="gap-1.5 shadow-xs"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">verified</span>
+              <Icon name="verified" className="material-symbols-outlined text-[18px]" />
               <span>Run Compliance QC Check</span>
             </Button>
             <Button
@@ -1073,7 +1045,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               className="gap-1.5 shadow-md"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
+              <Icon name="rocket_launch" className="material-symbols-outlined text-[18px]" />
               <span>{isSaving ? 'Publishing...' : 'Publish Product (Active)'}</span>
             </Button>
           </div>
@@ -1095,7 +1067,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 className="h-7 w-7 text-secondary hover:text-text-primary"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <Icon name="close" className="material-symbols-outlined text-[18px]" />
               </Button>
             </DialogHeader>
             <img 
@@ -1106,6 +1078,6 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           </DialogContent>
         </Dialog>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -1,5 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Select } from '../ui/select';
+import {
+  Icon,
+  Button,
+  Badge,
+  Select,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+} from '../ui';
 import { collectionsData } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import {
@@ -178,140 +188,92 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
   const selectedCount = Object.values(selectedCheckboxes).filter(Boolean).length;
 
   return (
-    <div className="flex flex-col w-full space-y-space-md">
-      {/* Breadcrumb & Page Header Bar */}
-      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-space-sm bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle">
-        <div className="flex flex-col space-y-0.5">
-          <div className="flex items-center gap-1.5 font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">
-            <span>Everwear Admin</span>
-            <span className="text-outline-variant">/</span>
-            <span>Catalog & Inventory</span>
-            <span className="text-outline-variant">/</span>
-            <span className="text-primary-container font-semibold">Categories & Collections</span>
+    <PageContainer>
+      <PageHeader
+        breadcrumb="Everwear Admin / Catalog & Inventory / Categories & Collections"
+        title="Taxonomy, Collections & Visual Merchandising"
+        description="Manage seasonal drops, hierarchical apparel taxonomy, curated lookbook collections, and dynamic rule-based sorting across storefronts and marketplace feeds."
+        actions={
+          <div className="flex flex-wrap items-center gap-space-xs shrink-0 pt-2 xl:pt-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast?.("Exporting taxonomy structure to CSV/JSON format...")}
+              icon="file_download"
+            >
+              Export Taxonomy
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast?.("Opening dynamic visual reordering rules editor...")}
+              icon="reorder"
+            >
+              Reorder Rules
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCategoryModalOpen(true)}
+              icon="add"
+            >
+              New Category
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsCollectionModalOpen(true)}
+              icon="stars"
+            >
+              Create Collection Drop
+            </Button>
           </div>
-          <h1 className="font-headline-lg text-headline-lg text-text-primary tracking-tight font-semibold">
-            Taxonomy, Collections & Visual Merchandising
-          </h1>
-          <p className="font-body-sm text-body-sm text-text-secondary max-w-3xl">
-            Manage seasonal drops, hierarchical apparel taxonomy, curated lookbook collections, and dynamic rule-based sorting across storefronts and marketplace feeds.
-          </p>
-        </div>
+        }
+      />
 
-        {/* Primary Quick Actions */}
-        <div className="flex flex-wrap items-center gap-space-xs shrink-0 pt-2 xl:pt-0">
-          <button
-            onClick={() => onShowToast?.('Exporting taxonomy structure to CSV/JSON format...')}
-            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[16px] text-secondary">file_download</span>
-            <span>Export Taxonomy</span>
-          </button>
-          <button
-            onClick={() => onShowToast?.('Opening dynamic visual reordering rules editor...')}
-            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[16px] text-secondary">reorder</span>
-            <span>Reorder Rules</span>
-          </button>
-          <button
-            onClick={() => setIsCategoryModalOpen(true)}
-            className="inline-flex items-center gap-1.5 h-8 px-space-sm rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[16px] text-secondary">add</span>
-            <span>New Category</span>
-          </button>
-          <button
-            onClick={() => setIsCollectionModalOpen(true)}
-            className="inline-flex items-center gap-1.5 h-8 px-space-md rounded-lg bg-primary-container hover:bg-primary text-on-primary font-label-sm text-label-sm shadow-sm transition-colors cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[16px]">stars</span>
-            <span>Create Collection Drop</span>
-          </button>
-        </div>
-      </div>
-
-      {/* KPI / Metric Ribbon (Exact 5 cards from Stitch design) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-space-sm">
-        {/* Active Categories */}
-        <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Active Categories</span>
-            <span className="material-symbols-outlined text-[18px] text-secondary">account_tree</span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">142</span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">
-              +8 this season
-            </span>
-          </div>
-          <div className="mt-2 text-[11px] font-body-sm text-text-secondary">4 Global Depts · 18 Sub-nodes</div>
-        </div>
-
-        {/* Curated Drops */}
-        <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Curated Drops</span>
-            <span className="material-symbols-outlined text-[18px] text-fashion-magenta">auto_awesome</span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">38 drops</span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-info-bg text-status-info font-label-xs-caps text-label-xs-caps font-semibold">
-              6 Live
-            </span>
-          </div>
-          <div className="mt-2 text-[11px] font-body-sm text-text-secondary">4 Scheduled · 28 Archived</div>
-        </div>
-
-        {/* Merch Rules */}
-        <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Merch Rules</span>
-            <span className="material-symbols-outlined text-[18px] text-secondary">tune</span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">24 Active</span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-surface-subtle text-text-secondary font-label-xs-caps text-label-xs-caps font-semibold">
-              Smart Boost
-            </span>
-          </div>
-          <div className="mt-2 text-[11px] font-body-sm text-text-secondary">Avg Margin Lift +4.8%</div>
-        </div>
-
-        {/* Orphan SKUs */}
-        <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Orphan SKUs</span>
-            <span className="material-symbols-outlined text-[18px] text-status-success">verified</span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="font-metric-stat text-metric-stat text-status-success font-semibold">0 SKUs</span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">
-              100% Synced
-            </span>
-          </div>
-          <div className="mt-2 text-[11px] font-body-sm text-text-secondary">Strict Taxonomy Gate Active</div>
-        </div>
-
-        {/* Omnichannel Feed */}
-        <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between col-span-2 md:col-span-1">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Omnichannel Feed</span>
-            <span className="material-symbols-outlined text-[18px] text-status-info">cloud_sync</span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">99.9%</span>
-            <span className="inline-flex items-center gap-1 text-[11px] text-status-success font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-status-success"></span>
-              Healthy
-            </span>
-          </div>
-          <div className="mt-2 text-[11px] font-body-sm text-text-secondary truncate">Myntra · Nykaa · Web · iOS</div>
-        </div>
-      </div>
+      {/* KPI / Metric Ribbon */}
+      <ContentGrid columns={5}>
+        <StatsCard
+          label="Active Categories"
+          value="142"
+          change="+8 this season"
+          changeType="positive"
+          icon="account_tree"
+          subtitle="4 Global Depts · 18 Sub-nodes"
+        />
+        <StatsCard
+          label="Curated Drops"
+          value="38 drops"
+          change="6 Live"
+          changeType="neutral"
+          icon="auto_awesome"
+          subtitle="4 Scheduled · 28 Archived"
+        />
+        <StatsCard
+          label="Merch Rules"
+          value="24 Active"
+          change="Smart Boost"
+          changeType="neutral"
+          icon="tune"
+          subtitle="Avg Margin Lift +4.8%"
+        />
+        <StatsCard
+          label="Orphan SKUs"
+          value="0 SKUs"
+          change="100% Synced"
+          changeType="positive"
+          icon="verified"
+          subtitle="Strict Taxonomy Gate Active"
+        />
+        <StatsCard
+          label="Omnichannel Feed"
+          value="99.9%"
+          change="Healthy"
+          changeType="positive"
+          icon="cloud_sync"
+          subtitle="Myntra · Nykaa · Web · iOS"
+        />
+      </ContentGrid>
 
       {/* Main Work Surface (2/3 Master + 1/3 Inspector Split) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-md items-start">
@@ -381,7 +343,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                 title="Density Matrix"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">view_list</span>
+                <Icon name="view_list" className="material-symbols-outlined text-[18px]" />
               </button>
               <button
                 onClick={() => setViewDensity('grid')}
@@ -389,7 +351,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                 title="Visual Cards View"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">grid_view</span>
+                <Icon name="grid_view" className="material-symbols-outlined text-[18px]" />
               </button>
             </div>
           </div>
@@ -398,7 +360,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
           <div className="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm border border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-space-xs">
             <div className="flex items-center gap-space-xs flex-1 max-w-lg">
               <div className="relative w-full flex items-center">
-                <span className="material-symbols-outlined absolute left-2 text-secondary text-[16px]">search</span>
+                <Icon name="search" className="material-symbols-outlined absolute left-2 text-secondary text-[16px]" />
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -512,7 +474,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                           </div>
                           <div className="flex items-center gap-space-sm mt-1 text-body-sm font-body-sm text-text-secondary flex-wrap">
                             <span className="flex items-center gap-1 text-text-primary font-medium">
-                              <span className="material-symbols-outlined text-[14px] text-fashion-magenta">checkroom</span>
+                              <Icon name="checkroom" className="material-symbols-outlined text-[14px] text-fashion-magenta" />
                               {col.skusCount} SKUs
                             </span>
                             <span>•</span>
@@ -521,7 +483,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                             </span>
                             <span>•</span>
                             <span className="text-primary-container font-medium flex items-center gap-0.5">
-                              <span className="material-symbols-outlined text-[14px]">{col.ruleIcon}</span>
+                              <Icon name={col.ruleIcon} className="material-symbols-outlined text-[14px]" />
                               {col.ruleText}
                             </span>
                           </div>
@@ -550,7 +512,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                             title="Edit Rule Set"
                             type="button"
                           >
-                            <span className="material-symbols-outlined text-[18px]">tune</span>
+                            <Icon name="tune" className="material-symbols-outlined text-[18px]" />
                           </button>
                           <button
                             onClick={(e) => {
@@ -561,7 +523,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                             title="View Options"
                             type="button"
                           >
-                            <span className="material-symbols-outlined text-[18px]">more_vert</span>
+                            <Icon name="more_vert" className="material-symbols-outlined text-[18px]" />
                           </button>
                         </div>
                       </div>
@@ -621,7 +583,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                   <div className="p-3 bg-surface-canvas rounded-lg border border-primary-container/20 space-y-2">
                     <div className="flex items-center justify-between font-semibold text-text-primary">
                       <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[16px] text-primary-container">database</span>
+                        <Icon name="database" className="material-symbols-outlined text-[16px] text-primary-container" />
                         <span>Active Database Categories ({dbCategories.length})</span>
                       </div>
                       <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-primary-container text-[10px] font-semibold">Live in API</span>
@@ -641,7 +603,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                               className="text-text-secondary hover:text-status-danger p-0.5 rounded"
                               title="Delete Category"
                             >
-                              <span className="material-symbols-outlined text-[14px]">delete</span>
+                              <Icon name="delete" className="material-symbols-outlined text-[14px]" />
                             </button>
                           </div>
                         </div>
@@ -654,7 +616,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                 <div className="p-3 bg-surface-canvas rounded-lg border border-border-subtle">
                   <div className="flex items-center justify-between font-semibold text-text-primary cursor-pointer">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[16px] text-primary">folder</span>
+                      <Icon name="folder" className="material-symbols-outlined text-[16px] text-primary" />
                       <span>Women's Ethnic Atelier (48 Sub-categories)</span>
                     </div>
                     <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-status-success text-[10px]">1,280 SKUs Active</span>
@@ -679,7 +641,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                 <div className="p-3 bg-surface-canvas rounded-lg border border-border-subtle">
                   <div className="flex items-center justify-between font-semibold text-text-primary cursor-pointer">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[16px] text-fashion-magenta">folder</span>
+                      <Icon name="folder" className="material-symbols-outlined text-[16px] text-fashion-magenta" />
                       <span>Men's Sartorial & Casuals (36 Sub-categories)</span>
                     </div>
                     <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-status-info text-[10px]">940 SKUs Active</span>
@@ -792,7 +754,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
             <div className="flex items-start justify-between">
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5 font-label-xs-caps text-label-xs-caps text-primary-container uppercase font-semibold">
-                  <span className="material-symbols-outlined text-[14px]">tune</span>
+                  <Icon name="tune" className="material-symbols-outlined text-[14px]" />
                   Visual Merch Inspector
                 </div>
                 <h2 className="font-headline-md text-headline-md text-text-primary font-semibold tracking-tight mt-0.5">
@@ -831,7 +793,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                   className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-black text-white text-[12px] flex items-center gap-1 backdrop-blur-sm transition-colors"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[14px]">photo_camera</span>
+                  <Icon name="photo_camera" className="material-symbols-outlined text-[14px]" />
                   <span>Replace Media</span>
                 </button>
               </div>
@@ -846,12 +808,12 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               <div className="p-space-sm bg-surface-canvas rounded-lg border border-border-subtle flex flex-col space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px] text-primary-container">auto_graph</span>
+                    <Icon name="auto_graph" className="material-symbols-outlined text-[18px] text-primary-container" />
                     <span className="font-label-sm text-label-sm font-semibold text-text-primary">
                       {selectedDrop.algoTitle}
                     </span>
                   </div>
-                  <span className="material-symbols-outlined text-[16px] text-secondary cursor-pointer">info</span>
+                  <Icon name="info" className="material-symbols-outlined text-[16px] text-secondary cursor-pointer" />
                 </div>
                 <p className="font-body-sm text-[12px] text-text-secondary leading-relaxed">
                   {selectedDrop.algoDesc}
@@ -903,9 +865,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                       <span className="text-[10px] text-text-secondary">{pin.price} · {pin.margin}</span>
                       <span className="text-[9px] text-status-success font-medium">{pin.stock}</span>
                     </div>
-                    <span className="material-symbols-outlined text-[14px] text-outline ml-auto group-hover:text-text-primary cursor-grab">
-                      drag_indicator
-                    </span>
+                    <Icon name="drag_indicator" className="material-symbols-outlined text-[14px] text-outline ml-auto group-hover:text-text-primary cursor-grab" />
                   </div>
                 ))}
                 {/* Empty slot */}
@@ -914,7 +874,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                   className="p-2 bg-surface-canvas rounded-lg flex items-center justify-center border-dashed border-2 border-border-subtle hover:border-primary-container text-text-secondary hover:text-primary-container cursor-pointer transition-colors h-16"
                 >
                   <div className="flex items-center gap-1 font-label-xs-caps text-label-xs-caps font-semibold">
-                    <span className="material-symbols-outlined text-[16px]">add_circle</span>
+                    <Icon name="add_circle" className="material-symbols-outlined text-[16px]" />
                     <span>Pin Slot {selectedDrop.pinnedItems.length + 1}</span>
                   </div>
                 </div>
@@ -932,9 +892,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                     key={idx}
                     className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-canvas border border-border-subtle text-body-sm text-[12px] font-medium text-text-primary"
                   >
-                    <span className="material-symbols-outlined text-[14px] text-secondary">
-                      {idx === 0 ? 'palette' : idx === 1 ? 'straighten' : 'sell'}
-                    </span>
+                    <Icon name={idx === 0 ? 'palette' : idx === 1 ? 'straighten' : 'sell'} className="material-symbols-outlined text-[14px] text-secondary" />
                     {facet}
                   </span>
                 ))}
@@ -949,21 +907,21 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               <div className="space-y-1.5">
                 <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[16px] text-fashion-magenta">smartphone</span>
+                    <Icon name="smartphone" className="material-symbols-outlined text-[16px] text-fashion-magenta" />
                     <span className="font-body-sm text-body-sm font-medium text-text-primary">iOS & Android App (Slot A)</span>
                   </div>
                   <input defaultChecked className="w-4 h-4 rounded text-primary-container accent-primary-container cursor-pointer" type="checkbox" />
                 </label>
                 <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[16px] text-status-info">desktop_windows</span>
+                    <Icon name="desktop_windows" className="material-symbols-outlined text-[16px] text-status-info" />
                     <span className="font-body-sm text-body-sm font-medium text-text-primary">Desktop Web Top Carousel</span>
                   </div>
                   <input defaultChecked className="w-4 h-4 rounded text-primary-container accent-primary-container cursor-pointer" type="checkbox" />
                 </label>
                 <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[16px] text-secondary">storefront</span>
+                    <Icon name="storefront" className="material-symbols-outlined text-[16px] text-secondary" />
                     <span className="font-body-sm text-body-sm font-medium text-text-primary">Myntra Brand Store Landing</span>
                   </div>
                   <input defaultChecked className="w-4 h-4 rounded text-primary-container accent-primary-container cursor-pointer" type="checkbox" />
@@ -978,7 +936,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                 className="w-full h-9 rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-primary font-label-md text-label-md font-semibold flex items-center justify-center gap-2 shadow-sm transition-colors"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">publish</span>
+                <Icon name="publish" className="material-symbols-outlined text-[18px]" />
                 <span>Save & Publish to Live Storefront</span>
               </button>
               <button
@@ -986,7 +944,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                 className="w-full h-8 rounded-lg bg-surface-subtle hover:bg-border-subtle text-text-primary font-label-sm text-label-sm flex items-center justify-center gap-1.5 transition-colors border border-border-subtle"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[16px] text-secondary">visibility</span>
+                <Icon name="visibility" className="material-symbols-outlined text-[16px] text-secondary" />
                 <span>Preview Live Storefront Experience</span>
               </button>
             </div>
@@ -1018,7 +976,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
           <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-border-subtle max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-space-lg border-b border-border-subtle flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="p-2 rounded-xl bg-primary-container text-white material-symbols-outlined text-[20px]">folder</span>
+                <Icon name="folder" className="p-2 rounded-xl bg-primary-container text-white material-symbols-outlined text-[20px]" />
                 <div>
                   <h3 className="font-headline-sm font-semibold text-text-primary">New Apparel Category</h3>
                   <p className="text-xs text-text-secondary">Create a taxonomy node in the catalog hierarchy</p>
@@ -1028,7 +986,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                 onClick={() => setIsCategoryModalOpen(false)}
                 className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-text-secondary"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <Icon name="close" className="material-symbols-outlined text-[18px]" />
               </button>
             </div>
 
@@ -1088,9 +1046,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                   disabled={isSubmitting}
                   className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <span className="material-symbols-outlined text-[16px]">
-                    {isSubmitting ? 'hourglass_top' : 'check'}
-                  </span>
+                  <Icon name={isSubmitting ? 'hourglass_top' : 'check'} className="material-symbols-outlined text-[16px]" />
                   <span>{isSubmitting ? 'Creating...' : 'Create Category'}</span>
                 </button>
               </div>
@@ -1105,7 +1061,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
           <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-border-subtle max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-space-lg border-b border-border-subtle flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="p-2 rounded-xl bg-fashion-magenta text-white material-symbols-outlined text-[20px]">stars</span>
+                <Icon name="stars" className="p-2 rounded-xl bg-fashion-magenta text-white material-symbols-outlined text-[20px]" />
                 <div>
                   <h3 className="font-headline-sm font-semibold text-text-primary">Create Collection Drop</h3>
                   <p className="text-xs text-text-secondary">Launch a seasonal drop or curated capsule lookbook</p>
@@ -1115,7 +1071,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                 onClick={() => setIsCollectionModalOpen(false)}
                 className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-text-secondary"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <Icon name="close" className="material-symbols-outlined text-[18px]" />
               </button>
             </div>
 
@@ -1164,9 +1120,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                   disabled={isSubmitting}
                   className="h-9 px-4 rounded-xl bg-fashion-magenta hover:bg-fashion-magenta/90 text-white text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <span className="material-symbols-outlined text-[16px]">
-                    {isSubmitting ? 'hourglass_top' : 'check'}
-                  </span>
+                  <Icon name={isSubmitting ? 'hourglass_top' : 'check'} className="material-symbols-outlined text-[16px]" />
                   <span>{isSubmitting ? 'Creating...' : 'Launch Drop'}</span>
                 </button>
               </div>
@@ -1174,6 +1128,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

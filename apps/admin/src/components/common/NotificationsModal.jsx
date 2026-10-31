@@ -1,5 +1,5 @@
 import React from 'react';
-import { Badge, Button, Separator } from '../ui';
+import { Icon, Badge, Button, Separator } from '../ui';
 
 export function NotificationsModal({ isOpen, onClose, onAction }) {
   if (!isOpen) return null;
@@ -45,12 +45,12 @@ export function NotificationsModal({ isOpen, onClose, onAction }) {
       >
         <div className="p-4 border-b border-border-subtle flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-[20px]">notifications_active</span>
+            <Icon name="notifications_active" className="material-symbols-outlined text-primary text-[20px]" />
             <span className="font-headline-sm text-sm font-bold text-text-primary">Ops Notifications</span>
             <Badge variant="destructive" className="text-[10px] py-0 px-1.5 font-bold">3</Badge>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7 text-secondary hover:text-text-primary">
-            <span className="material-symbols-outlined text-[18px]">close</span>
+            <Icon name="close" className="material-symbols-outlined text-[18px]" />
           </Button>
         </div>
 
@@ -67,10 +67,10 @@ export function NotificationsModal({ isOpen, onClose, onAction }) {
                 <span className="text-[11px] text-text-secondary">{n.time}</span>
               </div>
               <h4 className="font-semibold text-xs text-text-primary flex items-center gap-1.5">
-                <span className={`material-symbols-outlined text-[16px] ${
+                <Icon name={n.icon} className={`material-symbols-outlined text-[16px] ${
                   n.type === 'danger' ? 'text-status-danger' :
                   n.type === 'warning' ? 'text-status-warning' : 'text-status-info'
-                }`}>{n.icon}</span>
+                }`} />
                 {n.title}
               </h4>
               <p className="text-xs text-text-secondary leading-relaxed">{n.desc}</p>
@@ -83,7 +83,7 @@ export function NotificationsModal({ isOpen, onClose, onAction }) {
                 }}
                 className="p-0 h-auto justify-start text-xs font-semibold text-primary"
               >
-                {n.action} <span className="material-symbols-outlined text-[14px] ml-1">arrow_forward</span>
+                {n.action} <Icon name="arrow_forward" className="material-symbols-outlined text-[14px] ml-1" />
               </Button>
             </div>
           ))}

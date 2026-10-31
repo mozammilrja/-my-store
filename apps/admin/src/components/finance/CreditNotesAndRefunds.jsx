@@ -1,4 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Icon,
+  Button,
+  Badge,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+  FilterBar,
+  SearchInput,
+} from '../ui';
 import { notesList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useCreditNotesQuery } from '../../hooks/useAdminQueries';
@@ -50,221 +62,115 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
   });
 
   return (
-    <div className="flex flex-col w-full space-y-space-lg">
+    <PageContainer>
       {/* Sub-header & Title Region */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider">
-            <span>EVERWEAR ADMIN</span>
-            <span className="text-border-strong">/</span>
-            <span>FINANCE & COMPLIANCE</span>
-            <span className="text-border-strong">/</span>
-            <span className="text-primary-container font-semibold">CREDIT NOTES & REFUNDS</span>
-          </div>
-          <h1 className="font-headline-lg text-headline-lg text-text-primary tracking-tight font-semibold">
-            Credit Notes, Return Adjustments & Wallet Refund Ledger
-          </h1>
-          <p className="font-body-sm text-body-sm text-text-secondary max-w-4xl">
-            Statutory GST credit note issuance against customer returns, store credit wallet balances, failed delivery tax offsets, and reversal ledgers.
-          </p>
-        </div>
-        {/* Action Group */}
-        <div className="flex items-center flex-wrap gap-2 shrink-0">
-          <button
-            onClick={() => onShowToast?.('Reconciling gateway reversal logs with GST ledger...')}
-            className="h-9 px-3.5 rounded-xl bg-surface-container-lowest text-text-primary border border-border-subtle shadow-sm hover:bg-surface-subtle font-label-sm text-label-sm flex items-center gap-1.5 transition-colors"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px] text-text-secondary">sync</span>
-            <span>Reconcile Bank Reversals</span>
-          </button>
-          <button
-            onClick={() => onShowToast?.('Generating GSTR-1B statutory amendment register...')}
-            className="h-9 px-3.5 rounded-xl bg-surface-container-lowest text-text-primary border border-border-subtle shadow-sm hover:bg-surface-subtle font-label-sm text-label-sm flex items-center gap-1.5 transition-colors"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px] text-text-secondary">file_download</span>
-            <span>Export GSTR-1B</span>
-          </button>
-          <button
-            onClick={() => onShowToast?.('Opening Manual Credit Note creation form...')}
-            className="h-9 px-3.5 rounded-xl bg-primary-container text-on-primary shadow-sm hover:bg-primary-container/90 font-label-sm text-label-sm flex items-center gap-1.5 transition-all font-semibold"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px]">add_circle</span>
-            <span>Issue Manual Credit Note</span>
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        breadcrumb={['Everwear Admin', 'Finance & Compliance', 'Credit Notes & Refunds']}
+        title="Credit Notes, Return Adjustments & Wallet Refund Ledger"
+        description="Statutory GST credit note issuance against customer returns, store credit wallet balances, failed delivery tax offsets, and reversal ledgers."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast?.('Reconciling gateway reversal logs with GST ledger...')}
+              className="gap-1.5"
+              type="button"
+            >
+              <Icon name="sync" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <span>Reconcile Reversals</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast?.('Generating GSTR-1B statutory amendment register...')}
+              className="gap-1.5"
+              type="button"
+            >
+              <Icon name="file_download" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <span>Export GSTR-1B</span>
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => onShowToast?.('Opening Manual Credit Note creation form...')}
+              className="gap-1.5 bg-primary-container text-on-primary hover:bg-primary shadow-sm"
+              type="button"
+            >
+              <Icon name="add_circle" className="material-symbols-outlined text-[18px]" />
+              <span>Issue Credit Note</span>
+            </Button>
+          </>
+        }
+      />
 
-      {/* KPI Metrics Strip (Exact 5 cards from Stitch design) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-space-md">
-        {/* KPI 1 */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Active Credit Notes (MTD)</span>
-            <span className="material-symbols-outlined text-[18px] text-primary">receipt_long</span>
-          </div>
-          <div>
-            <div className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-semibold">₹42,84,100</div>
-            <div className="flex items-center gap-1.5 pt-1">
-              <span className="px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">+8.4%</span>
-              <span className="font-body-sm text-body-sm text-text-secondary">1,340 notes issued</span>
-            </div>
-          </div>
-        </div>
-
-        {/* KPI 2 */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">GST Reversal Claimed</span>
-            <span className="material-symbols-outlined text-[18px] text-status-info">account_balance</span>
-          </div>
-          <div>
-            <div className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-semibold">₹4,12,890</div>
-            <div className="flex items-center gap-1.5 pt-1">
-              <span className="px-1.5 py-0.5 rounded-full bg-status-info-bg text-status-info font-label-xs-caps text-label-xs-caps font-semibold">Filed</span>
-              <span className="font-body-sm text-body-sm text-text-secondary">CGST + SGST + IGST</span>
-            </div>
-          </div>
-        </div>
-
-        {/* KPI 3 */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Store Credit Float</span>
-            <span className="material-symbols-outlined text-[18px] text-fashion-magenta">account_balance_wallet</span>
-          </div>
-          <div>
-            <div className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-semibold">₹28.40 L</div>
-            <div className="flex items-center gap-1.5 pt-1">
-              <span className="px-1.5 py-0.5 rounded-full bg-surface-subtle text-text-primary font-label-xs-caps text-label-xs-caps font-medium">Float</span>
-              <span className="font-body-sm text-body-sm text-text-secondary">Unspent wallet liability</span>
-            </div>
-          </div>
-        </div>
-
-        {/* KPI 4 */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Bank Refund TAT</span>
-            <span className="material-symbols-outlined text-[18px] text-status-success">bolt</span>
-          </div>
-          <div>
-            <div className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-semibold">4.2 Hours</div>
-            <div className="flex items-center gap-1.5 pt-1">
-              <span className="px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">99.1%</span>
-              <span className="font-body-sm text-body-sm text-text-secondary">Razorpay Instant API</span>
-            </div>
-          </div>
-        </div>
-
-        {/* KPI 5 */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Pending Approvals</span>
-            <span className="material-symbols-outlined text-[18px] text-status-warning">error_outline</span>
-          </div>
-          <div>
-            <div className="font-metric-stat text-metric-stat text-status-warning tracking-tight font-semibold">14 Flagged</div>
-            <div className="flex items-center gap-1.5 pt-1">
-              <span className="px-1.5 py-0.5 rounded-full bg-status-warning-bg text-status-warning font-label-xs-caps text-label-xs-caps font-semibold">Action Required</span>
-              <span className="font-body-sm text-body-sm text-text-secondary">RTO Reroute</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* KPI Metrics Strip */}
+      <ContentGrid columns={5}>
+        <StatsCard
+          title="Active Credit Notes (MTD)"
+          value="₹42,84,100"
+          icon="receipt_long"
+          trend="+8.4%"
+          trendType="up"
+          trendLabel="1,340 notes issued"
+        />
+        <StatsCard
+          title="GST Reversal Claimed"
+          value="₹4,12,890"
+          icon="account_balance"
+          iconColor="text-status-info"
+          badge="Filed"
+          badgeVariant="info"
+          trendLabel="CGST + SGST + IGST"
+        />
+        <StatsCard
+          title="Store Credit Float"
+          value="₹28.40 L"
+          icon="account_balance_wallet"
+          badge="Float"
+          badgeVariant="secondary"
+          trendLabel="Unspent wallet liability"
+        />
+        <StatsCard
+          title="Bank Refund TAT"
+          value="4.2 Hours"
+          icon="bolt"
+          iconColor="text-status-success"
+          badge="99.1%"
+          badgeVariant="success"
+          trendLabel="Razorpay Instant API"
+        />
+        <StatsCard
+          title="Pending Approvals"
+          value="14 Flagged"
+          icon="error_outline"
+          iconColor="text-status-warning"
+          badge="Action Required"
+          badgeVariant="warning"
+          trendLabel="RTO Reroute"
+        />
+      </ContentGrid>
 
       {/* Filter & Segment Bar */}
-      <div className="p-3 bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Tax Period */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-canvas border border-border-subtle rounded-xl text-text-primary font-label-sm text-label-sm">
-            <span className="material-symbols-outlined text-[16px] text-text-secondary">calendar_month</span>
-            <span className="font-medium text-text-secondary">Tax Period:</span>
-            <span className="font-semibold text-text-primary">{taxPeriod}</span>
-            <span className="material-symbols-outlined text-[16px] text-text-secondary">arrow_drop_down</span>
-          </div>
-
-          {/* Refund Mechanism Filter */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-canvas border border-border-subtle rounded-xl text-text-primary font-label-sm text-label-sm">
-            <span className="material-symbols-outlined text-[16px] text-text-secondary">payments</span>
-            <span className="font-medium text-text-secondary">Disbursement:</span>
-            <span className="font-semibold text-text-primary">{disbursementFilter} Mechanisms</span>
-            <span className="material-symbols-outlined text-[16px] text-text-secondary">arrow_drop_down</span>
-          </div>
-
-          {/* Status Filter Tabs */}
-          <div className="flex items-center bg-surface-canvas border border-border-subtle rounded-xl p-0.5">
-            <button
-              onClick={() => setStatusTab('all')}
-              className={`px-3 py-1 rounded-lg font-label-sm text-label-sm transition-all ${
-                statusTab === 'all'
-                  ? 'bg-surface-container-lowest text-text-primary font-semibold shadow-xs'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-              type="button"
-            >
-              All (1,340)
-            </button>
-            <button
-              onClick={() => setStatusTab('reconciled')}
-              className={`px-3 py-1 rounded-lg font-label-sm text-label-sm transition-all ${
-                statusTab === 'reconciled'
-                  ? 'bg-surface-container-lowest text-text-primary font-semibold shadow-xs'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-              type="button"
-            >
-              Reconciled (1,288)
-            </button>
-            <button
-              onClick={() => setStatusTab('syncing')}
-              className={`px-3 py-1 rounded-lg font-label-sm text-label-sm transition-all ${
-                statusTab === 'syncing'
-                  ? 'bg-surface-container-lowest text-text-primary font-semibold shadow-xs'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-              type="button"
-            >
-              GSTR-1 Syncing (38)
-            </button>
-            <button
-              onClick={() => setStatusTab('disputed')}
-              className={`px-3 py-1 rounded-lg font-label-sm text-label-sm transition-all ${
-                statusTab === 'disputed'
-                  ? 'bg-surface-container-lowest text-text-primary font-semibold shadow-xs'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-              type="button"
-            >
-              Disputed / Hold (14)
-            </button>
-          </div>
-        </div>
-
-        {/* Quick Search within Table */}
-        <div className="flex items-center gap-2">
-          <div className="relative w-64">
-            <span className="material-symbols-outlined absolute left-2.5 top-2 text-[16px] text-text-secondary pointer-events-none">filter_list</span>
-            <input
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full h-8 pl-8 pr-3 bg-surface-canvas border border-border-subtle rounded-xl font-body-sm text-body-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-1 focus:ring-primary-container"
-              placeholder="Filter CN ID, Invoice, HSN..."
-              type="text"
-            />
-          </div>
-          <button
-            onClick={() => onShowToast?.('Adjusting register column view...')}
-            className="p-1.5 rounded-xl border border-border-subtle text-text-secondary hover:text-text-primary hover:bg-surface-canvas transition-colors"
-            title="View options"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px]">tune</span>
-          </button>
-        </div>
-      </div>
+      <FilterBar
+        tabs={[
+          { id: 'all', label: 'All', count: '1,340' },
+          { id: 'reconciled', label: 'Reconciled', count: '1,288' },
+          { id: 'syncing', label: 'GSTR-1 Syncing', count: '38' },
+          { id: 'disputed', label: 'Disputed / Hold', count: '14' },
+        ]}
+        activeTab={statusTab}
+        onTabChange={setStatusTab}
+        search={
+          <SearchInput
+            value={searchFilter}
+            onChange={(val) => setSearchFilter(val)}
+            onClear={() => setSearchFilter('')}
+            placeholder="Filter CN ID, Invoice, HSN..."
+            className="w-full sm:w-64"
+          />
+        }
+      />
 
       {/* Main Content Layout (65% Table / 35% Inspector) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg items-start">
@@ -279,7 +185,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
             </div>
             <div className="flex items-center gap-2 text-text-secondary font-label-xs-caps text-label-xs-caps">
               <span>SORTED BY: ISSUED DATE (DESC)</span>
-              <span className="material-symbols-outlined text-[16px] text-text-primary">swap_vert</span>
+              <Icon name="swap_vert" className="material-symbols-outlined text-[16px] text-text-primary" />
             </div>
           </div>
 
@@ -337,9 +243,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                       </td>
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-1.5">
-                          <span className={`material-symbols-outlined text-[16px] ${note.channelColor}`}>
-                            {note.channelIcon}
-                          </span>
+                          <Icon name={note.channelIcon} className={`material-symbols-outlined text-[16px] ${note.channelColor}`} />
                           <span className="font-label-sm text-label-sm text-text-primary">{note.channel}</span>
                         </div>
                         <span className="font-label-xs-caps text-[10px] text-text-secondary">{note.channelSub}</span>
@@ -358,7 +262,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                           className="p-1 rounded hover:bg-surface-canvas text-text-secondary hover:text-text-primary"
                           type="button"
                         >
-                          <span className="material-symbols-outlined text-[18px]">more_vert</span>
+                          <Icon name="more_vert" className="material-symbols-outlined text-[18px]" />
                         </button>
                       </td>
                     </tr>
@@ -377,7 +281,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
             </div>
             <div className="flex items-center gap-1">
               <button className="p-1 rounded-lg hover:bg-surface-canvas text-text-secondary hover:text-text-primary disabled:opacity-40" disabled type="button">
-                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                <Icon name="chevron_left" className="material-symbols-outlined text-[18px]" />
               </button>
               <span className="px-2 py-0.5 rounded bg-surface-subtle font-label-sm text-label-sm font-semibold text-text-primary">1</span>
               <button className="px-2 py-0.5 rounded hover:bg-surface-canvas font-label-sm text-label-sm text-text-secondary" type="button">2</button>
@@ -385,7 +289,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
               <span className="text-text-secondary">...</span>
               <button className="px-2 py-0.5 rounded hover:bg-surface-canvas font-label-sm text-label-sm text-text-secondary" type="button">224</button>
               <button className="p-1 rounded-lg hover:bg-surface-canvas text-text-secondary hover:text-text-primary" type="button">
-                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                <Icon name="chevron_right" className="material-symbols-outlined text-[18px]" />
               </button>
             </div>
           </div>
@@ -412,7 +316,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                 title="Close / Minimize"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
+                <Icon name="close" className="material-symbols-outlined text-[20px]" />
               </button>
             </div>
 
@@ -516,7 +420,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="p-2 rounded-xl bg-surface-container-lowest border border-border-subtle shadow-xs text-fashion-magenta shrink-0">
-                    <span className="material-symbols-outlined text-[24px]">account_balance_wallet</span>
+                    <Icon name="account_balance_wallet" className="material-symbols-outlined text-[24px]" />
                   </div>
                   <div className="space-y-1 text-body-sm text-body-sm">
                     <div className="flex items-center gap-1.5">
@@ -537,7 +441,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
               <div className="p-3 rounded-xl bg-surface-canvas border border-border-subtle space-y-1.5 font-label-xs-caps text-label-xs-caps text-text-secondary">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1 text-status-success font-semibold">
-                    <span className="material-symbols-outlined text-[16px]">verified</span>
+                    <Icon name="verified" className="material-symbols-outlined text-[16px]" />
                     <span>GST PORTAL DIGITALLY SIGNED</span>
                   </div>
                   <span>24/05/2024 14:28:44</span>
@@ -558,7 +462,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                   className="w-full h-9 rounded-xl bg-primary-container text-on-primary hover:bg-primary-container/90 font-label-sm text-label-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-sm"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[18px]">download</span>
+                  <Icon name="download" className="material-symbols-outlined text-[18px]" />
                   <span>Download PDF Credit Note (Form GST-01)</span>
                 </button>
                 <div className="grid grid-cols-2 gap-2">
@@ -567,7 +471,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                     className="h-8 rounded-xl bg-surface-canvas border border-border-subtle text-text-primary hover:bg-surface-subtle font-label-sm text-label-sm font-medium flex items-center justify-center gap-1.5 transition-colors"
                     type="button"
                   >
-                    <span className="material-symbols-outlined text-[16px] text-text-secondary">send</span>
+                    <Icon name="send" className="material-symbols-outlined text-[16px] text-text-secondary" />
                     <span>Resend Notice</span>
                   </button>
                   <button
@@ -575,7 +479,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                     className="h-8 rounded-xl bg-surface-canvas border border-border-subtle text-text-primary hover:bg-surface-subtle font-label-sm text-label-sm font-medium flex items-center justify-center gap-1.5 transition-colors"
                     type="button"
                   >
-                    <span className="material-symbols-outlined text-[16px] text-text-secondary">replay</span>
+                    <Icon name="replay" className="material-symbols-outlined text-[16px] text-text-secondary" />
                     <span>Retry Gateway</span>
                   </button>
                 </div>
@@ -586,7 +490,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
           {/* Quick Regulatory Compliance Advisory Card */}
           <div className="p-4 bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle space-y-3">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[20px] text-primary">policy</span>
+              <Icon name="policy" className="material-symbols-outlined text-[20px] text-primary" />
               <span className="font-headline-sm text-headline-sm text-text-primary font-semibold">Statutory Rule 54(1) Compliance</span>
             </div>
             <p className="font-body-sm text-body-sm text-text-secondary leading-relaxed">
@@ -608,6 +512,6 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

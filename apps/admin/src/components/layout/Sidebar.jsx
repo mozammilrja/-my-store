@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Icon } from '../ui';
 import { HUBS } from '../../data/mockData';
 
 export function Sidebar({ 
@@ -107,7 +108,7 @@ export function Sidebar({
                   className="lg:hidden p-1 text-secondary hover:text-text-primary rounded-lg"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
+                  <Icon name="close" className="material-symbols-outlined text-[18px]" />
                 </button>
               </div>
             )}
@@ -141,15 +142,13 @@ export function Sidebar({
                         type="button"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span 
+                          <Icon name={item.icon} 
                             className={`material-symbols-outlined text-[18px] shrink-0 transition-colors ${
                               isActive 
                                 ? 'text-on-primary' 
                                 : 'text-secondary group-hover:text-on-surface'
                             }`}
-                          >
-                            {item.icon}
-                          </span>
+                           />
                           {!isCollapsed && (
                             <span className="truncate">{item.label}</span>
                           )}
@@ -185,9 +184,7 @@ export function Sidebar({
                 type="button"
               >
                 <div className="flex items-center gap-2 overflow-hidden">
-                  <span className="material-symbols-outlined text-[16px] text-secondary shrink-0">
-                    hub
-                  </span>
+                  <Icon name="hub" className="material-symbols-outlined text-[16px] text-secondary shrink-0" />
                   <div className="flex flex-col truncate">
                     <span className="font-label-xs-caps text-[9px] text-text-secondary truncate">
                       NODE HUB
@@ -197,9 +194,7 @@ export function Sidebar({
                     </span>
                   </div>
                 </div>
-                <span className="material-symbols-outlined text-[18px] text-secondary shrink-0">
-                  unfold_more
-                </span>
+                <Icon name="unfold_more" className="material-symbols-outlined text-[18px] text-secondary shrink-0" />
               </button>
 
               {/* Hub Dropdown Menu */}
@@ -240,7 +235,7 @@ export function Sidebar({
                 title={`Active Hub: ${currentHub.name}`}
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">hub</span>
+                <Icon name="hub" className="material-symbols-outlined text-[18px]" />
               </button>
             </div>
           )}
@@ -260,9 +255,7 @@ export function Sidebar({
               title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
               type="button"
             >
-              <span className="material-symbols-outlined text-[16px]">
-                {isCollapsed ? 'keyboard_double_arrow_right' : 'keyboard_double_arrow_left'}
-              </span>
+              <Icon name={isCollapsed ? 'keyboard_double_arrow_right' : 'keyboard_double_arrow_left'} className="material-symbols-outlined text-[16px]" />
             </button>
           </div>
         </div>

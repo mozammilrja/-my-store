@@ -1,4 +1,5 @@
 import React from 'react';
+import { Icon } from '../ui';
 
 const ROUTE_DATA = {
   'analytics-and-reports': {
@@ -184,7 +185,7 @@ export function GenericView({ path, onNavigate, onShowToast }) {
             <span className="text-primary font-semibold">{data.title}</span>
           </nav>
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-[28px]">{data.icon}</span>
+            <Icon name={data.icon} className="material-symbols-outlined text-primary text-[28px]" />
             <h1 className="font-headline-lg text-headline-lg font-bold text-text-primary tracking-tight">
               {data.title}
             </h1>
@@ -205,7 +206,7 @@ export function GenericView({ path, onNavigate, onShowToast }) {
             className="px-4 h-9 rounded-xl bg-primary-container text-on-primary hover:bg-primary font-label-sm text-label-sm shadow-sm transition-colors flex items-center gap-1.5"
             type="button"
           >
-            <span className="material-symbols-outlined text-[18px]">sync</span>
+            <Icon name="sync" className="material-symbols-outlined text-[18px]" />
             <span>Refresh Telemetry</span>
           </button>
         </div>
@@ -282,7 +283,7 @@ export function GenericView({ path, onNavigate, onShowToast }) {
                       onClick={() => onShowToast({ type: 'info', title: 'Record Inspected', message: `Audit ledger verified for protocol #${i}.` })}
                       className="p-1 rounded hover:bg-surface-container text-secondary hover:text-text-primary"
                     >
-                      <span className="material-symbols-outlined text-[18px]">more_vert</span>
+                      <Icon name="more_vert" className="material-symbols-outlined text-[18px]" />
                     </button>
                   </td>
                 </tr>

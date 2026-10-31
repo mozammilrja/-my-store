@@ -5,7 +5,7 @@ import { formatMoney, formatDate } from '../../lib/format';
 import { OrderDetailDrawer } from './OrderDetailDrawer';
 import { CreateOrderModal } from './CreateOrderModal';
 import { useOrdersQuery, useCancelOrderMutation, useUpdateOrderStatusMutation } from '../../hooks/useAdminQueries';
-import {
+import { Icon,
   Card,
   CardContent,
   Button,
@@ -20,6 +20,13 @@ import {
   Select,
   Checkbox,
   Progress,
+  PageContainer,
+  PageHeader,
+  FilterBar,
+  SearchInput,
+  FilterDropdown,
+  DataTable,
+  StatusBadge,
 } from '../ui';
 
 export function OrderManagement({ 
@@ -296,41 +303,113 @@ export function OrderManagement({
     });
   };
 
-  return (
-    <div className="flex flex-col w-full space-y-space-md">
-      {/* Top Navigation & Operations Header */}
-      <div className="flex flex-col gap-space-sm">
-        {/* Breadcrumb & System State Indicator */}
-        <div className="flex items-center justify-between">
-          <nav className="flex items-center gap-1.5 font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">
-            <span>Everwear Admin</span>
-            <span className="text-secondary/40">/</span>
-            <span>Fulfillment</span>
-            <span className="text-secondary/40">/</span>
-            <span className="text-primary font-semibold">Order Management</span>
-          </nav>
-          <div className="flex items-center gap-space-sm text-text-secondary font-label-xs-caps text-label-xs-caps">
-            <Badge variant="success" className="gap-1 font-medium shadow-xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse"></span>
-              Dispatcher Active: {currentHub.id}
-            </Badge>
-            <span className="text-secondary/30">•</span>
-            <span className="font-mono text-text-secondary">AUTO-MANIFEST BATCH #4409</span>
+  const orderColumns = useMemo(() => [
+    {
+      header: 'Order ID & Time',
+      cell: (order) => (
+        <div className="flex flex-col">
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-xs font-bold text-text-primary group-hover:text-primary">
+              {order.id}
+            </span>
+            {order.isExpress && (
+              <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-900 text-[9px] font-bold">
+                24h
+              </span>
+            )}
           </div>
+          <span className="text-[11px] text-text-secondary font-mono mt-0.5">
+            {order.timeAgo}
+          </span>
         </div>
+      ),
+    },
+    {
+      header: 'Consignee (Customer)',
+      cell: (order) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-xs text-text-primary">
+            {order.customer.name}
+          </span>
+          <span className="text-[11px] text-text-secondary truncate max-w-[130px]">
+            {order.customer.cityRegion}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Hub & Channel',
+      cell: (order) => (
+        <div className="flex flex-col">
+          <Badge variant="outline" className="text-[10px] w-fit font-mono font-bold">
+            {order.nodeFc}
+          </Badge>
+          <span className="text-[10px] text-text-secondary mt-0.5 truncate max-w-[120px]">
+            {order.channel}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Items Ordered',
+      cell: (order) => (
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold text-text-primary">
+            {order.items?.length || 1} Style ({(order.items || []).reduce((acc, it) => acc + (it.qty || 1), 0)} pcs)
+          </span>
+          <span className="text-[11px] text-text-secondary truncate max-w-[140px]">
+            {order.items?.[0]?.name || 'Apparel item'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Courier / AWB',
+      cell: (order) => (
+        <div className="flex flex-col">
+          <span className="text-xs font-medium text-text-primary">
+            {order.courier?.partner || 'BlueDart Air'}
+          </span>
+          <span className="text-[11px] font-mono text-primary truncate">
+            {order.courier?.awb || 'Pending AWB'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Value & Tax',
+      cell: (order) => (
+        <div className="flex flex-col">
+          <span className="font-mono text-xs font-bold text-text-primary">
+            {order.payment.totalPaid}
+          </span>
+          <StatusBadge
+            status={order.payment.type === 'prepaid' ? 'PREPAID' : 'COD'}
+            size="sm"
+            className="w-fit mt-0.5"
+          />
+        </div>
+      ),
+    },
+    {
+      header: 'Fulfillment Stage',
+      cell: (order) => (
+        <StatusBadge status={order.status} showDot size="sm" />
+      ),
+    },
+  ], []);
 
-        {/* Page Title & Action Bar */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md pb-space-xs">
-          <div>
-            <h1 className="font-headline-lg text-headline-lg font-bold text-text-primary tracking-tight">
-              Order Management & Fulfillment Dispatch
-            </h1>
-            <p className="font-body-sm text-body-sm text-text-secondary">
-              Omnichannel order routing, real-time 3PL manifest generation, GST invoice compliance & live airway bill tracking.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-space-xs">
+  return (
+    <PageContainer>
+      {/* Top Operations Header */}
+      <PageHeader
+        breadcrumb={['Everwear Admin', 'Fulfillment', 'Order Management']}
+        badge={`Dispatcher: ${currentHub.id}`}
+        badgeVariant="success"
+        title="Order Management & Fulfillment Dispatch"
+        description="Omnichannel order routing, real-time 3PL manifest generation, GST invoice compliance & live airway bill tracking."
+        actions={
+          <>
             <Button
               variant="outline"
               size="sm"
@@ -338,7 +417,7 @@ export function OrderManagement({
               className="gap-1.5 h-9"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">receipt_long</span>
+              <Icon name="receipt_long" className="material-symbols-outlined text-[18px]" />
               <span>Export GST Register</span>
             </Button>
             <Button
@@ -348,7 +427,7 @@ export function OrderManagement({
               className="gap-1.5 h-9"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">print</span>
+              <Icon name="print" className="material-symbols-outlined text-[18px]" />
               <span>Print Barcodes</span>
             </Button>
             <Button
@@ -358,7 +437,7 @@ export function OrderManagement({
               className="gap-1.5 h-9"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">inventory_2</span>
+              <Icon name="inventory_2" className="material-symbols-outlined text-[18px]" />
               <span>Batch Manifest</span>
             </Button>
             <Button
@@ -368,268 +447,81 @@ export function OrderManagement({
               className="gap-1.5 h-9 shadow-sm"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">add_circle</span>
+              <Icon name="add_circle" className="material-symbols-outlined text-[18px]" />
               <span>+ Create Manual Order</span>
             </Button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Operational Filter & State Navigation Bar */}
-      <Card>
-        <CardContent className="p-space-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-space-sm">
-          {/* Status Tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 no-scrollbar">
-            {[
-              { id: 'All', label: 'All Orders', count: orders.length },
-              { id: 'Packed & Ready', label: 'Packed & Ready', count: orders.filter(o => o.status === 'Packed & Staged').length || 14 },
-              { id: 'In Transit', label: 'In Transit', count: orders.filter(o => o.status === 'Dispatched').length || 8 },
-              { id: 'Delivered', label: 'Delivered', count: orders.filter(o => o.status === 'Delivered').length || 6 },
-              { id: 'Exceptions', label: 'Exceptions', count: 3 },
-            ].map((tab) => {
-              const isTabActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg font-label-sm text-label-sm transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                    isTabActive
-                      ? 'bg-primary-container text-on-primary font-semibold shadow-xs'
-                      : 'bg-surface-subtle hover:bg-surface-container text-on-surface-variant'
-                  }`}
-                  type="button"
-                >
-                  <span>{tab.label}</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                    isTabActive ? 'bg-white/20 text-white' : 'bg-surface-container text-text-secondary'
-                  }`}>
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Quick Search & Param Filters */}
-          <div className="flex flex-wrap items-center gap-space-xs">
-            <div className="relative min-w-[200px] flex-1 sm:flex-initial">
-              <span className="material-symbols-outlined absolute left-2.5 top-2.5 text-secondary text-[16px] pointer-events-none">
-                search
-              </span>
-              <Input
-                type="text"
-                placeholder="Search Order, AWB, Phone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 h-8.5 bg-surface-canvas text-xs"
-              />
-            </div>
-
-            <Select
+      <FilterBar
+        tabs={[
+          { id: 'All', label: 'All Orders', count: orders.length },
+          { id: 'Packed & Ready', label: 'Packed & Ready', count: orders.filter(o => o.status === 'Packed & Staged').length || 14 },
+          { id: 'In Transit', label: 'In Transit', count: orders.filter(o => o.status === 'Dispatched').length || 8 },
+          { id: 'Delivered', label: 'Delivered', count: orders.filter(o => o.status === 'Delivered').length || 6 },
+          { id: 'Exceptions', label: 'Exceptions', count: 3 },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        search={
+          <SearchInput
+            placeholder="Search Order, AWB, Phone..."
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onClear={() => setSearchQuery('')}
+          />
+        }
+        filters={
+          <>
+            <FilterDropdown
               value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value)}
-              className="h-8.5 text-xs bg-surface-canvas font-medium"
-            >
-              <option>All Payments</option>
-              <option>Prepaid (UPI / Cards)</option>
-              <option>COD (Cash on Delivery)</option>
-            </Select>
-
-            <Select
+              onChange={setPaymentFilter}
+              options={['All Payments', 'Prepaid (UPI / Cards)', 'COD (Cash on Delivery)']}
+            />
+            <FilterDropdown
               value={warehouseFilter}
-              onChange={(e) => setWarehouseFilter(e.target.value)}
-              className="h-8.5 text-xs bg-surface-canvas font-medium"
-            >
-              <option>All Hubs</option>
-              <option>BLR-FC1 (Bengaluru)</option>
-              <option>BOM-FC2 (Mumbai)</option>
-              <option>DEL-FC3 (Delhi NCR)</option>
-              <option>CCU-FC4 (Kolkata)</option>
-            </Select>
-
-            <Select
+              onChange={setWarehouseFilter}
+              options={['All Hubs', 'BLR-FC1 (Bengaluru)', 'BOM-FC2 (Mumbai)', 'DEL-FC3 (Delhi NCR)', 'CCU-FC4 (Kolkata)']}
+            />
+            <FilterDropdown
               value={courierFilter}
-              onChange={(e) => setCourierFilter(e.target.value)}
-              className="h-8.5 text-xs bg-surface-canvas font-medium"
-            >
-              <option>All 3PL Couriers</option>
-              <option>BlueDart Express</option>
-              <option>Delhivery Air</option>
-              <option>Shadowfax Air</option>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+              onChange={setCourierFilter}
+              options={['All 3PL Couriers', 'BlueDart Express', 'Delhivery Air', 'Shadowfax Air']}
+            />
+          </>
+        }
+      />
 
       {/* Main Split Grid: High-Density Table (8 Cols) + Interactive Order Drawer (4 Cols) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-md items-start">
-        {/* Left Column: Orders Table */}
-        <Card className={`${drawerOpen ? 'xl:col-span-8' : 'xl:col-span-12'} overflow-hidden shadow-xs transition-all`}>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-surface-subtle">
-                <TableRow className="border-b border-border-subtle">
-                  <TableHead className="w-10 text-center">
-                    <Checkbox
-                      checked={selectedIds.length === filteredOrders.length && filteredOrders.length > 0}
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                    />
-                  </TableHead>
-                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Order ID &amp; Time</TableHead>
-                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Consignee (Customer)</TableHead>
-                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Hub &amp; Channel</TableHead>
-                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Items Ordered</TableHead>
-                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Courier / AWB</TableHead>
-                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Value &amp; Tax</TableHead>
-                  <TableHead className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Fulfillment Stage</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-text-secondary">
-                      No orders found matching the filter criteria.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredOrders.map((order) => {
-                    const isSelected = selectedIds.includes(order.id);
-                    const isActive = activeOrder?.id === order.id;
-
-                    return (
-                      <TableRow
-                        key={order.id}
-                        onClick={() => handleRowClick(order.id)}
-                        className={`cursor-pointer transition-colors border-b border-border-subtle/50 hover:bg-surface-subtle/70 ${
-                          isActive ? 'bg-primary-fixed/20 border-l-4 border-l-primary-container' : ''
-                        }`}
-                      >
-                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={isSelected}
-                            onChange={(e) => handleToggleSelect(order.id, e)}
-                          />
-                        </TableCell>
-
-                        {/* Order ID & Time */}
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-xs font-bold text-text-primary group-hover:text-primary">
-                                {order.id}
-                              </span>
-                              {order.isExpress && (
-                                <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-900 text-[9px] font-bold">
-                                  24h
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-text-secondary font-mono mt-0.5">
-                              {order.timeAgo}
-                            </span>
-                          </div>
-                        </TableCell>
-
-                        {/* Customer */}
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium text-xs text-text-primary">
-                              {order.customer.name}
-                            </span>
-                            <span className="text-[11px] text-text-secondary truncate max-w-[130px]">
-                              {order.customer.cityRegion}
-                            </span>
-                          </div>
-                        </TableCell>
-
-                        {/* Hub & Channel */}
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <Badge variant="outline" className="text-[10px] w-fit font-mono font-bold">
-                              {order.nodeFc}
-                            </Badge>
-                            <span className="text-[10px] text-text-secondary mt-0.5 truncate max-w-[120px]">
-                              {order.channel}
-                            </span>
-                          </div>
-                        </TableCell>
-
-                        {/* Items */}
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="text-xs font-semibold text-text-primary">
-                              {order.items?.length || 1} Style ({(order.items || []).reduce((acc, it) => acc + (it.qty || 1), 0)} pcs)
-                            </span>
-                            <span className="text-[11px] text-text-secondary truncate max-w-[140px]">
-                              {order.items?.[0]?.name || 'Apparel item'}
-                            </span>
-                          </div>
-                        </TableCell>
-
-                        {/* Courier / AWB */}
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="text-xs font-medium text-text-primary">
-                              {order.courier?.partner || 'BlueDart Air'}
-                            </span>
-                            <span className="text-[11px] font-mono text-primary truncate">
-                              {order.courier?.awb || 'Pending AWB'}
-                            </span>
-                          </div>
-                        </TableCell>
-
-                        {/* Value & Tax */}
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-mono text-xs font-bold text-text-primary">
-                              {order.payment.totalPaid}
-                            </span>
-                            <Badge 
-                              variant={order.payment.type === 'prepaid' ? 'success' : 'warning'} 
-                              className="text-[9px] py-0 px-1 font-semibold w-fit mt-0.5"
-                            >
-                              {order.payment.type === 'prepaid' ? 'PREPAID' : 'COD'}
-                            </Badge>
-                          </div>
-                        </TableCell>
-
-                        {/* Fulfillment Stage */}
-                        <TableCell>
-                          <Badge 
-                            variant={
-                              order.status === 'Delivered' ? 'success' :
-                              order.status === 'Dispatched' ? 'info' :
-                              order.status === 'Cancelled' ? 'destructive' : 'warning'
-                            }
-                            className="text-[10px] py-0.5 px-2 font-semibold"
-                          >
-                            {order.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Table Footer with Paging */}
-          <div className="p-space-sm bg-surface-subtle border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between gap-space-sm text-xs text-text-secondary">
-            <div>
-              Showing <span className="font-semibold text-text-primary">{filteredOrders.length}</span> of {orders.length} active dispatches across hubs
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="h-7 text-xs" disabled>
-                Previous
-              </Button>
-              <span className="font-mono text-text-primary">Page 1 of 1</span>
-              <Button variant="outline" size="sm" className="h-7 text-xs" disabled>
-                Next
-              </Button>
-            </div>
-          </div>
-        </Card>
+        <div className={drawerOpen ? 'xl:col-span-8' : 'xl:col-span-12'}>
+          <DataTable
+            columns={orderColumns}
+            data={filteredOrders}
+            selectable
+            selectedIds={selectedIds}
+            onSelectRow={(id, checked) => {
+              if (checked) setSelectedIds([...selectedIds, id]);
+              else setSelectedIds(selectedIds.filter(i => i !== id));
+            }}
+            onSelectAll={(checked) => {
+              setSelectedIds(checked ? filteredOrders.map(o => o.id) : []);
+            }}
+            activeRowId={activeOrder?.id}
+            onRowClick={(row) => handleRowClick(row.id)}
+            isLoading={isOrdersLoading}
+            emptyTitle="No orders found"
+            emptyMessage="No orders match your active filter criteria."
+            pagination={{
+              page: 1,
+              pageSize: Number(rowsPerPage),
+              totalItems: filteredOrders.length,
+              onPageSizeChange: (sz) => setRowsPerPage(String(sz)),
+            }}
+          />
+        </div>
 
         {/* Right Column: Slide-Over Order Detail Drawer */}
         {drawerOpen && activeOrder && (
@@ -649,6 +541,6 @@ export function OrderManagement({
         onCreateOrder={handleCreateOrder}
         currentHub={currentHub}
       />
-    </div>
+    </PageContainer>
   );
 }

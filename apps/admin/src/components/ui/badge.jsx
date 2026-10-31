@@ -24,7 +24,7 @@ const badgeVariants = cva(
         vip:
           "border-transparent bg-primary-fixed text-on-primary-fixed font-bold",
         gold:
-          "border-amber-200 bg-amber-100 text-amber-800",
+          "border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300",
       },
       size: {
         default: "text-[11px] leading-3.5 px-2 py-0.5",

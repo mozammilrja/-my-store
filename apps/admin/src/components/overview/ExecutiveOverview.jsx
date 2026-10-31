@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { TOP_SELLING_SKUS, OPERATIONAL_INCIDENTS } from '../../data/mockData';
 import { useDashboardQuery } from '../../hooks/useAdminQueries';
 import { formatMoney, formatDate } from '../../lib/format';
-import {
+import { Icon,
   Card,
   CardHeader,
   CardTitle,
@@ -22,6 +22,13 @@ import {
   AlertDescription,
   Progress,
   Separator,
+  PageContainer,
+  PageHeader,
+  DateRangeFilter,
+  ContentGrid,
+  StatsCard,
+  SectionCard,
+  StatusBadge,
 } from '../ui';
 
 export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
@@ -190,7 +197,7 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
   };
 
   return (
-    <div className="flex flex-col w-full space-y-space-xl">
+    <PageContainer>
       {/* Live System Telemetry Status Bar */}
       <Card className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm bg-surface-container-low px-space-md py-space-xs rounded-xl shadow-xs border-border-subtle/50">
         <div className="flex items-center gap-space-sm">
@@ -205,7 +212,7 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
         </div>
         <div className="flex items-center gap-space-md font-label-xs-caps text-label-xs-caps text-secondary">
           <span className="flex items-center gap-1 font-medium">
-            <span className="material-symbols-outlined text-[14px] text-status-success">cloud_done</span> 
+            <Icon name="cloud_done" className="material-symbols-outlined text-[14px] text-status-success" /> 
             Live Sync: Active
           </span>
           <span className="text-secondary/40">|</span>
@@ -214,48 +221,18 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
       </Card>
 
       {/* Page Title & Operational Actions Toolbar */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-lg">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="font-label-xs-caps text-label-xs-caps text-primary uppercase font-bold tracking-widest">
-              Ops Orchestration Center
-            </span>
-            <Badge variant="info">
-              Q2 FY24-25 ACTIVE
-            </Badge>
-          </div>
-          <h1 className="font-headline-lg text-headline-lg text-text-primary tracking-tight font-semibold">
-            Executive Operations Overview
-          </h1>
-          <p className="font-body-md text-body-md text-text-secondary">
-            Real-time consolidated fashion commerce telemetry across 4 national fulfillment hubs (Bengaluru, Mumbai, Delhi-NCR, Kolkata).
-          </p>
-        </div>
-
-        {/* Controls, Toggle & Actions */}
-        <div className="flex flex-wrap items-center gap-space-sm">
-          {/* Time Range Segmented Toggle */}
-          <div className="flex items-center bg-surface-container-high p-1 rounded-xl shadow-xs border border-border-subtle/40">
-            {['Today', 'Yesterday', 'Last 7D', 'MTD', 'Q2 FY24-25'].map((range) => (
-              <Button
-                key={range}
-                variant={timeRange === range ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setTimeRange(range)}
-                className={`h-7 px-2.5 font-label-sm text-label-sm ${
-                  timeRange === range
-                    ? 'bg-surface-container-lowest text-primary font-semibold shadow-xs hover:bg-surface-container-lowest'
-                    : 'text-text-secondary hover:text-text-primary'
-                } ${range === 'Q2 FY24-25' ? 'hidden sm:inline-flex' : ''}`}
-                type="button"
-              >
-                {range}
-              </Button>
-            ))}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2">
+      <PageHeader
+        kicker="Ops Orchestration Center"
+        badge="Q2 FY24-25 ACTIVE"
+        title="Executive Operations Overview"
+        description="Real-time consolidated fashion commerce telemetry across 4 national fulfillment hubs (Bengaluru, Mumbai, Delhi-NCR, Kolkata)."
+        actions={
+          <>
+            <DateRangeFilter
+              ranges={['Today', 'Yesterday', 'Last 7D', 'MTD', 'Q2 FY24-25']}
+              activeRange={timeRange}
+              onRangeChange={setTimeRange}
+            />
             <Button
               variant="secondary"
               size="default"
@@ -264,9 +241,7 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
               className="gap-1.5 font-label-md"
               type="button"
             >
-              <span className={`material-symbols-outlined text-[18px] text-primary ${isSyncing ? 'animate-spin' : ''}`}>
-                sync
-              </span>
+              <Icon name="sync" className={`material-symbols-outlined text-[18px] text-primary ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'Syncing...' : 'Flash Sync'}</span>
             </Button>
             <Button
@@ -276,169 +251,83 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
               className="gap-1.5 font-label-md"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">download</span>
+              <Icon name="download" className="material-symbols-outlined text-[18px]" />
               <span>Daily Brief (PDF)</span>
             </Button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* KPI Metric Grid (7 Cards Bento) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-space-md">
-        {/* Card 1: Net Sales Today (GMV) - Spans 2 cols on XL */}
-        <Card className="xl:col-span-2 p-space-md flex flex-col justify-between group hover:shadow-md transition-all">
-          <div className="flex items-start justify-between">
-            <div>
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold">
-                Gross Merchandise Value
-              </span>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="font-metric-stat text-metric-stat text-text-primary font-semibold tabular-nums">
-                  {metrics.gmv}
-                </span>
-              </div>
-            </div>
-            <Badge variant="success" className="gap-0.5">
-              <span className="material-symbols-outlined text-[14px]">trending_up</span> {metrics.gmvGrowth}
-            </Badge>
-          </div>
+      <ContentGrid cols={7}>
+        <StatsCard
+          className="xl:col-span-2"
+          title="Gross Merchandise Value"
+          value={metrics.gmv}
+          trend={metrics.gmvGrowth}
+          trendType="up"
+          progress={88}
+          progressLabel="Target Achievement"
+          targetText="106.4% of Daily Quota"
+          subtext="Prepaid: 72.4% (Razorpay/UPI) • COD: 27.6%"
+        />
 
-          <div className="my-space-sm">
-            <div className="flex justify-between font-label-xs-caps text-label-xs-caps text-text-secondary mb-1">
-              <span>Target Achievement</span>
-              <span className="font-semibold text-text-primary">106.4% of Daily Quota</span>
-            </div>
-            <Progress value={88} className="h-2 bg-surface-subtle" />
-          </div>
+        <StatsCard
+          title="Orders Placed"
+          value={metrics.ordersCount}
+          icon="shopping_cart"
+          trend="+21.4%"
+          trendType="up"
+          trendLabel="vs SLA Target"
+          subtext={`AOV: ${metrics.aov}`}
+        />
 
-          <div className="pt-space-xs border-t border-border-subtle flex items-center justify-between font-label-xs-caps text-label-xs-caps text-text-secondary">
-            <span>Prepaid: <strong>72.4%</strong> (Razorpay/UPI)</span>
-            <span>COD: <strong>27.6%</strong></span>
-          </div>
-        </Card>
+        <StatsCard
+          title="On-Time Dispatch SLA"
+          value={metrics.deliveredPct}
+          icon="local_shipping"
+          iconColor="text-status-success"
+          trend="Target: 92%"
+          trendType="neutral"
+          trendLabel="within 4h"
+          subtext="Fastest Node: BLR-FC1 (2.2h)"
+        />
 
-        {/* Card 2: Orders Ingested */}
-        <Card className="p-space-md flex flex-col justify-between group hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold">
-              Orders Placed
-            </span>
-            <span className="p-1 rounded-lg bg-surface-subtle text-secondary material-symbols-outlined text-[18px]">
-              shopping_cart
-            </span>
-          </div>
-          <div className="mt-2">
-            <div className="font-metric-stat text-metric-stat text-text-primary font-semibold tabular-nums">
-              {metrics.ordersCount}
-            </div>
-            <div className="font-label-xs-caps text-label-xs-caps text-status-success font-medium flex items-center gap-0.5 mt-0.5">
-              <span className="material-symbols-outlined text-[14px]">bolt</span> +21.4% vs SLA Target
-            </div>
-          </div>
-          <div className="mt-space-sm pt-space-xs border-t border-border-subtle font-label-xs-caps text-[11px] text-text-secondary">
-            AOV: <span className="font-semibold text-text-primary font-mono">{metrics.aov}</span>
-          </div>
-        </Card>
+        <StatsCard
+          title="Active Hub Nodes"
+          value={metrics.activeNodes}
+          icon="hub"
+          iconColor="text-status-info"
+          badge="OPERATIONAL"
+          badgeVariant="success"
+          trendLabel="All Nodes Live"
+          subtext="Peak Node: BLR-FC1 (38%)"
+        />
 
-        {/* Card 3: Dispatch Velocity & SLA */}
-        <Card className="p-space-md flex flex-col justify-between group hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold">
-              On-Time Dispatch SLA
-            </span>
-            <span className="p-1 rounded-lg bg-status-success-bg text-status-success material-symbols-outlined text-[18px]">
-              local_shipping
-            </span>
-          </div>
-          <div className="mt-2">
-            <div className="font-metric-stat text-metric-stat text-status-success font-semibold tabular-nums">
-              {metrics.deliveredPct}
-            </div>
-            <div className="font-label-xs-caps text-label-xs-caps text-text-secondary mt-0.5">
-              Target: 92.0% within 4h
-            </div>
-          </div>
-          <div className="mt-space-sm pt-space-xs border-t border-border-subtle font-label-xs-caps text-[11px] text-text-secondary">
-            Fastest Node: <span className="font-semibold text-text-primary">BLR-FC1 (2.2h)</span>
-          </div>
-        </Card>
+        <StatsCard
+          className="bg-status-danger-bg/40 border-status-danger/20 hover:border-status-danger/40"
+          title="Critical Exceptions"
+          value={metrics.exceptionsCount}
+          icon="warning"
+          iconColor="text-status-danger"
+          badge="ACTION REQ"
+          badgeVariant="destructive"
+          trendLabel="Immediate action"
+          subtext="Unblock in Triage Queue Below"
+        />
 
-        {/* Card 4: Active Fulfillment Hubs */}
-        <Card className="p-space-md flex flex-col justify-between group hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold">
-              Active Fulfillment Hubs
-            </span>
-            <span className="p-1 rounded-lg bg-status-info-bg text-status-info material-symbols-outlined text-[18px]">
-              hub
-            </span>
-          </div>
-          <div className="mt-2">
-            <div className="font-metric-stat text-metric-stat text-text-primary font-semibold tabular-nums">
-              {metrics.activeNodes}
-            </div>
-            <div className="font-label-xs-caps text-label-xs-caps text-status-success font-medium flex items-center gap-0.5 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse"></span>
-              All Nodes Operational
-            </div>
-          </div>
-          <div className="mt-space-sm pt-space-xs border-t border-border-subtle font-label-xs-caps text-[11px] text-text-secondary truncate">
-            Peak Node: <span className="font-semibold text-text-primary">BLR-FC1 (38%)</span>
-          </div>
-        </Card>
-
-        {/* Card 5: Critical Exceptions */}
-        <Card className="p-space-md flex flex-col justify-between bg-status-danger-bg/40 border-status-danger/20 hover:border-status-danger/40 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-status-danger uppercase tracking-wider font-semibold">
-              Critical Exceptions
-            </span>
-            <span className="p-1 rounded-lg bg-surface-container-lowest text-status-danger material-symbols-outlined text-[18px]">
-              warning
-            </span>
-          </div>
-          <div className="mt-2">
-            <div className="font-metric-stat text-metric-stat text-status-danger font-semibold tabular-nums">
-              {metrics.exceptionsCount}
-            </div>
-            <div className="font-label-xs-caps text-label-xs-caps text-status-danger font-medium mt-0.5">
-              Requires immediate action
-            </div>
-          </div>
-          <div className="mt-space-sm pt-space-xs border-t border-status-danger/20 font-label-xs-caps text-[11px] text-status-danger">
-            Unblock in Triage Queue Below
-          </div>
-        </Card>
-
-        {/* Card 6: Stock Depleted SKUs */}
-        <Card className="p-space-md flex flex-col justify-between group hover:shadow-md transition-all">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold">
-              Depleted Stock (SKUs)
-            </span>
-            <span className="p-1 rounded-lg bg-status-warning-bg text-status-warning material-symbols-outlined text-[18px]">
-              inventory_2
-            </span>
-          </div>
-          <div className="mt-2">
-            <div className="font-metric-stat text-metric-stat text-status-warning font-semibold tabular-nums">
-              {metrics.depletedSkus}
-            </div>
-            <div className="font-label-xs-caps text-label-xs-caps text-text-secondary mt-0.5">
-              Out of stock in 1+ hub
-            </div>
-          </div>
-          <div className="mt-space-sm pt-space-xs border-t border-border-subtle font-label-xs-caps text-[11px] text-text-secondary">
-            <button 
-              onClick={() => onNavigate('inventory-and-warehouses')}
-              className="text-primary hover:underline font-semibold"
-              type="button"
-            >
-              Open Inventory Matrix →
-            </button>
-          </div>
-        </Card>
-      </div>
+        <StatsCard
+          title="Depleted Stock (SKUs)"
+          value={metrics.depletedSkus}
+          icon="inventory_2"
+          iconColor="text-status-warning"
+          trend="Out of stock"
+          trendType="down"
+          trendLabel="in 1+ hub"
+          subtext="Open Inventory Matrix →"
+          onClick={() => onNavigate('inventory-and-warehouses')}
+        />
+      </ContentGrid>
 
       {/* Main Multi-Column Matrix: Sales Chart (8 Cols) + Exception Triage Queue (4 Cols) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg items-start">
@@ -583,12 +472,7 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
                           <Badge variant="success" className="text-[10px]">{margin}%</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge 
-                            variant={isLow ? 'warning' : 'outline'}
-                            className="text-[10px]"
-                          >
-                            {stock}
-                          </Badge>
+                          <StatusBadge status={stock} size="sm" />
                         </TableCell>
                       </TableRow>
                     );
@@ -605,7 +489,7 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
           <Card className="p-space-md shadow-sm border-l-4 border-l-status-danger">
             <div className="flex items-center justify-between pb-2 border-b border-border-subtle">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-status-danger text-[20px]">notification_important</span>
+                <Icon name="notification_important" className="material-symbols-outlined text-status-danger text-[20px]" />
                 <CardTitle className="font-headline-sm text-sm font-bold text-text-primary">
                   Operations Exception Triage
                 </CardTitle>
@@ -689,6 +573,6 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
           </Card>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

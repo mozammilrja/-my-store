@@ -1,12 +1,36 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
-import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui/table';
-import { Input } from '../ui/input';
-import { Select } from '../ui/select';
-import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '../ui/dialog';
-import { Alert } from '../ui/alert';
+import {
+  Icon,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardDescription,
+  Badge,
+  Button,
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+  Input,
+  Select,
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogContent,
+  DialogFooter,
+  Alert,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+  FilterBar,
+  SearchInput,
+  FilterDropdown,
+} from '../ui';
 import { INITIAL_INVENTORY, INITIAL_INVENTORY_METRICS, HUBS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useProductsQuery, useInventoryQuery, useAdjustInventoryMutation } from '../../hooks/useAdminQueries';
@@ -240,290 +264,169 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
   };
 
   const getStatusBadge = (status) => {
-    switch (status) {
-      case 'Healthy':
-        return <Badge variant="success">Healthy</Badge>;
-      case 'Critical Low-Stock':
-        return <Badge variant="destructive">Critical (&lt;10)</Badge>;
-      case 'Low Stock':
-        return <Badge variant="warning">Low Stock</Badge>;
-      case 'Overstocked':
-        return <Badge variant="secondary">Overstocked (&gt;1000)</Badge>;
-      case 'Depleted':
-        return <Badge variant="destructive">Depleted (0)</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+    return <StatusBadge status={status} />;
   };
 
   const newPhysicalCalculated = selectedItem ? Math.max(0, selectedItem.onHand + adjustmentDelta) : 0;
 
   return (
-    <div className="flex flex-col w-full space-y-6">
+    <PageContainer>
       {/* Top Breadcrumb & Title Section */}
-      <Card className="border border-border-subtle bg-surface-container-lowest">
-        <CardContent className="p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-text-secondary tracking-wider font-semibold uppercase">
-                <span>EVERWEAR ADMIN</span>
-                <span className="text-border-strong">/</span>
-                <span>CATALOG &amp; INVENTORY</span>
-                <span className="text-border-strong">/</span>
-                <span className="text-primary-container font-bold">INVENTORY &amp; WAREHOUSES</span>
-              </div>
-              <h1 className="text-2xl font-bold text-text-primary tracking-tight flex items-center gap-3">
-                Omnichannel Inventory &amp; Multi-Node Warehousing
-                <Badge variant="success" className="text-xs font-semibold">4 Nodes Active</Badge>
-              </h1>
-              <p className="text-sm text-text-secondary max-w-4xl">
-                Real-time stock ledger, multi-hub allocation (BLR-FC1, BOM-FC2, DEL-FC3, CCU-FC4), reserved buffer holds, and automated replenishment alerts.
-              </p>
-            </div>
+      <PageHeader
+        breadcrumb={['Everwear Admin', 'Catalog & Inventory', 'Inventory & Warehouses']}
+        title="Omnichannel Inventory & Multi-Node Warehousing"
+        badge="4 Nodes Active"
+        badgeVariant="success"
+        description="Real-time stock ledger, multi-hub allocation (BLR-FC1, BOM-FC2, DEL-FC3, CCU-FC4), reserved buffer holds, and automated replenishment alerts."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsTransferModalOpen(true)}
+              className="gap-1.5"
+            >
+              <Icon name="sync_alt" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <span>Stock Transfer</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast && onShowToast('Cycle count audit scheduled for BLR-FC1 aisle C-12.')}
+              className="gap-1.5"
+            >
+              <Icon name="fact_check" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <span>Reconcile Count</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsGrnModalOpen(true)}
+              className="gap-1.5"
+            >
+              <Icon name="download" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <span>Receive Goods (GRN)</span>
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setIsDrawerOpen(prev => !prev)}
+              className="gap-1.5 bg-primary-container text-on-primary hover:bg-primary shadow-sm"
+            >
+              <Icon name="add_circle" className="material-symbols-outlined text-[18px]" />
+              <span>{isDrawerOpen ? 'Close Adjustment' : '+ Stock Adjustment'}</span>
+            </Button>
+          </>
+        }
+      />
 
-            {/* Quick Actions Header CTAs */}
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsTransferModalOpen(true)}
-                className="gap-1.5"
-              >
-                <span className="material-symbols-outlined text-[16px] text-text-secondary">sync_alt</span>
-                Stock Transfer (Inter-Hub)
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onShowToast && onShowToast('Cycle count audit scheduled for BLR-FC1 aisle C-12.')}
-                className="gap-1.5"
-              >
-                <span className="material-symbols-outlined text-[16px] text-text-secondary">fact_check</span>
-                Reconcile Cycle Count
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsGrnModalOpen(true)}
-                className="gap-1.5"
-              >
-                <span className="material-symbols-outlined text-[16px] text-text-secondary">download</span>
-                Receive Goods (GRN)
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setIsDrawerOpen(prev => !prev)}
-                className="gap-1.5 bg-primary-container text-on-primary hover:bg-primary shadow-sm"
-              >
-                <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                {isDrawerOpen ? 'Close Adjustment' : '+ Stock Adjustment'}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* KPI Metrics Grid (ReUI Card) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {/* KPI 1 */}
-        <Card className="border border-border-subtle bg-surface-container-lowest">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">Total SKUs</span>
-              <span className="p-1 rounded-lg bg-surface-subtle text-text-secondary material-symbols-outlined text-[16px]">qr_code_2</span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-text-primary tracking-tight">{INITIAL_INVENTORY_METRICS.totalSkus}</div>
-              <div className="flex items-center gap-1 mt-1 text-[11px] text-status-success font-semibold">
-                <span className="material-symbols-outlined text-[14px]">trending_up</span>
-                <span>{INITIAL_INVENTORY_METRICS.totalSkusGrowth}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* KPI 2 */}
-        <Card className="border border-border-subtle bg-surface-container-lowest">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">On-Hand Physical</span>
-              <span className="p-1 rounded-lg bg-surface-subtle text-text-secondary material-symbols-outlined text-[16px]">inventory_2</span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-text-primary tracking-tight">
-                {INITIAL_INVENTORY_METRICS.onHandPhysical.split(' ')[0]} <span className="text-xs font-normal text-text-secondary">pcs</span>
-              </div>
-              <div className="mt-1 text-[11px] text-text-secondary">
-                Valuation: <span className="font-semibold text-text-primary">{INITIAL_INVENTORY_METRICS.valuation}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* KPI 3 */}
-        <Card className="border border-border-subtle bg-surface-container-lowest">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">Available-to-Sell</span>
-              <span className="p-1 rounded-lg bg-status-success-bg text-status-success material-symbols-outlined text-[16px]">storefront</span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-status-success tracking-tight">
-                {INITIAL_INVENTORY_METRICS.ats.split(' ')[0]} <span className="text-xs font-normal text-text-secondary">pcs</span>
-              </div>
-              <div className="mt-1 text-[11px] text-text-secondary truncate">
-                {INITIAL_INVENTORY_METRICS.atsNote}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* KPI 4 */}
-        <Card className="border border-border-subtle bg-surface-container-lowest">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">Reserved / Staged</span>
-              <span className="p-1 rounded-lg bg-status-info-bg text-status-info material-symbols-outlined text-[16px]">lock_clock</span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-text-primary tracking-tight">
-                {INITIAL_INVENTORY_METRICS.reserved.split(' ')[0]} <span className="text-xs font-normal text-text-secondary">pcs</span>
-              </div>
-              <div className="mt-1 text-[11px] text-status-info font-medium">
-                {INITIAL_INVENTORY_METRICS.reservedNote}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* KPI 5 */}
-        <Card className="border border-status-danger/30 bg-status-danger-bg/40">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-status-danger tracking-wider uppercase">Critical Low-Stock</span>
-              <span className="p-1 rounded-lg bg-surface-container-lowest text-status-danger material-symbols-outlined text-[16px]">warning</span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-status-danger tracking-tight">{INITIAL_INVENTORY_METRICS.criticalLow}</div>
-              <div className="mt-1 text-[11px] text-status-danger font-medium">
-                {INITIAL_INVENTORY_METRICS.criticalNote}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* KPI 6 */}
-        <Card className="border border-border-subtle bg-surface-container-lowest">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">Cycle Accuracy</span>
-              <span className="p-1 rounded-lg bg-status-success-bg text-status-success material-symbols-outlined text-[16px]">verified</span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-text-primary tracking-tight">{INITIAL_INVENTORY_METRICS.cycleAccuracy}</div>
-              <div className="mt-1 text-[11px] text-text-secondary">
-                {INITIAL_INVENTORY_METRICS.accuracyNote}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* KPI Metrics Grid */}
+      <ContentGrid columns={6}>
+        <StatsCard
+          title="Total SKUs"
+          value={INITIAL_INVENTORY_METRICS.totalSkus}
+          icon="qr_code_2"
+          trend={INITIAL_INVENTORY_METRICS.totalSkusGrowth}
+          trendType="up"
+        />
+        <StatsCard
+          title="On-Hand Physical"
+          value={`${INITIAL_INVENTORY_METRICS.onHandPhysical.split(' ')[0]} pcs`}
+          icon="inventory_2"
+          trendLabel={`Valuation: ${INITIAL_INVENTORY_METRICS.valuation}`}
+        />
+        <StatsCard
+          title="Available-to-Sell"
+          value={`${INITIAL_INVENTORY_METRICS.ats.split(' ')[0]} pcs`}
+          icon="storefront"
+          iconColor="text-status-success"
+          trendLabel={INITIAL_INVENTORY_METRICS.atsNote}
+        />
+        <StatsCard
+          title="Reserved / Staged"
+          value={`${INITIAL_INVENTORY_METRICS.reserved.split(' ')[0]} pcs`}
+          icon="lock_clock"
+          iconColor="text-status-info"
+          trendLabel={INITIAL_INVENTORY_METRICS.reservedNote}
+        />
+        <StatsCard
+          title="Critical Low-Stock"
+          value={INITIAL_INVENTORY_METRICS.criticalLow}
+          icon="warning"
+          iconColor="text-status-danger"
+          badge="Critical"
+          badgeVariant="destructive"
+          trendLabel={INITIAL_INVENTORY_METRICS.criticalNote}
+        />
+        <StatsCard
+          title="Cycle Accuracy"
+          value={INITIAL_INVENTORY_METRICS.cycleAccuracy}
+          icon="verified"
+          iconColor="text-status-success"
+          trendLabel={INITIAL_INVENTORY_METRICS.accuracyNote}
+        />
+      </ContentGrid>
 
       {/* Operational Filter & Control Bar */}
-      <Card className="border border-border-subtle bg-surface-container-lowest">
-        <CardContent className="p-4">
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3 flex-1">
-              {/* Hub Selector */}
-              <div className="relative min-w-[200px]">
-                <Select
-                  value={selectedHub}
-                  onChange={(e) => setSelectedHub(e.target.value)}
-                  className="h-9 font-medium"
-                >
-                  <option value="all">All Warehouses &amp; Hubs</option>
-                  <option value="BLR-FC1">BLR-FC1 • Bengaluru Primary</option>
-                  <option value="BOM-FC2">BOM-FC2 • Mumbai Western DC</option>
-                  <option value="DEL-FC3">DEL-FC3 • Delhi NCR Hub</option>
-                  <option value="CCU-FC4">CCU-FC4 • Kolkata East Regional</option>
-                </Select>
-              </div>
-
-              {/* Category Filter */}
-              <div className="relative min-w-[150px]">
-                <Select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="h-9 font-medium"
-                >
-                  <option value="all">All Categories</option>
-                  <option value="dresses">Dresses</option>
-                  <option value="men's denim">Men's Denim</option>
-                  <option value="ethnic kurti">Ethnic Kurti</option>
-                  <option value="activewear">Activewear</option>
-                </Select>
-              </div>
-
-              {/* Stock Health Segment Pills */}
-              <div className="flex items-center gap-1 bg-surface-subtle p-1 rounded-xl">
-                {[
-                  { id: 'all', label: 'ALL' },
-                  { id: 'critical', label: 'CRITICAL (<10)' },
-                  { id: 'healthy', label: 'HEALTHY' },
-                  { id: 'overstocked', label: 'OVERSTOCKED (>1000)' },
-                  { id: 'depleted', label: 'DEPLETED (0)' }
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setStockHealthFilter(tab.id)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
-                      stockHealthFilter === tab.id
-                        ? 'bg-surface-container-lowest text-primary-container shadow-sm'
-                        : 'text-text-secondary hover:text-text-primary'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Search Input */}
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="relative w-full sm:w-64">
-                <span className="material-symbols-outlined absolute left-2.5 top-2 text-text-secondary text-[18px] pointer-events-none">search</span>
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filter SKU, EAN, Bin..."
-                  className="h-9 pl-8 pr-8"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-2 text-text-secondary hover:text-text-primary"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">close</span>
-                  </button>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExportCsv}
-                className="gap-1 h-9"
-                title="Export CSV"
-              >
-                <span className="material-symbols-outlined text-[16px]">file_download</span>
-                <span className="hidden sm:inline">Export</span>
-              </Button>
-            </div>
+      <FilterBar
+        tabs={[
+          { id: 'all', label: 'ALL' },
+          { id: 'critical', label: 'CRITICAL (<10)' },
+          { id: 'healthy', label: 'HEALTHY' },
+          { id: 'overstocked', label: 'OVERSTOCKED (>1000)' },
+          { id: 'depleted', label: 'DEPLETED (0)' }
+        ]}
+        activeTab={stockHealthFilter}
+        onTabChange={setStockHealthFilter}
+        search={
+          <SearchInput
+            value={searchQuery}
+            onChange={(val) => setSearchQuery(val)}
+            onClear={() => setSearchQuery('')}
+            placeholder="Filter SKU, EAN, Bin..."
+            className="w-full sm:w-64"
+          />
+        }
+        filters={
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterDropdown
+              value={selectedHub}
+              onChange={setSelectedHub}
+              options={[
+                { value: 'all', label: 'All Warehouses & Hubs' },
+                { value: 'BLR-FC1', label: 'BLR-FC1 • Bengaluru Primary' },
+                { value: 'BOM-FC2', label: 'BOM-FC2 • Mumbai Western DC' },
+                { value: 'DEL-FC3', label: 'DEL-FC3 • Delhi NCR Hub' },
+                { value: 'CCU-FC4', label: 'CCU-FC4 • Kolkata East Regional' },
+              ]}
+            />
+            <FilterDropdown
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              options={[
+                { value: 'all', label: 'All Categories' },
+                { value: 'dresses', label: 'Dresses' },
+                { value: "men's denim", label: "Men's Denim" },
+                { value: 'ethnic kurti', label: 'Ethnic Kurti' },
+                { value: 'activewear', label: 'Activewear' },
+              ]}
+            />
           </div>
-        </CardContent>
-      </Card>
+        }
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            className="gap-1 h-8.5"
+            title="Export CSV"
+            type="button"
+          >
+            <Icon name="file_download" className="material-symbols-outlined text-[16px]" />
+            <span className="hidden sm:inline">Export</span>
+          </Button>
+        }
+      />
 
       {/* Primary Two-Column Workbench (Main Table + Stock Adjustment Drawer) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
@@ -582,7 +485,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                     <TableRow>
                       <TableCell colSpan={10} className="py-12 text-center text-sm text-text-secondary">
                         <div className="flex flex-col items-center justify-center gap-2">
-                          <span className="material-symbols-outlined text-[32px] text-text-secondary/50">inventory_2</span>
+                          <Icon name="inventory_2" className="material-symbols-outlined text-[32px] text-text-secondary/50" />
                           <span>No inventory items matching your selected criteria.</span>
                           <button
                             type="button"
@@ -650,11 +553,11 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                           <TableCell className="py-3 px-3 whitespace-nowrap">
                             <div className="flex flex-col min-w-0">
                               <span className="text-xs font-semibold text-text-primary flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[13px] text-primary-container">location_on</span>
+                                <Icon name="location_on" className="material-symbols-outlined text-[13px] text-primary-container" />
                                 {item.hub}
                               </span>
                               <span className="text-[11px] text-text-secondary flex items-center gap-1 mt-0.5">
-                                <span className="material-symbols-outlined text-[13px] text-text-secondary">inventory_2</span>
+                                <Icon name="inventory_2" className="material-symbols-outlined text-[13px] text-text-secondary" />
                                 {item.bin}
                               </span>
                             </div>
@@ -712,7 +615,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                                 className="p-1.5 rounded-lg text-text-secondary hover:text-primary-container hover:bg-surface-subtle transition-all cursor-pointer"
                                 title="Quick Adjust"
                               >
-                                <span className="material-symbols-outlined text-[17px]">tune</span>
+                                <Icon name="tune" className="material-symbols-outlined text-[17px]" />
                               </button>
                               <button
                                 type="button"
@@ -723,7 +626,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                                 className="p-1.5 rounded-lg text-text-secondary hover:text-primary-container hover:bg-surface-subtle transition-all cursor-pointer"
                                 title="Transfer SKU"
                               >
-                                <span className="material-symbols-outlined text-[17px]">sync_alt</span>
+                                <Icon name="sync_alt" className="material-symbols-outlined text-[17px]" />
                               </button>
                             </div>
                           </TableCell>
@@ -745,7 +648,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
               </div>
               <div className="flex items-center gap-1.5">
                 <Button variant="outline" size="sm" onClick={handleExportCsv} className="gap-1 h-7 text-xs">
-                  <span className="material-symbols-outlined text-[14px]">file_download</span>
+                  <Icon name="file_download" className="material-symbols-outlined text-[14px]" />
                   Export Ledger CSV
                 </Button>
               </div>
@@ -760,7 +663,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
               <CardHeader className="p-4 pb-2 border-b border-border-subtle flex flex-row items-start justify-between">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="p-1 rounded-md bg-primary-fixed text-primary material-symbols-outlined text-[16px]">tune</span>
+                    <Icon name="tune" className="p-1 rounded-md bg-primary-fixed text-primary material-symbols-outlined text-[16px]" />
                     <CardTitle className="text-base font-semibold text-text-primary">Stock Adjustment &amp; Audit</CardTitle>
                   </div>
                   <p className="text-[10px] text-text-secondary uppercase font-semibold">SKU: {selectedItem.sku} ({selectedItem.variant})</p>
@@ -772,7 +675,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                     onClick={() => setIsDrawerOpen(false)}
                     className="p-1 text-text-secondary hover:text-text-primary rounded-lg transition-colors"
                   >
-                    <span className="material-symbols-outlined text-[18px]">close</span>
+                    <Icon name="close" className="material-symbols-outlined text-[18px]" />
                   </button>
                 </div>
               </CardHeader>
@@ -891,7 +794,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                   {newPhysicalCalculated < 10 && (
                     <Alert variant="warning" className="p-2.5 text-xs">
                       <div className="flex items-start gap-2">
-                        <span className="material-symbols-outlined text-[16px] text-status-warning shrink-0 mt-0.5">info</span>
+                        <Icon name="info" className="material-symbols-outlined text-[16px] text-status-warning shrink-0 mt-0.5" />
                         <p className="text-[11px] text-status-warning leading-relaxed">
                           Stock level ({newPhysicalCalculated} pcs) triggers reorder threshold for {selectedItem.hub}.
                         </p>
@@ -906,7 +809,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                       onClick={handleApplyAdjustment}
                       className="flex-1 bg-primary-container text-on-primary hover:bg-primary text-xs font-semibold h-10 gap-1.5"
                     >
-                      <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                      <Icon name="check_circle" className="material-symbols-outlined text-[16px]" />
                       Confirm Stock Movement
                     </Button>
                     <Button
@@ -947,7 +850,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
       <Dialog open={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary-container">sync_alt</span>
+            <Icon name="sync_alt" className="material-symbols-outlined text-primary-container" />
             <span>Inter-Hub Stock Transfer Manifest</span>
           </DialogTitle>
         </DialogHeader>
@@ -1035,7 +938,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
       <Dialog open={isGrnModalOpen} onClose={() => setIsGrnModalOpen(false)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary-container">download</span>
+            <Icon name="download" className="material-symbols-outlined text-primary-container" />
             <span>Goods Receipt Note (GRN) Inbound Entry</span>
           </DialogTitle>
         </DialogHeader>
@@ -1116,6 +1019,6 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 }

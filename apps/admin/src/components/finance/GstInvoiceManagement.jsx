@@ -1,12 +1,33 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
-import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../ui/table';
-import { Input } from '../ui/input';
-import { Select } from '../ui/select';
-import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '../ui/dialog';
-import { Alert } from '../ui/alert';
+import {
+  Icon,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardDescription,
+  Badge,
+  Button,
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+  Input,
+  Select,
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogContent,
+  DialogFooter,
+  Alert,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+} from '../ui';
 import {
   INITIAL_GST_METRICS,
   INITIAL_GST_INVOICES,
@@ -269,182 +290,109 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
   };
 
   return (
-    <div className="flex flex-col w-full space-y-6">
+    <PageContainer>
       {/* Breadcrumb Navigation & Top Action Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary tracking-widest uppercase">
-            <span>EVERWEAR ADMIN</span>
-            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span>FINANCE &amp; COMPLIANCE</span>
-            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-            <span className="text-primary-container font-bold">GST &amp; TAX INVOICES</span>
-          </div>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight">
-            GST Compliance, Tax Invoices &amp; E-Way Bill Management
-          </h1>
-          <p className="text-sm text-text-secondary max-w-4xl">
-            Indian Goods and Services Tax (GST) filing reconciliation, GSTR-1 &amp; GSTR-3B audit ledger, HSN rate configuration, and credit note issuance.
-          </p>
-        </div>
+      <PageHeader
+        breadcrumb={['Everwear Admin', 'Finance & Compliance', 'GST & Tax Invoices']}
+        title="GST Compliance, Tax Invoices & E-Way Bill Management"
+        description="Indian Goods and Services Tax (GST) filing reconciliation, GSTR-1 & GSTR-3B audit ledger, HSN rate configuration, and credit note issuance."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadGstr1Json}
+              className="gap-1.5 shadow-sm"
+              title="Download compliant GSTR-1 payload JSON"
+              type="button"
+            >
+              <Icon name="data_object" className="material-symbols-outlined text-[16px] text-primary-container" />
+              <span>GSTR-1 JSON</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCsv}
+              className="gap-1.5 shadow-sm"
+              title="Export Ledger Records to CSV"
+              type="button"
+            >
+              <Icon name="table_view" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <span>Export CSV</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEwayModalOpen(true)}
+              className="gap-1.5 shadow-sm"
+              title="NIC Portal Integration"
+              type="button"
+            >
+              <Icon name="local_shipping" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <span>E-Way Bill</span>
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setIsManualInvoiceModalOpen(true)}
+              className="gap-1.5 bg-primary-container text-on-primary hover:bg-primary shadow-sm"
+              type="button"
+            >
+              <Icon name="add" className="material-symbols-outlined text-[16px]" />
+              <span>+ Create Tax Invoice</span>
+            </Button>
+          </>
+        }
+      />
 
-        {/* Actions Toolbar */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadGstr1Json}
-            className="gap-1.5 bg-surface-container-lowest shadow-sm"
-            title="Download compliant GSTR-1 payload JSON"
-          >
-            <span className="material-symbols-outlined text-[16px] text-primary-container">data_object</span>
-            <span>Download GSTR-1 JSON</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCsv}
-            className="gap-1.5 bg-surface-container-lowest shadow-sm"
-            title="Export Ledger Records to CSV"
-          >
-            <span className="material-symbols-outlined text-[16px] text-text-secondary">table_view</span>
-            <span>Export Tax Ledger (CSV)</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEwayModalOpen(true)}
-            className="gap-1.5 bg-surface-container-lowest shadow-sm"
-            title="NIC Portal Integration"
-          >
-            <span className="material-symbols-outlined text-[16px] text-text-secondary">local_shipping</span>
-            <span>Generate E-Way Bill</span>
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => setIsManualInvoiceModalOpen(true)}
-            className="gap-1.5 bg-primary-container text-on-primary hover:bg-primary shadow-sm"
-          >
-            <span className="material-symbols-outlined text-[16px]">add</span>
-            <span>+ Create Manual Tax Invoice</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* ReUI Metric Stat Overview (6 KPI modules) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        {/* Metric 1 */}
-        <Card className="border border-border-subtle bg-surface-container-lowest">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-text-secondary uppercase">GROSS TAXABLE SALES</span>
-              <span className="p-1 rounded-lg bg-surface-subtle text-text-secondary">
-                <span className="material-symbols-outlined text-[14px]">storefront</span>
-              </span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-text-primary tracking-tight">{INITIAL_GST_METRICS.grossTaxableSales}</div>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <Badge variant="success" className="text-[10px] font-semibold px-1.5 py-0">
-                  {INITIAL_GST_METRICS.grossGrowth}
-                </Badge>
-                <span className="text-[11px] text-text-secondary truncate">May '24 Omnichannel</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Metric 2 */}
-        <Card className="border border-border-subtle bg-surface-container-lowest">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-text-secondary uppercase">TOTAL GST LIABILITY</span>
-              <span className="p-1 rounded-lg bg-primary-fixed text-primary">
-                <span className="material-symbols-outlined text-[14px]">account_balance</span>
-              </span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-primary-container tracking-tight">{INITIAL_GST_METRICS.totalGstLiability}</div>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-[11px] text-text-secondary font-medium">Avg Effective Rate:</span>
-                <span className="text-[11px] text-primary-container font-semibold">{INITIAL_GST_METRICS.avgEffectiveRate}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Metric 3 */}
-        <Card className="border border-border-subtle bg-surface-container-lowest">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-text-secondary uppercase">CGST (INTRA 6%)</span>
-              <span className="text-[10px] text-text-secondary">KA - 29</span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-text-primary tracking-tight">{INITIAL_GST_METRICS.cgst}</div>
-              <div className="flex items-center justify-between mt-0.5">
-                <span className="text-[11px] text-text-secondary">Karnataka Base Hub</span>
-                <span className="text-[10px] text-status-success font-medium">Synced</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Metric 4 */}
-        <Card className="border border-border-subtle bg-surface-container-lowest">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-text-secondary uppercase">SGST (INTRA 6%)</span>
-              <span className="text-[10px] text-text-secondary">KA - 29</span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-text-primary tracking-tight">{INITIAL_GST_METRICS.sgst}</div>
-              <div className="flex items-center justify-between mt-0.5">
-                <span className="text-[11px] text-text-secondary">Karnataka Base Hub</span>
-                <span className="text-[10px] text-status-success font-medium">Matched</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Metric 5 */}
-        <Card className="border border-border-subtle bg-surface-container-lowest">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-text-secondary uppercase">IGST (INTER 12%/5%)</span>
-              <span className="p-1 rounded-lg bg-status-info-bg text-status-info">
-                <span className="material-symbols-outlined text-[14px]">flight_takeoff</span>
-              </span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-text-primary tracking-tight">{INITIAL_GST_METRICS.igst}</div>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-[11px] text-text-secondary truncate">Rest of India Dispatches</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Metric 6 */}
-        <Card className="border border-border-subtle bg-surface-container-lowest">
-          <CardContent className="p-4 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-text-secondary uppercase">CREDIT REVERSALS</span>
-              <span className="p-1 rounded-lg bg-status-warning-bg text-status-warning">
-                <span className="material-symbols-outlined text-[14px]">sync_alt</span>
-              </span>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-fashion-magenta tracking-tight">{INITIAL_GST_METRICS.creditReversals}</div>
-              <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-[11px] text-text-secondary">ITC Reclaimed:</span>
-                <span className="text-[11px] text-status-success font-semibold">{INITIAL_GST_METRICS.itcReclaimed}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Metric Stat Overview (6 KPI modules) */}
+      <ContentGrid columns={6}>
+        <StatsCard
+          title="Gross Taxable Sales"
+          value={INITIAL_GST_METRICS.grossTaxableSales}
+          icon="storefront"
+          trend={INITIAL_GST_METRICS.grossGrowth}
+          trendType="up"
+          trendLabel="May '24 Omnichannel"
+        />
+        <StatsCard
+          title="Total GST Liability"
+          value={INITIAL_GST_METRICS.totalGstLiability}
+          icon="account_balance"
+          iconColor="text-primary"
+          trendLabel={`Avg Effective Rate: ${INITIAL_GST_METRICS.avgEffectiveRate}`}
+        />
+        <StatsCard
+          title="CGST (Intra 6%)"
+          value={INITIAL_GST_METRICS.cgst}
+          icon="account_balance_wallet"
+          badge="KA - 29"
+          badgeVariant="secondary"
+          trendLabel="Karnataka Base Hub"
+        />
+        <StatsCard
+          title="SGST (Intra 6%)"
+          value={INITIAL_GST_METRICS.sgst}
+          icon="account_balance_wallet"
+          badge="KA - 29"
+          badgeVariant="secondary"
+          trendLabel="Karnataka Base Hub"
+        />
+        <StatsCard
+          title="IGST (Inter 12%/5%)"
+          value={INITIAL_GST_METRICS.igst}
+          icon="flight_takeoff"
+          iconColor="text-status-info"
+          trendLabel="Rest of India Dispatches"
+        />
+        <StatsCard
+          title="Credit Reversals"
+          value={INITIAL_GST_METRICS.creditReversals}
+          icon="sync_alt"
+          iconColor="text-status-warning"
+          trendLabel={`ITC Reclaimed: ${INITIAL_GST_METRICS.itcReclaimed}`}
+        />
+      </ContentGrid>
 
       {/* Dual-Pane Layout: 65% Main Register Table / 35% Full Interactive Preview */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -462,7 +410,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                <Icon name="receipt_long" className="material-symbols-outlined text-[16px]" />
                 <span>Tax Invoices (B2C &amp; B2B)</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-primary-fixed text-primary text-[10px]">
                   {invoices.length}
@@ -477,7 +425,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">sell</span>
+                <Icon name="sell" className="material-symbols-outlined text-[16px]" />
                 <span>HSN Rate Master</span>
               </button>
               <button
@@ -489,7 +437,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">assignment_return</span>
+                <Icon name="assignment_return" className="material-symbols-outlined text-[16px]" />
                 <span>Credit Notes (Returns)</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-surface-subtle text-text-secondary text-[10px]">
                   {INITIAL_CREDIT_NOTES.length}
@@ -504,7 +452,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+                <Icon name="local_shipping" className="material-symbols-outlined text-[16px]" />
                 <span>E-Way Bills</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-surface-subtle text-text-secondary text-[10px]">
                   {INITIAL_EWAY_BILLS.length}
@@ -519,7 +467,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">fact_check</span>
+                <Icon name="fact_check" className="material-symbols-outlined text-[16px]" />
                 <span>Reconciliation &amp; Mismatches</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-status-success-bg text-status-success text-[10px] font-bold">
                   0
@@ -678,7 +626,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                               className="p-1 rounded-lg text-text-secondary hover:text-primary-container hover:bg-surface-subtle"
                               title="Inspect Full Invoice"
                             >
-                              <span className="material-symbols-outlined text-[18px]">visibility</span>
+                              <Icon name="visibility" className="material-symbols-outlined text-[18px]" />
                             </button>
                           </TableCell>
                         </TableRow>
@@ -779,7 +727,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-text-primary">Form GST EWB-01 Active Consignments</h3>
                   <Button size="sm" onClick={() => setIsEwayModalOpen(true)} className="gap-1 bg-primary-container text-on-primary">
-                    <span className="material-symbols-outlined text-[16px]">add</span>
+                    <Icon name="add" className="material-symbols-outlined text-[16px]" />
                     New E-Way Bill
                   </Button>
                 </div>
@@ -827,7 +775,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
               <div className="p-6 space-y-4">
                 <Alert variant="success" className="p-4">
                   <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-[24px] text-status-success">verified_user</span>
+                    <Icon name="verified_user" className="material-symbols-outlined text-[24px] text-status-success" />
                     <div>
                       <h4 className="text-sm font-bold text-status-success">GSTR-2B vs Purchase Register 100% Reconciled</h4>
                       <p className="text-xs text-text-secondary mt-0.5">
@@ -875,7 +823,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shrink-0">
-                  <span className="material-symbols-outlined text-[22px]">category</span>
+                  <Icon name="category" className="material-symbols-outlined text-[22px]" />
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold text-text-primary">Apparel GST Rate Master Schedule (Notification No. 01/2017)</h4>
@@ -911,7 +859,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   className="h-7 w-7 p-0"
                   title="Print Tax Invoice"
                 >
-                  <span className="material-symbols-outlined text-[16px]">print</span>
+                  <Icon name="print" className="material-symbols-outlined text-[16px]" />
                 </Button>
                 <Button
                   variant="default"
@@ -919,7 +867,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   onClick={() => onShowToast && onShowToast(`PDF downloaded for invoice ${selectedInvoice?.invoiceNumber}`)}
                   className="h-7 text-xs gap-1 bg-primary-container text-on-primary hover:bg-primary"
                 >
-                  <span className="material-symbols-outlined text-[14px]">download</span>
+                  <Icon name="download" className="material-symbols-outlined text-[14px]" />
                   <span>PDF</span>
                 </Button>
               </div>
@@ -973,7 +921,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                       onClick={() => copyToClipboard(selectedInvoice.irn, 'IRN')}
                       className="text-text-secondary hover:text-text-primary"
                     >
-                      <span className="material-symbols-outlined text-[14px]">content_copy</span>
+                      <Icon name="content_copy" className="material-symbols-outlined text-[14px]" />
                     </button>
                   </div>
                   <div className="truncate text-[10px] text-primary-container font-medium">
@@ -1106,7 +1054,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       <Dialog open={isManualInvoiceModalOpen} onClose={() => setIsManualInvoiceModalOpen(false)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary-container">receipt_long</span>
+            <Icon name="receipt_long" className="material-symbols-outlined text-primary-container" />
             <span>Create Manual Tax Invoice</span>
           </DialogTitle>
         </DialogHeader>
@@ -1236,7 +1184,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       <Dialog open={isEwayModalOpen} onClose={() => setIsEwayModalOpen(false)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary-container">local_shipping</span>
+            <Icon name="local_shipping" className="material-symbols-outlined text-primary-container" />
             <span>Generate E-Way Bill (NIC Portal Integration)</span>
           </DialogTitle>
         </DialogHeader>
@@ -1306,6 +1254,6 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 }

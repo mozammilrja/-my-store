@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Icon } from '../ui';
 
 export function CommandPalette({ isOpen, onClose, onNavigate, onAction }) {
   const [query, setQuery] = useState('');
@@ -53,7 +54,7 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onAction }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center px-4 py-3 border-b border-border-subtle gap-3">
-          <span className="material-symbols-outlined text-secondary text-[22px]">search</span>
+          <Icon name="search" className="material-symbols-outlined text-secondary text-[22px]" />
           <input
             autoFocus
             type="text"
@@ -86,7 +87,7 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onAction }) {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-surface-subtle group-hover:bg-primary-container group-hover:text-on-primary flex items-center justify-center text-primary transition-colors">
-                    <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                    <Icon name={item.icon} className="material-symbols-outlined text-[18px]" />
                   </div>
                   <div>
                     <div className="font-semibold text-sm text-text-primary group-hover:text-primary transition-colors">{item.title}</div>
@@ -94,7 +95,7 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onAction }) {
                   </div>
                 </div>
                 <span className="text-xs text-secondary/60 group-hover:text-primary font-mono flex items-center gap-1">
-                  Select <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  Select <Icon name="arrow_forward" className="material-symbols-outlined text-[14px]" />
                 </span>
               </button>
             ))

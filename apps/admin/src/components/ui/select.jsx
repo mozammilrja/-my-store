@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { ChevronDown, Check } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 /**
@@ -126,14 +127,12 @@ export const Select = React.forwardRef(({
         {...props}
       >
         <span className="truncate pr-2">{displayLabel}</span>
-        <span
+        <ChevronDown
           className={cn(
-            "material-symbols-outlined text-[17px] text-text-secondary transition-transform duration-200 shrink-0",
+            "size-4 text-text-secondary transition-transform duration-200 shrink-0",
             isOpen && "rotate-180 text-primary-container"
           )}
-        >
-          expand_more
-        </span>
+        />
       </button>
 
       {/* Floating ReUI Menu Popover */}
@@ -169,9 +168,7 @@ export const Select = React.forwardRef(({
                 >
                   <span className="truncate">{item.label}</span>
                   {isSelected && (
-                    <span className="material-symbols-outlined text-[16px] text-primary-container shrink-0 ml-2">
-                      check
-                    </span>
+                    <Check className="size-4 text-primary-container shrink-0 ml-2" />
                   )}
                 </div>
               );

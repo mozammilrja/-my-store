@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Badge, Button, Input, Avatar, AvatarImage, AvatarFallback } from '../ui';
+import { Icon, Badge, Button, Input, Avatar, AvatarImage, AvatarFallback } from '../ui';
 import { clearToken } from '../../lib/api';
 import { useTheme } from '../../lib/theme';
 
@@ -37,7 +37,7 @@ export function Header({
           title="Open Navigation Menu"
           type="button"
         >
-          <span className="material-symbols-outlined text-[22px]">menu</span>
+          <Icon name="menu" className="material-symbols-outlined text-[22px]" />
         </button>
 
         {/* Global Search Bar */}
@@ -45,9 +45,7 @@ export function Header({
           onClick={onOpenCommandPalette}
           className="relative w-full flex items-center cursor-pointer group"
         >
-          <span className="material-symbols-outlined absolute left-3 text-secondary text-[18px] pointer-events-none group-hover:text-primary transition-colors">
-            search
-          </span>
+          <Icon name="search" className="material-symbols-outlined absolute left-3 text-secondary text-[18px] pointer-events-none group-hover:text-primary transition-colors" />
           <Input 
             readOnly
             value={searchQuery || ''}
@@ -74,7 +72,7 @@ export function Header({
 
         {/* Date Display */}
         <div className="hidden md:flex items-center gap-1.5 px-space-sm py-1 rounded-xl bg-surface-subtle border border-border-subtle text-text-primary font-label-sm text-label-sm font-medium">
-          <span className="material-symbols-outlined text-[16px] text-secondary">calendar_today</span>
+          <Icon name="calendar_today" className="material-symbols-outlined text-[16px] text-secondary" />
           <span>Today: {todayStr}</span>
         </div>
 
@@ -89,7 +87,7 @@ export function Header({
             title="Operational Alerts" 
             type="button"
           >
-            <span className="material-symbols-outlined text-[20px]">notifications</span>
+            <Icon name="notifications" className="material-symbols-outlined text-[20px]" />
             {unreadCount > 0 && (
               <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-status-danger text-on-error font-label-xs-caps text-[10px] flex items-center justify-center font-bold">
                 {unreadCount}
@@ -106,7 +104,7 @@ export function Header({
             title="Help & Shortcuts" 
             type="button"
           >
-            <span className="material-symbols-outlined text-[20px]">help_outline</span>
+            <Icon name="help_outline" className="material-symbols-outlined text-[20px]" />
           </Button>
 
           {/* Theme Toggle (Dark / Light / System) */}
@@ -118,9 +116,7 @@ export function Header({
             title={`Current theme: ${theme.toUpperCase()} (Click to toggle)`} 
             type="button"
           >
-            <span className="material-symbols-outlined text-[20px]">
-              {theme === 'system' ? 'brightness_auto' : isDark ? 'dark_mode' : 'light_mode'}
-            </span>
+            <Icon name={theme === 'system' ? 'brightness_auto' : isDark ? 'dark_mode' : 'light_mode'} className="material-symbols-outlined text-[20px]" />
           </Button>
         </div>
 
@@ -145,7 +141,7 @@ export function Header({
                 VP Operations | {currentHub.id}
               </span>
             </div>
-            <span className="material-symbols-outlined text-[16px] text-secondary">expand_more</span>
+            <Icon name="expand_more" className="material-symbols-outlined text-[16px] text-secondary" />
           </div>
 
           {/* User Profile Dropdown Menu */}
@@ -164,7 +160,7 @@ export function Header({
                 className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-surface-subtle text-text-primary flex items-center gap-2"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[16px]">person</span>
+                <Icon name="person" className="material-symbols-outlined text-[16px]" />
                 <span>User Account Settings</span>
               </button>
               <button 
@@ -172,7 +168,7 @@ export function Header({
                 className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-surface-subtle text-text-primary flex items-center gap-2"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[16px]">security</span>
+                <Icon name="security" className="material-symbols-outlined text-[16px]" />
                 <span>Role & API Keys</span>
               </button>
               <button 
@@ -184,7 +180,7 @@ export function Header({
                 className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-surface-subtle text-status-danger flex items-center gap-2"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[16px]">logout</span>
+                <Icon name="logout" className="material-symbols-outlined text-[16px]" />
                 <span>Sign Out</span>
               </button>
             </div>

@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { INITIAL_RETURNS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useOrdersQuery, useUpdateOrderStatusMutation, useProcessReturnMutation } from '../../hooks/useAdminQueries';
-import {
+import { Icon,
   Card,
   CardContent,
   CardHeader,
@@ -28,6 +28,14 @@ import {
   DialogFooter,
   Separator,
   Progress,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+  FilterBar,
+  SearchInput,
+  FilterDropdown,
 } from '../ui';
 
 export function ReturnsAndExchanges({ onShowToast, currentHub }) {
@@ -294,35 +302,22 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
   };
 
   return (
-    <div className="flex flex-col w-full space-y-space-lg">
+    <PageContainer>
       {/* Editorial Header & Action Ribbon */}
-      <div className="flex flex-col gap-space-xs">
-        <div className="flex items-center gap-2">
-          <span className="font-label-xs-caps text-label-xs-caps text-text-secondary tracking-widest uppercase">EVERWEAR ADMIN</span>
-          <span className="text-text-secondary font-label-xs-caps text-[10px]">/</span>
-          <span className="font-label-xs-caps text-label-xs-caps text-text-secondary tracking-widest uppercase">FULFILLMENT & ORDERS</span>
-          <span className="text-text-secondary font-label-xs-caps text-[10px]">/</span>
-          <span className="font-label-xs-caps text-label-xs-caps text-primary font-semibold tracking-widest uppercase">RETURNS & EXCHANGES</span>
-        </div>
-
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-space-md pt-1">
-          <div>
-            <h1 className="font-headline-lg text-headline-lg font-bold text-text-primary tracking-tight">
-              Returns, Reverse Logistics & Refund Operations
-            </h1>
-            <p className="font-body-sm text-body-sm text-text-secondary mt-0.5 max-w-3xl">
-              End-to-end customer return lifecycle: pickup dispatch, QC grading, inventory disposition, and instant UPI/bank refund disbursement.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-space-sm">
+      <PageHeader
+        breadcrumb={['Everwear Admin', 'Fulfillment & Orders', 'Returns & Exchanges']}
+        title="Returns, Reverse Logistics & Refund Operations"
+        description="End-to-end customer return lifecycle: pickup dispatch, QC grading, inventory disposition, and instant UPI/bank refund disbursement."
+        actions={
+          <>
             <Button
               variant="outline"
               size="sm"
               onClick={handleBulkQcPass}
               className="gap-1.5 h-9"
+              type="button"
             >
-              <span className="material-symbols-outlined text-[16px] text-status-success">verified</span>
+              <Icon name="verified" className="material-symbols-outlined text-[16px] text-status-success" />
               <span>Bulk QC Pass</span>
             </Button>
             <Button
@@ -330,8 +325,9 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               size="sm"
               onClick={handleExportCsv}
               className="gap-1.5 h-9"
+              type="button"
             >
-              <span className="material-symbols-outlined text-[16px] text-text-secondary">file_download</span>
+              <Icon name="file_download" className="material-symbols-outlined text-[16px] text-text-secondary" />
               <span>Export Reverse Manifest (CSV)</span>
             </Button>
             <Button
@@ -339,8 +335,9 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               size="sm"
               onClick={() => onShowToast({ type: 'info', title: 'RTO Telemetry', message: 'Current RTO Rate is 1.62% nationwide. Top reason: Customer Unreachable.' })}
               className="gap-1.5 h-9"
+              type="button"
             >
-              <span className="material-symbols-outlined text-[16px] text-text-secondary">summarize</span>
+              <Icon name="summarize" className="material-symbols-outlined text-[16px] text-text-secondary" />
               <span>RTO Summary</span>
             </Button>
             <Button
@@ -348,207 +345,135 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               size="sm"
               onClick={() => setManualReturnOpen(true)}
               className="gap-1.5 h-9 shadow-sm"
+              type="button"
             >
-              <span className="material-symbols-outlined text-[16px]">add</span>
+              <Icon name="add" className="material-symbols-outlined text-[16px]" />
               <span>Initiate Manual Return</span>
             </Button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* 6 Metrical Pulse Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-space-md">
-        <Card className="hover:border-primary/30 transition-all">
-          <CardContent className="p-space-md flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">Total Requests</span>
-              <span className="p-1 rounded-md bg-surface-subtle text-text-secondary material-symbols-outlined text-[16px]">
-                swap_horizontal_circle
-              </span>
-            </div>
-            <div className="mt-2">
-              <div className="font-metric-stat text-metric-stat text-text-primary tabular-nums">1,420</div>
-              <div className="flex items-center gap-1 mt-1 font-label-sm text-[11px] text-status-success">
-                <span className="material-symbols-outlined text-[14px]">arrow_downward</span>
-                <span>1.8% rate (-0.4% MoM)</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <ContentGrid cols={6}>
+        <StatsCard
+          title="Total Requests"
+          value="1,420"
+          icon="swap_horizontal_circle"
+          trend="1.8% rate"
+          trendType="up"
+          trendLabel="-0.4% MoM"
+        />
 
-        <Card className="hover:border-amber-300 transition-all">
-          <CardContent className="p-space-md flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">Awaiting Pickup</span>
-              <span className="p-1 rounded-md bg-status-warning-bg text-status-warning material-symbols-outlined text-[16px]">
-                schedule
-              </span>
-            </div>
-            <div className="mt-2">
-              <div className="font-metric-stat text-metric-stat text-text-primary tabular-nums">412</div>
-              <div className="font-label-sm text-[11px] text-text-secondary truncate mt-1">BlueDart / Delhivery SLA</div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatsCard
+          title="Awaiting Pickup"
+          value="412"
+          icon="schedule"
+          iconColor="text-status-warning"
+          badge="BlueDart SLA"
+          badgeVariant="warning"
+          trendLabel="Carrier dispatch active"
+        />
 
-        <Card className="hover:border-blue-300 transition-all">
-          <CardContent className="p-space-md flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">In-Transit to FC</span>
-              <span className="p-1 rounded-md bg-status-info-bg text-status-info material-symbols-outlined text-[16px]">
-                local_shipping
-              </span>
-            </div>
-            <div className="mt-2">
-              <div className="font-metric-stat text-metric-stat text-text-primary tabular-nums">328</div>
-              <div className="font-label-sm text-[11px] text-text-secondary truncate mt-1">Dock arrival 24-48h</div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatsCard
+          title="In-Transit to FC"
+          value="328"
+          icon="local_shipping"
+          iconColor="text-status-info"
+          badge="Dock in 24-48h"
+          badgeVariant="info"
+        />
 
-        <Card className="hover:border-purple-300 transition-all">
-          <CardContent className="p-space-md flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">Inbound QC Dock</span>
-              <span className="p-1 rounded-md bg-surface-subtle text-primary material-symbols-outlined text-[16px]">
-                rule
-              </span>
-            </div>
-            <div className="mt-2">
-              <div className="font-metric-stat text-metric-stat text-text-primary tabular-nums">186</div>
-              <div className="flex items-center gap-1 mt-1 font-label-sm text-[11px] text-status-warning">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-status-warning"></span>
-                <span>Pending grading</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatsCard
+          title="Inbound QC Dock"
+          value="186"
+          icon="rule"
+          iconColor="text-primary"
+          badge="Grading"
+          badgeVariant="warning"
+          trendLabel="Pending triage"
+        />
 
-        <Card className="hover:border-rose-300 transition-all">
-          <CardContent className="p-space-md flex flex-col justify-between h-full relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">Refund Approval</span>
-              <span className="p-1 rounded-md bg-status-danger-bg text-status-danger material-symbols-outlined text-[16px]">
-                account_balance_wallet
-              </span>
-            </div>
-            <div className="mt-2">
-              <div className="font-metric-stat text-metric-stat text-status-danger tabular-nums">94</div>
-              <div className="font-label-sm text-[11px] text-text-secondary truncate mt-1">₹3,14,200 pending</div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatsCard
+          className="hover:border-status-danger/40"
+          title="Refund Approval"
+          value="94"
+          icon="account_balance_wallet"
+          iconColor="text-status-danger"
+          badge="₹3.14L"
+          badgeVariant="destructive"
+          trendLabel="Pending approval"
+        />
 
-        <Card className="hover:border-emerald-300 transition-all">
-          <CardContent className="p-space-md flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">Restocked (MTD)</span>
-              <span className="p-1 rounded-md bg-status-success-bg text-status-success material-symbols-outlined text-[16px]">
-                inventory_2
-              </span>
-            </div>
-            <div className="mt-2">
-              <div className="font-metric-stat text-metric-stat text-text-primary tabular-nums">
-                864 <span className="font-body-sm text-[13px] text-text-secondary font-normal">pcs</span>
-              </div>
-              <div className="font-label-sm text-[11px] text-status-success truncate mt-1">61% Grade-A recovery</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <StatsCard
+          title="Restocked (MTD)"
+          value="864 pcs"
+          icon="inventory_2"
+          iconColor="text-status-success"
+          badge="61% Grade A"
+          badgeVariant="success"
+          trendLabel="Inventory recovered"
+        />
+      </ContentGrid>
 
       {/* Filter Array & Queue Triage Tabs */}
-      <Card>
-        <CardContent className="p-space-md space-y-space-sm">
-          <div className="flex items-center justify-between gap-space-md overflow-x-auto pb-1 no-scrollbar">
-            <div className="flex items-center gap-1.5 text-label-sm font-label-sm shrink-0">
-              {[
-                { label: 'All Returns', count: '1,420' },
-                { label: 'Pending QC', count: '186', active: true },
-                { label: 'Refund Queue', count: '94', danger: true },
-                { label: 'Exchanges', count: '142' },
-                { label: 'Completed', count: '840' },
-                { label: 'Rejected / Fraud RTO', count: '48' },
-              ].map((tab) => {
-                const isTabActive = activeTab === tab.label;
-                return (
-                  <button
-                    key={tab.label}
-                    onClick={() => setActiveTab(tab.label)}
-                    className={`px-3 py-1.5 rounded-lg font-medium transition-all text-xs whitespace-nowrap ${
-                      isTabActive
-                        ? 'bg-primary-container text-on-primary shadow-xs'
-                        : tab.danger
-                        ? 'text-status-danger bg-status-danger-bg hover:bg-rose-100'
-                        : 'bg-surface-subtle text-text-primary hover:bg-surface-container'
-                    }`}
-                    type="button"
-                  >
-                    {tab.label} <span className={`ml-1 font-semibold ${isTabActive ? 'bg-white/20 px-1 rounded-full text-white' : 'opacity-80'}`}>{tab.count}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Dock Speed</span>
-              <Badge variant="success" className="text-xs font-semibold">
-                11.4 min / SKU QC
-              </Badge>
-            </div>
+      <FilterBar
+        tabs={[
+          { id: 'All Returns', label: 'All Returns', count: '1,420' },
+          { id: 'Pending QC', label: 'Pending QC', count: '186' },
+          { id: 'Refund Queue', label: 'Refund Queue', count: '94' },
+          { id: 'Exchanges', label: 'Exchanges', count: '142' },
+          { id: 'Completed', label: 'Completed', count: '840' },
+          { id: 'Rejected / Fraud RTO', label: 'Rejected / Fraud RTO', count: '48' },
+        ]}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        search={
+          <SearchInput
+            placeholder="Search Return ID, Order Ref, Customer, AWB..."
+            value={searchQuery}
+            onChange={(val) => setSearchQuery(val)}
+            onClear={() => setSearchQuery('')}
+            className="w-full sm:w-72"
+          />
+        }
+        filters={
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterDropdown
+              value={reasonFilter}
+              onChange={(val) => setReasonFilter(val)}
+              options={[
+                { value: 'All', label: 'All Return Reasons' },
+                { value: 'Size/Fit Issue', label: 'Size/Fit Issue' },
+                { value: 'Fabric/Quality Defect', label: 'Fabric/Quality Defect' },
+                { value: 'Color Mismatch', label: 'Color Mismatch' },
+                { value: 'Damaged in Transit', label: 'Damaged in Transit' },
+                { value: 'Buyer Remorse', label: 'Buyer Remorse' },
+              ]}
+            />
+            <FilterDropdown
+              value={dispositionFilter}
+              onChange={(val) => setDispositionFilter(val)}
+              options={[
+                { value: 'All', label: 'All Dispositions' },
+                { value: 'Restock Grade A (Pristine)', label: 'Restock Grade A' },
+                { value: 'Refurbish/Steam Grade B', label: 'Refurbish Grade B' },
+                { value: 'Liquidation/Scrap Grade C', label: 'Scrap Grade C' },
+              ]}
+            />
+            <FilterDropdown
+              value={refundFilter}
+              onChange={(val) => setRefundFilter(val)}
+              options={[
+                { value: 'All', label: 'Refund Status' },
+                { value: 'Hold for Inspection', label: 'Hold for Inspection' },
+                { value: 'Refund Initiated', label: 'Refund Initiated' },
+                { value: 'UPI Reconciled', label: 'UPI Reconciled' },
+              ]}
+            />
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-space-sm pt-2">
-            <div className="md:col-span-4 relative flex items-center">
-              <span className="material-symbols-outlined absolute left-2.5 text-text-secondary text-[18px]">search</span>
-              <Input
-                className="pl-9 h-9 bg-surface-canvas text-xs"
-                placeholder="Search Return ID, Order Ref, Customer, AWB..."
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div className="md:col-span-3">
-              <Select
-                value={reasonFilter}
-                onChange={(e) => setReasonFilter(e.target.value)}
-                className="h-9 text-xs"
-              >
-                <option value="All">All Return Reasons (5 Types)</option>
-                <option value="Size/Fit Issue">Size/Fit Issue</option>
-                <option value="Fabric/Quality Defect">Fabric/Quality Defect</option>
-                <option value="Color Mismatch">Color Mismatch</option>
-                <option value="Damaged in Transit">Damaged in Transit</option>
-                <option value="Buyer Remorse">Buyer Remorse</option>
-              </Select>
-            </div>
-            <div className="md:col-span-3">
-              <Select
-                value={dispositionFilter}
-                onChange={(e) => setDispositionFilter(e.target.value)}
-                className="h-9 text-xs"
-              >
-                <option value="All">All Dispositions</option>
-                <option value="Restock Grade A (Pristine)">Restock Grade A (Pristine)</option>
-                <option value="Refurbish/Steam Grade B">Refurbish/Steam Grade B</option>
-                <option value="Liquidation/Scrap Grade C">Liquidation/Scrap Grade C</option>
-              </Select>
-            </div>
-            <div className="md:col-span-2">
-              <Select
-                value={refundFilter}
-                onChange={(e) => setRefundFilter(e.target.value)}
-                className="h-9 text-xs"
-              >
-                <option value="All">Refund Status</option>
-                <option value="Hold for Inspection">Hold for Inspection</option>
-                <option value="Refund Initiated">Refund Initiated</option>
-                <option value="UPI Reconciled">UPI Reconciled</option>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        }
+      />
 
       {/* Dual-Pane Reverse Logistics Triage Matrix */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-start">
@@ -563,10 +488,10 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
             </div>
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="icon" className="h-7 w-7 text-text-secondary hover:text-text-primary">
-                <span className="material-symbols-outlined text-[18px]">filter_list</span>
+                <Icon name="filter_list" className="material-symbols-outlined text-[18px]" />
               </Button>
               <Button variant="ghost" size="icon" onClick={() => onShowToast({ type: 'info', title: 'Queue Refreshed', message: 'Checked latest 3PL reverse manifests.' })} className="h-7 w-7 text-text-secondary hover:text-text-primary">
-                <span className="material-symbols-outlined text-[18px]">refresh</span>
+                <Icon name="refresh" className="material-symbols-outlined text-[18px]" />
               </Button>
             </div>
           </div>
@@ -642,15 +567,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                       </TableCell>
 
                       <TableCell className="py-3 px-3">
-                        <Badge
-                          variant={
-                            item.qcStatus.includes('Passed') ? 'success' :
-                            item.qcStatus.includes('Defect') ? 'destructive' : 'warning'
-                          }
-                          className="text-[10px] py-0 px-2"
-                        >
-                          {item.qcStatus}
-                        </Badge>
+                        <StatusBadge status={item.qcStatus} />
                       </TableCell>
 
                       <TableCell className="py-3 px-3 text-right">
@@ -901,7 +818,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                   onClick={handleApproveRefund}
                   className="w-full gap-2 shadow-md"
                 >
-                  <span className="material-symbols-outlined text-[18px]">verified_user</span>
+                  <Icon name="verified_user" className="material-symbols-outlined text-[18px]" />
                   <span>Approve QC & Disburse Instant UPI Refund (₹{activeReturn.refundValue})</span>
                 </Button>
                 <Button
@@ -910,7 +827,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                   onClick={handleConvertToCredit}
                   className="w-full gap-1.5 text-fashion-magenta hover:bg-fuchsia-50 dark:hover:bg-fuchsia-950/30"
                 >
-                  <span className="material-symbols-outlined text-[16px]">stars</span>
+                  <Icon name="stars" className="material-symbols-outlined text-[16px]" />
                   <span>Convert to Store Credit (+10% Bonus: ₹{Math.round(activeReturn.refundValue * 1.1)})</span>
                 </Button>
                 <Button
@@ -951,7 +868,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
         <DialogContent className="max-w-md p-0 overflow-hidden">
           <DialogHeader className="p-4 border-b border-border-subtle bg-surface-subtle flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-[22px]">assignment_return</span>
+              <Icon name="assignment_return" className="material-symbols-outlined text-primary text-[22px]" />
               <div>
                 <DialogTitle>Initiate Manual Return</DialogTitle>
                 <DialogDescription className="text-xs">
@@ -965,7 +882,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               onClick={() => setManualReturnOpen(false)}
               className="h-8 w-8 text-secondary"
             >
-              <span className="material-symbols-outlined text-[18px]">close</span>
+              <Icon name="close" className="material-symbols-outlined text-[18px]" />
             </Button>
           </DialogHeader>
 
@@ -1053,13 +970,13 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                 size="sm"
                 className="gap-1.5 text-xs shadow-md"
               >
-                <span className="material-symbols-outlined text-[16px]">check</span>
+                <Icon name="check" className="material-symbols-outlined text-[16px]" />
                 <span>Dispatch Pickup</span>
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 }

@@ -11,3 +11,5 @@ export * from "./separator";
 export * from "./avatar";
 export * from "./checkbox";
 export * from "./dialog";
+export * from "./Icon";
+export * from "../shared";

@@ -1,4 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Icon,
+  Button,
+  Badge,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+} from '../ui';
 import { usersList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useUsersQuery, useCreateUserMutation, useDeleteUserMutation } from '../../hooks/useAdminQueries';
@@ -123,154 +133,90 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   });
 
   return (
-    <div className="flex flex-col w-full">
-      {/* Breadcrumbs & Operational Status Subheader */}
-      <div className="flex flex-wrap items-center justify-between gap-space-sm mb-space-sm">
-        <div className="flex items-center gap-space-xs font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">
-          <span onClick={() => onNavigate?.('overview')} className="hover:text-text-primary transition-colors cursor-pointer">
-            Everwear Admin
-          </span>
-          <span>/</span>
-          <span className="hover:text-text-primary transition-colors cursor-pointer">Settings & Admin</span>
-          <span>/</span>
-          <span className="text-primary-container font-semibold">Users & Role Access</span>
-        </div>
-        <div className="flex items-center gap-space-sm">
+    <PageContainer>
+      <PageHeader
+        breadcrumb="Everwear Admin / Settings & Admin / Users & Role Access"
+        title="Enterprise User Management & Granular Role-Based Access Control (RBAC)"
+        badge={
           <span className="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">
             <span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse"></span>
             Zero Trust SSO Enforced
           </span>
-          <span className="font-label-xs-caps text-label-xs-caps text-text-secondary">Policy Revision: v24.3.1</span>
-        </div>
-      </div>
-
-      {/* Page Title & Header Actions */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-space-md mb-space-lg bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle">
-        <div className="space-y-1">
-          <h1 className="font-headline-lg text-headline-lg text-text-primary tracking-tight font-semibold">
-            Enterprise User Management & Granular Role-Based Access Control (RBAC)
-          </h1>
-          <p className="font-body-md text-body-md text-text-secondary max-w-4xl">
-            Manage operator permissions across fulfillment nodes, catalog merchandising controls, financial sign-off limits, and security audit logs.
-          </p>
-        </div>
-        <div className="flex items-center gap-space-sm shrink-0 flex-wrap">
-          <button
-            onClick={() => onShowToast?.('Exporting encrypted security audit log...')}
-            className="h-9 px-space-sm rounded-lg bg-surface-container-lowest text-text-primary border border-border-subtle hover:bg-surface-subtle shadow-sm font-label-md text-label-md flex items-center gap-1.5 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px] text-text-secondary">receipt_long</span>
-            <span>Security Audit Export</span>
-          </button>
-          <button
-            onClick={() => onShowToast?.('Opening Custom Role Policy Creator...')}
-            className="h-9 px-space-sm rounded-lg bg-surface-subtle text-text-primary border border-border-subtle hover:bg-surface-container-high font-label-md text-label-md flex items-center gap-1.5 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]">verified_user</span>
-            <span>Create Custom Role Policy</span>
-          </button>
-          <button
-            onClick={() => setIsInviteModalOpen(true)}
-            className="h-9 px-space-md rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-primary font-label-md text-label-md flex items-center gap-1.5 shadow-sm transition-all font-semibold cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">person_add</span>
-            <span>Invite Team Member</span>
-          </button>
-        </div>
-      </div>
+        }
+        description="Manage operator permissions across fulfillment nodes, catalog merchandising controls, financial sign-off limits, and security audit logs."
+        actions={
+          <div className="flex items-center gap-space-sm shrink-0 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast?.("Exporting encrypted security audit log...")}
+              icon="receipt_long"
+            >
+              Security Audit Export
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast?.("Opening Custom Role Policy Creator...")}
+              icon="verified_user"
+            >
+              Create Custom Role Policy
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsInviteModalOpen(true)}
+              icon="person_add"
+            >
+              Invite Team Member
+            </Button>
+          </div>
+        }
+      />
 
       {/* Top Metrics Bar (5 Bento Metric Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-space-md mb-space-lg">
-        {/* Active Members */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Active Team Members</span>
-            <span className="p-1 rounded-lg bg-status-info-bg text-status-info material-symbols-outlined text-[18px]">group</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-stat text-metric-stat text-text-primary font-semibold">
-              148 <span className="font-label-sm text-label-sm font-normal text-text-secondary">Users</span>
-            </div>
-            <p className="font-body-sm text-body-sm text-text-secondary mt-0.5 truncate">Across 4 FC Nodes & Central HQ</p>
-          </div>
-          <div className="mt-space-xs pt-space-xs flex items-center justify-between text-text-secondary font-label-xs-caps text-label-xs-caps">
-            <span className="text-status-success font-semibold flex items-center gap-0.5">
-              <span className="material-symbols-outlined text-[12px]">trending_up</span>+14 this month
-            </span>
-            <span>98.6% active</span>
-          </div>
-        </div>
-
-        {/* Defined Roles */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Defined Roles & Policies</span>
-            <span className="p-1 rounded-lg bg-primary-fixed text-primary material-symbols-outlined text-[18px]">policy</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-stat text-metric-stat text-text-primary font-semibold">
-              12 <span className="font-label-sm text-label-sm font-normal text-text-secondary">Roles</span>
-            </div>
-            <p className="font-body-sm text-body-sm text-text-secondary mt-0.5 truncate">Operations, Finance, Merch, QC</p>
-          </div>
-          <div className="mt-space-xs pt-space-xs flex items-center justify-between text-text-secondary font-label-xs-caps text-label-xs-caps">
-            <span className="text-primary font-semibold">4 Custom Scopes</span>
-            <span>8 Standard</span>
-          </div>
-        </div>
-
-        {/* 2FA Enforcement */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">2FA Enforcement</span>
-            <span className="p-1 rounded-lg bg-status-success-bg text-status-success material-symbols-outlined text-[18px]">lock_clock</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-stat text-metric-stat text-status-success font-semibold">100%</div>
-            <p className="font-body-sm text-body-sm text-text-secondary mt-0.5 truncate">Compliant (FIDO2 / Hardware OTP)</p>
-          </div>
-          <div className="mt-space-xs pt-space-xs flex items-center justify-between text-text-secondary font-label-xs-caps text-label-xs-caps">
-            <span className="text-status-success font-semibold">0 Non-compliant</span>
-            <span>Hard-locked</span>
-          </div>
-        </div>
-
-        {/* Privileged Admins */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Privileged Admins</span>
-            <span className="p-1 rounded-lg bg-status-warning-bg text-status-warning material-symbols-outlined text-[18px]">admin_panel_settings</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-stat text-metric-stat text-text-primary font-semibold">
-              6 <span className="font-label-sm text-label-sm font-normal text-text-secondary">Super Users</span>
-            </div>
-            <p className="font-body-sm text-body-sm text-text-secondary mt-0.5 truncate">Require Dual Sign-off</p>
-          </div>
-          <div className="mt-space-xs pt-space-xs flex items-center justify-between text-text-secondary font-label-xs-caps text-label-xs-caps">
-            <span className="text-status-warning font-semibold">Tier 0 Security</span>
-            <span>Quarterly Review</span>
-          </div>
-        </div>
-
-        {/* Active Node Sessions */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary">Active Node Sessions</span>
-            <span className="p-1 rounded-lg bg-surface-subtle text-text-primary material-symbols-outlined text-[18px]">devices</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-stat text-metric-stat text-text-primary font-semibold">
-              84 <span className="font-label-sm text-label-sm font-normal text-text-secondary">Concurrent</span>
-            </div>
-            <p className="font-body-sm text-body-sm text-text-secondary mt-0.5 truncate">Avg. Session Latency 18ms</p>
-          </div>
-          <div className="mt-space-xs pt-space-xs flex items-center justify-between text-text-secondary font-label-xs-caps text-label-xs-caps">
-            <span className="text-status-success font-semibold">BLR-FC1 Peak</span>
-            <span>42 Handheld RFs</span>
-          </div>
-        </div>
-      </div>
+      <ContentGrid columns={5}>
+        <StatsCard
+          label="Active Team Members"
+          value="148 Users"
+          change="+14 this month"
+          changeType="positive"
+          icon="group"
+          subtitle="Across 4 FC Nodes & Central HQ"
+        />
+        <StatsCard
+          label="Defined Roles & Policies"
+          value="12 Roles"
+          change="4 Custom Scopes"
+          changeType="neutral"
+          icon="policy"
+          subtitle="Operations, Finance, Merch, QC"
+        />
+        <StatsCard
+          label="2FA Enforcement"
+          value="100%"
+          change="0 Non-compliant"
+          changeType="positive"
+          icon="lock_clock"
+          subtitle="Compliant (FIDO2 / Hardware OTP)"
+        />
+        <StatsCard
+          label="Privileged Admins"
+          value="6 Super Users"
+          change="Tier 0 Security"
+          changeType="warning"
+          icon="admin_panel_settings"
+          subtitle="Require Dual Sign-off"
+        />
+        <StatsCard
+          label="Active Node Sessions"
+          value="84 Concurrent"
+          change="BLR-FC1 Peak"
+          changeType="positive"
+          icon="devices"
+          subtitle="Avg. Session Latency 18ms"
+        />
+      </ContentGrid>
 
       {/* Segmented Primary Navigation Tabs */}
       <div className="flex items-center justify-between gap-space-md bg-surface-container-lowest px-space-md py-space-xs rounded-xl shadow-sm border border-border-subtle mb-space-md flex-wrap">
@@ -328,7 +274,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         {/* Quick Filter & Search Bar in Tabs Line */}
         <div className="flex items-center gap-space-sm">
           <div className="relative w-64">
-            <span className="material-symbols-outlined absolute left-2.5 top-2 text-text-secondary text-[16px]">filter_list</span>
+            <Icon name="filter_list" className="material-symbols-outlined absolute left-2.5 top-2 text-text-secondary text-[16px]" />
             <input
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
@@ -342,7 +288,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
             onClick={() => onShowToast?.('Filtering scopes')}
             className="h-8 px-2.5 rounded-lg bg-surface-subtle hover:bg-surface-container-high border border-border-subtle text-text-primary font-label-xs-caps text-label-xs-caps uppercase flex items-center gap-1 transition-colors"
           >
-            <span className="material-symbols-outlined text-[16px] text-text-secondary">tune</span>
+            <Icon name="tune" className="material-symbols-outlined text-[16px] text-text-secondary" />
             <span>All Scopes</span>
           </button>
         </div>
@@ -366,14 +312,14 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                   onClick={() => onShowToast?.('Exporting team directory CSV...')}
                   className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-border-subtle text-text-secondary hover:text-text-primary font-label-sm text-label-sm flex items-center gap-1 transition-colors"
                 >
-                  <span className="material-symbols-outlined text-[16px]">download</span>
+                  <Icon name="download" className="material-symbols-outlined text-[16px]" />
                   <span>CSV</span>
                 </button>
                 <button
                   onClick={() => onShowToast?.('Synchronized employee profiles with Workday HRIS.')}
                   className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-border-subtle text-text-secondary hover:text-text-primary font-label-sm text-label-sm flex items-center gap-1 transition-colors"
                 >
-                  <span className="material-symbols-outlined text-[16px]">refresh</span>
+                  <Icon name="refresh" className="material-symbols-outlined text-[16px]" />
                   <span>Sync</span>
                 </button>
               </div>
@@ -444,7 +390,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                         </td>
                         <td className="py-3 px-space-sm">
                           <span className="inline-flex items-center gap-1 font-label-sm text-label-sm text-text-primary">
-                            <span className="material-symbols-outlined text-[14px] text-text-secondary">{user.hubIcon}</span>
+                            <Icon name={user.hubIcon} className="material-symbols-outlined text-[14px] text-text-secondary" />
                             {user.hub}
                           </span>
                         </td>
@@ -458,7 +404,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                         </td>
                         <td className="py-3 px-space-sm">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-xs-caps text-label-xs-caps font-semibold ${user.securityBadge}`}>
-                            <span className="material-symbols-outlined text-[12px]">{user.securityIcon}</span>
+                            <Icon name={user.securityIcon} className="material-symbols-outlined text-[12px]" />
                             {user.securityState}
                           </span>
                         </td>
@@ -476,7 +422,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                                 }}
                                 className="p-1 rounded-lg hover:bg-surface-subtle text-text-secondary hover:text-text-primary transition-colors"
                               >
-                                <span className="material-symbols-outlined text-[18px]">lock_reset</span>
+                                <Icon name="lock_reset" className="material-symbols-outlined text-[18px]" />
                               </button>
                             ) : (
                               <>
@@ -488,7 +434,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                                   className="p-1 rounded-lg hover:bg-surface-subtle text-text-secondary hover:text-text-primary transition-colors"
                                   title="Edit Permissions"
                                 >
-                                  <span className="material-symbols-outlined text-[18px]">edit</span>
+                                  <Icon name="edit" className="material-symbols-outlined text-[18px]" />
                                 </button>
                                 <button
                                   onClick={(e) => {
@@ -498,7 +444,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                                   className="p-1 rounded-lg hover:bg-status-danger-bg text-text-secondary hover:text-status-danger transition-colors"
                                   title="Kill Session"
                                 >
-                                  <span className="material-symbols-outlined text-[18px]">logout</span>
+                                  <Icon name="logout" className="material-symbols-outlined text-[18px]" />
                                 </button>
                                 {user.isDbUser && user.role !== 'Store Owner' && (
                                   <button
@@ -509,7 +455,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                                     className="p-1 rounded-lg hover:bg-status-danger-bg text-status-danger hover:text-red-700 transition-colors"
                                     title="Delete User"
                                   >
-                                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                                    <Icon name="delete" className="material-symbols-outlined text-[18px]" />
                                   </button>
                                 )}
                               </>
@@ -545,7 +491,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
           {/* System Security Policy Banner */}
           <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex items-start gap-space-md">
             <div className="p-2.5 rounded-xl bg-status-info-bg text-status-info shrink-0">
-              <span className="material-symbols-outlined text-[24px]">verified</span>
+              <Icon name="verified" className="material-symbols-outlined text-[24px]" />
             </div>
             <div className="flex-1 space-y-1">
               <div className="flex items-center justify-between">
@@ -571,7 +517,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
             <div className="flex items-start justify-between pb-space-sm border-b border-border-subtle">
               <div>
                 <div className="flex items-center gap-1.5 font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-primary font-bold">
-                  <span className="material-symbols-outlined text-[14px]">shield</span>
+                  <Icon name="shield" className="material-symbols-outlined text-[14px]" />
                   <span>Role Policy Inspector</span>
                 </div>
                 <h3 className="font-headline-sm text-headline-sm text-text-primary mt-0.5 font-semibold">{selectedUser.role}</h3>
@@ -594,7 +540,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                 <div key={mIdx} className="p-space-sm rounded-lg bg-surface-subtle border border-border-subtle space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-label-sm text-label-sm font-semibold text-text-primary flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[16px] text-text-secondary">{mod.icon}</span>
+                      <Icon name={mod.icon} className="material-symbols-outlined text-[16px] text-text-secondary" />
                       {mod.name}
                     </span>
                     <span className={`font-label-xs-caps text-label-xs-caps px-1.5 py-0.5 rounded font-semibold ${mod.scopeColor}`}>
@@ -605,9 +551,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                     <div className="space-y-1 font-body-sm text-body-sm">
                       {mod.perms.map((p, pIdx) => (
                         <div key={pIdx} className={`flex items-center gap-2 ${p.allowed ? 'text-text-primary' : 'text-text-secondary'}`}>
-                          <span className={`material-symbols-outlined text-[16px] ${p.allowed ? 'text-status-success' : 'text-status-danger'}`}>
-                            {p.allowed ? 'check_circle' : 'cancel'}
-                          </span>
+                          <Icon name={p.allowed ? 'check_circle' : 'cancel'} className={`material-symbols-outlined text-[16px] ${p.allowed ? 'text-status-success' : 'text-status-danger'}`} />
                           <span>{p.text}</span>
                         </div>
                       ))}
@@ -641,7 +585,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                     <span className="text-text-secondary text-[11px] block">Stock Reconciliation</span>
                     <span className="font-medium text-text-primary text-[12px]">Mandatory Mobile OTP Verification</span>
                   </div>
-                  <span className="material-symbols-outlined text-status-success text-[18px]">verified</span>
+                  <Icon name="verified" className="material-symbols-outlined text-status-success text-[18px]" />
                 </div>
               </div>
             </div>
@@ -673,7 +617,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                 onClick={() => onShowToast?.(`Editing permissions matrix for ${selectedUser.name}`)}
                 className="w-full h-9 rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-primary font-label-md text-label-md font-medium transition-colors shadow-sm flex items-center justify-center gap-1.5"
               >
-                <span className="material-symbols-outlined text-[18px]">tune</span>
+                <Icon name="tune" className="material-symbols-outlined text-[18px]" />
                 <span>Modify Permissions</span>
               </button>
               <div className="grid grid-cols-2 gap-2">
@@ -681,14 +625,14 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                   onClick={() => onShowToast?.(`Viewing full cryptographic audit trail for ${selectedUser.name}`)}
                   className="h-8 rounded-lg bg-surface-subtle hover:bg-surface-container-high border border-border-subtle text-text-primary font-label-sm text-label-sm font-medium transition-colors flex items-center justify-center gap-1"
                 >
-                  <span className="material-symbols-outlined text-[16px] text-text-secondary">history</span>
+                  <Icon name="history" className="material-symbols-outlined text-[16px] text-text-secondary" />
                   <span>View Full Audit</span>
                 </button>
                 <button
                   onClick={() => onShowToast?.(`Suspended access for ${selectedUser.name}`)}
                   className="h-8 rounded-lg bg-status-danger-bg hover:bg-error-container text-status-danger font-label-sm text-label-sm font-medium transition-colors flex items-center justify-center gap-1 border border-status-danger/20"
                 >
-                  <span className="material-symbols-outlined text-[16px]">lock</span>
+                  <Icon name="lock" className="material-symbols-outlined text-[16px]" />
                   <span>Suspend Access</span>
                 </button>
               </div>
@@ -703,7 +647,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
           <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-border-subtle max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-space-lg border-b border-border-subtle flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="p-2 rounded-xl bg-primary-container text-white material-symbols-outlined text-[20px]">person_add</span>
+                <Icon name="person_add" className="p-2 rounded-xl bg-primary-container text-white material-symbols-outlined text-[20px]" />
                 <div>
                   <h3 className="font-headline-sm font-semibold text-text-primary">Invite Team Member</h3>
                   <p className="text-xs text-text-secondary">Provision administrator credentials in Everwear RBAC</p>
@@ -713,7 +657,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                 onClick={() => setIsInviteModalOpen(false)}
                 className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-text-secondary"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <Icon name="close" className="material-symbols-outlined text-[18px]" />
               </button>
             </div>
 
@@ -780,9 +724,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                   disabled={isSubmitting}
                   className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <span className="material-symbols-outlined text-[16px]">
-                    {isSubmitting ? 'hourglass_top' : 'check'}
-                  </span>
+                  <Icon name={isSubmitting ? 'hourglass_top' : 'check'} className="material-symbols-outlined text-[16px]" />
                   <span>{isSubmitting ? 'Creating...' : 'Grant Access'}</span>
                 </button>
               </div>
@@ -790,6 +732,6 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

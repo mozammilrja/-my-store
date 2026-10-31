@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import {
+import { Icon,
   Card,
   CardContent,
   CardHeader,
@@ -17,7 +17,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
   if (!order) {
     return (
       <Card className="xl:col-span-4 p-space-lg flex flex-col items-center justify-center text-center min-h-[400px]">
-        <span className="material-symbols-outlined text-[48px] text-secondary/40">shopping_bag</span>
+        <Icon name="shopping_bag" className="material-symbols-outlined text-[48px] text-secondary/40" />
         <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary mt-2">No Order Selected</h3>
         <p className="font-body-sm text-body-sm text-text-secondary mt-1">Select an order from the list to view its complete fulfillment telemetry.</p>
       </Card>
@@ -115,7 +115,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
               className="h-8 w-8 bg-surface-container-lowest"
               title="Print Shipping Label"
             >
-              <span className="material-symbols-outlined text-[18px]">print</span>
+              <Icon name="print" className="material-symbols-outlined text-[18px]" />
             </Button>
             <Button
               variant="outline"
@@ -124,7 +124,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
               className="h-8 w-8 bg-surface-container-lowest"
               title="Re-assign Carrier"
             >
-              <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
+              <Icon name="swap_horiz" className="material-symbols-outlined text-[18px]" />
             </Button>
             <Button
               variant="outline"
@@ -133,7 +133,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
               className="h-8 w-8 bg-surface-container-lowest"
               title="Download Packing Slip"
             >
-              <span className="material-symbols-outlined text-[18px]">download</span>
+              <Icon name="download" className="material-symbols-outlined text-[18px]" />
             </Button>
             {onClose && (
               <Button
@@ -143,7 +143,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
                 className="h-8 w-8 hover:bg-surface-subtle text-text-secondary hover:text-text-primary ml-1"
                 title="Close Details (Expand Table)"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <Icon name="close" className="material-symbols-outlined text-[18px]" />
               </Button>
             )}
           </div>
@@ -160,7 +160,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
       {/* Consignee Customer & Delivery Routing Strip */}
       <div className="bg-surface-canvas p-space-sm rounded-lg flex items-start justify-between gap-space-sm border border-border-subtle/60">
         <div className="flex items-start gap-2.5">
-          <span className="material-symbols-outlined text-primary text-[20px] mt-0.5">pin_drop</span>
+          <Icon name="pin_drop" className="material-symbols-outlined text-primary text-[20px] mt-0.5" />
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
               <span className="font-label-md text-label-md font-bold text-text-primary">
@@ -353,17 +353,15 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
                 {/* Step Circle */}
                 {isCurrent ? (
                   <span className="absolute -left-6 top-0.5 w-5 h-5 rounded-full bg-primary-container text-on-primary flex items-center justify-center text-[12px] shadow-xs ring-4 ring-primary-fixed">
-                    <span className="material-symbols-outlined text-[14px]">cached</span>
+                    <Icon name="cached" className="material-symbols-outlined text-[14px]" />
                   </span>
                 ) : isDone ? (
                   <span className="absolute -left-6 top-0.5 w-5 h-5 rounded-full bg-status-success text-on-primary flex items-center justify-center text-[12px] shadow-xs">
-                    <span className="material-symbols-outlined text-[14px]">check</span>
+                    <Icon name="check" className="material-symbols-outlined text-[14px]" />
                   </span>
                 ) : (
                   <span className="absolute -left-6 top-0.5 w-5 h-5 rounded-full bg-surface-subtle text-secondary flex items-center justify-center text-[12px] border border-border-subtle">
-                    <span className="material-symbols-outlined text-[14px]">
-                      {step.step === 7 ? 'local_shipping' : step.step === 8 ? 'moped' : 'done_all'}
-                    </span>
+                    <Icon name={step.step === 7 ? 'local_shipping' : step.step === 8 ? 'moped' : 'done_all'} className="material-symbols-outlined text-[14px]" />
                   </span>
                 )}
 
@@ -401,7 +399,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
       {/* Live Operations & Audit Trail Sticky Drawer Action Bar */}
       <div className="bg-surface-canvas p-space-sm rounded-lg flex items-center justify-between border border-border-subtle/50">
         <div className="flex items-center gap-2 text-text-secondary font-label-xs-caps text-label-xs-caps">
-          <span className="material-symbols-outlined text-[16px] text-primary">smart_toy</span>
+          <Icon name="smart_toy" className="material-symbols-outlined text-[16px] text-primary" />
           <span>Auto-assigned to batch #4409 by System Dispatcher Bot</span>
         </div>
         <div className="flex items-center gap-1.5">

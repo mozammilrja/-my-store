@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Select } from '../ui/select';
+import {
+  Icon,
+  Button,
+  Badge,
+  Select,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+} from '../ui';
 import { campaigns } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import {
@@ -158,161 +168,84 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
   };
 
   return (
-    <div className="flex flex-col w-full space-y-space-lg">
-      {/* Sub-header & Title Section */}
-      <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-space-md bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle">
-        <div className="flex flex-col space-y-1 min-w-0">
-          <div className="flex items-center gap-1.5 font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider">
-            <span>Everwear Admin</span>
-            <span className="material-symbols-outlined text-[13px] text-text-secondary">chevron_right</span>
-            <span>Settings & Admin</span>
-            <span className="material-symbols-outlined text-[13px] text-text-secondary">chevron_right</span>
-            <span className="text-primary-container font-semibold">Promotions & Coupons</span>
+    <PageContainer>
+      <PageHeader
+        breadcrumb="Everwear Admin / Settings & Admin / Promotions & Coupons"
+        title="Promotions, Discount Engines & Coupon Campaign Orchestration"
+        description="Manage cart-level discounts, VIP influencer codes, flash vouchers, margin-guarded threshold rules, and omnichannel promo attribution across all e-store nodes."
+        actions={
+          <div className="flex items-center gap-space-sm shrink-0 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast?.("Running real-time cart rule conflict simulation...")}
+              icon="science"
+            >
+              Simulate Cart Rules
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast?.("Exporting campaign audit ledger CSV...")}
+              icon="download"
+            >
+              Export Campaign Ledger
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsCreatePromoOpen(true)}
+              icon="add"
+            >
+              Create Promo Campaign
+            </Button>
           </div>
-          <h1 className="font-headline-lg text-headline-lg text-text-primary tracking-tight font-semibold">
-            Promotions, Discount Engines & Coupon Campaign Orchestration
-          </h1>
-          <p className="font-body-sm text-body-sm text-text-secondary max-w-4xl">
-            Manage cart-level discounts, VIP influencer codes, flash vouchers, margin-guarded threshold rules, and omnichannel promo attribution across all e-store nodes.
-          </p>
-        </div>
-        {/* Top Action Buttons */}
-        <div className="flex items-center gap-space-sm shrink-0 flex-wrap">
-          <button
-            onClick={() => onShowToast?.('Running real-time cart rule conflict simulation...')}
-            className="h-9 px-3 rounded-lg bg-surface-container-lowest text-text-primary border border-border-subtle hover:bg-surface-subtle shadow-sm flex items-center gap-1.5 font-label-md text-label-md transition-all active:scale-[0.98]"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px] text-primary-container">science</span>
-            <span>Simulate Cart Rules</span>
-          </button>
-          <button
-            onClick={() => onShowToast?.('Exporting campaign audit ledger CSV...')}
-            className="h-9 px-3 rounded-lg bg-surface-container-lowest text-text-primary border border-border-subtle hover:bg-surface-subtle shadow-sm flex items-center gap-1.5 font-label-md text-label-md transition-all active:scale-[0.98]"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px] text-text-secondary">download</span>
-            <span>Export Campaign Ledger</span>
-          </button>
-          <button
-            onClick={() => setIsCreatePromoOpen(true)}
-            className="h-9 px-3.5 rounded-lg bg-primary-container text-on-primary hover:bg-primary transition-all shadow-sm flex items-center gap-1.5 font-label-md text-label-md font-semibold active:scale-[0.98] cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            <span>Create Promo Campaign</span>
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* KPI Summary Banner (5 Metric Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-space-md">
-        {/* KPI 1 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-border-subtle flex flex-col justify-between space-y-2 relative overflow-hidden group">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Active Promotions</span>
-            <span className="w-7 h-7 rounded-lg bg-status-success-bg text-status-success flex items-center justify-center">
-              <span className="material-symbols-outlined text-[16px]">campaign</span>
-            </span>
-          </div>
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">24 Live</span>
-              <span className="font-label-xs-caps text-[10px] text-status-success bg-status-success-bg px-1.5 py-0.5 rounded-full font-semibold">
-                +4 this wk
-              </span>
-            </div>
-            <div className="font-body-sm text-[12px] text-text-secondary mt-1 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-status-success"></span>
-              <span>12 Auto-Applied • 12 Coupon Codes</span>
-            </div>
-          </div>
-        </div>
-
-        {/* KPI 2 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-border-subtle flex flex-col justify-between space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Promo-Driven GMV</span>
-            <span className="w-7 h-7 rounded-lg bg-primary-fixed text-primary flex items-center justify-center">
-              <span className="material-symbols-outlined text-[16px]">payments</span>
-            </span>
-          </div>
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">₹1.94 Cr</span>
-              <span className="font-label-xs-caps text-[10px] text-status-success bg-status-success-bg px-1.5 py-0.5 rounded-full font-semibold">
-                +18.2%
-              </span>
-            </div>
-            <span className="font-body-sm text-[12px] text-text-secondary mt-1 block">
-              28.4% of total May GMV volume
-            </span>
-          </div>
-        </div>
-
-        {/* KPI 3 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-border-subtle flex flex-col justify-between space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Blended Discount Depth</span>
-            <span className="w-7 h-7 rounded-lg bg-status-info-bg text-status-info flex items-center justify-center">
-              <span className="material-symbols-outlined text-[16px]">percent</span>
-            </span>
-          </div>
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">18.2%</span>
-              <span className="font-label-xs-caps text-[10px] text-status-success bg-status-success-bg px-1.5 py-0.5 rounded-full font-semibold">
-                Target &lt;20%
-              </span>
-            </div>
-            <div className="w-full bg-surface-subtle h-1.5 rounded-full mt-2 overflow-hidden border border-border-subtle">
-              <div className="bg-primary-container h-full rounded-full" style={{ width: '72%' }}></div>
-            </div>
-          </div>
-        </div>
-
-        {/* KPI 4 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-border-subtle flex flex-col justify-between space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Coupon Redemptions</span>
-            <span className="w-7 h-7 rounded-lg bg-status-warning-bg text-status-warning flex items-center justify-center">
-              <span className="material-symbols-outlined text-[16px]">confirmation_number</span>
-            </span>
-          </div>
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-metric-stat text-metric-stat text-text-primary font-semibold">64,280</span>
-              <span className="font-label-xs-caps text-[10px] text-text-secondary bg-surface-subtle px-1.5 py-0.5 rounded-full border border-border-subtle font-semibold">
-                Uses
-              </span>
-            </div>
-            <span className="font-body-sm text-[12px] text-text-secondary mt-1 block">
-              Avg. 2.14 vouchers / transacting cart
-            </span>
-          </div>
-        </div>
-
-        {/* KPI 5 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-border-subtle flex flex-col justify-between space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Margin Shield Triggers</span>
-            <span className="w-7 h-7 rounded-lg bg-status-danger-bg text-status-danger flex items-center justify-center">
-              <span className="material-symbols-outlined text-[16px]">security</span>
-            </span>
-          </div>
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-metric-stat text-metric-stat text-status-danger font-semibold">312</span>
-              <span className="font-label-xs-caps text-[10px] text-status-danger bg-status-danger-bg px-1.5 py-0.5 rounded-full font-semibold">
-                Blocked
-              </span>
-            </div>
-            <span className="font-body-sm text-[12px] text-text-secondary mt-1 block">
-              Saved ~₹14.8L in stacked discount leaks
-            </span>
-          </div>
-        </div>
-      </div>
+      <ContentGrid columns={5}>
+        <StatsCard
+          label="Active Promotions"
+          value="24 Live"
+          change="+4 this wk"
+          changeType="positive"
+          icon="campaign"
+          subtitle="12 Auto-Applied • 12 Coupon Codes"
+        />
+        <StatsCard
+          label="Promo-Driven GMV"
+          value="₹1.94 Cr"
+          change="+18.2%"
+          changeType="positive"
+          icon="payments"
+          subtitle="28.4% of total May GMV volume"
+        />
+        <StatsCard
+          label="Blended Discount Depth"
+          value="18.2%"
+          change="Target <20%"
+          changeType="positive"
+          icon="percent"
+          subtitle="Blended discount depth across orders"
+        />
+        <StatsCard
+          label="Coupon Redemptions"
+          value="64,280"
+          change="Uses"
+          changeType="neutral"
+          icon="confirmation_number"
+          subtitle="Avg. 2.14 vouchers / cart"
+        />
+        <StatsCard
+          label="Margin Shield Triggers"
+          value="312"
+          change="Blocked"
+          changeType="negative"
+          icon="security"
+          subtitle="Saved ~₹14.8L in leaks"
+        />
+      </ContentGrid>
 
       {/* Filters & Segmentation Toolbar */}
       <div className="p-space-sm bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-space-sm">
@@ -363,7 +296,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
         {/* Search & Facets */}
         <div className="flex items-center gap-space-xs flex-wrap sm:flex-nowrap">
           <div className="relative w-full sm:w-64">
-            <span className="material-symbols-outlined absolute left-2.5 top-2 text-[18px] text-text-secondary pointer-events-none">search</span>
+            <Icon name="search" className="material-symbols-outlined absolute left-2.5 top-2 text-[18px] text-text-secondary pointer-events-none" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -397,7 +330,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             title="Column Layout View"
             type="button"
           >
-            <span className="material-symbols-outlined text-[18px]">view_column</span>
+            <Icon name="view_column" className="material-symbols-outlined text-[18px]" />
           </button>
         </div>
       </div>
@@ -420,7 +353,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                   onClick={() => onShowToast?.('Bulk actions menu opened')}
                   className="px-2 py-1 rounded bg-surface-subtle border border-border-subtle text-text-secondary hover:text-text-primary font-label-xs-caps text-label-xs-caps uppercase flex items-center gap-1 transition-colors"
                 >
-                  <span className="material-symbols-outlined text-[14px]">tune</span>
+                  <Icon name="tune" className="material-symbols-outlined text-[14px]" />
                   <span>Bulk Actions</span>
                 </button>
               </div>
@@ -469,7 +402,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2">
                             <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${camp.iconColor}`}>
-                              <span className="material-symbols-outlined text-[16px]">{camp.icon}</span>
+                              <Icon name={camp.icon} className="material-symbols-outlined text-[16px]" />
                             </div>
                             <div className="flex flex-col min-w-0">
                               <div className="flex items-center gap-1.5">
@@ -490,7 +423,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                                   }}
                                   title="Copy Code"
                                 >
-                                  <span className="material-symbols-outlined text-[14px]">content_copy</span>
+                                  <Icon name="content_copy" className="material-symbols-outlined text-[14px]" />
                                 </button>
                               </div>
                               <span className="font-label-xs-caps text-[11px] text-text-secondary truncate">{camp.name}</span>
@@ -548,9 +481,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                                   }}
                                   title={camp.active ? "Pause Promotion" : "Activate Promotion"}
                                 >
-                                  <span className="material-symbols-outlined text-[18px]">
-                                    {camp.active ? 'toggle_on' : 'toggle_off'}
-                                  </span>
+                                  <Icon name={camp.active ? 'toggle_on' : 'toggle_off'} className="material-symbols-outlined text-[18px]" />
                                 </button>
                                 <button
                                   className="p-1 rounded hover:bg-status-danger-bg text-text-secondary hover:text-status-danger cursor-pointer"
@@ -560,7 +491,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                                   }}
                                   title="Delete Promo"
                                 >
-                                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                                  <Icon name="delete" className="material-symbols-outlined text-[16px]" />
                                 </button>
                               </>
                             ) : (
@@ -571,7 +502,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                                   onShowToast?.(`Options for promo ${camp.code}`);
                                 }}
                               >
-                                <span className="material-symbols-outlined text-[18px]">more_vert</span>
+                                <Icon name="more_vert" className="material-symbols-outlined text-[18px]" />
                               </button>
                             )}
                           </div>
@@ -608,7 +539,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
           <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-border-subtle flex flex-col space-y-space-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary-container text-[18px]">bolt</span>
+                <Icon name="bolt" className="material-symbols-outlined text-primary-container text-[18px]" />
                 <span className="font-headline-sm text-headline-sm text-text-primary font-semibold">Simulated Stack Resolution Engine</span>
               </div>
               <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Deterministic Stacking: ON</span>
@@ -657,7 +588,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                 className="p-1.5 rounded-lg bg-surface-canvas border border-border-subtle hover:bg-surface-subtle text-text-secondary hover:text-text-primary transition-colors"
                 title="Refresh Telemetry"
               >
-                <span className="material-symbols-outlined text-[18px]">sync</span>
+                <Icon name="sync" className="material-symbols-outlined text-[18px]" />
               </button>
             </div>
 
@@ -697,7 +628,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             {/* Margin Guardrails Warning/Status Card */}
             <div className="p-space-sm rounded-xl bg-status-success-bg/60 border border-status-success/20 flex flex-col space-y-1">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-status-success">verified_user</span>
+                <Icon name="verified_user" className="material-symbols-outlined text-[18px] text-status-success" />
                 <span className="font-label-sm text-label-sm font-semibold text-status-success">Margin Threshold Guard Enforced</span>
               </div>
               <p className="font-body-sm text-[12px] text-text-secondary leading-relaxed">
@@ -719,7 +650,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
               <div className="p-space-sm bg-surface-canvas rounded-xl border border-border-subtle flex flex-col space-y-2">
                 {/* Included */}
                 <div className="flex items-start gap-2">
-                  <span className="material-symbols-outlined text-[16px] text-status-success shrink-0 mt-0.5">check_circle</span>
+                  <Icon name="check_circle" className="material-symbols-outlined text-[16px] text-status-success shrink-0 mt-0.5" />
                   <div className="flex flex-col min-w-0">
                     <span className="font-label-sm text-label-sm font-semibold text-text-primary">
                       Category: {selectedCampaign.categoryScope}
@@ -729,7 +660,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                 </div>
                 {/* Excluded SKU Badges */}
                 <div className="flex items-start gap-2 pt-1">
-                  <span className="material-symbols-outlined text-[16px] text-status-danger shrink-0 mt-0.5">do_not_disturb_on</span>
+                  <Icon name="do_not_disturb_on" className="material-symbols-outlined text-[16px] text-status-danger shrink-0 mt-0.5" />
                   <div className="flex flex-col min-w-0 space-y-1">
                     <span className="font-label-sm text-label-sm font-semibold text-text-primary">Target Exclusions</span>
                     <div className="flex flex-wrap gap-1">
@@ -776,7 +707,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                   className="h-9 px-3 rounded-lg bg-surface-subtle border border-border-subtle hover:bg-surface-container-high text-text-primary font-label-sm text-label-sm font-semibold flex items-center justify-center gap-1.5 transition-colors"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                  <Icon name="edit" className="material-symbols-outlined text-[16px]" />
                   <span>Edit Cap</span>
                 </button>
                 <button
@@ -784,7 +715,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                   className="h-9 px-3 rounded-lg bg-surface-subtle border border-border-subtle hover:bg-surface-container-high text-text-primary font-label-sm text-label-sm font-semibold flex items-center justify-center gap-1.5 transition-colors"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[16px]">link</span>
+                  <Icon name="link" className="material-symbols-outlined text-[16px]" />
                   <span>Affiliate Link</span>
                 </button>
               </div>
@@ -793,7 +724,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                 className="h-9 px-3 rounded-lg bg-status-danger-bg hover:bg-status-danger text-status-danger hover:text-white font-label-sm text-label-sm font-semibold flex items-center justify-center gap-1.5 transition-colors active:scale-[0.99] border border-status-danger/20"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">pause_circle</span>
+                <Icon name="pause_circle" className="material-symbols-outlined text-[18px]" />
                 <span>Pause {selectedCampaign.code} Instantly</span>
               </button>
             </div>
@@ -845,7 +776,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
           <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-border-subtle max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-space-lg border-b border-border-subtle flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="p-2 rounded-xl bg-primary-container text-white material-symbols-outlined text-[20px]">local_offer</span>
+                <Icon name="local_offer" className="p-2 rounded-xl bg-primary-container text-white material-symbols-outlined text-[20px]" />
                 <div>
                   <h3 className="font-headline-sm font-semibold text-text-primary">Create Promo Campaign</h3>
                   <p className="text-xs text-text-secondary">Configure cart discount rules and voucher codes</p>
@@ -855,7 +786,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                 onClick={() => setIsCreatePromoOpen(false)}
                 className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-text-secondary"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <Icon name="close" className="material-symbols-outlined text-[18px]" />
               </button>
             </div>
 
@@ -954,9 +885,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                   disabled={isSubmitting}
                   className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <span className="material-symbols-outlined text-[16px]">
-                    {isSubmitting ? 'hourglass_top' : 'check'}
-                  </span>
+                  <Icon name={isSubmitting ? 'hourglass_top' : 'check'} className="material-symbols-outlined text-[16px]" />
                   <span>{isSubmitting ? 'Creating...' : 'Launch Campaign'}</span>
                 </button>
               </div>
@@ -964,6 +893,6 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

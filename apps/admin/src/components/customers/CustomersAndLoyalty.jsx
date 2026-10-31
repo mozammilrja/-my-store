@@ -1,5 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Select } from '../ui/select';
+import {
+  Icon,
+  Button,
+  Badge,
+  Select,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+} from '../ui';
 import { customerList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
@@ -149,186 +159,93 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
   };
 
   return (
-    <div className="space-y-space-md w-full">
-      {/* Top Context Header & Actions */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-space-md">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span
-              onClick={() => onNavigate && onNavigate('overview')}
-              className="font-label-xs-caps text-label-xs-caps text-text-secondary tracking-widest uppercase cursor-pointer hover:text-text-primary transition-colors"
+    <PageContainer>
+      <PageHeader
+        breadcrumb="EVERWEAR ADMIN / SETTINGS & ADMIN / CUSTOMERS & LOYALTY"
+        title="Customer Intelligence, VIP Tiers & Loyalty Operations"
+        badge={<Badge variant="info">CRM v4.8</Badge>}
+        description="Comprehensive customer 360 profiles, RFM segment analytics, omnichannel loyalty point ledger, and VIP concierge management."
+        actions={
+          <div className="flex flex-wrap items-center gap-space-sm shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast && onShowToast("Exporting Customer & Loyalty Ledger as CSV...")}
+              icon="file_download"
             >
-              EVERWEAR ADMIN
-            </span>
-            <span className="text-text-secondary font-label-xs-caps">/</span>
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary tracking-widest uppercase">
-              SETTINGS &amp; ADMIN
-            </span>
-            <span className="text-text-secondary font-label-xs-caps">/</span>
-            <span className="font-label-xs-caps text-label-xs-caps text-primary-container font-semibold tracking-widest uppercase">
-              CUSTOMERS &amp; LOYALTY
-            </span>
+              Export Ledger (CSV)
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast && onShowToast("Segment campaign configuration modal opened.")}
+              icon="campaign"
+            >
+              Trigger Segment Campaign
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast && onShowToast("Concierge note modal initialized for " + selectedCustomer.name)}
+              icon="person_add"
+            >
+              + Add Concierge Note
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => onShowToast && onShowToast("Loyalty tier rules & multiplier engine configuration open.")}
+              icon="tune"
+            >
+              Adjust Loyalty Rules
+            </Button>
           </div>
-          <h1 className="font-headline-lg text-headline-lg text-text-primary tracking-tight font-semibold flex items-center gap-space-sm flex-wrap">
-            Customer Intelligence, VIP Tiers &amp; Loyalty Operations
-            <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-status-info font-label-xs-caps text-label-xs-caps font-semibold">
-              CRM v4.8
-            </span>
-          </h1>
-          <p className="font-body-sm text-body-sm text-text-secondary max-w-4xl">
-            Comprehensive customer 360 profiles, RFM segment analytics, omnichannel loyalty point ledger, and VIP concierge management.
-          </p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-space-sm shrink-0">
-          <button
-            onClick={() => onShowToast && onShowToast('Exporting Customer & Loyalty Ledger as CSV...')}
-            className="h-9 px-space-md rounded-xl bg-surface-container-lowest text-text-primary hover:bg-surface-subtle shadow-sm font-label-md text-label-md flex items-center gap-1.5 transition-all cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[17px] text-text-secondary">file_download</span>
-            <span>Export Ledger (CSV)</span>
-          </button>
-          <button
-            onClick={() => onShowToast && onShowToast('Segment campaign configuration modal opened.')}
-            className="h-9 px-space-md rounded-xl bg-surface-subtle text-text-primary hover:bg-surface-container-high shadow-sm font-label-md text-label-md flex items-center gap-1.5 transition-all cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[17px] text-text-secondary">campaign</span>
-            <span>Trigger Segment Campaign</span>
-          </button>
-          <button
-            onClick={() => onShowToast && onShowToast('Concierge note modal initialized for ' + selectedCustomer.name)}
-            className="h-9 px-space-md rounded-xl bg-surface-container-lowest text-text-primary hover:bg-surface-subtle shadow-sm font-label-md text-label-md flex items-center gap-1.5 transition-all cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[17px] text-text-secondary">person_add</span>
-            <span>+ Add Concierge Note</span>
-          </button>
-          <button
-            onClick={() => onShowToast && onShowToast('Loyalty tier rules & multiplier engine configuration open.')}
-            className="h-9 px-space-md rounded-xl bg-primary-container text-on-primary hover:bg-primary shadow-sm font-label-md text-label-md flex items-center gap-1.5 transition-all cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[17px]">tune</span>
-            <span>Adjust Loyalty Rules</span>
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* KPI / Performance Matrix Strip (5 Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-space-md">
-        {/* Card 1 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary tracking-wider uppercase">
-              Total Customers
-            </span>
-            <span className="w-7 h-7 rounded-lg bg-surface-subtle flex items-center justify-center text-text-secondary">
-              <span className="material-symbols-outlined text-[16px]">groups</span>
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-semibold">
-              148,290
-            </span>
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">
-              <span className="material-symbols-outlined text-[12px]">trending_up</span>+12.4% MoM
-            </span>
-          </div>
-          <span className="font-label-sm text-[11px] text-text-secondary mt-1">Omnichannel active pan-India</span>
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-container opacity-40"></div>
-        </div>
-
-        {/* Card 2 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary tracking-wider uppercase">
-              VIP Club Couture
-            </span>
-            <span className="w-7 h-7 rounded-lg bg-primary-fixed flex items-center justify-center text-primary-container">
-              <span className="material-symbols-outlined text-[16px]">diamond</span>
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-semibold">
-              4,820
-            </span>
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-primary-fixed text-primary-container font-label-xs-caps text-label-xs-caps font-semibold">
-              Tier 1 HNW
-            </span>
-          </div>
-          <span className="font-label-sm text-[11px] text-text-secondary mt-1">Avg annual spend &gt; ₹1.25L</span>
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-container"></div>
-        </div>
-
-        {/* Card 3 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary tracking-wider uppercase">
-              Repeat Purchase Rate
-            </span>
-            <span className="w-7 h-7 rounded-lg bg-surface-subtle flex items-center justify-center text-text-secondary">
-              <span className="material-symbols-outlined text-[16px]">repeat</span>
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-semibold">
-              41.8%
-            </span>
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">
-              +3.2pp YoY
-            </span>
-          </div>
-          <span className="font-label-sm text-[11px] text-text-secondary mt-1">30-day cohort retention window</span>
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-status-success opacity-40"></div>
-        </div>
-
-        {/* Card 4 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary tracking-wider uppercase">
-              Loyalty Points In Float
-            </span>
-            <span className="w-7 h-7 rounded-lg bg-status-info-bg flex items-center justify-center text-status-info">
-              <span className="material-symbols-outlined text-[16px]">toll</span>
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-semibold">
-              18.4M <span className="text-xs font-normal text-text-secondary">Pts</span>
-            </span>
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary font-medium">
-              Valuation ₹18.4L
-            </span>
-          </div>
-          <span className="font-label-sm text-[11px] text-text-secondary mt-1">Redemption rate: 76.4%</span>
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-status-info opacity-40"></div>
-        </div>
-
-        {/* Card 5 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary tracking-wider uppercase">
-              Store Credit Liability
-            </span>
-            <span className="w-7 h-7 rounded-lg bg-status-warning-bg flex items-center justify-center text-status-warning">
-              <span className="material-symbols-outlined text-[16px]">account_balance_wallet</span>
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <span className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-semibold">
-              ₹4.12 <span className="text-xs font-normal text-text-secondary">Lakhs</span>
-            </span>
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-status-warning-bg text-status-warning font-label-xs-caps text-label-xs-caps font-semibold">
-              Pending
-            </span>
-          </div>
-          <span className="font-label-sm text-[11px] text-text-secondary mt-1">From returns/exchanges</span>
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-status-warning opacity-40"></div>
-        </div>
-      </div>
+      <ContentGrid columns={5}>
+        <StatsCard
+          label="Total Customers"
+          value="148,290"
+          change="+12.4% MoM"
+          changeType="positive"
+          icon="groups"
+          subtitle="Omnichannel active pan-India"
+        />
+        <StatsCard
+          label="VIP Club Couture"
+          value="4,820"
+          change="Tier 1 HNW"
+          changeType="neutral"
+          icon="diamond"
+          subtitle="Avg annual spend > ₹1.25L"
+        />
+        <StatsCard
+          label="Repeat Purchase Rate"
+          value="41.8%"
+          change="+3.2pp YoY"
+          changeType="positive"
+          icon="repeat"
+          subtitle="30-day cohort retention window"
+        />
+        <StatsCard
+          label="Loyalty Points In Float"
+          value="18.4M Pts"
+          change="Valuation ₹18.4L"
+          changeType="neutral"
+          icon="toll"
+          subtitle="Redemption rate: 76.4%"
+        />
+        <StatsCard
+          label="Store Credit Liability"
+          value="₹4.12 Lakhs"
+          change="Pending"
+          changeType="warning"
+          icon="account_balance_wallet"
+          subtitle="From returns/exchanges"
+        />
+      </ContentGrid>
 
       {/* Primary Split Workflow Canvas (8 Cols Directory + 4 Cols 360 Profile) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
@@ -409,7 +326,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                 }`}
                 type="button"
               >
-                <span className="material-symbols-outlined text-[16px]">pie_chart</span>
+                <Icon name="pie_chart" className="material-symbols-outlined text-[16px]" />
                 <span>RFM Segments</span>
               </button>
             </div>
@@ -420,7 +337,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                 title="View Options"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">view_column</span>
+                <Icon name="view_column" className="material-symbols-outlined text-[18px]" />
               </button>
               <button
                 onClick={() => onShowToast && onShowToast('Row density toggled.')}
@@ -428,7 +345,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                 title="Density Toggle"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">density_medium</span>
+                <Icon name="density_medium" className="material-symbols-outlined text-[18px]" />
               </button>
             </div>
           </div>
@@ -437,7 +354,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
           <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm space-y-space-sm">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
               <div className="md:col-span-5 relative flex items-center">
-                <span className="material-symbols-outlined absolute left-3 text-text-secondary text-[18px]">search</span>
+                <Icon name="search" className="material-symbols-outlined absolute left-3 text-text-secondary text-[18px]" />
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -573,7 +490,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                                   className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-primary-container flex items-center justify-center text-white shadow-xs"
                                   title="VIP Couture"
                                 >
-                                  <span className="material-symbols-outlined text-[9px]">star</span>
+                                  <Icon name="star" className="material-symbols-outlined text-[9px]" />
                                 </span>
                               )}
                             </div>
@@ -598,7 +515,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                               {cust.email}
                             </span>
                             <span className="text-text-secondary text-[11px] flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[12px]">location_on</span>
+                              <Icon name="location_on" className="material-symbols-outlined text-[12px]" />
                               {cust.geo}
                             </span>
                           </div>
@@ -696,7 +613,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                   disabled
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[16px]">chevron_left</span>
+                  <Icon name="chevron_left" className="material-symbols-outlined text-[16px]" />
                 </button>
                 <button className="px-2 py-0.5 rounded bg-primary-container text-white font-semibold cursor-pointer" type="button">
                   1
@@ -712,7 +629,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                   5,931
                 </button>
                 <button className="p-1 rounded bg-surface-container-lowest text-text-secondary hover:text-text-primary cursor-pointer" type="button">
-                  <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+                  <Icon name="chevron_right" className="material-symbols-outlined text-[16px]" />
                 </button>
               </div>
             </div>
@@ -724,7 +641,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
             <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm space-y-3 border border-border-subtle">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary-container text-[18px]">verified</span>
+                  <Icon name="verified" className="material-symbols-outlined text-primary-container text-[18px]" />
                   <span className="font-headline-sm text-headline-sm text-text-primary font-semibold">Tier Migration Matrix</span>
                 </div>
                 <span className="font-label-xs-caps text-label-xs-caps text-text-secondary">Q2 Run-rate</span>
@@ -747,7 +664,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
             <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm space-y-3 border border-border-subtle">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-status-warning text-[18px]">warning</span>
+                  <Icon name="warning" className="material-symbols-outlined text-status-warning text-[18px]" />
                   <span className="font-headline-sm text-headline-sm text-text-primary font-semibold">High Return Triage Queue</span>
                 </div>
                 <span className="px-2 py-0.5 rounded-full bg-status-warning-bg text-status-warning font-label-xs-caps text-[10px] font-semibold">
@@ -793,7 +710,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                   title="Print Dossier"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[16px]">print</span>
+                  <Icon name="print" className="material-symbols-outlined text-[16px]" />
                 </button>
                 <button
                   onClick={() => onShowToast && onShowToast(selectedCustomer.name + ' pinned to active concierge workspace.')}
@@ -801,7 +718,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                   title="Pin Profile"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[16px]">push_pin</span>
+                  <Icon name="push_pin" className="material-symbols-outlined text-[16px]" />
                 </button>
               </div>
             </div>
@@ -827,7 +744,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                 </div>
                 <div className="flex flex-col items-end">
                   <span className="px-2.5 py-0.5 rounded-full bg-primary-container text-white font-label-xs-caps text-[10px] tracking-wider uppercase font-semibold flex items-center gap-1 shadow-sm">
-                    <span className="material-symbols-outlined text-[11px]">diamond</span> {selectedCustomer.tier}
+                    <Icon name="diamond" className="material-symbols-outlined text-[11px]" /> {selectedCustomer.tier}
                   </span>
                   <span className="font-label-sm text-[11px] text-text-secondary mt-1">{selectedCustomer.tenure}</span>
                 </div>
@@ -842,10 +759,10 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-2">
                   <span className="px-2 py-0.5 rounded bg-surface-subtle text-text-primary font-label-xs-caps text-[10px] font-medium flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[13px] text-status-success">check_circle</span> GSTIN ON FILE
+                    <Icon name="check_circle" className="material-symbols-outlined text-[13px] text-status-success" /> GSTIN ON FILE
                   </span>
                   <span className="px-2 py-0.5 rounded bg-surface-subtle text-text-primary font-label-xs-caps text-[10px] font-medium flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[13px] text-primary-container">cake</span> Birthday: {selectedCustomer.birthday}
+                    <Icon name="cake" className="material-symbols-outlined text-[13px] text-primary-container" /> Birthday: {selectedCustomer.birthday}
                   </span>
                   <span className="px-2 py-0.5 rounded bg-surface-subtle text-text-primary font-label-xs-caps text-[10px] font-medium">
                     {selectedCustomer.address}
@@ -891,7 +808,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
               {/* Wardrobe & Aesthetic DNA Preferences */}
               <div className="space-y-2 pt-1">
                 <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[15px]">checkroom</span> Omnichannel Wardrobe DNA
+                  <Icon name="checkroom" className="material-symbols-outlined text-[15px]" /> Omnichannel Wardrobe DNA
                 </span>
                 <div className="space-y-2 text-xs">
                   <div className="flex items-center justify-between p-2 rounded-lg bg-surface-subtle">
@@ -922,7 +839,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
               <div className="p-3.5 rounded-xl bg-gradient-to-br from-primary-fixed/40 to-surface-subtle space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-primary-container text-[18px]">account_balance_wallet</span>
+                    <Icon name="account_balance_wallet" className="material-symbols-outlined text-primary-container text-[18px]" />
                     <span className="font-headline-sm text-headline-sm text-text-primary font-semibold">
                       Loyalty &amp; Credit Ledger
                     </span>
@@ -1003,7 +920,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
               <div className="p-3 rounded-lg bg-status-warning-bg/40 space-y-1.5 border border-status-warning/20">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-label-xs-caps text-[10px] text-status-warning uppercase tracking-wider font-bold flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">support_agent</span> Dedicated Concierge Note
+                    <Icon name="support_agent" className="material-symbols-outlined text-[14px]" /> Dedicated Concierge Note
                   </span>
                   <span className="text-[10px] text-text-secondary">Assigned: {selectedCustomer.conciergeStylist}</span>
                 </div>
@@ -1019,7 +936,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                   className="w-full h-9 rounded-xl bg-primary-container text-white font-label-md text-label-md font-medium hover:bg-primary shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[17px]">redeem</span>
+                  <Icon name="redeem" className="material-symbols-outlined text-[17px]" />
                   <span>Issue Goodwill Store Credit / Coupon</span>
                 </button>
                 <div className="grid grid-cols-2 gap-2">
@@ -1028,7 +945,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                     className="h-9 px-2 rounded-xl bg-surface-subtle text-text-primary font-label-sm text-label-sm font-medium hover:bg-surface-container-high transition-colors flex items-center justify-center gap-1 cursor-pointer"
                     type="button"
                   >
-                    <span className="material-symbols-outlined text-[16px] text-text-secondary">chat</span>
+                    <Icon name="chat" className="material-symbols-outlined text-[16px] text-text-secondary" />
                     <span>Send WhatsApp</span>
                   </button>
                   <button
@@ -1036,7 +953,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                     className="h-9 px-2 rounded-xl bg-surface-subtle text-text-primary font-label-sm text-label-sm font-medium hover:bg-surface-container-high transition-colors flex items-center justify-center gap-1 cursor-pointer"
                     type="button"
                   >
-                    <span className="material-symbols-outlined text-[16px] text-text-secondary">face_6</span>
+                    <Icon name="face_6" className="material-symbols-outlined text-[16px] text-text-secondary" />
                     <span>Change Stylist</span>
                   </button>
                 </div>
@@ -1048,7 +965,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
           <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm space-y-3 border border-border-subtle">
             <div className="flex items-center justify-between">
               <span className="font-headline-sm text-headline-sm text-text-primary font-semibold">Store Footprint Cross-Over</span>
-              <span className="material-symbols-outlined text-text-secondary text-[18px]">storefront</span>
+              <Icon name="storefront" className="material-symbols-outlined text-text-secondary text-[18px]" />
             </div>
             <p className="font-body-sm text-body-sm text-text-secondary">
               {selectedCustomer.offlineVisits}
@@ -1060,6 +977,6 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

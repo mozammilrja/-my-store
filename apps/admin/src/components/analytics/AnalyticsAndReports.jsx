@@ -1,4 +1,14 @@
 import React, { useState } from 'react';
+import {
+  Icon,
+  Button,
+  Badge,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+} from '../ui';
 import { useDashboardQuery } from '../../hooks/useAdminQueries';
 
 export function AnalyticsAndReports({ onNavigate, onShowToast }) {
@@ -156,231 +166,121 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
   const activeSkuList = skuTab === 'top-margin' ? topMarginSkus : highReturnSkus;
 
   return (
-    <div className="flex flex-col w-full">
-      {/* Editorial Top Breadcrumbs & Micro HUD */}
-      <div className="flex flex-wrap items-center justify-between gap-y-2 mb-4 text-text-secondary">
-        <nav className="flex items-center gap-1.5 font-semibold text-xs tracking-widest text-text-secondary uppercase">
-          <span 
-            className="hover:text-text-primary transition-colors cursor-pointer" 
-            onClick={() => onNavigate && onNavigate('overview')}
-          >
-            Everwear Admin
-          </span>
-          <span>/</span>
-          <span 
-            className="hover:text-text-primary transition-colors cursor-pointer"
-            onClick={() => onNavigate && onNavigate('overview')}
-          >
-            Core
-          </span>
-          <span>/</span>
-          <span className="text-primary-container font-bold">Analytics &amp; Reports</span>
-        </nav>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-subtle text-text-secondary font-semibold text-[10px] tracking-wider">
-            <span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse"></span>
-            MODEL: CLOUD-BIGQUERY-v4.8 • LAST SYNC 2M AGO
-          </div>
-          <span className="text-[10px] text-text-secondary tracking-widest font-semibold">CURRENCY: INR (₹)</span>
-        </div>
-      </div>
-
-      {/* Header Executive Bar with Filter Controls */}
-      <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4 mb-6">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed font-semibold text-[11px] tracking-wider uppercase">
-              Executive Intelligence
-            </span>
-            <span className="text-[11px] text-text-secondary uppercase tracking-widest">
-              FY24-25 Q2 Consolidation
-            </span>
-          </div>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight">
-            Enterprise Fashion Analytics &amp; Revenue Operations
-          </h1>
-          <p className="text-sm text-text-secondary max-w-3xl">
-            Multi-channel unit economics, GMV run-rate, SKU margin performance, and returns neutralization metrics across pan-India warehouses.
-          </p>
-        </div>
-
-        {/* Actions & Date Range Picker */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <div className="flex items-center bg-surface-subtle p-0.5 rounded-xl shadow-sm border border-border-subtle">
-            <button
-              onClick={() => setDateRange('30d')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                dateRange === '30d'
-                  ? 'bg-surface-container-lowest text-text-primary shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-              type="button"
-            >
-              Last 30 Days
-            </button>
-            <button
-              onClick={() => setDateRange('mtd')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                dateRange === 'mtd'
-                  ? 'bg-surface-container-lowest text-text-primary shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-              type="button"
-            >
-              MTD
-            </button>
-            <button
-              onClick={() => setDateRange('q2')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                dateRange === 'q2'
-                  ? 'bg-surface-container-lowest text-text-primary shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-              type="button"
-            >
-              Q2 FY24-25
-            </button>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              className="inline-flex items-center gap-1.5 px-3 py-2 h-9 rounded-xl bg-surface-subtle text-text-primary text-xs font-semibold hover:bg-surface-variant transition-colors shadow-sm border border-border-subtle"
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[16px] text-secondary">calendar_month</span>
-              <span>Apr 24 – May 24, 2024</span>
-              <span className="material-symbols-outlined text-[14px] text-secondary">arrow_drop_down</span>
-            </button>
-            <button
-              onClick={() => onShowToast && onShowToast('Automated Slack & Email digest scheduled for Monday 09:00 IST.')}
-              className="inline-flex items-center gap-1.5 px-3 py-2 h-9 rounded-xl bg-surface-subtle text-text-primary text-xs font-semibold hover:bg-surface-variant transition-colors shadow-sm border border-border-subtle"
-              title="Schedule recurring report digest"
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[16px] text-secondary">schedule_send</span>
-              <span>Schedule</span>
-            </button>
-            <button
-              onClick={handleExportCsv}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 h-9 rounded-xl bg-primary-container text-on-primary text-xs font-semibold hover:bg-tertiary-container transition-all shadow-sm"
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[16px]">download</span>
-              <span>Export CSV</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* KPI Metric Strip (5 Metric Cards, Exact Stitch Pattern) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 mb-6">
-        {/* KPI 1: GMV */}
-        <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between border border-border-subtle">
-          <div className="flex items-start justify-between">
-            <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">
-              Gross Merchandise Value
-            </span>
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success text-[11px] font-bold">
-              <span className="material-symbols-outlined text-[12px]">trending_up</span>+18.4%
-            </span>
-          </div>
-          <div className="my-2">
-            <div className="text-[26px] leading-8 text-text-primary tracking-tight font-bold">₹18.42 Cr</div>
-            <div className="text-[11px] text-text-secondary mt-0.5 font-medium">Run Rate: ₹221 Cr ARR</div>
-          </div>
-          <div className="pt-2 flex items-center justify-between text-text-secondary text-[11px]">
-            <span>Target: ₹17.80 Cr</span>
-            <span className="text-status-success font-semibold">103.5% of Plan</span>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-primary-container via-fashion-magenta to-surface-tint"></div>
-        </div>
-
-        {/* KPI 2: Net Realized Revenue */}
-        <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between border border-border-subtle">
-          <div className="flex items-start justify-between">
-            <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">
-              Net Realized Revenue
-            </span>
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success text-[11px] font-bold">
-              <span className="material-symbols-outlined text-[12px]">trending_up</span>+14.2%
-            </span>
-          </div>
-          <div className="my-2">
-            <div className="text-[26px] leading-8 text-text-primary tracking-tight font-bold">₹14.85 Cr</div>
-            <div className="text-[11px] text-text-secondary mt-0.5 font-medium">Net of GST &amp; RTO Deductions</div>
-          </div>
-          <div className="pt-2 flex items-center justify-between text-text-secondary text-[11px]">
-            <span>Realization Factor</span>
-            <span className="text-text-primary font-semibold">80.6% GMV</span>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-status-success to-primary-container"></div>
-        </div>
-
-        {/* KPI 3: Blended Return Rate */}
-        <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between border border-border-subtle">
-          <div className="flex items-start justify-between">
-            <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">
-              Blended Return Rate
-            </span>
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success text-[11px] font-bold">
-              <span className="material-symbols-outlined text-[12px]">trending_down</span>-1.6%
-            </span>
-          </div>
-          <div className="my-2">
-            <div className="text-[26px] leading-8 text-text-primary tracking-tight font-bold">16.8%</div>
-            <div className="text-[11px] text-text-secondary mt-0.5 font-medium">Ethnic Best-in-Class (11.4%)</div>
-          </div>
-          <div className="pt-2 flex items-center justify-between text-text-secondary text-[11px]">
-            <span>RTO Velocity: 4.2%</span>
-            <span className="text-status-warning font-semibold">Customer: 12.6%</span>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-status-warning via-status-danger to-primary-container"></div>
-        </div>
-
-        {/* KPI 4: CAC vs 12M LTV */}
-        <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between border border-border-subtle">
-          <div className="flex items-start justify-between">
-            <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">
-              CAC vs 12M LTV
-            </span>
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-status-info-bg text-status-info text-[11px] font-bold">
-              11.5x Multiple
-            </span>
-          </div>
-          <div className="my-2">
-            <div className="flex items-baseline gap-2">
-              <span className="text-[26px] leading-8 text-text-primary tracking-tight font-bold">₹420</span>
-              <span className="text-text-secondary text-sm font-medium">/ ₹4,850</span>
+    <PageContainer>
+      <PageHeader
+        breadcrumb="Everwear Admin / Core / Analytics & Reports"
+        title="Enterprise Fashion Analytics & Revenue Operations"
+        badge={<Badge variant="primary">Executive Intelligence • FY24-25 Q2 Consolidation</Badge>}
+        description="Multi-channel unit economics, GMV run-rate, SKU margin performance, and returns neutralization metrics across pan-India warehouses."
+        actions={
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex items-center bg-surface-subtle p-0.5 rounded-xl shadow-sm border border-border-subtle">
+              <button
+                onClick={() => setDateRange('30d')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  dateRange === '30d'
+                    ? 'bg-surface-container-lowest text-text-primary shadow-sm'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+                type="button"
+              >
+                Last 30 Days
+              </button>
+              <button
+                onClick={() => setDateRange('mtd')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  dateRange === 'mtd'
+                    ? 'bg-surface-container-lowest text-text-primary shadow-sm'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+                type="button"
+              >
+                MTD
+              </button>
+              <button
+                onClick={() => setDateRange('q2')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  dateRange === 'q2'
+                    ? 'bg-surface-container-lowest text-text-primary shadow-sm'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+                type="button"
+              >
+                Q2 FY24-25
+              </button>
             </div>
-            <div className="text-[11px] text-text-secondary mt-0.5 font-medium">Payback Period: 38 Days</div>
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                icon="calendar_month"
+              >
+                Apr 24 – May 24, 2024
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onShowToast && onShowToast('Automated Slack & Email digest scheduled for Monday 09:00 IST.')}
+                icon="schedule_send"
+              >
+                Schedule
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleExportCsv}
+                icon="download"
+              >
+                Export CSV
+              </Button>
+            </div>
           </div>
-          <div className="pt-2 flex items-center justify-between text-text-secondary text-[11px]">
-            <span>Repeat Rate</span>
-            <span className="text-primary-container font-semibold">41.8% in 90d</span>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-status-info to-primary-container"></div>
-        </div>
+        }
+      />
 
-        {/* KPI 5: Fulfillment SLA */}
-        <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between border border-border-subtle">
-          <div className="flex items-start justify-between">
-            <span className="text-[11px] font-semibold text-text-secondary tracking-wider uppercase">
-              Fulfillment SLA (24h)
-            </span>
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success text-[11px] font-bold">
-              <span className="material-symbols-outlined text-[12px]">check_circle</span>High Guard
-            </span>
-          </div>
-          <div className="my-2">
-            <div className="text-[26px] leading-8 text-text-primary tracking-tight font-bold">98.4%</div>
-            <div className="text-[11px] text-text-secondary mt-0.5 font-medium">Median Dispatch: 11.2 hrs</div>
-          </div>
-          <div className="pt-2 flex items-center justify-between text-text-secondary text-[11px]">
-            <span>BLR-FC1 SLA: 99.1%</span>
-            <span className="text-text-primary font-semibold">BOM-FC2: 97.8%</span>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-status-success via-status-info to-primary-container"></div>
-        </div>
-      </div>
+      {/* KPI Metric Strip (5 Metric Cards) */}
+      <ContentGrid columns={5}>
+        <StatsCard
+          label="Gross Merchandise Value"
+          value="₹18.42 Cr"
+          change="+18.4%"
+          changeType="positive"
+          icon="trending_up"
+          subtitle="Run Rate: ₹221 Cr ARR (103.5% of Plan)"
+        />
+        <StatsCard
+          label="Net Realized Revenue"
+          value="₹14.85 Cr"
+          change="+14.2%"
+          changeType="positive"
+          icon="trending_up"
+          subtitle="Realization Factor: 80.6% GMV"
+        />
+        <StatsCard
+          label="Blended Return Rate"
+          value="16.8%"
+          change="-1.6%"
+          changeType="positive"
+          icon="trending_down"
+          subtitle="RTO Velocity: 4.2% · Customer: 12.6%"
+        />
+        <StatsCard
+          label="CAC vs 12M LTV"
+          value="₹420 / ₹4,850"
+          change="11.5x Multiple"
+          changeType="neutral"
+          icon="analytics"
+          subtitle="Repeat Rate: 41.8% in 90d"
+        />
+        <StatsCard
+          label="Fulfillment SLA (24h)"
+          value="98.4%"
+          change="High Guard"
+          changeType="positive"
+          icon="check_circle"
+          subtitle="Median Dispatch: 11.2 hrs"
+        />
+      </ContentGrid>
 
       {/* Primary Visual Grid: Multi-Layer Financial Trajectory & Category Share */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
@@ -434,10 +334,10 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
                 </linearGradient>
               </defs>
               {/* Horizontal Guidelines */}
-              <line stroke="#F4F4F5" strokeDasharray="3 3" x1="0" x2="740" y1="20" y2="20" />
-              <line stroke="#F4F4F5" strokeDasharray="3 3" x1="0" x2="740" y1="70" y2="70" />
-              <line stroke="#F4F4F5" strokeDasharray="3 3" x1="0" x2="740" y1="120" y2="120" />
-              <line stroke="#F4F4F5" strokeDasharray="3 3" x1="0" x2="740" y1="170" y2="170" />
+              <line className="stroke-border-subtle" stroke="currentColor" strokeDasharray="3 3" x1="0" x2="740" y1="20" y2="20" />
+              <line className="stroke-border-subtle" stroke="currentColor" strokeDasharray="3 3" x1="0" x2="740" y1="70" y2="70" />
+              <line className="stroke-border-subtle" stroke="currentColor" strokeDasharray="3 3" x1="0" x2="740" y1="120" y2="120" />
+              <line className="stroke-border-subtle" stroke="currentColor" strokeDasharray="3 3" x1="0" x2="740" y1="170" y2="170" />
               {/* GMV Area */}
               <polygon
                 fill="url(#areaGmvGrad)"
@@ -539,7 +439,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
             <div className="relative flex items-center justify-center my-3">
               <svg className="w-44 h-44 -rotate-90" viewBox="0 0 100 100">
                 {/* Background Ring */}
-                <circle cx="50" cy="50" fill="none" r="38" stroke="#F4F4F5" strokeWidth="12" />
+                <circle cx="50" cy="50" fill="none" r="38" className="stroke-border-subtle" stroke="currentColor" strokeWidth="12" />
                 {/* Women's Ethnic: 42% */}
                 <circle
                   cx="50"
@@ -677,7 +577,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
               type="button"
               onClick={() => onShowToast && onShowToast('Channel dimension filters active: Direct, Marketplace, Partner.')}
             >
-              <span className="material-symbols-outlined text-[18px]">tune</span>
+              <Icon name="tune" className="material-symbols-outlined text-[18px]" />
             </button>
           </div>
         </div>
@@ -703,7 +603,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
                 <td className="py-3 px-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-primary-fixed flex items-center justify-center text-primary-container shrink-0">
-                      <span className="material-symbols-outlined text-[18px]">smartphone</span>
+                      <Icon name="smartphone" className="material-symbols-outlined text-[18px]" />
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-text-primary">Mobile App (iOS / Android)</div>
@@ -730,7 +630,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
                 <td className="py-3 px-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-surface-subtle flex items-center justify-center text-text-primary shrink-0 border border-border-subtle">
-                      <span className="material-symbols-outlined text-[18px]">laptop_mac</span>
+                      <Icon name="laptop_mac" className="material-symbols-outlined text-[18px]" />
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-text-primary">Storefront Web (everwear.in)</div>
@@ -757,7 +657,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
                 <td className="py-3 px-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-fashion-magenta/10 flex items-center justify-center text-fashion-magenta shrink-0">
-                      <span className="material-symbols-outlined text-[18px]">storefront</span>
+                      <Icon name="storefront" className="material-symbols-outlined text-[18px]" />
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-text-primary">Myntra Marketplace</div>
@@ -784,7 +684,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
                 <td className="py-3 px-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-status-info-bg flex items-center justify-center text-status-info shrink-0">
-                      <span className="material-symbols-outlined text-[18px]">diamond</span>
+                      <Icon name="diamond" className="material-symbols-outlined text-[18px]" />
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-text-primary">Nykaa Fashion</div>
@@ -813,7 +713,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
         {/* Channel Summary Footer Banner */}
         <div className="mt-4 pt-2 flex flex-col md:flex-row md:items-center justify-between gap-2 text-text-secondary text-[11px] bg-surface-subtle p-3 rounded-xl border border-border-subtle">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary-container text-[16px]">info</span>
+            <Icon name="info" className="material-symbols-outlined text-primary-container text-[16px]" />
             <span>
               Direct app and web traffic drive <strong className="text-text-primary">73.8%</strong> of total CM2 profit pool with zero third-party platform commissions.
             </span>
@@ -854,7 +754,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
               <div>
                 <div className="flex justify-between items-center text-xs mb-1">
                   <span className="font-medium text-text-primary flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-status-danger text-[16px]">straighten</span>
+                    <Icon name="straighten" className="material-symbols-outlined text-status-danger text-[16px]" />
                     Fit &amp; Size Misalignment
                   </span>
                   <span className="font-bold text-text-primary">54.0%</span>
@@ -863,7 +763,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
                   <div className="bg-status-danger h-full" style={{ width: '54%' }}></div>
                 </div>
                 <div className="flex items-center gap-1 mt-1 text-[11px] text-text-secondary">
-                  <span className="material-symbols-outlined text-[13px] text-primary-container">lightbulb</span>
+                  <Icon name="lightbulb" className="material-symbols-outlined text-[13px] text-primary-container" />
                   <span><strong className="text-text-primary">Action:</strong> 3D AR Size recommender ready for deployment on Anarkali Kurta lines.</span>
                 </div>
               </div>
@@ -872,7 +772,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
               <div>
                 <div className="flex justify-between items-center text-xs mb-1">
                   <span className="font-medium text-text-primary flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-status-warning text-[16px]">palette</span>
+                    <Icon name="palette" className="material-symbols-outlined text-status-warning text-[16px]" />
                     Color &amp; Fabric Variation
                   </span>
                   <span className="font-bold text-text-primary">22.0%</span>
@@ -881,7 +781,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
                   <div className="bg-status-warning h-full" style={{ width: '22%' }}></div>
                 </div>
                 <div className="flex items-center gap-1 mt-1 text-[11px] text-text-secondary">
-                  <span className="material-symbols-outlined text-[13px] text-primary-container">lightbulb</span>
+                  <Icon name="lightbulb" className="material-symbols-outlined text-[13px] text-primary-container" />
                   <span><strong className="text-text-primary">Action:</strong> Recalibrate studio lighting specs for pure silk / chanderi batches.</span>
                 </div>
               </div>
@@ -890,7 +790,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
               <div>
                 <div className="flex justify-between items-center text-xs mb-1">
                   <span className="font-medium text-text-primary flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-status-info text-[16px]">local_shipping</span>
+                    <Icon name="local_shipping" className="material-symbols-outlined text-status-info text-[16px]" />
                     Delayed Dispatch / Courier SLA
                   </span>
                   <span className="font-bold text-text-primary">14.0%</span>
@@ -899,7 +799,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
                   <div className="bg-status-info h-full" style={{ width: '14%' }}></div>
                 </div>
                 <div className="flex items-center gap-1 mt-1 text-[11px] text-text-secondary">
-                  <span className="material-symbols-outlined text-[13px] text-primary-container">lightbulb</span>
+                  <Icon name="lightbulb" className="material-symbols-outlined text-[13px] text-primary-container" />
                   <span><strong className="text-text-primary">Action:</strong> Shift Tier-2 East zone deliveries to Bluedart Air priority.</span>
                 </div>
               </div>
@@ -908,7 +808,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
               <div>
                 <div className="flex justify-between items-center text-xs mb-1">
                   <span className="font-medium text-text-primary flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-secondary text-[16px]">broken_image</span>
+                    <Icon name="broken_image" className="material-symbols-outlined text-secondary text-[16px]" />
                     Manufacturing Stitching Defect
                   </span>
                   <span className="font-bold text-text-primary">10.0%</span>
@@ -917,7 +817,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
                   <div className="bg-secondary h-full" style={{ width: '10%' }}></div>
                 </div>
                 <div className="flex items-center gap-1 mt-1 text-[11px] text-text-secondary">
-                  <span className="material-symbols-outlined text-[13px] text-primary-container">lightbulb</span>
+                  <Icon name="lightbulb" className="material-symbols-outlined text-[13px] text-primary-container" />
                   <span><strong className="text-text-primary">Action:</strong> Penalty notice drafted for Surat Vendor Unit #04.</span>
                 </div>
               </div>
@@ -931,7 +831,7 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
               className="w-full py-2 px-3 rounded-xl bg-surface-subtle hover:bg-surface-variant text-text-primary text-xs font-semibold flex items-center justify-center gap-2 transition-colors border border-border-subtle"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px] text-primary-container">verified_user</span>
+              <Icon name="verified_user" className="material-symbols-outlined text-[18px] text-primary-container" />
               <span>Initiate Automated Return Shield Rules</span>
             </button>
           </div>
@@ -1067,11 +967,11 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
             title="Force Data Recalculation"
             type="button"
           >
-            <span className="material-symbols-outlined text-[14px]">refresh</span>
+            <Icon name="refresh" className="material-symbols-outlined text-[14px]" />
           </button>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }
 

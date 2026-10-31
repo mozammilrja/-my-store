@@ -1,5 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Select } from '../ui/select';
+import {
+  Icon,
+  Button,
+  Badge,
+  Select,
+  PageContainer,
+  PageHeader,
+  ContentGrid,
+  StatsCard,
+  StatusBadge,
+} from '../ui';
 import { shipmentList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useShipmentsQuery } from '../../hooks/useAdminQueries';
@@ -118,190 +128,107 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
   };
 
   return (
-    <div className="space-y-space-md w-full">
+    <PageContainer>
       {/* Top Context Header & Actions */}
-      <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-space-md">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span
-              onClick={() => onNavigate && onNavigate('overview')}
-              className="font-label-xs-caps text-label-xs-caps text-text-secondary tracking-wider cursor-pointer hover:text-text-primary transition-colors"
+      <PageHeader
+        breadcrumb={['Everwear Admin', 'Fulfillment & Orders', 'Shipments & Dispatch']}
+        title="Logistics Manifest, Carrier Allocation & Dispatch Operations"
+        badge="FC DOCK: ACTIVE"
+        badgeVariant="success"
+        description="Real-time courier allocation, automated manifest generation, automated AWB tracking, and carrier SLA compliance across primary FC dispatch docks."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast && onShowToast('Generating bulk carrier manifest PDF document...')}
+              className="gap-1.5 shadow-sm"
+              title="Generate Manifest Documentation"
+              type="button"
             >
-              EVERWEAR ADMIN
-            </span>
-            <span className="text-text-secondary text-xs">/</span>
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary tracking-wider">
-              FULFILLMENT &amp; ORDERS
-            </span>
-            <span className="text-text-secondary text-xs">/</span>
-            <span className="font-label-xs-caps text-label-xs-caps text-primary-container font-semibold tracking-wider">
-              SHIPMENTS &amp; DISPATCH
-            </span>
-          </div>
-          <div className="flex items-center gap-space-sm flex-wrap">
-            <h1 className="font-headline-lg text-headline-lg text-text-primary tracking-tight font-semibold">
-              Logistics Manifest, Carrier Allocation &amp; Dispatch Operations
-            </h1>
-            <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">
-              FC DOCK: ACTIVE
-            </span>
-          </div>
-          <p className="font-body-sm text-body-sm text-text-secondary max-w-3xl">
-            Real-time courier allocation, automated manifest generation, automated AWB tracking, and carrier SLA compliance across primary FC dispatch docks.
-          </p>
-        </div>
+              <Icon name="picture_as_pdf" className="material-symbols-outlined text-[16px] text-secondary" />
+              <span>Bulk Manifest (PDF)</span>
+            </Button>
+            <Button
+              variant={isDockScannerMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setIsDockScannerMode(!isDockScannerMode);
+                if (onShowToast) onShowToast(isDockScannerMode ? 'Exited Dock Scanner Mode.' : 'Dispatch Scan Dock Mode active.');
+              }}
+              className="gap-1.5"
+              id="toggle-scanner-mode"
+              type="button"
+            >
+              <Icon name="barcode_scanner" className="material-symbols-outlined text-[16px]" />
+              <span>Dispatch Scan Mode</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onShowToast && onShowToast('Manual consignment wizard opened.')}
+              className="gap-1.5 shadow-sm"
+              type="button"
+            >
+              <Icon name="add_circle" className="material-symbols-outlined text-[16px] text-secondary" />
+              <span>Manual Consignment</span>
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => onShowToast && onShowToast('AI Carrier SLA re-allocation run complete across 892 packages.')}
+              className="gap-1.5 bg-primary-container text-on-primary hover:bg-primary shadow-sm"
+              type="button"
+            >
+              <Icon name="autorenew" className="material-symbols-outlined text-[16px]" />
+              <span>Carrier Re-Allocation</span>
+            </Button>
+          </>
+        }
+      />
 
-        {/* Global CTA Cluster */}
-        <div className="flex flex-wrap items-center gap-space-sm shrink-0">
-          <button
-            onClick={() => onShowToast && onShowToast('Generating bulk carrier manifest PDF document...')}
-            className="h-9 px-3 rounded-xl bg-surface-container-lowest text-text-primary font-label-sm text-label-sm shadow-sm hover:bg-surface-subtle transition-colors flex items-center gap-1.5 cursor-pointer"
-            title="Generate Manifest Documentation"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[17px] text-secondary">picture_as_pdf</span>
-            <span>Bulk Carrier Manifest (PDF)</span>
-          </button>
-          <button
-            onClick={() => {
-              setIsDockScannerMode(!isDockScannerMode);
-              if (onShowToast) onShowToast(isDockScannerMode ? 'Exited Dock Scanner Mode.' : 'Dispatch Scan Dock Mode active.');
-            }}
-            className={`h-9 px-3 rounded-xl font-label-sm text-label-sm transition-colors flex items-center gap-1.5 cursor-pointer ${
-              isDockScannerMode
-                ? 'bg-primary-container text-on-primary shadow-sm'
-                : 'bg-surface-subtle text-text-primary hover:bg-surface-container-high'
-            }`}
-            id="toggle-scanner-mode"
-            title="Toggle Dock Mode"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[17px]">barcode_scanner</span>
-            <span>Dispatch Scan Dock Mode</span>
-          </button>
-          <button
-            onClick={() => onShowToast && onShowToast('Manual consignment wizard opened.')}
-            className="h-9 px-3 rounded-xl bg-surface-container-lowest text-text-primary font-label-sm text-label-sm shadow-sm hover:bg-surface-subtle transition-colors flex items-center gap-1.5 cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[17px] text-secondary">add_circle</span>
-            <span>Manual Consignment</span>
-          </button>
-          <button
-            onClick={() => onShowToast && onShowToast('AI Carrier SLA re-allocation run complete across 892 packages.')}
-            className="h-9 px-3.5 rounded-xl bg-primary-container text-on-primary font-label-sm text-label-sm font-medium hover:bg-tertiary-container shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px]">autorenew</span>
-            <span>Run Carrier SLA Re-Allocation</span>
-          </button>
-        </div>
-      </div>
-
-      {/* KPI Metric Strip (Enterprise Operational Grid) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-space-sm">
-        {/* Stat 1 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between space-y-space-sm relative overflow-hidden group hover:bg-surface-subtle transition-colors border border-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Ready to Dispatch</span>
-            <span className="material-symbols-outlined text-[18px] text-primary-container">package_2</span>
-          </div>
-          <div>
-            <div className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-bold">
-              892 <span className="font-body-sm text-body-sm font-normal text-text-secondary">pkgs</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="inline-block w-2 h-2 rounded-full bg-status-warning"></span>
-              <span className="font-label-xs-caps text-label-xs-caps text-status-warning font-medium">
-                DOCK STAGED • BAYS 1-6
-              </span>
-            </div>
-          </div>
-          <div className="w-full bg-surface-subtle h-1 rounded-full overflow-hidden">
-            <div className="bg-primary-container h-full rounded-full" style={{ width: '78%' }}></div>
-          </div>
-        </div>
-
-        {/* Stat 2 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between space-y-space-sm relative overflow-hidden group hover:bg-surface-subtle transition-colors border border-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">In-Transit Live</span>
-            <span className="material-symbols-outlined text-[18px] text-status-info">local_shipping</span>
-          </div>
-          <div>
-            <div className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-bold">
-              12,400 <span className="font-body-sm text-body-sm font-normal text-text-secondary">active</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-[10px] font-semibold">
-                SLA 99.2% ON-TIME
-              </span>
-            </div>
-          </div>
-          <div className="w-full bg-surface-subtle h-1 rounded-full overflow-hidden">
-            <div className="bg-status-success h-full rounded-full" style={{ width: '99.2%' }}></div>
-          </div>
-        </div>
-
-        {/* Stat 3 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between space-y-space-sm relative overflow-hidden group hover:bg-surface-subtle transition-colors border border-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Out for Delivery</span>
-            <span className="material-symbols-outlined text-[18px] text-fashion-magenta">electric_moped</span>
-          </div>
-          <div>
-            <div className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-bold">
-              3,840 <span className="font-body-sm text-body-sm font-normal text-text-secondary">units</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary">Same-Day / Next-Day Target</span>
-            </div>
-          </div>
-          <div className="w-full bg-surface-subtle h-1 rounded-full overflow-hidden">
-            <div className="bg-fashion-magenta h-full rounded-full" style={{ width: '86%' }}></div>
-          </div>
-        </div>
-
-        {/* Stat 4 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between space-y-space-sm relative overflow-hidden group hover:bg-surface-subtle transition-colors border border-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-status-danger uppercase font-bold">3PL Carrier NDR</span>
-            <span className="material-symbols-outlined text-[18px] text-status-danger">report_problem</span>
-          </div>
-          <div>
-            <div className="font-metric-stat text-metric-stat text-status-danger tracking-tight font-bold">
-              142 <span className="font-body-sm text-body-sm font-normal text-text-secondary">NDR</span>
-            </div>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="px-1.5 py-0.5 rounded-full bg-status-danger-bg text-status-danger font-label-xs-caps text-[10px] font-semibold">
-                1.1% RATE • NEEDS TRIAGE
-              </span>
-            </div>
-          </div>
-          <div className="w-full bg-surface-subtle h-1 rounded-full overflow-hidden">
-            <div className="bg-status-danger h-full rounded-full" style={{ width: '14%' }}></div>
-          </div>
-        </div>
-
-        {/* Stat 5 */}
-        <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between space-y-space-sm relative overflow-hidden group hover:bg-surface-subtle transition-colors border border-border-subtle">
-          <div className="flex items-center justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Manifested Today</span>
-            <span className="material-symbols-outlined text-[18px] text-secondary">verified</span>
-          </div>
-          <div>
-            <div className="font-metric-stat text-metric-stat text-text-primary tracking-tight font-bold">
-              4,210 <span className="font-body-sm text-body-sm font-normal text-text-secondary">AWBs</span>
-            </div>
-            <div className="flex items-center gap-1 mt-1 text-text-secondary font-label-xs-caps text-[10px]">
-              <span className="font-semibold text-text-primary">BLR</span> • BOM • DEL • CCU
-            </div>
-          </div>
-          <div className="w-full bg-surface-subtle h-1 rounded-full overflow-hidden">
-            <div className="bg-primary-container h-full rounded-full" style={{ width: '64%' }}></div>
-          </div>
-        </div>
-      </div>
+      {/* KPI Metric Strip */}
+      <ContentGrid columns={5}>
+        <StatsCard
+          title="Ready to Dispatch"
+          value="892 pkgs"
+          icon="package_2"
+          badge="Bays 1-6"
+          badgeVariant="warning"
+          trendLabel="Dock staged"
+        />
+        <StatsCard
+          title="In-Transit Live"
+          value="12,400 active"
+          icon="local_shipping"
+          iconColor="text-status-info"
+          badge="SLA 99.2%"
+          badgeVariant="success"
+          trendLabel="On-time transit"
+        />
+        <StatsCard
+          title="Out for Delivery"
+          value="3,840 units"
+          icon="electric_moped"
+          iconColor="text-fashion-magenta"
+          trendLabel="Same-Day / Next-Day Target"
+        />
+        <StatsCard
+          title="3PL Carrier NDR"
+          value="142 NDR"
+          icon="report_problem"
+          iconColor="text-status-danger"
+          badge="1.1% Rate"
+          badgeVariant="destructive"
+          trendLabel="Needs Triage"
+        />
+        <StatsCard
+          title="Manifested Today"
+          value="4,210 AWBs"
+          icon="verified"
+          trendLabel="BLR • BOM • DEL • CCU"
+        />
+      </ContentGrid>
 
       {/* Main Split Layout: Left Operational Table (8 cols) + Right Dock Handover Console (4 cols) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
@@ -321,7 +248,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                   }`}
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[16px] text-primary-container">outbox</span>
+                  <Icon name="outbox" className="material-symbols-outlined text-[16px] text-primary-container" />
                   <span>Manifest Queue</span>
                   <span className="px-1.5 py-0.2 rounded-full bg-primary-fixed text-on-primary-fixed text-[10px] font-bold">
                     892
@@ -336,7 +263,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                   }`}
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[16px] text-status-info">radar</span>
+                  <Icon name="radar" className="material-symbols-outlined text-[16px] text-status-info" />
                   <span>In-Transit Radar</span>
                   <span className="px-1.5 py-0.2 rounded-full bg-surface-subtle text-text-secondary text-[10px] font-bold">
                     12.4k
@@ -351,7 +278,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                   }`}
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[16px] text-status-danger">sync_problem</span>
+                  <Icon name="sync_problem" className="material-symbols-outlined text-[16px] text-status-danger" />
                   <span>NDR &amp; Exceptions</span>
                   <span className="px-1.5 py-0.2 rounded-full bg-status-danger-bg text-status-danger text-[10px] font-bold">
                     142
@@ -366,7 +293,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                   title="Refresh Feed"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[18px]">sync</span>
+                  <Icon name="sync" className="material-symbols-outlined text-[18px]" />
                 </button>
                 <button
                   onClick={() => onShowToast && onShowToast('Column layout editor opened.')}
@@ -374,7 +301,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                   title="Column Layout"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[18px]">view_column</span>
+                  <Icon name="view_column" className="material-symbols-outlined text-[18px]" />
                 </button>
               </div>
             </div>
@@ -383,7 +310,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
             <div className="grid grid-cols-1 md:grid-cols-12 gap-space-sm pt-space-xs">
               {/* AWB Search Input */}
               <div className="md:col-span-5 relative">
-                <span className="material-symbols-outlined absolute left-3 top-2.5 text-secondary text-[16px]">search</span>
+                <Icon name="search" className="material-symbols-outlined absolute left-3 top-2.5 text-secondary text-[16px]" />
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -460,7 +387,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                   className="px-2.5 py-1 rounded-lg bg-surface-subtle hover:bg-surface-container-high text-text-primary font-label-xs-caps text-label-xs-caps tracking-wide transition-colors flex items-center gap-1 cursor-pointer"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[14px]">local_printshop</span>
+                  <Icon name="local_printshop" className="material-symbols-outlined text-[14px]" />
                   <span>Print Shipping Labels</span>
                 </button>
                 <button
@@ -468,7 +395,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                   className="px-2.5 py-1 rounded-lg bg-surface-subtle hover:bg-surface-container-high text-text-primary font-label-xs-caps text-label-xs-caps tracking-wide transition-colors flex items-center gap-1 cursor-pointer"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[14px]">assignment_turned_in</span>
+                  <Icon name="assignment_turned_in" className="material-symbols-outlined text-[14px]" />
                   <span>Batch Assign Bay</span>
                 </button>
                 <button
@@ -476,7 +403,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                   className="px-2.5 py-1 rounded-lg bg-primary-container text-on-primary font-label-xs-caps text-label-xs-caps tracking-wide transition-colors flex items-center gap-1 cursor-pointer"
                   type="button"
                 >
-                  <span className="material-symbols-outlined text-[14px]">forklift</span>
+                  <Icon name="forklift" className="material-symbols-outlined text-[14px]" />
                   <span>Fast Handover</span>
                 </button>
               </div>
@@ -530,7 +457,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                         <td className="py-3 px-3">
                           <div className="flex items-start gap-2.5">
                             <div className={`w-8 h-8 rounded-lg ${item.carrierBg} ${item.carrierColor} flex items-center justify-center shrink-0`}>
-                              <span className="material-symbols-outlined text-[18px]">{item.carrierIcon}</span>
+                              <Icon name={item.carrierIcon} className="material-symbols-outlined text-[18px]" />
                             </div>
                             <div className="flex flex-col">
                               <span className="font-label-sm text-label-sm font-semibold text-text-primary tracking-tight">
@@ -554,7 +481,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                               {item.orderId}
                             </span>
                             <span className="text-text-secondary text-xs flex items-center gap-1 mt-0.5">
-                              <span className="material-symbols-outlined text-[13px] text-secondary">location_on</span>
+                              <Icon name="location_on" className="material-symbols-outlined text-[13px] text-secondary" />
                               {item.destination}
                             </span>
                           </div>
@@ -571,11 +498,9 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-1.5">
-                            <span className={`material-symbols-outlined text-[16px] ${
+                            <Icon name={item.slaUrgent ? 'timer' : 'schedule'} className={`material-symbols-outlined text-[16px] ${
                               item.slaUrgent ? 'text-status-danger animate-pulse' : 'text-status-warning'
-                            }`}>
-                              {item.slaUrgent ? 'timer' : 'schedule'}
-                            </span>
+                            }`} />
                             <div className="flex flex-col">
                               <span className={`font-label-sm text-label-sm font-bold ${
                                 item.slaUrgent ? 'text-status-danger' : 'text-status-warning'
@@ -612,7 +537,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                             className="h-8 px-2.5 rounded-lg bg-surface-subtle text-text-primary hover:bg-surface-container-high font-label-xs-caps text-label-xs-caps tracking-wider transition-colors inline-flex items-center gap-1 cursor-pointer"
                             type="button"
                           >
-                            <span className="material-symbols-outlined text-[14px]">barcode_scanner</span>
+                            <Icon name="barcode_scanner" className="material-symbols-outlined text-[14px]" />
                             <span>Scan Handover</span>
                           </button>
                         </td>
@@ -690,7 +615,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                   Carrier Gate Security Verification
                 </span>
                 <span className="flex items-center gap-1 font-label-xs-caps text-[10px] text-status-success font-semibold">
-                  <span className="material-symbols-outlined text-[14px]">verified_user</span> OTP VERIFIED
+                  <Icon name="verified_user" className="material-symbols-outlined text-[14px]" /> OTP VERIFIED
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-text-primary">
@@ -729,7 +654,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
             <div className="p-space-sm rounded-xl bg-surface-subtle space-y-space-sm border border-border-subtle">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[18px] text-primary-container">qr_code_scanner</span>
+                  <Icon name="qr_code_scanner" className="material-symbols-outlined text-[18px] text-primary-container" />
                   <span className="font-label-sm text-label-sm font-semibold text-text-primary">
                     Dock Handover Barcode Reader
                   </span>
@@ -762,9 +687,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
               {/* Barcode Input Simulator */}
               <div className="flex items-center gap-1.5">
                 <div className="relative flex-1">
-                  <span className="material-symbols-outlined absolute left-2.5 top-2 text-text-secondary text-[16px]">
-                    barcode
-                  </span>
+                  <Icon name="barcode" className="material-symbols-outlined absolute left-2.5 top-2 text-text-secondary text-[16px]" />
                   <input
                     value={barcodeInputValue}
                     onChange={(e) => setBarcodeInputValue(e.target.value)}
@@ -788,7 +711,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                 {scannedLogs.map((log, idx) => (
                   <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-surface-container-lowest text-status-success">
                     <div className="flex items-center gap-1 truncate">
-                      <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                      <Icon name="check_circle" className="material-symbols-outlined text-[14px]" />
                       <span className="truncate">Verified: {log.id} ({log.tote})</span>
                     </div>
                     <span className="text-[10px] font-mono shrink-0 text-text-secondary">{log.time}</span>
@@ -846,9 +769,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                 }`}
                 type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">
-                  {isHandoverCompleted ? 'done_all' : 'verified'}
-                </span>
+                <Icon name={isHandoverCompleted ? 'done_all' : 'verified'} className="material-symbols-outlined text-[18px]" />
                 <span>
                   {isHandoverCompleted ? 'Manifest Verified — Gate Pass Issued' : 'Complete Carrier Handover & Issue Gate Pass'}
                 </span>
@@ -858,7 +779,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                 className="w-full h-9 px-4 rounded-xl bg-surface-subtle hover:bg-surface-container-high text-text-primary font-label-sm text-label-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 type="button"
               >
-                <span className="material-symbols-outlined text-[17px] text-secondary">download</span>
+                <Icon name="download" className="material-symbols-outlined text-[17px] text-secondary" />
                 <span>Download Consignment Manifest (CSV/PDF)</span>
               </button>
             </div>
@@ -1055,6 +976,6 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

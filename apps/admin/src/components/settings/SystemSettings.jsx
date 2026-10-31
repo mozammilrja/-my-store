@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Select } from '../ui/select';
+import {
+  Icon,
+  Button,
+  Badge,
+  Select,
+  PageContainer,
+  PageHeader,
+  SectionCard,
+} from '../ui';
 import { adminApi } from '../../lib/api';
 import { useSettingsQuery, useUpdateSettingsMutation } from '../../hooks/useAdminQueries';
 
@@ -65,45 +73,32 @@ export function SystemSettings({ onNavigate, onShowToast }) {
   };
 
   return (
-    <div className="flex flex-col w-full space-y-space-lg">
-      {/* Sub-header & Title Region */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider">
-            <span>EVERWEAR ADMIN</span>
-            <span className="text-border-strong">/</span>
-            <span>SETTINGS & ADMIN</span>
-            <span className="text-border-strong">/</span>
-            <span className="text-primary-container font-semibold">SYSTEM SETTINGS</span>
+    <PageContainer>
+      <PageHeader
+        breadcrumb="EVERWEAR ADMIN / SETTINGS & ADMIN / SYSTEM SETTINGS"
+        title="Enterprise System Configuration & Node Governance"
+        description="Configure national fulfillment clusters, ClearTax statutory sync intervals, Cloudflare CDN edge invalidations, and payment gateway webhooks."
+        actions={
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetDefaults}
+            >
+              Reset Defaults
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveSettings}
+              disabled={isSaving}
+              icon={isSaving ? "hourglass_top" : "save"}
+            >
+              {isSaving ? "Saving..." : "Save Configuration"}
+            </Button>
           </div>
-          <h1 className="font-headline-lg text-headline-lg text-text-primary tracking-tight font-semibold">
-            Enterprise System Configuration & Node Governance
-          </h1>
-          <p className="font-body-sm text-body-sm text-text-secondary max-w-4xl">
-            Configure national fulfillment clusters, ClearTax statutory sync intervals, Cloudflare CDN edge invalidations, and payment gateway webhooks.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={handleResetDefaults}
-            className="h-9 px-3.5 rounded-xl bg-surface-container-lowest text-text-primary border border-border-subtle hover:bg-surface-subtle font-label-sm text-label-sm transition-colors cursor-pointer"
-            type="button"
-          >
-            Reset Defaults
-          </button>
-          <button
-            onClick={handleSaveSettings}
-            disabled={isSaving}
-            className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-label-sm text-label-sm font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[18px]">
-              {isSaving ? 'hourglass_top' : 'save'}
-            </span>
-            <span>{isSaving ? 'Saving...' : 'Save Configuration'}</span>
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Main Settings Tabs & Work Surface */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
@@ -125,7 +120,7 @@ export function SystemSettings({ onNavigate, onShowToast }) {
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-subtle'
               }`}
             >
-              <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+              <Icon name={tab.icon} className="material-symbols-outlined text-[18px]" />
               <span>{tab.label}</span>
             </button>
           ))}
@@ -356,6 +351,6 @@ export function SystemSettings({ onNavigate, onShowToast }) {
           )}
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

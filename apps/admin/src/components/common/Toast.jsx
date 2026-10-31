@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Icon } from '../ui';
 
 export function Toast({ toast, onClose }) {
   useEffect(() => {
@@ -38,7 +39,7 @@ export function Toast({ toast, onClose }) {
   return (
     <div className="fixed bottom-6 right-6 z-50 animate-bounce-short">
       <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border ${bgStyles} min-w-[280px] max-w-md`}>
-        <span className="material-symbols-outlined text-[20px]">{iconName}</span>
+        <Icon name={iconName} className="material-symbols-outlined text-[20px]" />
         <div className="flex-1 text-sm font-medium">
           {title && <div className="font-semibold text-xs uppercase tracking-wider opacity-90">{title}</div>}
           <div className="text-xs leading-relaxed">{message}</div>
@@ -49,7 +50,7 @@ export function Toast({ toast, onClose }) {
           type="button"
           aria-label="Close notification"
         >
-          <span className="material-symbols-outlined text-[16px]">close</span>
+          <Icon name="close" className="material-symbols-outlined text-[16px]" />
         </button>
       </div>
     </div>

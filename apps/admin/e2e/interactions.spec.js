@@ -185,12 +185,12 @@ test("no uncaught errors while moving around and interacting", async ({ page, co
   const entries = watchConsole(page)
 
   await gotoModule(page, "overview")
-  await page.getByRole("button", { name: /^Analytics & Reports/ }).click()
+  await page.getByRole("link", { name: /^Analytics & Reports/ }).click()
   await expect(page.locator("main h1")).toHaveText(/analytics/i)
-  await page.getByRole("button", { name: /^Inventory & Warehouses/ }).click()
+  await page.getByRole("link", { name: /^Inventory & Warehouses/ }).click()
   await expect(page.locator("main h1")).toHaveText(/inventory/i)
   await page.getByRole("button", { name: /^Theme:/ }).click()
-  await page.getByRole("button", { name: /^System Settings/ }).click()
+  await page.getByRole("link", { name: /^System Settings/ }).click()
   await expect(page.locator("main h1")).toHaveText(/setting|governance/i)
 
   expect(entries).toEqual([])

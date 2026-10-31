@@ -1,52 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from '../ui';
 import { BrandMark } from './BrandMark';
+import { NavLink } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import { MENU_SECTIONS } from '../../routes';
+import { useDashboardQuery } from '../../hooks/useAdminQueries';
 import { HUBS } from '../../data/mockData';
 
-const MENU_SECTIONS = [
-  {
-    title: 'Core',
-    items: [
-      { path: 'overview', label: 'Overview', icon: 'dashboard' },
-      { path: 'analytics-and-reports', label: 'Analytics & Reports', icon: 'insights' },
-    ],
-  },
-  {
-    title: 'Catalog & Inventory',
-    items: [
-      { path: 'products', label: 'Products', icon: 'checkroom' },
-      { path: 'categories-and-collections', label: 'Categories & Collections', icon: 'folder_open' },
-      { path: 'inventory-and-warehouses', label: 'Inventory & Warehouses', icon: 'warehouse', badge: '12', badgeTone: 'warning' },
-      { path: 'purchase-orders-and-suppliers', label: 'Purchase Orders', icon: 'local_shipping' },
-    ],
-  },
-  {
-    title: 'Fulfillment & Orders',
-    items: [
-      { path: 'order-management', label: 'Order Management', icon: 'shopping_bag', badge: '84', badgeTone: 'info' },
-      { path: 'returns-and-exchanges', label: 'Returns & Exchanges', icon: 'swap_horizontal_circle', badge: '19', badgeTone: 'warning' },
-      { path: 'shipments-and-dispatch', label: 'Shipments & Dispatch', icon: 'flight_takeoff' },
-    ],
-  },
-  {
-    title: 'Finance & Compliance',
-    items: [
-      { path: 'gst-and-tax-invoices', label: 'GST & Tax Invoices', icon: 'receipt_long' },
-      { path: 'payments-and-reconciliation', label: 'Payments', icon: 'account_balance_wallet' },
-      { path: 'credit-notes-and-refunds', label: 'Credit Notes & Refunds', icon: 'currency_exchange' },
-    ],
-  },
-  {
-    title: 'Settings & Admin',
-    items: [
-      { path: 'customers-and-loyalty', label: 'Customers & Loyalty', icon: 'group' },
-      { path: 'promotions-and-coupons', label: 'Promotions & Coupons', icon: 'sell' },
-      { path: 'users-and-role-access', label: 'Users & Role Access', icon: 'admin_panel_settings' },
-      { path: 'system-settings', label: 'System Settings', icon: 'settings' },
-    ],
-  },
-];
 
 const BADGE_TONES = {
   warning: 'border-status-warning/20 bg-status-warning-bg text-warning',
@@ -65,6 +25,10 @@ export function Sidebar({
   onCloseMobile,
 }) {
   const [hubDropdownOpen, setHubDropdownOpen] = useState(false);
+  // Nav counters come from the same figures the overview reports, so the
+  // sidebar cannot claim a backlog the dashboard disagrees with.
+  const { data: dashboard } = useDashboardQuery();
+  const attention = dashboard?.attention ?? {};
   const hubRef = useRef(null);
 
   useEffect(() => {
@@ -170,13 +134,12 @@ export function Sidebar({
                 <nav aria-label={section.title} className="flex flex-col gap-0.5">
                   {section.items.map((item) => {
                     const isActive = currentPath === item.path;
+                    const badge = item.badgeKey ? attention[item.badgeKey] : undefined;
                     return (
-                      <button
+                      <NavLink
                         key={item.path}
-                        onClick={() => {
-                          onNavigate(item.path);
-                          onCloseMobile?.();
-                        }}
+                        to={`/${item.path}`}
+                        onClick={() => onCloseMobile?.()}
                         aria-current={isActive ? 'page' : undefined}
                         className={cn(
                           'group flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-body transition-colors',
@@ -186,7 +149,6 @@ export function Sidebar({
                             : 'text-muted hover:bg-surface-subtle hover:text-primary'
                         )}
                         title={item.label}
-                        type="button"
                       >
                         <Icon
                           name={item.icon}
@@ -198,7 +160,7 @@ export function Sidebar({
                         {!isCollapsed && (
                           <>
                             <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                            {item.badge && (
+                            {badge > 0 && (
                               <span
                                 className={cn(
                                   'shrink-0 rounded-full border px-1.5 py-px text-micro tabular-nums',
@@ -207,12 +169,12 @@ export function Sidebar({
                                     : BADGE_TONES[item.badgeTone] || BADGE_TONES.info
                                 )}
                               >
-                                {item.badge}
+                                {badge}
                               </span>
                             )}
                           </>
                         )}
-                      </button>
+                      </NavLink>
                     );
                   })}
                 </nav>

@@ -101,7 +101,7 @@ export function watchConsole(page) {
 
 /** Navigates to a module and waits for its content, not just the shell. */
 export async function gotoModule(page, path) {
-  await page.goto(`/#/${path}`, { waitUntil: "load" })
+  await page.goto(`/${path}`, { waitUntil: "load" })
   await expect(page.locator("main h1")).toBeVisible()
   await page.waitForFunction(
     () => !document.querySelector('main [role="status"][aria-busy="true"]'),

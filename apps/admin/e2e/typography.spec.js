@@ -108,7 +108,18 @@ const AUDIT = ([textSizes, iconSizes, weights]) => {
       }
     }
 
-    if (el.scrollWidth > el.clientWidth + 2 && !/auto|scroll|visible/.test(cs.overflowX) && cs.textOverflow !== "ellipsis") {
+    // Visually-hidden text clips on purpose: that is how a screen-reader-only
+    // caption is kept out of the layout. Flagging it would push authors to
+    // delete accessible labels to get the suite green.
+    const screenReaderOnly =
+      el.clientWidth <= 1 || el.clientHeight <= 1 || cs.clip === "rect(0px, 0px, 0px, 0px)"
+
+    if (
+      !screenReaderOnly &&
+      el.scrollWidth > el.clientWidth + 2 &&
+      !/auto|scroll|visible/.test(cs.overflowX) &&
+      cs.textOverflow !== "ellipsis"
+    ) {
       out.clipped.push(`"${text}" ${label(el)}`)
     }
   }

@@ -168,7 +168,7 @@ function AdminLayout() {
         />
 
         <main id="main-content" className="w-full min-h-screen bg-surface-canvas pt-header">
-          <div className="mx-auto w-full max-w-content px-4 py-space-lg md:px-space-xl md:py-space-xl">
+          <div className="w-full px-4 py-space-lg md:px-space-xl md:py-space-xl">
             <Outlet context={outletContext} />
           </div>
         </main>

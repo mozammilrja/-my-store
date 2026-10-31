@@ -32,18 +32,12 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
-import {
-  INITIAL_GST_METRICS,
-  INITIAL_GST_INVOICES,
-  INITIAL_HSN_MASTER,
-  INITIAL_CREDIT_NOTES,
-  INITIAL_EWAY_BILLS
-} from '../../data/mockData';
+import { INITIAL_GST_METRICS, INITIAL_HSN_MASTER, INITIAL_CREDIT_NOTES, INITIAL_EWAY_BILLS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useInvoicesQuery } from '../../hooks/useAdminQueries';
 
 export default function GstInvoiceManagement({ currentHub, onShowToast }) {
-  const [invoices, setInvoices] = useState(INITIAL_GST_INVOICES);
+  const [invoices, setInvoices] = useState([]);
 
   // TanStack Query for GST invoices
   const {
@@ -54,33 +48,87 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
     refetch: refetchInvoices,
   } = useInvoicesQuery();
 
-  useEffect(() => {
-    if (invoicesData?.invoices?.length) {
-      const live = invoicesData.invoices.map(inv => ({
-        id: inv._id,
-        invoiceNo: inv.invoiceNumber,
-        date: new Date(inv.issuedAt).toLocaleDateString(),
-        orderId: `EVR-${inv.displayId}`,
-        customer: inv.customerName,
+  // The register is the invoices the API holds. Field names here are the ones
+  // the table below reads; the mapper used to emit taxableValue/invoiceTotal
+  // while the markup read taxableVal/total, so every real row rendered
+  // undefined and crashed the module.
+  const formatAddress = (a) =>
+    a
+      ? [a.address1, a.address2, a.city, a.province, a.postalCode].filter(Boolean).join(', ')
+      : 'Not recorded';
+
+  const invoiceRows = useMemo(() => {
+    const paise = (n) => Math.round((Number(n) || 0) / 100);
+    return (invoicesData?.invoices ?? []).map((inv) => {
+      const issued = inv.issuedAt ? new Date(inv.issuedAt) : null;
+      const isIgst = (inv.igstTotal ?? 0) > 0;
+      // GST rate is carried per line; the register shows the slab actually charged.
+      const slabs = [...new Set((inv.items ?? []).map((i) => i.gstRate).filter((r) => r != null))];
+      const hsnCodes = [...new Set((inv.items ?? []).map((i) => i.hsn).filter(Boolean))];
+      return {
+        id: inv._id ?? inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        dateTime: issued
+          ? issued.toLocaleString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : 'Not issued',
+        orderRef: `EVR-${inv.displayId}`,
+        customer: inv.customerName ?? 'Guest',
         customerGstin: inv.customerGstin || 'Unregistered',
-        placeOfSupply: `${inv.shippingAddress?.city || 'Karnataka'} (${inv.shippingAddress?.postalCode?.slice(0, 2) || '29'})`,
-        taxableValue: Math.round(inv.subtotal / 100),
-        cgst: Math.round(inv.cgstTotal / 100),
-        sgst: Math.round(inv.sgstTotal / 100),
-        igst: Math.round(inv.igstTotal / 100),
-        totalTax: Math.round((inv.cgstTotal + inv.sgstTotal + inv.igstTotal) / 100),
-        invoiceTotal: Math.round(inv.grandTotal / 100),
-        status: inv.status === 'paid' ? 'Active' : 'Generated',
-        ewayBillStatus: 'Not Required (< ₹50k)',
-        ewayBillNo: null,
-        irnStatus: 'Auto-Generated',
-        hsnSummary: inv.items?.map(i => i.hsn).join(', ') || '6204',
-      }));
-      setInvoices(prev => [...live, ...prev.filter(p => !live.some(l => l.invoiceNo === p.invoiceNo))]);
-    }
+        state: inv.shippingAddress?.province ?? 'Unknown',
+        posBadge: isIgst ? 'Inter-state (IGST)' : 'Intra-state (CGST + SGST)',
+        type: isIgst ? 'IGST' : 'CGST / SGST',
+        slab: slabs.length === 1 ? `${slabs[0]}%` : slabs.length ? 'Mixed' : '-',
+        hsnCode: hsnCodes[0] ?? '-',
+        hsnSummary: hsnCodes.join(', ') || '-',
+        taxableVal: paise(inv.subtotal),
+        cgst: paise(inv.cgstTotal),
+        sgst: paise(inv.sgstTotal),
+        igst: paise(inv.igstTotal),
+        totalTax: paise((inv.cgstTotal ?? 0) + (inv.sgstTotal ?? 0) + (inv.igstTotal ?? 0)),
+        total: paise(inv.grandTotal),
+        status: inv.status,
+        // Named as the line-item table below reads them, in rupees.
+        items: (inv.items ?? []).map((item, idx) => {
+          const taxAmt = paise((item.cgst ?? 0) + (item.sgst ?? 0) + (item.igst ?? 0));
+          const taxable = paise(item.taxableValue);
+          return {
+            id: `${inv._id ?? inv.id}-${idx}`,
+            desc: item.name ?? 'Item',
+            hsn: item.hsn ?? '-',
+            qty: item.quantity ?? 1,
+            taxable,
+            rate: `${item.gstRate ?? 0}%`,
+            taxAmt,
+            total: taxable + taxAmt,
+          };
+        }),
+        isIntra: !isIgst,
+        customerDetail: {
+          name: inv.customerName ?? 'Guest',
+          address: formatAddress(inv.billingAddress),
+          gstin: inv.customerGstin || 'Unregistered',
+        },
+        shipping: {
+          posState: inv.shippingAddress?.province
+            ? `${inv.shippingAddress.province} (PIN ${inv.shippingAddress.postalCode ?? '-'})`
+            : 'Not recorded',
+          address: formatAddress(inv.shippingAddress),
+        },
+      };
+    });
   }, [invoicesData]);
+
+  useEffect(() => {
+    setInvoices(invoiceRows);
+  }, [invoiceRows]);
   const [activeTab, setActiveTab] = useState('invoices'); // invoices, hsn, credit-notes, eway-bills, reconciliation
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState('inv-gst-1');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
 
   // Filters
   const [selectedPeriod, setSelectedPeriod] = useState('May 2024');
@@ -418,10 +466,10 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
         />
       </ContentGrid>
 
-      {/* Dual-Pane Layout: 65% Main Register Table / 35% Full Interactive Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Dual-Pane Layout: register table takes the remaining width, preview is a fixed column */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
         {/* LEFT PANEL: Invoices Register & Sub-tabs */}
-        <div className="lg:col-span-7 xl:col-span-8 flex flex-col space-y-4 min-w-0">
+        <div className="w-full lg:flex-1 lg:min-w-0 flex flex-col space-y-4">
           <Card className="border border-subtle bg-surface-container-lowest overflow-hidden">
             {/* Navigation Sub-Tabs */}
             <div className="px-4 pt-2 bg-surface-container-low/50 flex flex-wrap gap-1 border-b border-subtle">
@@ -861,7 +909,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
         </div>
 
         {/* RIGHT PANEL: E-Invoice IRN & Compliant Tax Invoice Interactive Preview */}
-        <div className="lg:col-span-5 xl:col-span-4 flex flex-col space-y-4">
+        <div className="w-full lg:w-[41.666%] xl:w-[33.333%] lg:max-w-[480px] lg:shrink-0 min-w-0 flex flex-col space-y-4">
           <Card className="border border-subtle bg-surface-container-lowest overflow-hidden shadow-sm">
             {/* Document Action Ribbon */}
             <div className="px-4 py-2 bg-surface-subtle flex items-center justify-between border-b border-subtle">
@@ -934,22 +982,19 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
                 {/* IRN Hash Metadata Box */}
                 <div className="p-2.5 rounded-lg bg-surface-canvas space-y-1 font-mono text-micro text-muted border border-subtle whitespace-nowrap">
-                  <div className="flex justify-between items-center text-primary">
-                    <span className="text-caption uppercase">IRN (Invoice Ref No.):</span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(selectedInvoice.irn, 'IRN')}
-                      className="text-muted hover:text-primary" title="Copy" aria-label="Copy"
-                    >
-                      <Icon name="content_copy" className="material-symbols-outlined text-icon-sm" />
-                    </button>
-                  </div>
-                  <div className="truncate text-micro text-accent">
-                    {selectedInvoice.irn}
-                  </div>
-                  <div className="flex justify-between text-micro pt-1 border-t border-subtle/50">
-                    <span>Ack No: <strong className="text-primary font-mono whitespace-nowrap">{selectedInvoice.ackNo}</strong></span>
-                    <span>Ack Date: <strong className="text-primary">{selectedInvoice.ackDate}</strong></span>
+                  <div className="flex items-start gap-2 text-primary">
+                    <Icon
+                      name="info"
+                      aria-hidden="true"
+                      className="material-symbols-outlined mt-px text-icon-sm text-muted"
+                    />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-caption uppercase">E-invoice registration</span>
+                      <span className="text-micro text-muted">
+                        This invoice has not been registered with the IRP, so it carries no IRN or
+                        acknowledgement number.
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -969,7 +1014,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   </div>
                   <div>
                     <span className="text-caption text-muted block uppercase">Place of Supply</span>
-                    <span className="text-meta font-semibold text-primary">{selectedInvoice.shipping.posState}</span>
+                    <span className="text-meta font-semibold text-primary">{selectedInvoice.shipping?.posState}</span>
                   </div>
                 </div>
 
@@ -977,9 +1022,9 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 <div className="grid grid-cols-2 gap-2 text-micro">
                   <div className="p-2 rounded-lg bg-surface-canvas space-y-1 border border-subtle">
                     <span className="text-caption text-muted uppercase block">Billed To (Customer)</span>
-                    <div className="font-semibold text-primary">{selectedInvoice.customer.name}</div>
-                    <div className="text-muted leading-snug">{selectedInvoice.customer.address}</div>
-                    <div className="text-muted pt-0.5">GSTIN: {selectedInvoice.customer.gstin}</div>
+                    <div className="font-semibold text-primary">{selectedInvoice.customerDetail?.name}</div>
+                    <div className="text-muted leading-snug">{selectedInvoice.customerDetail?.address}</div>
+                    <div className="text-muted pt-0.5">GSTIN: {selectedInvoice.customerDetail?.gstin}</div>
                   </div>
                   <div className="p-2 rounded-lg bg-surface-canvas space-y-1 border border-subtle">
                     <span className="text-caption text-muted uppercase block">Shipped To (Delivery Point)</span>

@@ -288,6 +288,7 @@ export function DataTable({
   toolbar,
   caption,
   stickyHeader = true,
+  maxHeight,
   containerClassName,
   className,
   ...props
@@ -314,7 +315,13 @@ export function DataTable({
 
       <Table
         className={className}
-        containerClassName={cn("max-h-[70vh]", stickyHeader && "overflow-y-auto")}
+        /*
+         * No inner vertical scroller by default. These tables paginate, so a
+         * 70vh box only produced a second scrollbar inside the page's own and
+         * clipped rows that had room to show. A caller that really holds a
+         * long list can still pass one through `maxHeight`.
+         */
+        containerClassName={cn(maxHeight && "overflow-y-auto", maxHeight)}
         {...props}
       >
         {caption && <caption className="sr-only">{caption}</caption>}

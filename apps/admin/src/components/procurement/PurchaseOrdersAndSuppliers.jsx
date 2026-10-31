@@ -21,9 +21,20 @@ import { DataTable, TableToolbar } from '../shared/DataTable';
 import { adminApi } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
 import { usePurchaseOrdersQuery, useCreatePurchaseOrderMutation } from '../../hooks/useAdminQueries';
+import { EmptyState } from '../shared/FeedbackAndOverlays';
+import { SectionCard } from '../shared/Layout';
+
+/** The states a purchase order can really be in. */
+const PO_STATUS = {
+  draft: { label: 'Draft', badge: 'bg-surface-subtle text-muted' },
+  submitted: { label: 'Submitted', badge: 'bg-status-info-bg text-info' },
+  partially_received: { label: 'Partly received', badge: 'bg-status-warning-bg text-warning' },
+  received: { label: 'Received', badge: 'bg-status-success-bg text-success' },
+  canceled: { label: 'Cancelled', badge: 'bg-status-danger-bg text-danger' },
+};
 
 export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
-  const [selectedPoId, setSelectedPoId] = useState('PO-2024-0891');
+  const [selectedPoId, setSelectedPoId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [supplierFilter, setSupplierFilter] = useState('ALL');
   const [targetHubFilter, setTargetHubFilter] = useState('ALL');
@@ -52,30 +63,42 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
 
   useEffect(() => {
     if (posData?.purchaseOrders?.length) {
-      const mapped = posData.purchaseOrders.map(po => ({
-        id: po.poNumber,
-        code: `#${po.poNumber}`,
-        supplier: po.supplierName,
-        vendorCode: 'V-DB-001',
-        origin: `Hub: ${po.hubId}`,
-        orderedDate: new Date(po.createdAt).toLocaleDateString(),
-        promisedDate: po.expectedDate ? new Date(po.expectedDate).toLocaleDateString() : 'Next week',
-        daysNotice: 'On Schedule',
-        noticeColor: 'text-success',
-        qtyPcs: `${po.items.reduce((acc, i) => acc + i.quantity, 0)} pcs`,
-        qtyNum: po.items.reduce((acc, i) => acc + i.quantity, 0),
-        skuBreakdown: `${po.items.length} SKUs`,
-        cost: `₹${(po.totalAmount / 100).toLocaleString()}`,
-        costShort: `₹${(po.totalAmount / 100).toLocaleString()}`,
-        advance: '50% Staged',
-        advanceColor: 'text-success',
-        status: 'In Production',
-        milestone: 'PO Acknowledged',
-        milestoneBadge: 'bg-status-info-bg text-info',
-        milestonePulse: true,
-        stageProgress: 'Stage 1 of 5 (20%)',
-        styles: [],
-      }));
+      const mapped = posData.purchaseOrders.map((po) => {
+        const ordered = po.items.reduce((n, i) => n + i.quantity, 0);
+        const received = po.items.reduce((n, i) => n + (i.received ?? 0), 0);
+        const due = po.expectedDate ? new Date(po.expectedDate) : null;
+        const open = po.status !== 'received' && po.status !== 'canceled';
+        const overdue = Boolean(open && due && due.getTime() < Date.now());
+
+        return {
+          id: po.poNumber,
+          code: `#${po.poNumber}`,
+          supplier: po.supplierName,
+          supplierId: po.supplierId,
+          origin: po.hubId,
+          hubId: po.hubId,
+          orderedDate: new Date(po.createdAt).toLocaleDateString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric',
+          }),
+          promisedDate: due
+            ? due.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+            : null,
+          // Measured against the date the supplier promised, not asserted.
+          daysNotice: !due ? 'No date agreed' : overdue ? 'Overdue' : open ? 'On schedule' : 'Closed',
+          noticeColor: overdue ? 'text-danger' : open ? 'text-success' : 'text-muted',
+          qtyPcs: `${ordered.toLocaleString('en-IN')} pcs`,
+          qtyNum: ordered,
+          receivedNum: received,
+          receivedLabel: ordered > 0 ? `${Math.round((received / ordered) * 100)}% received` : '—',
+          skuBreakdown: `${po.items.length} ${po.items.length === 1 ? 'line' : 'lines'}`,
+          cost: `₹${Math.round(po.totalAmount / 100).toLocaleString('en-IN')}`,
+          costShort: `₹${Math.round(po.totalAmount / 100).toLocaleString('en-IN')}`,
+          status: po.status,
+          statusLabel: PO_STATUS[po.status]?.label ?? po.status,
+          milestoneBadge: PO_STATUS[po.status]?.badge ?? 'bg-surface-subtle text-muted',
+          items: po.items,
+        };
+      });
       setLivePos(mapped);
     }
   }, [posData]);
@@ -394,8 +417,51 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
   ];
 
   const allPos = useMemo(() => {
-    return [...livePos, ...poList.filter(p => !livePos.some(l => l.id === p.id))];
-  }, [livePos, poList]);
+    return livePos;
+  }, [livePos]);
+
+  const poTabs = useMemo(() => {
+    const count = (id) => allPos.filter((p) => p.status === id).length;
+    return [
+      { id: 'ALL', label: 'All', count: allPos.length },
+      ...Object.entries(PO_STATUS)
+        .map(([id, meta]) => ({ id, label: meta.label, count: count(id) }))
+        .filter((t) => t.count > 0),
+    ];
+  }, [allPos]);
+
+  const supplierOptions = useMemo(
+    () => [
+      { value: 'ALL', label: 'All suppliers' },
+      ...[...new Set(allPos.map((p) => p.supplier).filter(Boolean))]
+        .sort()
+        .map((name) => ({ value: name, label: name })),
+    ],
+    [allPos]
+  );
+
+  const hubOptions = useMemo(
+    () => [
+      { value: 'ALL', label: 'All hubs' },
+      ...[...new Set(allPos.map((p) => p.hubId).filter(Boolean))]
+        .sort()
+        .map((hub) => ({ value: hub, label: hub })),
+    ],
+    [allPos]
+  );
+
+  const supplierSpend = useMemo(() => {
+    const byName = new Map();
+    for (const po of allPos) {
+      const row = byName.get(po.supplier) ?? { supplier: po.supplier, total: 0, count: 0 };
+      row.total += Math.round((po.qtyNum > 0 ? 0 : 0) + Number(String(po.costShort).replace(/[^0-9]/g, '')));
+      row.count += 1;
+      byName.set(po.supplier, row);
+    }
+    const rows = [...byName.values()].sort((a, b) => b.total - a.total).slice(0, 8);
+    const max = Math.max(...rows.map((r) => r.total), 1);
+    return rows.map((r) => ({ ...r, share: Math.round((r.total / max) * 100) }));
+  }, [allPos]);
 
   /** The KPI strip, measured off the purchase orders themselves. */
   const poStats = useMemo(() => {
@@ -423,10 +489,10 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
   }, [selectedPoId, allPos]);
 
   const filteredPoList = useMemo(() => {
-    return allPos.filter(p => {
+    return allPos.filter((p) => {
       if (statusFilter !== 'ALL' && p.status !== statusFilter) return false;
-      if (supplierFilter !== 'ALL' && !p.supplier.toLowerCase().includes(supplierFilter.toLowerCase())) return false;
-      if (targetHubFilter !== 'ALL' && !p.origin.toLowerCase().includes(targetHubFilter.toLowerCase())) return false;
+      if (supplierFilter !== 'ALL' && p.supplier !== supplierFilter) return false;
+      if (targetHubFilter !== 'ALL' && p.hubId !== targetHubFilter) return false;
       return true;
     });
   }, [statusFilter, supplierFilter, targetHubFilter, allPos]);
@@ -571,15 +637,12 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
     },
     {
       key: 'milestone',
-      header: 'Milestone Status',
+      header: 'Status',
       cell: (po) => (
-        <span className={`whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-micro font-semibold ${po.milestoneBadge}`}>
-          {po.milestonePulse ? (
-            <span className="w-1.5 h-1.5 rounded-full bg-status-info animate-pulse" />
-          ) : (
-            <Icon name="dock" className="material-symbols-outlined text-icon-sm" />
-          )}
-          {po.milestone}
+        <span
+          className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-micro font-semibold ${po.milestoneBadge}`}
+        >
+          {po.statusLabel}
         </span>
       ),
     },
@@ -675,15 +738,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
 
       {/* Filter Bar & Slicers */}
       <FilterBar
-        tabs={[
-          { id: 'ALL', label: 'All', count: '48' },
-          { id: 'Draft', label: 'Draft', count: '4' },
-          { id: 'Issued', label: 'Issued', count: '8' },
-          { id: 'In Production', label: 'In Production', count: '19' },
-          { id: 'Shipped', label: 'Shipped', count: '7' },
-          { id: 'Inward QC', label: 'Inward QC', count: '6' },
-          { id: 'Closed', label: 'Closed', count: '4' },
-        ]}
+        tabs={poTabs}
         activeTab={statusFilter}
         onTabChange={setStatusFilter}
         filters={
@@ -691,25 +746,13 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
             <FilterDropdown
               value={supplierFilter}
               onChange={setSupplierFilter}
-              options={[
-                { value: 'ALL', label: 'All Suppliers / Mills' },
-                { value: 'Jaipur', label: 'Jaipur Weaves & Prints (RJ)' },
-                { value: 'Tirupur', label: 'Tirupur Knitwear Hub (TN)' },
-                { value: 'Surat', label: 'Surat Synthetic Silks (GJ)' },
-                { value: 'Ludhiana', label: 'Ludhiana Woolens & Blends (PB)' },
-                { value: 'Varanasi', label: 'Varanasi Brocades Guild (UP)' },
-              ]}
+              options={supplierOptions}
               className="w-56"
             />
             <FilterDropdown
               value={targetHubFilter}
               onChange={setTargetHubFilter}
-              options={[
-                { value: 'ALL', label: 'Target Hub: All FCs' },
-                { value: 'BLR', label: 'BLR-Fulfillment-FC1' },
-                { value: 'BOM', label: 'BOM- Bhiwandi-FC2' },
-                { value: 'DEL', label: 'DEL-NCR-FC3' },
-              ]}
+              options={hubOptions}
               className="w-52"
             />
             <Button
@@ -759,7 +802,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                   <Icon name="inventory_2" className="material-symbols-outlined text-icon-md text-accent" />
                   <span className="text-body font-semibold text-primary">Procurement Order Ledger</span>
                   <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-container text-muted text-micro font-semibold">
-                    Showing {filteredPoList.length} of 48 POs
+                    Showing {filteredPoList.length} of {allPos.length}
                   </span>
                 </div>
               }
@@ -778,281 +821,122 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
         />
 
         {/* RIGHT PANE: Selected PO Detailed Inspector (Cols 4) */}
-        <div className="lg:col-span-4 bg-surface-container-lowest rounded-xl shadow-sm p-5 flex flex-col space-y-4 border border-subtle sticky top-20">
-          {/* Panel Header & Supplier Profile */}
-          <div className="flex items-start justify-between border-b border-subtle pb-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
-                  INSPECTOR
+        {!selectedPo ? (
+          <div className="lg:col-span-4">
+            <EmptyState icon="local_shipping" title="No purchase order selected" message="Pick a purchase order from the ledger to inspect it." />
+          </div>
+        ) : (
+          <div className="sticky top-20 flex flex-col gap-space-md lg:col-span-4">
+            {/* The panel carried a vendor code, an advance percentage, a five
+                stage production lifecycle and a GRN discrepancy checker. A
+                purchase order records none of those; it has a supplier, a hub,
+                line items, what was ordered, what has been received and a
+                status. */}
+            <SectionCard
+              title={selectedPo.code}
+              description={`${selectedPo.supplier} / ${selectedPo.hubId}`}
+              action={
+                <span
+                  className={`whitespace-nowrap rounded-full px-2 py-0.5 text-micro font-semibold ${selectedPo.milestoneBadge}`}
+                >
+                  {selectedPo.statusLabel}
                 </span>
-                <span className="text-heading font-semibold text-primary">{selectedPo.code}</span>
-              </div>
-              <p className="text-meta text-muted mt-0.5 font-medium">
-                {selectedPo.supplier} (Vendor Code: {selectedPo.vendorCode})
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Metrics Strip */}
-          <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg bg-surface-subtle border border-subtle">
-            <div className="flex flex-col">
-              <span className="text-caption text-muted uppercase">ORDER VALUE</span>
-              <span className="text-heading font-semibold text-primary">{selectedPo.costShort}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-caption text-muted uppercase">QTY LOT</span>
-              <span className="text-heading font-semibold text-primary">{selectedPo.qtyPcs}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-caption text-muted uppercase">PAY STATUS</span>
-              <span className="text-meta font-semibold text-success mt-1">{selectedPo.advance}</span>
-            </div>
-          </div>
-
-          {/* Fabric / Garment Style Breakdown */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-caption text-muted uppercase">Fabric &amp; Style Breakdown</span>
-              <span className="text-micro text-muted">{selectedPo.styles.length} Line Items</span>
-            </div>
-            {(selectedPo.styles ?? []).map((style, sIdx) => (
-              <div
-                key={sIdx}
-                className="p-3 rounded-lg bg-surface-canvas flex items-center justify-between gap-2 hover:shadow-sm transition-shadow border border-subtle"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Thumbnail src={style.img} alt={style.name} className="w-12 h-14 rounded-md shrink-0 shadow-sm" imgClassName="object-cover" />
-                  <div className="flex flex-col truncate">
-                    <span className="text-meta font-semibold text-primary truncate">{style.name}</span>
-                    <span className="text-micro text-muted font-semibold">{style.sku}</span>
-                    <span className="text-micro text-muted truncate">{style.fabric}</span>
-                  </div>
+              }
+            >
+              <dl className="flex flex-col gap-space-sm">
+                <div className="flex items-center justify-between gap-space-md">
+                  <dt className="text-meta text-muted">Ordered</dt>
+                  <dd className="text-body text-primary">{selectedPo.orderedDate}</dd>
                 </div>
-                <div className="flex flex-col text-right shrink-0">
-                  <span className="text-meta font-semibold text-primary">{style.pcs}</span>
-                  <span className="text-micro text-muted font-semibold">{style.unitCost}</span>
+                <div className="flex items-center justify-between gap-space-md">
+                  <dt className="text-meta text-muted">Promised</dt>
+                  <dd className="text-body text-primary">
+                    {selectedPo.promisedDate ?? <span className="text-faint">No date agreed</span>}
+                  </dd>
                 </div>
-              </div>
-            ))}
-          </div>
+                <div className="flex items-center justify-between gap-space-md">
+                  <dt className="text-meta text-muted">Delivery</dt>
+                  <dd className={`text-body ${selectedPo.noticeColor}`}>{selectedPo.daysNotice}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-space-md border-t border-subtle pt-space-sm">
+                  <dt className="text-body font-semibold text-primary">Order value</dt>
+                  <dd className="text-num font-semibold tabular-nums text-primary">
+                    {selectedPo.costShort}
+                  </dd>
+                </div>
+              </dl>
+            </SectionCard>
 
-          {/* Production Milestone Tracker */}
-          <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between">
-              <span className="text-caption text-muted uppercase">
-                Production Lifecycle Milestone
-              </span>
-              <span className="text-micro text-accent font-semibold">{selectedPo.stageProgress}</span>
-            </div>
-            {/* Milestone Stepper Vertical */}
-            <div className="relative pl-6 space-y-3.5 pt-1">
-              {/* Continuous Track Line */}
-              <div className="absolute left-2.5 top-2 bottom-2 w-0.5 bg-surface-container"></div>
-              {(selectedPo.steps ?? []).length === 0 && (
-                <span className="text-micro text-muted">
-                  No milestone history recorded for this purchase order.
-                </span>
-              )}
-              {(selectedPo.steps ?? []).map((st, sIdx) => {
-                const isCompleted = st.status === 'completed';
-                const isCurrent = st.status === 'current';
-
-                return (
-                  <div key={sIdx} className="relative flex items-center justify-between group">
-                    {isCompleted ? (
-                      <div className="whitespace-nowrap absolute -left-6 w-5 h-5 rounded-full bg-status-success-solid text-on-accent flex items-center justify-center shadow-sm">
-                        <Icon name="check" className="material-symbols-outlined text-icon-sm" />
-                      </div>
-                    ) : isCurrent ? (
-                      <div className="whitespace-nowrap absolute -left-6 w-5 h-5 rounded-full bg-primary-container text-on-accent flex items-center justify-center ring-4 ring-primary-fixed shadow-md">
-                        <span className="w-2 h-2 rounded-full bg-on-primary animate-ping"></span>
-                      </div>
-                    ) : (
-                      <div className="whitespace-nowrap absolute -left-6 w-5 h-5 rounded-full bg-surface-container text-muted flex items-center justify-center">
-                        <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
-                      </div>
-                    )}
-                    <div>
-                      <p className={`text-meta font-semibold ${isCurrent ? 'text-accent' : 'text-primary'}`}>
-                        {st.title}
-                      </p>
-                      <p className="text-micro text-muted">{st.desc}</p>
+            <SectionCard
+              title="Line items"
+              description={`${selectedPo.receivedNum.toLocaleString('en-IN')} of ${selectedPo.qtyNum.toLocaleString('en-IN')} units received`}
+            >
+              <ul className="flex flex-col gap-space-sm">
+                {selectedPo.items.map((item, idx) => (
+                  <li key={`${item.sku}-${idx}`} className="flex items-start justify-between gap-space-md">
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-body text-primary" title={item.name}>
+                        {item.name}
+                      </span>
+                      <span className="font-mono text-micro text-muted">{item.sku}</span>
                     </div>
-                    <span className={`text-micro font-semibold ${isCompleted ? 'text-success' : isCurrent ? 'text-accent' : 'text-muted'}`}>
-                      {st.date}
+                    <div className="flex shrink-0 flex-col items-end">
+                      <span className="text-num tabular-nums text-primary">
+                        {item.received} / {item.quantity}
+                      </span>
+                      <span className="text-micro text-muted">
+                        ₹{Math.round(item.unitCost / 100).toLocaleString('en-IN')} each
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
+          </div>
+        )}
+      </div>
+
+      <SectionCard
+        title="Suppliers by order value"
+        description="Totalled from the purchase orders raised with each supplier."
+      >
+        {supplierSpend.length === 0 ? (
+          <EmptyState
+            icon="store"
+            title="No purchase orders yet"
+            message="Suppliers appear here once an order is raised with them."
+          />
+        ) : (
+          <ul className="flex flex-col gap-space-sm">
+            {supplierSpend.map((row) => (
+              <li key={row.supplier} className="flex flex-col gap-1">
+                <div className="flex items-baseline justify-between gap-space-md">
+                  <span className="truncate text-body text-primary" title={row.supplier}>
+                    {row.supplier}
+                  </span>
+                  <span className="shrink-0 text-num tabular-nums text-secondary">
+                    ₹{row.total.toLocaleString('en-IN')}
+                    <span className="ml-2 text-meta text-muted">
+                      {row.count} {row.count === 1 ? 'order' : 'orders'}
                     </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Goods Receipt Note (GRN) & Discrepancy Tolerance Summary */}
-          <div className="p-3.5 rounded-lg bg-surface-subtle space-y-2 border border-subtle">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Icon name="fact_check" className="material-symbols-outlined text-icon text-accent" />
-                <span className="text-meta font-semibold text-primary">GRN Intake &amp; Discrepancy Checker</span>
-              </div>
-              <span className={`px-1.5 py-0.5 rounded text-micro font-semibold ${(selectedPo.grnSummary?.toleranceColor ?? 'bg-surface-subtle text-muted')}`}>
-                {(selectedPo.grnSummary?.tolerance ?? 'Not recorded')}
-              </span>
-            </div>
-            <div className="space-y-1 text-meta">
-              <div className="flex items-center justify-between text-muted font-medium">
-                <span>Ordered Quantity:</span>
-                <span className="font-semibold text-primary">{(selectedPo.grnSummary?.orderedQty ?? 'Not recorded')}</span>
-              </div>
-              <div className="flex items-center justify-between text-muted font-medium">
-                <span>Pre-Dispatch Mill Count:</span>
-                <span className="font-semibold text-primary">{(selectedPo.grnSummary?.millCount ?? 'Not recorded')}</span>
-              </div>
-              <div className="flex items-center justify-between text-muted font-medium">
-                <span>Allowed Variation Limit:</span>
-                <span className="font-semibold text-primary">{(selectedPo.grnSummary?.limit ?? 'Not recorded')}</span>
-              </div>
-              <div className="flex items-center justify-between text-muted font-medium">
-                <span>Barcoding Status:</span>
-                <span className="font-semibold text-success">{(selectedPo.grnSummary?.barcoding ?? 'Not recorded')}</span>
-              </div>
-            </div>
-            <div className="pt-2 border-t border-subtle flex items-center justify-between">
-              <span className="text-micro font-semibold text-muted">Quality Inward Slip: {(selectedPo.grnSummary?.docket ?? 'Not recorded')}</span>
-            </div>
-          </div>
-
-          {/* Inspector Footer Action Suite */}
-          <div className="flex items-center gap-2 pt-1">
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Secondary Section: Supplier SLA Performance & Cluster Matrix */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
-        {/* Card 1: Mill SLA Leaderboard */}
-        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between border border-subtle">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Icon name="military_tech" className="material-symbols-outlined text-icon-md text-accent" />
-                <span className="text-body font-semibold text-primary">Top Performing Mill Partners</span>
-              </div>
-              <span className="text-caption text-muted uppercase">May 2024</span>
-            </div>
-            <div className="mt-3 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-meta font-semibold text-primary">Tirupur Knitwear Hub</span>
-                  <span className="text-micro text-muted">99.4% On-Time Fulfillment</span>
+                  </span>
                 </div>
-                <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
-                  Tier-1 Star
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-meta font-semibold text-primary">Jaipur Weaves &amp; Prints</span>
-                  <span className="text-micro text-muted">98.1% Quality Grade-A Pass</span>
+                <div
+                  className="h-1.5 w-full overflow-hidden rounded-full bg-surface-subtle"
+                  role="progressbar"
+                  aria-valuenow={row.share}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`${row.supplier}: ${row.share}% of purchase order value`}
+                  title={`${row.share}% of all purchase order value`}
+                >
+                  <div className="h-full rounded-full bg-primary-container" style={{ width: `${row.share}%` }} />
                 </div>
-                <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
-                  Tier-1 Certified
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-meta font-semibold text-primary">Bhilwara TexCraft Co.</span>
-                  <span className="text-micro text-muted">97.8% Compliance Rate</span>
-                </div>
-                <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
-                  Tier-2 Active
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: Fabric Material Intake Allocation */}
-        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between border border-subtle">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Icon name="pie_chart" className="material-symbols-outlined text-icon-md text-accent" />
-                <span className="text-body font-semibold text-primary">Material Allocation Mix</span>
-              </div>
-              <span className="text-caption text-muted uppercase">Current Pipeline</span>
-            </div>
-            {/* Material progress bars */}
-            <div className="mt-3 space-y-2">
-              <div>
-                <div className="flex justify-between text-micro mb-1 font-semibold">
-                  <span className="text-primary font-medium">Mulberry &amp; Chanderi Silks</span>
-                  <span className="text-muted">42% (₹1.61 Cr)</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-                  <div className="whitespace-nowrap bg-primary-container h-full w-[42%] rounded-full"></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-micro mb-1 font-semibold">
-                  <span className="text-primary font-medium">Combed Compact Cotton</span>
-                  <span className="text-muted">31% (₹1.19 Cr)</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-                  <div className="whitespace-nowrap bg-status-info h-full w-[31%] rounded-full"></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-micro mb-1 font-semibold">
-                  <span className="text-primary font-medium">Merino &amp; Cashmere Blends</span>
-                  <span className="text-muted">18% (₹0.69 Cr)</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-                  <div className="whitespace-nowrap bg-status-warning h-full w-[18%] rounded-full"></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-micro mb-1 font-semibold">
-                  <span className="text-primary font-medium">Sustainable Viscose / Modal</span>
-                  <span className="text-muted">9% (₹0.35 Cr)</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-                  <div className="whitespace-nowrap bg-status-success h-full w-[9%] rounded-full"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <span className="text-micro font-semibold text-muted mt-2">Zero AZO-dye &amp; REACH certified sourcing</span>
-        </div>
-
-        {/* Card 3: Quality Defect Hotspot Warning */}
-        <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm flex flex-col justify-between border border-subtle">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Icon name="report" className="material-symbols-outlined text-icon-md text-warning" />
-                <span className="text-body font-semibold text-primary">QC Dock Defect Watch</span>
-              </div>
-              <span className="px-1.5 py-0.5 rounded bg-status-warning-bg text-warning text-micro font-semibold">
-                Active Monitor
-              </span>
-            </div>
-            <div className="mt-3 p-3 rounded-lg bg-status-warning-bg space-y-1.5 border border-status-warning/30">
-              <div className="flex items-center gap-1.5 text-warning">
-                <Icon name="priority_high" className="material-symbols-outlined text-icon" />
-                <span className="text-meta font-semibold">Surat Synthetics: Weft Skewing</span>
-              </div>
-              <p className="text-meta text-primary leading-tight font-medium">
-                Batch #PO-2024-0879 flagged with 1.8% weft skew on poly-georgette roll 4. Pre-shipment sample quarantined for third-party lab tear test.
-              </p>
-            </div>
-            <div className="flex items-center justify-between mt-3 text-meta">
-              <span className="text-muted font-medium">Escalation Assigned:</span>
-              <span className="font-semibold text-primary">Vikram Patel (QC Lead)</span>
-            </div>
-          </div>
-        </div>
-      </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
 
       {/* Create Purchase Order Modal */}
       {isCreatePoModalOpen && (

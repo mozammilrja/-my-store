@@ -9,6 +9,7 @@ const baseURL = process.env.ADMIN_E2E_BASE_URL ?? "http://localhost:7001"
  */
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.js",
   timeout: 90_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,

@@ -26,17 +26,16 @@ import { useNavigate } from 'react-router-dom';
 
 export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
   const navigate = useNavigate();
-  const table = useServerTable();
-  const [activeSegment, setActiveSegment] = useState('all'); // 'all', 'vip', 'dormant'
+  // Segment and city are asked of the API. Filtering them here meant filtering
+  // one page: a segment whose members all sat on page two came back empty.
+  const table = useServerTable({ filters: { segment: 'all', city: 'all' } });
+  const activeSegment = table.filters.segment;
+  const setActiveSegment = (value) => table.setFilter('segment', value);
+  const cityFilter = table.filters.city;
+  const setCityFilter = (value) => table.setFilter('city', value);
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const searchQuery = table.search;
   const setSearchQuery = table.setSearch;
-  const [tierFilter, setTierFilter] = useState('ALL');
-  const [cityFilter, setCityFilter] = useState('ALL');
-  const [activeFilters, setActiveFilters] = useState([
-    { id: 'f-tier', label: 'VIP Club Couture' },
-    { id: 'f-ret', label: 'Return Rate < 10%' }
-  ]);
   const [dbCustomers, setDbCustomers] = useState([]);
   const [customerOrders, setCustomerOrders] = useState([]);
 
@@ -49,9 +48,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
     refetch: refetchCustomers,
   } = useCustomersQuery(table.params, { placeholderData: (prev) => prev });
 
-  // The table is paged server-side, so the strip above it cannot be counted
-  // from one page. This pulls the roll the figures are measured over.
-  const { data: rollData } = useCustomersQuery({ limit: 100 });
+
   const targetDbCustomerId = selectedCustomerId?.startsWith('cus_') ? selectedCustomerId : null;
   const { data: singleCustomerData } = useCustomerQuery(targetDbCustomerId);
 
@@ -69,21 +66,19 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
     }
   }, [singleCustomerData, targetDbCustomerId]);
 
-  /** Counted over the customer roll, not over one page of the table. */
+  /** The API reports each segment's size over the whole base, so the strip
+      above the table is exact rather than a sample of the current page. */
   const rollStats = useMemo(() => {
-    const roll = rollData?.customers ?? [];
-    const total = rollData?.count ?? roll.length;
-    const ordered = roll.filter((c) => (c.orderCount ?? 0) > 0);
-    const repeat = roll.filter((c) => (c.orderCount ?? 0) > 1);
+    const counts = customersData?.segmentCounts;
+    if (!counts) return { total: 0, ordered: 0, repeatRate: null, basis: 'Loading' };
+    const ordered = (counts.repeat ?? 0) + (counts.ordered ?? 0);
     return {
-      ordered: ordered.length,
-      repeatRate: ordered.length ? (repeat.length / ordered.length) * 100 : null,
-      basis:
-        roll.length < total
-          ? `Of the ${roll.length} most recent of ${total}`
-          : `Of ${roll.length} accounts on record`,
+      total: counts.all ?? 0,
+      ordered,
+      repeatRate: ordered ? ((counts.repeat ?? 0) / ordered) * 100 : null,
+      basis: `Of ${counts.all ?? 0} accounts on record`,
     };
-  }, [rollData]);
+  }, [customersData]);
 
   const mergedCustomers = useMemo(() => {
     const fromDb = dbCustomers.map((c, idx) => {
@@ -144,24 +139,33 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
     return mergedCustomers.find(c => c.id === selectedCustomerId) || mergedCustomers[0];
   }, [mergedCustomers, selectedCustomerId]);
 
-  // Search and paging are applied by the API. Segment and tier read the
-  // customer's real order count, so they stay client-side over the page.
-  const filteredCustomers = useMemo(() => {
-    return mergedCustomers.filter((c) => {
-      const orders = c.orderCount ?? 0;
-      if (activeSegment === 'vip' && orders < 3) return false;
-      if (activeSegment === 'dormant' && orders !== 0) return false;
+  // Search, segment, city and paging are all applied by the API now, so the
+  // rows it returns are the rows to show.
+  const filteredCustomers = mergedCustomers;
 
-      if (tierFilter === 'vip' && orders < 3) return false;
-      if (tierFilter === 'gold' && (orders === 0 || orders >= 3)) return false;
-      if (tierFilter === 'new' && orders !== 0) return false;
+  /** The segment pills: what each one asks, and how many it holds. */
+  const SEGMENTS = [
+    { id: 'all', label: 'All customers' },
+    { id: 'repeat', label: 'Repeat buyers', dot: 'bg-primary-container' },
+    { id: 'ordered', label: 'One order only', dot: 'bg-status-success' },
+    { id: 'none', label: 'Never ordered' },
+  ];
+  const segmentCounts = customersData?.segmentCounts ?? {};
+  const cityOptions = customersData?.cities ?? [];
 
-      if (cityFilter !== 'ALL' && !String(c.geo || '').toLowerCase().includes(cityFilter.toLowerCase())) {
-        return false;
-      }
-      return true;
-    });
-  }, [mergedCustomers, activeSegment, tierFilter, cityFilter]);
+  /** Chips for the filters that are really on, each one clearable. */
+  const activeFilters = [
+    ...(activeSegment !== 'all'
+      ? [{ id: 'segment', label: SEGMENTS.find((x) => x.id === activeSegment)?.label ?? activeSegment }]
+      : []),
+    ...(cityFilter !== 'all' ? [{ id: 'city', label: cityFilter }] : []),
+    ...(searchQuery.trim() ? [{ id: 'search', label: `"${searchQuery.trim()}"` }] : []),
+  ];
+  const removeFilter = (id) => {
+    if (id === 'segment') setActiveSegment('all');
+    if (id === 'city') setCityFilter('all');
+    if (id === 'search') setSearchQuery('');
+  };
 
 
   /** Writes the customers currently listed, as the operator sees them. */
@@ -185,17 +189,10 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
     });
   };
 
-  const removeFilter = (id) => {
-    setActiveFilters(prev => prev.filter(f => f.id !== id));
-    if (onShowToast) onShowToast('Filter removed.');
-  };
-
   const clearAllFilters = () => {
-    setActiveFilters([]);
     setSearchQuery('');
-    setTierFilter('ALL');
-    setCityFilter('ALL');
-    setLtvFilter('ALL');
+    setActiveSegment('all');
+    setCityFilter('all');
     if (onShowToast) onShowToast('All filters cleared.');
   };
 
@@ -359,7 +356,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
       <ContentGrid columns={5}>
         <StatsCard
           label="Total customers"
-          value={customersData?.count ?? mergedCustomers.length}
+          value={rollStats.total || mergedCustomers.length}
           icon="groups"
           subtitle="Accounts on record"
         />
@@ -400,83 +397,32 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
           {/* Segment Navigation Pills */}
           <div className="bg-surface-container-lowest rounded-xl p-1.5 shadow-sm flex items-center justify-between gap-1 overflow-x-auto no-scrollbar">
             <div className="flex items-center gap-1 min-w-max">
-              <button
-                onClick={() => setActiveSegment('all')}
-                className={`px-3.5 py-1.5 rounded-lg text-label font-semibold flex items-center gap-2 transition-all cursor-pointer ${
- activeSegment === 'all'
- ? 'bg-primary-container text-on-accent shadow-sm'
- : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-                type="button"
-              >
-                <span>All Customers</span>
-                <span className={`px-1.5 py-px rounded-full text-micro ${
- activeSegment === 'all' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
- }`}>
-                  {customersData?.count ?? mergedCustomers.length}
-                </span>
-              </button>
-              <button
-                onClick={() => setActiveSegment('vip')}
-                className={`px-3.5 py-1.5 rounded-lg text-label font-medium flex items-center gap-2 transition-all cursor-pointer ${
- activeSegment === 'vip'
- ? 'bg-primary-container text-on-accent shadow-sm'
- : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-                type="button"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
-                <span>VIP Club Couture</span>
-                <span className="px-1.5 py-px rounded-full bg-surface-subtle text-muted text-micro">
-                  4,820
-                </span>
-              </button>
-              <button
-                onClick={() => setActiveSegment('risk')}
-                className={`px-3.5 py-1.5 rounded-lg text-label font-medium flex items-center gap-2 transition-all cursor-pointer ${
- activeSegment === 'risk'
- ? 'bg-primary-container text-on-accent shadow-sm'
- : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-                type="button"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-status-danger"></span>
-                <span>High Return Risk</span>
-                <span className="px-1.5 py-px rounded-full bg-status-danger-bg text-danger text-micro">
-                  890
-                </span>
-              </button>
-              <button
-                onClick={() => setActiveSegment('dormant')}
-                className={`px-3.5 py-1.5 rounded-lg text-label font-medium flex items-center gap-2 transition-all cursor-pointer ${
- activeSegment === 'dormant'
- ? 'bg-primary-container text-on-accent shadow-sm'
- : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-                type="button"
-              >
-                <span>Dormant Reactivation</span>
-                <span className="px-1.5 py-px rounded-full bg-surface-subtle text-muted text-micro">
-                  12,400
-                </span>
-              </button>
-              <button
-                onClick={() => {
-                  setActiveSegment('rfm');
-                  if (onShowToast) onShowToast('RFM 3D matrix filter activated.');
-                }}
-                className={`px-3.5 py-1.5 rounded-lg text-label font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
- activeSegment === 'rfm'
- ? 'bg-primary-container text-on-accent shadow-sm'
- : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-                type="button"
-              >
-                <Icon name="pie_chart" className="material-symbols-outlined text-icon" />
-                <span>RFM Segments</span>
-              </button>
-            </div>
-            <div className="hidden sm:flex items-center gap-1 shrink-0 pl-2">
+              {SEGMENTS.map((seg) => (
+                <button
+                  key={seg.id}
+                  onClick={() => setActiveSegment(seg.id)}
+                  className={`px-3.5 py-1.5 rounded-lg text-label font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                    activeSegment === seg.id
+                      ? 'bg-primary-container text-on-accent shadow-sm'
+                      : 'text-muted hover:text-primary hover:bg-surface-subtle'
+                  }`}
+                  type="button"
+                >
+                  {seg.dot && <span className={`w-1.5 h-1.5 rounded-full ${seg.dot}`} />}
+                  <span className="whitespace-nowrap">{seg.label}</span>
+                  {segmentCounts[seg.id] != null && (
+                    <span
+                      className={`px-1.5 py-px rounded-full text-micro ${
+                        activeSegment === seg.id
+                          ? 'bg-scrim/25 text-on-accent'
+                          : 'bg-surface-subtle text-muted'
+                      }`}
+                    >
+                      {segmentCounts[seg.id]}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -491,31 +437,21 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                 label="Search customers"
                 className="min-w-[15rem] flex-1"
               />
-              <div className="min-w-[11rem]">
-                <Select
-                  value={tierFilter}
-                  onChange={(e) => setTierFilter(e.target.value)}
-                  className="h-9"
-                >
-                  <option value="ALL">All Tiers</option>
-                  <option value="vip">VIP Club Couture (Tier 1)</option>
-                  <option value="gold">Gold Atelier (Tier 2)</option>
-                  <option value="silver">Silver Silk (Tier 3)</option>
-                  <option value="new">New Shopper</option>
-                </Select>
-              </div>
               <div className="min-w-[10.5rem]">
+                {/* The cities the API reports as being on file, so every choice
+                    returns rows. The five fixed names here before matched the
+                    addresses only by coincidence. */}
                 <Select
                   value={cityFilter}
                   onChange={(e) => setCityFilter(e.target.value)}
                   className="h-9"
                 >
-                  <option value="ALL">City / Region</option>
-                  <option value="Mumbai">Mumbai, MH</option>
-                  <option value="Bengaluru">Bengaluru, KA</option>
-                  <option value="Delhi">Delhi, NCR</option>
-                  <option value="Kolkata">Kolkata, WB</option>
-                  <option value="Chennai">Chennai, TN</option>
+                  <option value="all">All cities</option>
+                  {cityOptions.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
                 </Select>
               </div>
             </div>
@@ -578,47 +514,40 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
             }}
           />
 
-          {/* Segment Quick-Actions & Cohort Intelligence Widget (2 Bottom Cards) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
-            {/* Widget 1 */}
-            <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm space-y-3 border border-subtle">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Icon name="verified" className="material-symbols-outlined text-accent text-icon-md" />
-                  <span className="text-subheading text-primary font-semibold">Tier Migration Matrix</span>
-                </div>
-                <span className="text-caption text-muted">Q2 Run-rate</span>
+          {/* How often customers order, counted across the whole roll. The two
+              widgets here before quoted a tier-migration pipeline and a return
+              triage queue; neither tiers nor per-customer return rates exist. */}
+          <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm space-y-3 border border-subtle">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Icon name="verified" className="material-symbols-outlined text-accent text-icon-md" />
+                <span className="text-subheading text-primary font-semibold">Order frequency</span>
               </div>
-              <p className="text-body text-secondary">
-                184 Silver Silk members are within ₹5,000 GMV of ascending to Gold Atelier status this fortnight.
-              </p>
-              <div className="space-y-1.5 pt-1">
-                <div className="flex justify-between text-meta">
-                  <span className="font-medium text-primary">Target Conversion Pipeline</span>
-                  <span className="font-semibold text-accent">64.2%</span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-surface-subtle overflow-hidden">
-                  <div className="h-full bg-primary-container rounded-full" style={{ width: '64.2%' }}></div>
-                </div>
-              </div>
+              <span className="text-caption text-muted">
+                {segmentCounts.all ?? 0} accounts
+              </span>
             </div>
-
-            {/* Widget 2 */}
-            <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm space-y-3 border border-subtle">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Icon name="warning" className="material-symbols-outlined text-warning text-icon-md" />
-                  <span className="text-subheading text-primary font-semibold">High Return Triage Queue</span>
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-status-warning-bg text-warning text-micro font-semibold">
-                  890 Flagged
-                </span>
-              </div>
-              <p className="text-body text-secondary">
-                Accounts with &gt; 35% return frequency on delicate handlooms. Restrict cash on delivery and assign size verification concierge.
-              </p>
-              <div className="flex items-center gap-2 pt-1 flex-wrap">
-              </div>
+            <div className="space-y-2.5 pt-1">
+              {SEGMENTS.filter((seg) => seg.id !== 'all').map((seg) => {
+                const n = segmentCounts[seg.id] ?? 0;
+                const pct = segmentCounts.all ? (n / segmentCounts.all) * 100 : 0;
+                return (
+                  <div key={seg.id} className="space-y-1">
+                    <div className="flex justify-between text-meta">
+                      <span className="font-medium text-primary">{seg.label}</span>
+                      <span className="font-semibold text-secondary tabular-nums">
+                        {n} <span className="text-muted">({pct.toFixed(0)}%)</span>
+                      </span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-surface-subtle overflow-hidden">
+                      <div
+                        className="h-full bg-primary-container rounded-full"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

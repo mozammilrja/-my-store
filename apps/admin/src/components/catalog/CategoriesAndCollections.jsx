@@ -25,11 +25,10 @@ import {
 } from '../../hooks/useAdminQueries';
 
 export function CategoriesAndCollections({ onNavigate, onShowToast }) {
-  const [activeTab, setActiveTab] = useState('drops'); // 'drops', 'tree', 'rules', 'channels'
+  const [activeTab, setActiveTab] = useState('drops'); // 'drops', 'tree', 'rules'
   const [selectedDropId, setSelectedDropId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [seasonFilter, setSeasonFilter] = useState('All Seasons (2024-25)');
-  const [channelFilter, setChannelFilter] = useState('All Omnichannel');
   const [statusFilter, setStatusFilter] = useState('Active & Scheduled');
   const [viewDensity, setViewDensity] = useState('list'); // 'list' | 'grid'
   const [selectedCheckboxes, setSelectedCheckboxes] = useState({ 'col-1': true });
@@ -220,22 +219,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onShowToast?.("Exporting taxonomy structure to CSV/JSON format...")}
-              icon="file_download"
-            >
-              Export Taxonomy
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast?.("Opening dynamic visual reordering rules editor...")}
-              icon="reorder"
-            >
-              Reorder Rules
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={() => setIsCategoryModalOpen(true)}
               icon="add"
             >
@@ -286,14 +269,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
           changeType="positive"
           icon="verified"
           subtitle="Strict Taxonomy Gate Active"
-        />
-        <StatsCard
-          label="Omnichannel Feed"
-          value="99.9%"
-          change="Healthy"
-          changeType="positive"
-          icon="cloud_sync"
-          subtitle="Myntra · Nykaa · Web · iOS"
         />
       </ContentGrid>
 
@@ -346,17 +321,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                   24
                 </span>
               </button>
-              <button
-                onClick={() => setActiveTab('channels')}
-                className={`px-space-md py-1.5 rounded-lg text-label transition-all ${
- activeTab === 'channels'
- ? 'bg-primary-container text-on-accent shadow-sm font-semibold'
- : 'hover:bg-surface-subtle text-muted'
- }`}
-                type="button"
-              >
-                <span>Marketplace Channels</span>
-              </button>
             </div>
             <div className="flex items-center gap-1 pr-1">
               <button
@@ -406,18 +370,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                 </Select>
               </div>
               {/* Channel select */}
-              <div className="w-44">
-                <Select
-                  value={channelFilter}
-                  onChange={(e) => setChannelFilter(e.target.value)}
-                  className="h-8 text-meta"
-                >
-                  <option>All Omnichannel</option>
-                  <option>Mobile App Exclusives</option>
-                  <option>Storefront Web</option>
-                  <option>Myntra Syndicate</option>
-                </Select>
-              </div>
               {/* Status Pill Filter */}
               <div className="w-44">
                 <Select
@@ -519,28 +471,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                           <span className="text-micro text-muted">{col.channelsText}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onShowToast?.(`Editing dynamic rules for ${col.code}...`);
-                            }}
-                            className="p-1.5 rounded-lg bg-surface-subtle text-muted hover:text-primary hover:bg-border-subtle"
-                            title="Edit Rule Set"
-                            type="button"
-                          >
-                            <Icon name="tune" className="material-symbols-outlined text-icon-md" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onShowToast?.(`Opening options for ${col.code}...`);
-                            }}
-                            className="p-1.5 rounded-lg bg-surface-subtle text-muted hover:text-primary hover:bg-border-subtle"
-                            title="View Options"
-                            type="button"
-                          >
-                            <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
-                          </button>
                         </div>
                       </div>
                     </div>
@@ -558,20 +488,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                   <span>Showing {filteredCollections.length} of 38 Active Drops</span>
                 </div>
                 <div className="flex items-center gap-space-xs">
-                  <button
-                    onClick={() => onShowToast?.(`Bulk rule applied to ${selectedCount} selected collections.`)}
-                    className="px-space-sm py-1 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary text-label border border-subtle transition-colors"
-                    type="button"
-                  >
-                    Bulk Rule Apply
-                  </button>
-                  <button
-                    onClick={() => onShowToast?.(`Omnichannel sync triggered for active catalog drops.`)}
-                    className="px-space-sm py-1 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary text-label border border-subtle transition-colors"
-                    type="button"
-                  >
-                    Sync Channels
-                  </button>
                 </div>
               </div>
             </div>
@@ -689,12 +605,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                   <h3 className="font-semibold text-primary">Dynamic Merchandising & Re-ranking Rules</h3>
                   <p className="text-meta text-muted">24 Active visual rules regulating product placements across storefronts</p>
                 </div>
-                <button
-                  onClick={() => onShowToast?.('Creating custom merchandising rule...')}
-                  className="px-3 py-1.5 bg-primary-container text-on-accent text-meta font-semibold rounded-lg shadow-sm"
-                >
-                  + Create Rule
-                </button>
               </div>
 
               <div className="space-y-3">
@@ -726,41 +636,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
           )}
 
           {/* TAB 4: Marketplace Channels */}
-          {activeTab === 'channels' && (
-            <div className="bg-surface-container-lowest p-5 rounded-xl border border-subtle shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-primary">Omnichannel Catalog Feed Syndication</h3>
-                  <p className="text-meta text-muted">Live schema transformation & inventory sync pipelines</p>
-                </div>
-                <button
-                  onClick={() => onShowToast?.('Force syndicating all active channel feeds...')}
-                  className="px-3 py-1.5 bg-primary-container text-on-accent text-meta font-semibold rounded-lg shadow-sm"
-                >
-                  Force Feed Resync
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-meta text-primary">Myntra Brand Store Feed</span>
-                    <span className="w-2 h-2 rounded-full bg-status-success"></span>
-                  </div>
-                  <p className="text-meta text-muted">Synced: 1,480 SKUs · HSN Validation Active · SLA 99.9%</p>
-                  <span className="text-micro font-mono text-success whitespace-nowrap">Last ping: 42s ago</span>
-                </div>
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-meta text-primary">Nykaa Fashion Premium API</span>
-                    <span className="w-2 h-2 rounded-full bg-status-success"></span>
-                  </div>
-                  <p className="text-meta text-muted">Synced: 680 Curated Ethnic SKUs · Lookbook Media Synced</p>
-                  <span className="text-micro font-mono text-success whitespace-nowrap">Last ping: 2m ago</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* RIGHT 4-COLUMNS: Visual Merchandising Inspector Drawer (Exact 1:1 with Stitch design) */}
@@ -807,14 +682,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                     {selectedDrop.heroBannerSub}
                   </span>
                 </div>
-                <button
-                  onClick={() => onShowToast?.('Opening media asset manager to replace storefront hero...')}
-                  className="absolute top-2 right-2 p-1.5 rounded-lg bg-scrim/60 hover:bg-black text-on-accent text-meta flex items-center gap-1 backdrop-blur-sm transition-colors"
-                  type="button"
-                >
-                  <Icon name="photo_camera" className="material-symbols-outlined text-icon-sm" />
-                  <span>Replace Media</span>
-                </button>
               </div>
             </div>
 
@@ -855,7 +722,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
 
             {/* Facets & Filters Allowed on Storefront */}
 
-            {/* Omnichannel Visibility Matrix */}
+            {/* Storefront placement */}
             <div className="space-y-space-xs pt-1">
               <span className="text-caption text-muted uppercase">
                 STOREFRONT PLACEMENT TARGETS
@@ -887,42 +754,9 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
 
             {/* Bottom Action Commit Button */}
             <div className="pt-2 flex flex-col space-y-2">
-              <button
-                onClick={() => onShowToast?.(`Published ${selectedDrop.title} changes to live storefronts.`)}
-                className="w-full h-9 rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-accent text-label-lg font-semibold flex items-center justify-center gap-2 shadow-sm transition-colors"
-                type="button"
-              >
-                <Icon name="publish" className="material-symbols-outlined text-icon-md" />
-                <span>Save & Publish to Live Storefront</span>
-              </button>
-              <button
-                onClick={() => onShowToast?.(`Opening live storefront preview modal...`)}
-                className="w-full h-8 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary text-label flex items-center justify-center gap-1.5 transition-colors border border-subtle"
-                type="button"
-              >
-                <Icon name="visibility" className="material-symbols-outlined text-icon text-muted" />
-                <span>Preview Live Storefront Experience</span>
-              </button>
             </div>
           </div>
 
-          {/* Quick Micro-Widget: Feed Syndication Sync Status */}
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-sm flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-status-success animate-pulse"></span>
-              <div className="flex flex-col">
-                <span className="text-meta font-semibold text-primary">Edge Cache & CDN Invalidation</span>
-                <span className="text-micro text-muted">Last purged 4 mins ago across 14 Cloudflare nodes</span>
-              </div>
-            </div>
-            <button
-              onClick={() => onShowToast?.('Cloudflare CDN edge cache purged for collections.')}
-              className="text-muted hover:text-primary text-meta uppercase underline"
-              type="button"
-            >
-              Purge
-            </button>
-          </div>
         </div>
         )}
       </div>

@@ -311,7 +311,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
       {/* Top Breadcrumb & Title Section */}
       <PageHeader
         breadcrumb={['Everwear Admin', 'Catalog & Inventory', 'Inventory & Warehouses']}
-        title="Omnichannel Inventory & Multi-Node Warehousing"
+        title="Inventory & warehouses"
         badge="4 Nodes Active"
         badgeVariant="success"
         description="Real-time stock ledger, multi-hub allocation (BLR-FC1, BOM-FC2, DEL-FC3, CCU-FC4), reserved buffer holds, and automated replenishment alerts."
@@ -325,15 +325,6 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
             >
               <Icon name="sync_alt" className="material-symbols-outlined text-icon text-muted" />
               <span>Stock Transfer</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast && onShowToast('Cycle count audit scheduled for BLR-FC1 aisle C-12.')}
-              className="gap-1.5"
-            >
-              <Icon name="fact_check" className="material-symbols-outlined text-icon text-muted" />
-              <span>Reconcile Count</span>
             </Button>
             <Button
               variant="outline"

@@ -19,6 +19,7 @@ import { DataTable, TableToolbar } from '../shared/DataTable';
 import { adminApi } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
 import { EmptyState } from '../shared/FeedbackAndOverlays';
+import { downloadCsv, datedFilename } from '../../lib/export';
 import {
   usePromotionsQuery,
   useCreatePromotionMutation,
@@ -183,6 +184,28 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     }
     return true;
   });
+
+  /** Writes the campaigns currently listed. */
+  const handleExportPromotions = () => {
+    const written = downloadCsv({
+      filename: datedFilename('promotions'),
+      columns: [
+        { header: 'Code', value: (c) => c.code },
+        { header: 'Discount', value: (c) => c.discountLabel },
+        { header: 'Type', value: (c) => c.type },
+        { header: 'Active window', value: (c) => c.window },
+        { header: 'Redemptions', value: (c) => c.usageLabel },
+        { header: 'Status', value: (c) => c.status },
+      ],
+      rows: filteredCampaigns,
+    });
+    onShowToast?.({
+      type: 'success',
+      title: 'Campaigns exported',
+      message: `${written} ${written === 1 ? 'row' : 'rows'} written to a CSV file.`,
+    });
+  };
+
   // One shared pager over the rows this module actually holds.
   const promosPager = useClientTable(filteredCampaigns);
 
@@ -311,8 +334,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       width: '4rem',
       cell: (camp) => (
         <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-          {camp.isDbPromo ? (
-            <>
+          <>
               <button
                 className={`p-1 rounded hover:bg-surface-subtle cursor-pointer ${camp.active ? 'text-success' : 'text-muted'}`}
                 onClick={() => handleToggleActive(camp.id, camp.active, camp.code)}
@@ -327,17 +349,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
               >
                 <Icon name="delete" className="material-symbols-outlined text-icon" />
               </button>
-            </>
-          ) : (
-            <button
-              className="p-1 rounded hover:bg-surface-subtle text-muted hover:text-primary"
-              onClick={() => onShowToast?.(`Options for promo ${camp.code}`)}
-              title="More actions"
-              aria-label="More actions"
-            >
-              <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
-            </button>
-          )}
+          </>
         </div>
       ),
     },
@@ -355,21 +367,13 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       <PageHeader
         breadcrumb="Everwear Admin / Settings & Admin / Promotions & Coupons"
         title="Promotions, Discount Engines & Coupon Campaign Orchestration"
-        description="Manage cart-level discounts, VIP influencer codes, flash vouchers, margin-guarded threshold rules, and omnichannel promo attribution across all e-store nodes."
+        description="Discount codes, their active window and how often each has been redeemed."
         actions={
           <div className="flex min-w-0 flex-wrap items-center gap-space-sm lg:shrink-0">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onShowToast?.("Running real-time cart rule conflict simulation...")}
-              icon="science"
-            >
-              Simulate Cart Rules
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast?.("Exporting campaign audit ledger CSV...")}
+              onClick={handleExportPromotions}
               icon="download"
             >
               Export Campaign Ledger
@@ -501,18 +505,9 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             onChange={(e) => setChannelFilter(e.target.value)}
             className="h-8"
           >
-            <option value="omni">Channel: Omnichannel</option>
             <option value="app">Mobile App Only</option>
             <option value="web">Web Storefront</option>
           </Select>
-          <button
-            onClick={() => onShowToast?.('Adjusted campaign ledger column views')}
-            className="h-8 w-8 rounded-lg bg-surface-subtle border border-subtle hover:bg-surface-container-high text-muted hover:text-primary flex items-center justify-center transition-colors"
-            title="Column Layout View"
-            type="button"
-          >
-            <Icon name="view_column" className="material-symbols-outlined text-icon-md" />
-          </button>
         </div>
       </div>
 
@@ -556,15 +551,6 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                       {filteredCampaigns.length} Rules
                     </span>
                   </div>
-                }
-                right={
-                  <button
-                    onClick={() => onShowToast?.('Bulk actions menu opened')}
-                    className="px-2 py-1 rounded bg-surface-subtle border border-subtle text-muted hover:text-primary text-caption uppercase flex items-center gap-1 transition-colors"
-                  >
-                    <Icon name="tune" className="material-symbols-outlined text-icon-sm" />
-                    <span>Bulk Actions</span>
-                  </button>
                 }
               />
             }
@@ -621,13 +607,6 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                 </h2>
                 <span className="text-meta text-muted">{selectedCampaign.subTitle ?? 'Not recorded'}</span>
               </div>
-              <button
-                onClick={() => onShowToast?.(`Refreshed telemetry for ${selectedCampaign.code}`)}
-                className="p-1.5 rounded-lg bg-surface-canvas border border-subtle hover:bg-surface-subtle text-muted hover:text-primary transition-colors"
-                title="Refresh Telemetry"
-              >
-                <Icon name="sync" className="material-symbols-outlined text-icon-md" />
-              </button>
             </div>
 
             {/* Telemetry Metrics & Sparkline Graphic */}
@@ -678,12 +657,6 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             <div className="flex flex-col space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-caption text-muted uppercase">Product Scope & Exclusions</span>
-                <button
-                  onClick={() => onShowToast?.(`Editing SKU scope for ${selectedCampaign.code}`)}
-                  className="text-accent hover:underline text-micro font-semibold"
-                >
-                  Modify SKU Scope
-                </button>
               </div>
               <div className="p-space-sm bg-surface-canvas rounded-xl border border-subtle flex flex-col space-y-2">
                 {/* Included */}
@@ -745,25 +718,12 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             {/* Quick Action Buttons */}
             <div className="pt-2 flex flex-col space-y-2">
               <div className="grid grid-cols-2 gap-space-xs">
-                <button
-                  onClick={() => onShowToast?.(`Editing usage quota cap for ${selectedCampaign.code}`)}
-                  className="h-9 px-3 rounded-lg bg-surface-subtle border border-subtle hover:bg-surface-container-high text-primary text-label font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                  type="button"
-                >
-                  <Icon name="edit" className="material-symbols-outlined text-icon" />
-                  <span>Edit Cap</span>
-                </button>
-                <button
-                  onClick={() => onShowToast?.(`Generated affiliate deep link for ${selectedCampaign.code}`)}
-                  className="h-9 px-3 rounded-lg bg-surface-subtle border border-subtle hover:bg-surface-container-high text-primary text-label font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                  type="button"
-                >
-                  <Icon name="link" className="material-symbols-outlined text-icon" />
-                  <span>Affiliate Link</span>
-                </button>
               </div>
               <button
-                onClick={() => onShowToast?.(`Paused coupon ${selectedCampaign.code} across all edge nodes.`)}
+                onClick={() =>
+                  handleToggleActive(selectedCampaign.id, selectedCampaign.active, selectedCampaign.code)
+                }
+                disabled={!selectedCampaign.isDbPromo || togglePromotionMutation.isPending}
                 className="h-9 px-3 rounded-lg bg-status-danger-bg hover:bg-status-danger text-danger hover:text-on-accent text-label font-semibold flex items-center justify-center gap-1.5 transition-colors active:scale-[0.99] border border-status-danger/20"
                 type="button"
               >
@@ -773,43 +733,6 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             </div>
           </div>
 
-          {/* Omnichannel Attribution Preview Card */}
-          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-subheading text-primary font-semibold">Channel Attribution Split</span>
-              <span className="text-micro text-muted">30-Day Aggregation</span>
-            </div>
-            {/* Simple Horizontal Bar Chart */}
-            <div className="space-y-2 pt-1 text-meta">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-muted font-medium">iOS & Android Apps</span>
-                  <span className="font-semibold text-primary">62.4% (₹1.21 Cr)</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-subtle">
-                  <div className="bg-primary-container h-full rounded-full" style={{ width: '62.4%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-muted font-medium">Responsive Web (Mobile + Desktop)</span>
-                  <span className="font-semibold text-primary">31.2% (₹60.5 L)</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-subtle">
-                  <div className="bg-fashion-magenta h-full rounded-full" style={{ width: '31.2%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-muted font-medium">POS / In-Store Endless Aisle</span>
-                  <span className="font-semibold text-primary">6.4% (₹12.4 L)</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-subtle">
-                  <div className="bg-status-info h-full rounded-full" style={{ width: '6.4%' }}></div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
         )}
       </div>

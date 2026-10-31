@@ -462,7 +462,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
           icon="storefront"
           trend={INITIAL_GST_METRICS.grossGrowth}
           trendType="up"
-          trendLabel="May '24 Omnichannel"
+          trendLabel="Current period"
         />
         <StatsCard
           title="Total GST Liability"
@@ -965,15 +965,6 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   title="Print Tax Invoice"
                 >
                   <Icon name="print" className="material-symbols-outlined text-icon" />
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => onShowToast && onShowToast(`PDF downloaded for invoice ${selectedInvoice?.invoiceNumber}`)}
-                  className="h-7 text-meta gap-1 bg-primary-container text-on-accent hover:bg-primary-container-hover"
-                >
-                  <Icon name="download" className="material-symbols-outlined text-icon-sm" />
-                  <span>PDF</span>
                 </Button>
               </div>
             </div>

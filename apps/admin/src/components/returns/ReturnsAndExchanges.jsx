@@ -408,16 +408,6 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               <span>Export Reverse Manifest (CSV)</span>
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast({ type: 'info', title: 'RTO Telemetry', message: 'Current RTO Rate is 1.62% nationwide. Top reason: Customer Unreachable.' })}
-              className="gap-1.5 h-9"
-              type="button"
-            >
-              <Icon name="summarize" className="material-symbols-outlined text-icon text-muted" />
-              <span>RTO Summary</span>
-            </Button>
-            <Button
               variant="primary"
               size="sm"
               onClick={() => setManualReturnOpen(true)}
@@ -564,10 +554,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               </Badge>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="iconSm" title="Filter queue" aria-label="Filter queue">
-                <Icon name="filter_list" className="material-symbols-outlined text-icon-md" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => onShowToast({ type: 'info', title: 'Queue Refreshed', message: 'Checked latest 3PL reverse manifests.' })} title="Refresh queue" aria-label="Refresh queue">
+              <Button variant="ghost" size="icon" onClick={() => refetchReturns()} title="Refresh queue" aria-label="Refresh queue">
                 <Icon name="refresh" className="material-symbols-outlined text-icon-md" />
               </Button>
             </div>

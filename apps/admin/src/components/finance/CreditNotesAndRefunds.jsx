@@ -172,26 +172,6 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
         <span className={`px-2 py-0.5 rounded-full text-caption font-semibold ${note.statusBadge}`}>{note.status}</span>
       ),
     },
-    {
-      key: 'action',
-      fit: true,
-      header: 'Action',
-      align: 'center',
-      cell: (note) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onShowToast?.(`Credit Note options for ${note.id}`);
-          }}
-          className="p-1 rounded hover:bg-surface-subtle text-muted hover:text-primary"
-          type="button"
-          title="More actions"
-          aria-label="More actions"
-        >
-          <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
-        </button>
-      ),
-    },
   ];
 
   return (
@@ -210,36 +190,6 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
         description="Statutory GST credit note issuance against customer returns, store credit wallet balances, failed delivery tax offsets, and reversal ledgers."
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast?.('Reconciling gateway reversal logs with GST ledger...')}
-              className="gap-1.5"
-              type="button"
-            >
-              <Icon name="sync" className="material-symbols-outlined text-icon text-muted" />
-              <span>Reconcile Reversals</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast?.('Generating GSTR-1B statutory amendment register...')}
-              className="gap-1.5"
-              type="button"
-            >
-              <Icon name="file_download" className="material-symbols-outlined text-icon text-muted" />
-              <span>Export GSTR-1B</span>
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => onShowToast?.('Opening Manual Credit Note creation form...')}
-              className="gap-1.5 bg-primary-container text-on-accent hover:bg-primary-container-hover shadow-sm"
-              type="button"
-            >
-              <Icon name="add_circle" className="material-symbols-outlined text-icon-md" />
-              <span>Issue Credit Note</span>
-            </Button>
           </>
         }
       />
@@ -358,14 +308,6 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                 </div>
                 <h2 className="text-subheading text-primary font-semibold">Credit Note {selectedNote.id}</h2>
               </div>
-              <button
-                onClick={() => onShowToast?.(`Minimizing inspector for ${selectedNote.id}`)}
-                className="p-1 rounded-lg text-muted hover:text-primary hover:bg-surface-subtle"
-                title="Close / Minimize"
-                type="button"
-              >
-                <Icon name="close" className="material-symbols-outlined text-icon-lg" />
-              </button>
             </div>
 
             <div className="p-4 space-y-space-md">
@@ -375,13 +317,6 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                   <span className="text-caption uppercase tracking-wider text-muted">
                     Origin tax invoice
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onShowToast?.(`Opening original tax invoice PDF for ${selectedNote.invoice}...`)}
-                    className="shrink-0 text-caption font-semibold text-accent hover:underline"
-                  >
-                    View PDF
-                  </button>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-body">
                   <div>
@@ -504,31 +439,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
 
               {/* Bottom Action Suite */}
               <div className="space-y-2 pt-1">
-                <button
-                  onClick={() => onShowToast?.(`Downloading PDF Credit Note for ${selectedNote.id}...`)}
-                  className="w-full h-9 rounded-xl bg-primary-container text-on-accent hover:bg-primary-container/90 text-label font-semibold flex items-center justify-center gap-2 transition-all shadow-sm"
-                  type="button"
-                >
-                  <Icon name="download" className="material-symbols-outlined text-icon-md" />
-                  <span>Download PDF Credit Note (Form GST-01)</span>
-                </button>
                 <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => onShowToast?.(`Resent statutory notice to ${selectedNote.customer}.`)}
-                    className="h-8 rounded-xl bg-surface-canvas border border-subtle text-primary hover:bg-surface-subtle text-label font-medium flex items-center justify-center gap-1.5 transition-colors"
-                    type="button"
-                  >
-                    <Icon name="send" className="material-symbols-outlined text-icon text-muted" />
-                    <span>Resend Notice</span>
-                  </button>
-                  <button
-                    onClick={() => onShowToast?.(`Retried settlement gateway ping for ${selectedNote.id}.`)}
-                    className="h-8 rounded-xl bg-surface-canvas border border-subtle text-primary hover:bg-surface-subtle text-label font-medium flex items-center justify-center gap-1.5 transition-colors"
-                    type="button"
-                  >
-                    <Icon name="replay" className="material-symbols-outlined text-icon text-muted" />
-                    <span>Retry Gateway</span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -548,13 +459,6 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                 <span className="w-2 h-2 rounded-full bg-status-success"></span>
                 <span className="text-caption text-muted">Auto-Reversal Lock Active</span>
               </div>
-              <button
-                onClick={() => onShowToast?.('Opening GST Compliance circular reference...')}
-                className="text-label text-accent font-semibold hover:underline"
-                type="button"
-              >
-                View Compliance Policy →
-              </button>
             </div>
           </div>
         </div>

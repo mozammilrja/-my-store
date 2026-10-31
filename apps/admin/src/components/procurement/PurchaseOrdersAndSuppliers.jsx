@@ -599,26 +599,6 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
         actions={
           <>
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast && onShowToast('Syncing mill catalogs and vendor product master from Surat & Jaipur...')}
-              className="gap-1.5"
-              type="button"
-            >
-              <Icon name="cloud_download" className="material-symbols-outlined text-icon text-muted" />
-              <span>Import Catalog</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast && onShowToast('Opening GRN & Quality Dock Inward Scanner...')}
-              className="gap-1.5"
-              type="button"
-            >
-              <Icon name="verified" className="material-symbols-outlined text-icon text-muted" />
-              <span>GRN & Quality Inward</span>
-            </Button>
-            <Button
               variant="default"
               size="sm"
               onClick={() => setIsCreatePoModalOpen(true)}
@@ -799,14 +779,6 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                 {selectedPo.supplier} (Vendor Code: {selectedPo.vendorCode})
               </p>
             </div>
-            <button
-              onClick={() => onShowToast && onShowToast(`PO Specification Sheet generated for ${selectedPo.code}.`)}
-              className="p-1 rounded text-muted hover:text-primary hover:bg-surface-subtle transition-colors"
-              title="Print PO Specification Sheet"
-              type="button"
-            >
-              <Icon name="print" className="material-symbols-outlined text-icon-lg" />
-            </button>
           </div>
 
           {/* Quick Metrics Strip */}
@@ -934,35 +906,11 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
             </div>
             <div className="pt-2 border-t border-subtle flex items-center justify-between">
               <span className="text-micro font-semibold text-muted">Quality Inward Slip: {(selectedPo.grnSummary?.docket ?? 'Not recorded')}</span>
-              <button
-                onClick={() => onShowToast && onShowToast(`GRN Docket ${(selectedPo.grnSummary?.docket ?? 'Not recorded')} authorized.`)}
-                className="text-micro text-accent font-semibold hover:underline flex items-center gap-0.5 cursor-pointer"
-                type="button"
-              >
-                <span>Authorize GRN Docket</span>
-                <Icon name="open_in_new" className="material-symbols-outlined text-icon-sm" />
-              </button>
             </div>
           </div>
 
           {/* Inspector Footer Action Suite */}
           <div className="flex items-center gap-2 pt-1">
-            <button
-              onClick={() => onShowToast && onShowToast(`Connecting to ${selectedPo.supplier} Mill Master on WhatsApp/Phone.`)}
-              className="flex-1 h-9 rounded-lg bg-surface-container hover:bg-surface-container-high text-primary text-meta font-semibold transition-colors flex items-center justify-center gap-1.5 border border-subtle cursor-pointer"
-              type="button"
-            >
-              <Icon name="chat" className="material-symbols-outlined text-icon text-muted" />
-              <span>Contact Mill Master</span>
-            </button>
-            <button
-              onClick={() => onShowToast && onShowToast(`Dock scan release verified for ${selectedPo.code}.`)}
-              className="flex-1 h-9 rounded-lg bg-primary-container hover:bg-primary-container-hover text-on-accent text-meta font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
-              type="button"
-            >
-              <Icon name="qr_code_scanner" className="material-symbols-outlined text-icon" />
-              <span>Dock Scan Release</span>
-            </button>
           </div>
         </div>
       </div>
@@ -1009,13 +957,6 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
               </div>
             </div>
           </div>
-          <button
-            onClick={() => onShowToast && onShowToast('Navigating to full 34-mill vendor scorecard registry.')}
-            className="mt-3 w-full py-1.5 rounded-lg bg-surface-subtle hover:bg-surface-container text-micro font-semibold text-muted hover:text-primary text-center transition-colors border border-subtle cursor-pointer"
-            type="button"
-          >
-            View All 34 Mill Scorecards
-          </button>
         </div>
 
         {/* Card 2: Fabric Material Intake Allocation */}
@@ -1097,13 +1038,6 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
               <span className="font-semibold text-primary">Vikram Patel (QC Lead)</span>
             </div>
           </div>
-          <button
-            onClick={() => onShowToast && onShowToast('Supplier Corrective Action (SCAR) docket issued to Surat Synthetic Silks.')}
-            className="mt-2 w-full py-1.5 rounded-lg bg-surface-subtle hover:bg-surface-container text-micro font-semibold text-muted hover:text-primary text-center transition-colors border border-subtle cursor-pointer"
-            type="button"
-          >
-            Trigger Supplier Corrective Action (SCAR)
-          </button>
         </div>
       </div>
 

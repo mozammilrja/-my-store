@@ -99,7 +99,7 @@ export function SystemSettings({ onNavigate, onShowToast }) {
       <PageHeader
         breadcrumb="EVERWEAR ADMIN / SETTINGS & ADMIN / SYSTEM SETTINGS"
         title="Enterprise System Configuration & Node Governance"
-        description="Configure national fulfillment clusters, ClearTax statutory sync intervals, Cloudflare CDN edge invalidations, and payment gateway webhooks."
+        description="Store name, low stock threshold and support contact."
         actions={
           <div className="flex items-center gap-2 shrink-0">
             <Button
@@ -130,8 +130,7 @@ export function SystemSettings({ onNavigate, onShowToast }) {
             { id: 'general', label: 'General & Node Routing', icon: 'hub' },
             { id: 'tax', label: 'GST & Statutory Compliance', icon: 'receipt_long' },
             { id: 'integrations', label: 'Gateway & API Webhooks', icon: 'webhook' },
-            { id: 'security', label: 'Zero-Trust & Session Rules', icon: 'security' },
-            { id: 'cdn', label: 'CDN & Cloudflare Edge', icon: 'cloud_sync' }
+            { id: 'security', label: 'Zero-Trust & Session Rules', icon: 'security' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -345,32 +344,6 @@ export function SystemSettings({ onNavigate, onShowToast }) {
             </div>
           )}
 
-          {activeSection === 'cdn' && (
-            <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-6 space-y-6">
-              <div>
-                <h3 className="font-semibold text-primary">Cloudflare CDN Edge Cache Management</h3>
-                <p className="text-meta text-muted mt-1">Purge and warm cache across 14 global points of presence.</p>
-              </div>
-
-              <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-status-success animate-pulse"></span>
-                    <span className="text-meta font-semibold text-primary">14 POP Nodes Synchronized</span>
-                  </div>
-                  <button
-                    onClick={() => onShowToast?.('Cloudflare edge cache successfully invalidated.')}
-                    className="px-3 py-1.5 bg-status-danger-solid text-on-accent text-meta font-semibold rounded-lg shadow-sm"
-                  >
-                    Purge All Edge Cache
-                  </button>
-                </div>
-                <div className="text-meta text-muted">
-                  Last global purge was completed 4 minutes ago. Static catalog assets are cached with a TTL of 86,400 seconds.
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </PageContainer>

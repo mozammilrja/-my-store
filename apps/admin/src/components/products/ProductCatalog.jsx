@@ -382,6 +382,32 @@ export function ProductCatalog({ onShowToast, currentHub }) {
   };
 
   /** Writes changed variant stock onto the product. */
+  /** Puts every field back to what the loaded product says. */
+  const handleDiscardDraft = () => {
+    setTitle(product.title || '');
+    setBrand(product.brand || 'Everwear Atelier');
+    setCollection(product.collection || 'Autumn / Festive 24');
+    setStyleCode(product.styleCode || product.handle || 'EVR-STYLE-01');
+    setDepartment(product.department || 'Women');
+    setCategory(product.category || 'Dresses & Jumpsuits');
+    setFabric(product.fabricComposition || '100% Organic Cotton');
+    setSilhouette(product.silhouette || 'Flared Silhouette');
+    setPattern(product.pattern || 'Artisan Craft');
+    setWashCare(product.washCare || 'Dry Clean Only');
+    setOrigin(product.origin || 'Jaipur Craft Guild, India');
+    setHsnCode(product.hsnCode || '6204.49.00');
+    setGstRate(product.gstRate || 12);
+    setMrp(product.mrp || 6990);
+    setB2cPrice(product.b2cPrice || 4890);
+    setProcurementCost(product.procurementCost || 1650);
+    setMediaAssets(product.mediaAssets || []);
+    onShowToast({
+      type: 'info',
+      title: 'Draft discarded',
+      message: `${product.title} is back to its saved values.`,
+    });
+  };
+
   const handleSaveStock = async (variantChanges, onDone) => {
     if (!backendProductId || !variantChanges.length) return;
     try {
@@ -547,19 +573,9 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       <PageHeader
         breadcrumb={['Everwear Admin', 'Catalog', 'Products']}
         title="Fashion Product Catalog & Variant Master"
-        description="Omnichannel garment provisioning, multi-hub HSN/GST compliance & dynamic matrix management."
+        description="Product details, images, variants, pricing, tax and stock, saved straight to the catalog."
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast({ type: 'info', title: 'Excel Import', message: 'Ready to import catalog spreadsheet (XLSX template v2.4).' })}
-              className="gap-1.5 h-9"
-              type="button"
-            >
-              <Icon name="upload_file" className="material-symbols-outlined text-icon-md" />
-              <span>Import Excel</span>
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -569,16 +585,6 @@ export function ProductCatalog({ onShowToast, currentHub }) {
             >
               <Icon name="file_download" className="material-symbols-outlined text-icon-md" />
               <span>Export CSV</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast({ type: 'success', title: 'Storefront Synced', message: 'POS & Myntra catalog channels synchronized successfully.' })}
-              className="gap-1.5 h-9"
-              type="button"
-            >
-              <Icon name="sync_alt" className="material-symbols-outlined text-icon-md" />
-              <span>Sync Storefront / POS</span>
             </Button>
             <Button
               variant="primary"
@@ -771,10 +777,14 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-caption text-muted uppercase font-semibold">
+                  <label
+                    htmlFor="product-title"
+                    className="block text-caption uppercase font-semibold text-muted"
+                  >
                     Product Title (Customer Facing)
                   </label>
                   <Input
+                    id="product-title"
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
@@ -1228,7 +1238,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onShowToast({ type: 'warning', title: 'Draft Discarded', message: 'Restored original production style values.' })}
+              onClick={handleDiscardDraft}
               className="text-danger hover:bg-status-danger-bg hover:text-danger"
               type="button"
             >

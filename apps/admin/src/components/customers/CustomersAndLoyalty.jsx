@@ -21,8 +21,11 @@ import { useCustomersQuery, useCustomerQuery } from '../../hooks/useAdminQueries
 import { useServerTable } from '../../hooks/useServerTable';
 import { DataTable } from '../shared/DataTable';
 import { PersonAvatar } from '../shared/PersonAvatar';
+import { downloadCsv, datedFilename } from '../../lib/export';
+import { useNavigate } from 'react-router-dom';
 
 export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
+  const navigate = useNavigate();
   const table = useServerTable();
   const [activeSegment, setActiveSegment] = useState('all'); // 'all', 'vip', 'dormant'
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
@@ -96,7 +99,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
         frequency: String(c.orderCount ?? 1),
         frequencySub: 'Verified shopper',
         monetary: '₹48.9K',
-        monetarySub: 'Omnichannel',
+        monetarySub: 'Across all orders',
         favCategory: "Women's Sartorial & Silk",
         kurtaSize: 'M',
         blouseSize: '38',
@@ -139,6 +142,28 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
       return true;
     });
   }, [mergedCustomers, activeSegment, tierFilter, cityFilter]);
+
+
+  /** Writes the customers currently listed, as the operator sees them. */
+  const handleExportCustomers = () => {
+    const written = downloadCsv({
+      filename: datedFilename('customers'),
+      columns: [
+        { header: 'Name', value: (c) => c.name },
+        { header: 'Email', value: (c) => c.email },
+        { header: 'Phone', value: (c) => c.phone },
+        { header: 'City', value: (c) => c.geo },
+        { header: 'Orders', value: (c) => c.orderCount },
+        { header: 'Customer since', value: (c) => c.tenure },
+      ],
+      rows: filteredCustomers,
+    });
+    onShowToast?.({
+      type: 'success',
+      title: 'Customers exported',
+      message: `${written} ${written === 1 ? 'row' : 'rows'} written to a CSV file.`,
+    });
+  };
 
   const removeFilter = (id) => {
     setActiveFilters(prev => prev.filter(f => f.id !== id));
@@ -280,40 +305,16 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
         breadcrumb="EVERWEAR ADMIN / SETTINGS & ADMIN / CUSTOMERS & LOYALTY"
         title="Customer Intelligence, VIP Tiers & Loyalty Operations"
         badge={<Badge variant="info">CRM v4.8</Badge>}
-        description="Comprehensive customer 360 profiles, RFM segment analytics, omnichannel loyalty point ledger, and VIP concierge management."
+        description="Customer accounts, their contact details and how many orders each has placed."
         actions={
           <div className="flex min-w-0 flex-wrap items-center gap-space-sm lg:shrink-0">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onShowToast && onShowToast("Exporting Customer & Loyalty Ledger as CSV...")}
+              onClick={handleExportCustomers}
               icon="file_download"
             >
               Export Ledger (CSV)
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast && onShowToast("Segment campaign configuration modal opened.")}
-              icon="campaign"
-            >
-              Trigger Segment Campaign
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast && onShowToast("Concierge note modal initialized for " + selectedCustomer.name)}
-              icon="person_add"
-            >
-              + Add Concierge Note
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => onShowToast && onShowToast("Loyalty tier rules & multiplier engine configuration open.")}
-              icon="tune"
-            >
-              Adjust Loyalty Rules
             </Button>
           </div>
         }
@@ -445,22 +446,6 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
               </button>
             </div>
             <div className="hidden sm:flex items-center gap-1 shrink-0 pl-2">
-              <button
-                onClick={() => onShowToast && onShowToast('Configuring column visibility...')}
-                className="p-1 rounded-lg text-muted hover:text-primary hover:bg-surface-subtle transition-all cursor-pointer"
-                title="View Options"
-                type="button"
-              >
-                <Icon name="view_column" className="material-symbols-outlined text-icon-md" />
-              </button>
-              <button
-                onClick={() => onShowToast && onShowToast('Row density toggled.')}
-                className="p-1 rounded-lg text-muted hover:text-primary hover:bg-surface-subtle transition-all cursor-pointer"
-                title="Density Toggle"
-                type="button"
-              >
-                <Icon name="density_medium" className="material-symbols-outlined text-icon-md" />
-              </button>
             </div>
           </div>
 
@@ -603,20 +588,6 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                 Accounts with &gt; 35% return frequency on delicate handlooms. Restrict cash on delivery and assign size verification concierge.
               </p>
               <div className="flex items-center gap-2 pt-1 flex-wrap">
-                <button
-                  onClick={() => onShowToast && onShowToast('Filtering directory to 890 high-return flagged profiles.')}
-                  className="px-3 py-1.5 rounded-lg bg-surface-subtle hover:bg-surface-container-high text-primary text-label font-medium transition-colors cursor-pointer"
-                  type="button"
-                >
-                  Review High-Risk Accounts
-                </button>
-                <button
-                  onClick={() => onShowToast && onShowToast('Handloom return policy guardrail settings opened.')}
-                  className="px-3 py-1.5 rounded-lg bg-surface-subtle hover:bg-surface-container-high text-accent text-label font-medium transition-colors cursor-pointer"
-                  type="button"
-                >
-                  Update Return Policies
-                </button>
               </div>
             </div>
           </div>
@@ -644,22 +615,6 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                 LIVE 360 INSPECTOR
               </span>
               <div className="flex items-center gap-1 text-on-accent">
-                <button
-                  onClick={() => onShowToast && onShowToast('Dossier for ' + selectedCustomer.name + ' queued for print.')}
-                  className="p-1 rounded-full hover:bg-scrim/25 transition-colors cursor-pointer"
-                  title="Print Dossier"
-                  type="button"
-                >
-                  <Icon name="print" className="material-symbols-outlined text-icon" />
-                </button>
-                <button
-                  onClick={() => onShowToast && onShowToast(selectedCustomer.name + ' pinned to active concierge workspace.')}
-                  className="p-1 rounded-full hover:bg-scrim/25 transition-colors cursor-pointer"
-                  title="Pin Profile"
-                  type="button"
-                >
-                  <Icon name="push_pin" className="material-symbols-outlined text-icon" />
-                </button>
               </div>
             </div>
 
@@ -726,45 +681,9 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                     </span>
                     <span className="text-micro text-accent">{selectedCustomer.frequencySub}</span>
                   </div>
-                  <div className="p-2 bg-surface-container-lowest rounded-lg shadow-sm">
-                    <span className="text-micro text-muted block">MONETARY</span>
-                    <span className="text-subheading font-semibold text-primary block mt-0.5">
-                      {selectedCustomer.monetary}
-                    </span>
-                    <span className="text-micro text-muted">{selectedCustomer.monetarySub}</span>
-                  </div>
                 </div>
               </div>
 
-              {/* Wardrobe & Aesthetic DNA Preferences */}
-              <div className="space-y-2 pt-1">
-                <span className="text-caption text-muted uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                  <Icon name="checkroom" className="material-symbols-outlined text-icon" /> Omnichannel Wardrobe DNA
-                </span>
-                <div className="space-y-2 text-meta">
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-surface-subtle">
-                    <span className="text-muted">Favored Category:</span>
-                    <span className="font-semibold text-primary">{selectedCustomer.favCategory}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-surface-subtle">
-                    <span className="text-muted">Apparel Sizes:</span>
-                    <div className="flex items-center gap-1 font-semibold text-primary">
-                      <span className="px-1.5 py-0.5 rounded bg-surface-container-lowest shadow-sm">
-                        Kurtas: {selectedCustomer.kurtaSize}
-                      </span>
-                      {selectedCustomer.blouseSize !== 'N/A' && (
-                        <span className="px-1.5 py-0.5 rounded bg-surface-container-lowest shadow-sm">
-                          Saree Blouses: {selectedCustomer.blouseSize}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-surface-subtle">
-                    <span className="text-muted">Preferred Textiles:</span>
-                    <span className="font-medium text-primary">{selectedCustomer.textiles}</span>
-                  </div>
-                </div>
-              </div>
 
               {/* Loyalty Points Ledger & Store Credit Wallet */}
               <div className="flex flex-col gap-2.5 rounded-xl border border-subtle bg-surface-subtle p-3.5">
@@ -775,13 +694,6 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                       Loyalty &amp; Credit Ledger
                     </span>
                   </div>
-                  <button
-                    onClick={() => onShowToast && onShowToast('Audit history downloaded for ' + selectedCustomer.name)}
-                    className="text-accent text-caption font-semibold hover:underline cursor-pointer"
-                    type="button"
-                  >
-                    Audit History
-                  </button>
                 </div>
                 <p className="pt-1 text-micro text-muted">
                   Loyalty points and store credit are not recorded against a customer, so no
@@ -799,12 +711,15 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                   <span className="text-caption text-muted uppercase tracking-wider font-semibold">
                     Recent Order Timeline
                   </span>
-                  <span
-                    onClick={() => onShowToast && onShowToast('Navigating to full orders list filtered by customer...')}
-                    className="text-meta text-accent font-medium hover:underline cursor-pointer"
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(`/order-management?q=${encodeURIComponent(selectedCustomer.email)}`)
+                    }
+                    className="text-meta font-medium text-accent hover:underline"
                   >
                     View all {selectedCustomer.ordersCount}
-                  </span>
+                  </button>
                 </div>
 
                 {selectedCustomer.recentOrders.map((ord, idx) => (
@@ -846,50 +761,10 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
 
               {/* Quick Action Drawer Triggers */}
               <div className="pt-2 flex flex-col gap-2">
-                <button
-                  onClick={() => onShowToast && onShowToast('Goodwill Store Credit dialogue launched for ' + selectedCustomer.name)}
-                  className="w-full h-9 rounded-xl bg-primary-container text-on-accent text-label-lg font-medium hover:bg-primary-container-hover shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  type="button"
-                >
-                  <Icon name="redeem" className="material-symbols-outlined text-icon" />
-                  <span>Issue Goodwill Store Credit / Coupon</span>
-                </button>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => onShowToast && onShowToast('WhatsApp chat window initiated for ' + selectedCustomer.phone)}
-                    className="h-9 px-2 rounded-xl bg-surface-subtle text-primary text-label font-medium hover:bg-surface-container-high transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                    type="button"
-                  >
-                    <Icon name="chat" className="material-symbols-outlined text-icon text-muted" />
-                    <span>Send WhatsApp</span>
-                  </button>
-                  <button
-                    onClick={() => onShowToast && onShowToast('Stylist assignment drawer opened.')}
-                    className="h-9 px-2 rounded-xl bg-surface-subtle text-primary text-label font-medium hover:bg-surface-container-high transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                    type="button"
-                  >
-                    <Icon name="face_6" className="material-symbols-outlined text-icon text-muted" />
-                    <span>Change Stylist</span>
-                  </button>
-                </div>
               </div>
             </div>
           </div>
 
-          {/* Omnichannel Touchpoints Analytics Micro-Card */}
-          <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm space-y-3 border border-subtle">
-            <div className="flex items-center justify-between">
-              <span className="text-subheading text-primary font-semibold">Store Footprint Cross-Over</span>
-              <Icon name="storefront" className="material-symbols-outlined text-muted text-icon-md" />
-            </div>
-            <p className="text-body text-secondary">
-              {selectedCustomer.offlineVisits}
-            </p>
-            <div className="flex items-center justify-between pt-1 text-meta">
-              <span className="text-muted">Online to Offline Spend Split:</span>
-              <span className="font-semibold text-primary">{selectedCustomer.spendSplit}</span>
-            </div>
-          </div>
           </>
           )}
         </div>

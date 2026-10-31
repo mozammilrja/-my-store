@@ -22,6 +22,7 @@ import { useSession } from '../../lib/session';
 import { adminApi } from '../../lib/api';
 import { useUsersQuery, useCreateUserMutation, useDeleteUserMutation } from '../../hooks/useAdminQueries';
 import { EmptyState } from '../shared/FeedbackAndOverlays';
+import { downloadCsv, datedFilename } from '../../lib/export';
 
 /** What each role can do, mirroring the two capabilities the API enforces. */
 const MODULE_ACCESS = [
@@ -178,6 +179,26 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
     }
     return true;
   });
+
+  /** Writes the team directory as listed. */
+  const handleExportTeam = () => {
+    const written = downloadCsv({
+      filename: datedFilename('team'),
+      columns: [
+        { header: 'Name', value: (u) => u.name },
+        { header: 'Email', value: (u) => u.email },
+        { header: 'Role', value: (u) => u.role },
+        { header: 'Last updated', value: (u) => u.lastActive },
+      ],
+      rows: filteredUsers,
+    });
+    onShowToast?.({
+      type: 'success',
+      title: 'Team directory exported',
+      message: `${written} ${written === 1 ? 'row' : 'rows'} written to a CSV file.`,
+    });
+  };
+
   // One shared pager over the rows this module actually holds.
   const usersPager = useClientTable(filteredUsers);
 
@@ -279,41 +300,16 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       align: 'right',
       cell: (user) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          {user.isSuspended ? (
+          {/* There is no suspended state on an admin account, so the only row
+              action is the delete the API supports, and only for an owner. */}
+          {canManageUsers && user.isDbUser && user.role !== 'Store Owner' && (
             <button
-              onClick={() => onShowToast?.(`Password reset link sent to ${user.email}`)}
-              className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary transition-colors"
-              title="Reset password"
-              aria-label="Reset password"
+              onClick={() => handleDeleteUser(user.id, user.name)}
+              className="p-1 rounded-lg text-danger transition-colors hover:bg-status-danger-bg"
+              title="Delete"
             >
-              <Icon name="lock_reset" className="material-symbols-outlined text-icon-md" />
+              <Icon name="delete" className="material-symbols-outlined text-icon-md" />
             </button>
-          ) : (
-            <>
-              <button
-                onClick={() => onShowToast?.(`Editing access privileges for ${user.name}`)}
-                className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary transition-colors"
-                title="Edit Permissions"
-              >
-                <Icon name="edit" className="material-symbols-outlined text-icon-md" />
-              </button>
-              <button
-                onClick={() => onShowToast?.(`Terminated active session on ${user.device}`)}
-                className="p-1 rounded-lg hover:bg-status-danger-bg text-muted hover:text-danger transition-colors"
-                title="Kill Session"
-              >
-                <Icon name="logout" className="material-symbols-outlined text-icon-md" />
-              </button>
-              {canManageUsers && user.isDbUser && user.role !== 'Store Owner' && (
-                <button
-                  onClick={() => handleDeleteUser(user.id, user.name)}
-                  className="p-1 rounded-lg hover:bg-status-danger-bg text-danger transition-colors"
-                  title="Delete User"
-                >
-                  <Icon name="delete" className="material-symbols-outlined text-icon-md" />
-                </button>
-              )}
-            </>
           )}
         </div>
       ),
@@ -430,14 +426,6 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         description="Manage operator permissions across fulfillment nodes, catalog merchandising controls, financial sign-off limits, and security audit logs."
         actions={
           <div className="flex min-w-0 flex-wrap items-center gap-space-sm lg:shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast?.("Exporting encrypted security audit log...")}
-              icon="receipt_long"
-            >
-              Security Audit Export
-            </Button>
             <Button
               variant="primary"
               size="sm"
@@ -559,15 +547,6 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
             label="Filter users"
             className="w-full min-w-0 sm:w-64 sm:flex-initial"
           />
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => onShowToast?.('Filtering scopes')}
-            className="shrink-0"
-          >
-            <Icon name="tune" aria-hidden="true" className="material-symbols-outlined text-icon text-muted" />
-            <span>All Scopes</span>
-          </Button>
         </div>
       </div>
 
@@ -608,18 +587,11 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                   right={
                     <>
                       <button
-                        onClick={() => onShowToast?.('Exporting team directory CSV...')}
+                        onClick={handleExportTeam}
                         className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
                       >
                         <Icon name="download" className="material-symbols-outlined text-icon" />
                         <span>CSV</span>
-                      </button>
-                      <button
-                        onClick={() => onShowToast?.('Synchronized employee profiles with Workday HRIS.')}
-                        className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
-                      >
-                        <Icon name="refresh" className="material-symbols-outlined text-icon" />
-                        <span>Sync</span>
                       </button>
                     </>
                   }
@@ -850,28 +822,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
 
             {/* Inspector Action Buttons */}
             <div className="pt-space-sm border-t border-subtle flex flex-col gap-2">
-              <button
-                onClick={() => onShowToast?.(`Editing permissions matrix for ${selectedUser.name}`)}
-                className="w-full h-9 rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-accent text-label-lg font-medium transition-colors shadow-sm flex items-center justify-center gap-1.5"
-              >
-                <Icon name="tune" className="material-symbols-outlined text-icon-md" />
-                <span>Modify Permissions</span>
-              </button>
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => onShowToast?.(`Viewing full cryptographic audit trail for ${selectedUser.name}`)}
-                  className="h-8 rounded-lg bg-surface-subtle hover:bg-surface-container-high border border-subtle text-primary text-label font-medium transition-colors flex items-center justify-center gap-1"
-                >
-                  <Icon name="history" className="material-symbols-outlined text-icon text-muted" />
-                  <span>View Full Audit</span>
-                </button>
-                <button
-                  onClick={() => onShowToast?.(`Suspended access for ${selectedUser.name}`)}
-                  className="h-8 rounded-lg bg-status-danger-bg hover:bg-error-container text-danger text-label font-medium transition-colors flex items-center justify-center gap-1 border border-status-danger/20"
-                >
-                  <Icon name="lock" className="material-symbols-outlined text-icon" />
-                  <span>Suspend Access</span>
-                </button>
               </div>
             </div>
           </div>

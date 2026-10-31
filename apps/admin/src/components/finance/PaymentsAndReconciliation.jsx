@@ -359,7 +359,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    if (onShowToast) onShowToast('Tally / Zoho Books XML ledger export generated.');
+    if (onShowToast) onShowToast('Ledger XML written. Import it into your accounting package.');
   };
 
   const handleManualRematchSubmit = (e) => {
@@ -518,7 +518,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
               type="button"
             >
               <Icon name="download" className="material-symbols-outlined text-icon text-muted" />
-              <span>Export Tally / Zoho XML</span>
+              <span>Export ledger XML</span>
             </Button>
             <Button
               variant="default"
@@ -946,14 +946,6 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
               {/* Action Buttons */}
               <div className="pt-2 flex items-center gap-2">
                 <button
-                  onClick={() => onShowToast && onShowToast(`Tax Invoice PDF compiled for ${selectedTxn.txnCode}.`)}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary text-meta font-semibold transition-colors border border-subtle cursor-pointer"
-                  type="button"
-                >
-                  <Icon name="receipt" className="material-symbols-outlined text-icon" />
-                  <span>Tax Invoice</span>
-                </button>
-                <button
                   onClick={() => setIsReMatchModalOpen(true)}
                   className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-primary-container text-on-accent hover:bg-primary-container-hover text-meta font-semibold transition-colors shadow-sm cursor-pointer"
                   type="button"
@@ -1028,9 +1020,6 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-body font-semibold text-primary">Direct ERP Ingestion</h3>
-                <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-info text-micro font-semibold">
-                  ZOHO BOOKS V4
-                </span>
               </div>
               <p className="text-meta text-muted mb-3">
                 Push journal entries for gross sales, payment processor fee ledger, and credit note offsets directly to corporate books.
@@ -1043,13 +1032,6 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                     <span className="text-micro text-muted">Day closing snapshot enabled</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => onShowToast && onShowToast('Ledger sync batch pushed to Zoho Books API successfully.')}
-                  className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-primary hover:bg-border-subtle text-meta font-semibold border border-subtle transition-colors cursor-pointer"
-                  type="button"
-                >
-                  Push Now
-                </button>
               </div>
             </div>
             <div className="mt-4 pt-3 flex items-center justify-between text-micro text-muted border-t border-surface-subtle">

@@ -393,7 +393,7 @@ export function OrderManagement({
         badge={`Dispatcher: ${currentHub.id}`}
         badgeVariant="success"
         title="Order Management & Fulfillment Dispatch"
-        description="Omnichannel order routing, real-time 3PL manifest generation, GST invoice compliance & live airway bill tracking."
+        description="Every order placed, with its payment state, fulfilment state and the items on it."
         actions={
           <>
             <Button

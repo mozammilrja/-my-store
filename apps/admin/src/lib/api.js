@@ -42,12 +42,26 @@ export const registerOnClearToken = (listener) => {
   }
 };
 
-export const clearToken = () => {
+/**
+ * Forgets the token without telling anyone.
+ *
+ * The 401 path uses this rather than `clearToken`. Notifying listeners there
+ * empties the query cache out from under the very queries that are awaiting
+ * this request: their cache entries vanish, the observers resubscribe to fresh
+ * pending queries, and the rejection they were waiting for lands nowhere. The
+ * screen then holds its skeletons forever instead of showing the error.
+ */
+const discardToken = () => {
   try {
     localStorage.removeItem(TOKEN_KEY);
   } catch {
     // Ignore
   }
+};
+
+/** Signs the admin out: forgets the token and lets listeners drop cached data. */
+export const clearToken = () => {
+  discardToken();
   onClearTokenListeners.forEach((listener) => {
     try {
       listener();
@@ -120,8 +134,15 @@ export async function api(path, options = {}) {
 
   // Handle unauthorized by attempting one re-auth
   if (response.status === 401 && !path.includes('/auth/login')) {
-    clearToken();
+    discardToken();
     token = await ensureAdminAuth();
+    if (!token) {
+      throw new ApiError(
+        401,
+        'session_expired',
+        'Your admin session has expired. Sign in again to continue.'
+      );
+    }
     if (token) {
       headers.Authorization = `Bearer ${token}`;
       try {
@@ -149,32 +170,76 @@ export async function api(path, options = {}) {
   return data;
 }
 
-export async function uploadImage(file) {
-  const form = new FormData();
-  form.append('file', file);
-  let token = getToken() || (await ensureAdminAuth());
+/** What the API accepts, mirrored here so a bad file is caught before the round trip. */
+export const UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+export const UPLOAD_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
-  let response;
-  try {
-    response = await fetch(`${API_URL}/admin/uploads`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
-    });
-  } catch {
-    throw new ApiError(503, 'unavailable', "Can't reach the API for image upload.");
+export function describeUploadProblem(file) {
+  if (!file) return 'Choose an image to upload.';
+  if (!UPLOAD_TYPES.includes(file.type)) {
+    return `${file.type || 'That file type'} is not supported. Use PNG, JPEG or WebP.`;
   }
-
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      data?.error?.code ?? 'error',
-      data?.error?.message ?? 'Product image could not be uploaded'
-    );
+  if (file.size > UPLOAD_MAX_BYTES) {
+    return `That image is ${(file.size / 1024 / 1024).toFixed(1)} MB. The limit is 5 MB.`;
   }
+  return null;
+}
 
-  return { path: data?.path, url: data?.url };
+/**
+ * Uploads one image and reports real progress.
+ *
+ * `fetch` cannot report upload progress, so this goes through XMLHttpRequest
+ * and forwards `upload.onprogress`. When the browser cannot compute a ratio
+ * the callback receives `null`, which the caller shows as indeterminate
+ * rather than inventing a percentage.
+ */
+export function uploadImage(file, { onProgress, signal } = {}) {
+  return new Promise((resolve, reject) => {
+    const problem = describeUploadProblem(file);
+    if (problem) {
+      reject(new ApiError(400, 'invalid_file', problem));
+      return;
+    }
+
+    const run = (token) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_URL}/admin/uploads`);
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.responseType = 'json';
+
+      xhr.upload.onprogress = (event) => {
+        if (!onProgress) return;
+        onProgress(event.lengthComputable ? Math.round((event.loaded / event.total) * 100) : null);
+      };
+
+      xhr.onload = () => {
+        const data = xhr.response;
+        if (xhr.status >= 200 && xhr.status < 300 && data?.path) {
+          onProgress?.(100);
+          resolve({ path: data.path, url: data.url });
+          return;
+        }
+        reject(
+          new ApiError(
+            xhr.status,
+            data?.error?.code ?? 'error',
+            data?.error?.message ?? 'The image could not be uploaded.'
+          )
+        );
+      };
+      xhr.onerror = () => reject(new ApiError(503, 'unavailable', "Can't reach the API to upload this image."));
+      xhr.onabort = () => reject(new ApiError(499, 'aborted', 'Upload cancelled.'));
+      if (signal) signal.addEventListener('abort', () => xhr.abort(), { once: true });
+
+      const form = new FormData();
+      form.append('file', file);
+      xhr.send(form);
+    };
+
+    const existing = getToken();
+    if (existing) run(existing);
+    else ensureAdminAuth().then(run).catch(() => run(null));
+  });
 }
 
 export const adminApi = {

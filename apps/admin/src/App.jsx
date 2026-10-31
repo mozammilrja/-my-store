@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense } from 'react';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { HUBS } from './data/mockData';
 import { ensureAdminAuth } from './lib/api';
 import { Sidebar } from './components/layout/Sidebar';
@@ -206,6 +207,7 @@ export function App() {
         {/* Dynamic Route View */}
         <main id="main-content" className="w-full min-h-screen bg-surface-canvas pt-header">
           <div className="mx-auto w-full max-w-content px-4 py-space-lg md:px-space-xl md:py-space-xl">
+          <ErrorBoundary resetKey={currentPath}>
           <Suspense fallback={<ViewLoadingFallback path={currentPath} />}>
             {currentPath === 'overview' && (
             <ExecutiveOverview
@@ -330,6 +332,7 @@ export function App() {
               />
             )}
           </Suspense>
+          </ErrorBoundary>
           </div>
         </main>
       </div>

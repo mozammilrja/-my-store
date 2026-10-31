@@ -441,37 +441,22 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
               </div>
             </CardHeader>
             <div className="overflow-x-auto scrollbar-thin">
-              <Table className="min-w-[1020px] w-full border-collapse">
+              <Table className="w-full border-collapse">
                 <TableHeader sticky>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[260px] whitespace-nowrap">
-                      SKU &amp; Garment Variant
+                    <TableHead className="w-[320px] whitespace-nowrap">
+                      SKU &amp; garment variant
                     </TableHead>
-                    <TableHead className="w-[120px] whitespace-nowrap">
-                      Category
+                    <TableHead className="w-[110px] whitespace-nowrap text-right">
+                      On hand
                     </TableHead>
-                    <TableHead className="w-[140px] whitespace-nowrap">
-                      Hub &amp; Bin
+                    <TableHead className="w-[130px] whitespace-nowrap text-center">
+                      Tracking
                     </TableHead>
-                    <TableHead className="text-right w-[90px] whitespace-nowrap">
-                      On-Hand
-                    </TableHead>
-                    <TableHead className="text-right w-[90px] whitespace-nowrap">
-                      Reserved
-                    </TableHead>
-                    <TableHead className="text-right w-[110px] whitespace-nowrap">
-                      ATS (Avail)
-                    </TableHead>
-                    <TableHead className="text-right w-[90px] whitespace-nowrap">
-                      Incoming
-                    </TableHead>
-                    <TableHead className="text-right w-[95px] whitespace-nowrap">
-                      Velocity
-                    </TableHead>
-                    <TableHead className="text-center w-[130px] whitespace-nowrap">
+                    <TableHead className="w-[150px] whitespace-nowrap text-center">
                       Status
                     </TableHead>
-                    <TableHead className="text-right w-[85px] whitespace-nowrap">
+                    <TableHead className="w-[100px] whitespace-nowrap text-right">
                       Actions
                     </TableHead>
                   </TableRow>
@@ -479,7 +464,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                 <TableBody className="divide-y divide-border-subtle/60">
                   {filteredInventory.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="py-12 text-center text-body text-secondary">
+                      <TableCell colSpan={5} className="py-12 text-center text-body text-secondary">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Icon name="inventory_2" className="material-symbols-outlined text-icon-2xl text-muted/50" />
                           <span>No inventory items matching your selected criteria.</span>
@@ -521,7 +506,6 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                           <TableCell className="py-3 px-3">
                             <div className="flex items-center gap-3">
                               <div className="w-11 h-11 rounded-lg overflow-hidden shrink-0 shadow-xs bg-surface-container ring-1 ring-border-subtle">
-                                <Thumbnail src={item.image} alt={item.name} className="w-full h-full" imgClassName="object-cover" />
                               </div>
                               <div className="flex flex-col min-w-0">
                                 <span className="text-meta font-semibold text-primary truncate max-w-[190px]">
@@ -535,58 +519,29 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                           </TableCell>
 
                           {/* Category */}
-                          <TableCell className="py-3 px-3 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-surface-subtle text-primary text-micro border border-subtle">
-                              {item.category}
-                            </span>
-                          </TableCell>
 
                           {/* Hub & Bin */}
-                          <TableCell className="py-3 px-3 whitespace-nowrap">
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-meta font-semibold text-primary flex items-center gap-1">
-                                <Icon name="location_on" className="material-symbols-outlined text-icon-sm text-accent" />
-                                {item.hub}
-                              </span>
-                              <span className="text-micro text-muted flex items-center gap-1 mt-0.5">
-                                <Icon name="inventory_2" className="material-symbols-outlined text-icon-sm text-muted" />
-                                {item.bin}
-                              </span>
-                            </div>
-                          </TableCell>
 
                           {/* On-Hand */}
-                          <TableCell className="py-3 px-3 text-right font-mono font-semibold text-meta text-primary whitespace-nowrap">
-                            {item.onHand}
+                          <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono text-meta font-semibold text-primary">
+                            {item.tracked ? item.onHand : '—'}
+                          </TableCell>
+
+                          <TableCell className="whitespace-nowrap px-3 py-3 text-center text-meta text-muted">
+                            {item.tracked
+                              ? item.allowBackorder
+                                ? 'Backorder allowed'
+                                : 'Tracked'
+                              : 'Not tracked'}
                           </TableCell>
 
                           {/* Reserved */}
-                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-muted whitespace-nowrap">
-                            {item.reserved}
-                          </TableCell>
 
                           {/* ATS (Avail) */}
-                          <TableCell className="py-3 px-3 text-right whitespace-nowrap">
-                            <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-mono font-semibold text-meta ${
- item.ats <= 10
- ? 'bg-status-danger-bg text-danger ring-1 ring-status-danger/30'
- : 'bg-status-success-bg text-success ring-1 ring-status-success/30'
- }`}
-                            >
-                              {item.ats}
-                            </span>
-                          </TableCell>
 
                           {/* Incoming */}
-                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-info font-semibold whitespace-nowrap">
-                            +{item.incoming}
-                          </TableCell>
 
                           {/* Velocity */}
-                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-primary whitespace-nowrap">
-                            {item.velocity}
-                          </TableCell>
 
                           {/* Status */}
                           <TableCell className="py-3 px-3 text-center whitespace-nowrap">

@@ -229,10 +229,14 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
       header: 'Contact & Geo',
       cell: (cust) => (
         <div className="flex flex-col">
-          <span className="text-primary font-medium text-meta truncate max-w-[170px]">{cust.email}</span>
-          <span className="text-muted text-micro flex items-center gap-1">
-            <Icon name="location_on" className="material-symbols-outlined text-icon-sm" />
-            {cust.geo}
+          <span className="text-primary font-medium text-meta truncate max-w-[22rem]">{cust.email}</span>
+          <span className="text-muted text-micro flex items-center gap-1.5">
+            <span className="flex items-center gap-1">
+              <Icon name="location_on" className="material-symbols-outlined text-icon-sm" />
+              {cust.geo}
+            </span>
+            <span aria-hidden="true" className="text-faint">/</span>
+            <span className="truncate">{cust.phone}</span>
           </span>
         </div>
       ),
@@ -242,6 +246,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
       // average order value, return rate and loyalty points were the same
       // numbers on every row, so those columns are gone rather than invented.
       key: 'orders',
+      fit: true,
       header: 'Orders',
       align: 'right',
       cell: (cust) => (
@@ -249,6 +254,16 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
           <span className="text-num font-semibold text-primary tabular-nums">{cust.orderCount}</span>
           <span className="text-micro text-muted">{cust.orderCount === 1 ? 'order' : 'orders'}</span>
         </div>
+      ),
+    },
+    {
+      key: 'since',
+      fit: true,
+      header: 'Joined',
+      cell: (cust) => (
+        <span className="text-meta text-secondary whitespace-nowrap">
+          {String(cust.tenure ?? '').replace(/^Customer since /i, '') || 'Not recorded'}
+        </span>
       ),
     },
     {
@@ -529,11 +544,10 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
 
           {/* Directory Data Table */}
           <DataTable
-  hugContent
             data={filteredCustomers}
             columns={customerColumns}
             keyField="id"
-            className="min-w-[960px]"
+            className="min-w-[720px]"
             activeRowId={selectedCustomerId}
             onRowClick={(cust) => setSelectedCustomerId(cust.id)}
             emptyIcon="person_search"

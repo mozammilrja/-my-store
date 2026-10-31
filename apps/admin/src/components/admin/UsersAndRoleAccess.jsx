@@ -444,19 +444,17 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       <ContentGrid columns={5}>
         <StatsCard
           label="Active Team Members"
-          value="148 Users"
-          change="+14 this month"
-          changeType="positive"
+          value={`${mergedUsers.length} ${mergedUsers.length === 1 ? 'User' : 'Users'}`}
+          changeType="neutral"
           icon="group"
-          subtitle="Across 4 FC Nodes & Central HQ"
+          subtitle={`Across ${nodeGroups.length} ${nodeGroups.length === 1 ? 'hub' : 'hubs'}`}
         />
         <StatsCard
           label="Defined Roles & Policies"
-          value="12 Roles"
-          change="4 Custom Scopes"
+          value={`${roleGroups.length} ${roleGroups.length === 1 ? 'Role' : 'Roles'}`}
           changeType="neutral"
           icon="policy"
-          subtitle="Operations, Finance, Merch, QC"
+          subtitle={roleGroups.map(([name]) => name).join(', ') || 'No roles recorded'}
         />
         <StatsCard
           label="2FA Enforcement"
@@ -468,11 +466,10 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         />
         <StatsCard
           label="Privileged Admins"
-          value="6 Super Users"
-          change="Tier 0 Security"
-          changeType="warning"
+          value={`${ownerCount} ${ownerCount === 1 ? 'Owner' : 'Owners'}`}
+          changeType="neutral"
           icon="admin_panel_settings"
-          subtitle="Require Dual Sign-off"
+          subtitle="Full RBAC and financial sign-off"
         />
         <StatsCard
           label="Active Node Sessions"
@@ -497,7 +494,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
             <span className={`px-1.5 py-0.5 rounded-full text-caption ${
  activeTab === 'directory' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
  }`}>
-              148
+              {mergedUsers.length}
             </span>
           </button>
           <button
@@ -523,7 +520,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
             <span className={`px-1.5 py-0.5 rounded-full text-caption ${
  activeTab === 'nodes' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
  }`}>
-              4 Hubs
+              {nodeGroups.length} {nodeGroups.length === 1 ? 'Hub' : 'Hubs'}
             </span>
           </button>
           <button
@@ -556,7 +553,6 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         <div className="lg:col-span-8 space-y-space-md">
           {activeTab === 'directory' && (
             <DataTable
-  hugContent
               data={usersPager.pageRows}
               columns={directoryColumns}
               keyField="key"
@@ -580,7 +576,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                     <div className="flex items-center gap-space-sm">
                       <span className="text-subheading text-primary font-semibold">Node Operators &amp; Executives</span>
                       <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
-                        Showing {filteredUsers.length} of 148
+                        Showing {filteredUsers.length} of {mergedUsers.length}
                       </span>
                     </div>
                   }
@@ -602,7 +598,6 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
 
           {activeTab === 'matrix' && (
             <DataTable
-  hugContent
               data={roleGroups.map(([roleName, members]) => ({ roleName, members, sample: members[0] }))}
               columns={matrixColumns}
               keyField="roleName"
@@ -660,7 +655,6 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
           {activeTab === 'audit' && (
             <div className="space-y-space-md">
               <DataTable
-  hugContent
                 data={filteredUsers}
                 columns={auditColumns}
                 keyField="email"

@@ -271,16 +271,19 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     },
     {
       key: 'discount',
+      fit: true,
       header: 'Discount',
       align: 'right',
       cell: (camp) => <span className="text-num font-semibold text-primary">{camp.discountLabel}</span>,
     },
     {
       key: 'window',
+      // A date range reads as one unit: "04 Oct 26 to 04 Dec 26" split over two
+      // lines had the eye pairing the wrong start and end dates down the column.
       header: 'Active window',
       cell: (camp) => (
         <div className="flex flex-col">
-          <span className="text-label text-primary">{camp.window}</span>
+          <span className="whitespace-nowrap text-label text-primary">{camp.window}</span>
           {camp.windowWarning && (
             <span className="text-micro font-semibold text-warning">{camp.windowWarning}</span>
           )}
@@ -329,9 +332,8 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     {
       key: 'actions',
       fit: true,
-      header: '',
+      header: 'Action',
       align: 'center',
-      width: '4rem',
       cell: (camp) => (
         <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
           <>
@@ -516,11 +518,10 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
         {/* Left Data Table Column (8 Cols ~ 66.6%) */}
         <div className="lg:col-span-8 flex flex-col space-y-space-md">
           <DataTable
-  hugContent
             data={promosPager.pageRows}
             columns={promoColumns}
             keyField="code"
-            className="min-w-[980px]"
+            className="min-w-[840px]"
             selectable
             selectedIds={selectedCodes}
             onSelectRow={(code) => toggleSelectRow(code)}

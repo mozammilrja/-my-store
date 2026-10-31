@@ -216,12 +216,14 @@ export function ShipmentsAndDispatch({ onShowToast }) {
     },
     {
       key: 'pickup',
+      fit: true,
       header: 'Pickup',
       accessor: (s) =>
         formatDate(s.pickupDate) ?? <span className="text-faint">Not scheduled</span>,
     },
     {
       key: 'status',
+      fit: true,
       header: 'Status',
       accessor: (s) => {
         const meta = STATUS_META[s.status] ?? { label: s.status, variant: 'neutral' };
@@ -354,7 +356,6 @@ export function ShipmentsAndDispatch({ onShowToast }) {
       />
 
       <DataTable
-  hugContent
         columns={columns}
         data={pager.pageRows}
         keyField="awb"

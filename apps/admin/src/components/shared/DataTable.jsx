@@ -288,10 +288,6 @@ export function DataTable({
   toolbar,
   caption,
   stickyHeader = true,
-  // Park leftover width in a trailing spacer instead of stretching every column
-  // and stranding gaps mid-row. Columns then size to their own content. Set
-  // `grow: true` on a column to make it absorb the slack instead.
-  hugContent = false,
   containerClassName,
   className,
   ...props
@@ -299,8 +295,7 @@ export function DataTable({
   const [internalPage, setInternalPage] = useState(1);
   const [internalPageSize, setInternalPageSize] = useState(DEFAULT_PAGE_SIZE);
 
-  const hasSpacer = hugContent && !columns.some((c) => c.grow);
-  const totalCols = columns.length + (selectable ? 1 : 0) + (hasSpacer ? 1 : 0);
+  const totalCols = columns.length + (selectable ? 1 : 0);
   const activePage = pagination?.page ?? internalPage;
   const activePageSize = pagination?.pageSize ?? internalPageSize;
 
@@ -347,6 +342,10 @@ export function DataTable({
                   // the slack: a 1px width plus nowrap is the auto-layout idiom
                   // for "as narrow as the text allows".
                   col.fit && "w-px whitespace-nowrap",
+                  // `grow` hands one column all the leftover width. Without it
+                  // the slack is shared between every non-`fit` column, which
+                  // is what a report of mostly text columns wants.
+                  col.grow && "w-full",
                   col.headerClassName
                 )}
                 style={{ width: col.fit ? "1px" : col.width }}
@@ -354,9 +353,6 @@ export function DataTable({
                 {col.header}
               </TableHead>
             ))}
-            {hasSpacer && (
-              <TableHead aria-hidden="true" className="w-full p-0" />
-            )}
           </TableRow>
         </TableHeader>
 
@@ -425,6 +421,7 @@ export function DataTable({
                           col.align === "center" && "text-center",
                           col.align === "right" && "text-right tabular-nums",
                           col.fit && "w-px whitespace-nowrap",
+                          col.grow && "w-full",
                           col.className
                         )}
                       >
@@ -432,9 +429,6 @@ export function DataTable({
                       </TableCell>
                     );
                   })}
-                  {hasSpacer && (
-                    <TableCell aria-hidden="true" className="w-full p-0" />
-                  )}
                 </TableRow>
               );
             })

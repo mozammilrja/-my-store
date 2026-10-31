@@ -670,7 +670,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                           </TableCell>
                           <TableCell className="py-3 px-3">
                             <div className="font-medium text-meta text-primary">{inv.orderRef}</div>
-                            <div className="text-micro text-muted">{inv.dateTime}</div>
+                            <div className="whitespace-nowrap text-micro text-muted">{inv.dateTime}</div>
                           </TableCell>
                           <TableCell className="py-3 px-3">
                             <div className="font-medium text-meta text-primary">{inv.customer.shortName}</div>
@@ -1006,7 +1006,6 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
                 {/* Itemized Table */}
                 <DataTable
-  hugContent
                   data={selectedInvoice.items ?? []}
                   columns={lineItemColumns}
                   keyField="id"

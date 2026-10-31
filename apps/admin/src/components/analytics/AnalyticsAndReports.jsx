@@ -437,24 +437,25 @@ export default function AnalyticsAndReports({ onShowToast }) {
         }
       >
         <DataTable
-  hugContent
           columns={[
             {
               key: 'title',
               header: 'Product',
               // Long garment names wrapped to four lines on a phone and broke
-              // the row rhythm; the full name stays available on hover.
-              className: 'max-w-[14rem]',
+              // the row rhythm; the full name stays available on hover. The
+              // cap is what it can grow to before the table stops widening.
+              className: 'max-w-[26rem]',
               accessor: (p) => (
                 <span className="block truncate" title={p.title ?? 'Unknown product'}>
                   {p.title ?? 'Unknown product'}
                 </span>
               ),
             },
-            { key: 'units', header: 'Units', align: 'right', accessor: (p) => p.units },
-            { key: 'orders', header: 'Order lines', align: 'right', accessor: (p) => p.orders },
+            { key: 'units', fit: true, header: 'Units', align: 'right', accessor: (p) => p.units },
+            { key: 'orders', fit: true, header: 'Order lines', align: 'right', accessor: (p) => p.orders },
             {
               key: 'revenue',
+              fit: true,
               header: 'Revenue',
               align: 'right',
               accessor: (p) => formatMoney(p.revenue, currency),
@@ -487,21 +488,21 @@ export default function AnalyticsAndReports({ onShowToast }) {
         description="Each sold line counted against every category its product belongs to."
       >
         <DataTable
-  hugContent
           columns={[
             {
               key: 'name',
               header: 'Category',
-              className: 'max-w-[14rem]',
+              className: 'max-w-[26rem]',
               accessor: (c) => (
                 <span className="block truncate" title={c.name}>
                   {c.name}
                 </span>
               ),
             },
-            { key: 'units', header: 'Units', align: 'right', accessor: (c) => c.units },
+            { key: 'units', fit: true, header: 'Units', align: 'right', accessor: (c) => c.units },
             {
               key: 'revenue',
+              fit: true,
               header: 'Revenue',
               align: 'right',
               accessor: (c) => formatMoney(c.revenue, currency),
@@ -561,7 +562,7 @@ export default function AnalyticsAndReports({ onShowToast }) {
             />
           ) : (
             <div className="scrollbar-thin w-full overflow-x-auto">
-              <table className="w-full border-collapse text-left text-body">
+              <table className="w-full border-collapse text-left text-body [&_th:not(:last-child)]:border-r [&_td:not(:last-child)]:border-r [&_th]:border-subtle [&_td]:border-subtle">
                 <caption className="sr-only">GST invoice totals by status</caption>
                 <thead className="bg-surface-subtle">
                   <tr className="border-b border-subtle">
@@ -627,11 +628,15 @@ export default function AnalyticsAndReports({ onShowToast }) {
         description="Redemptions counted on the promotion itself, so they span its whole life rather than this range."
       >
         <DataTable
-  hugContent
           columns={[
-            { key: 'code', header: 'Code', accessor: (p) => <span className="font-mono text-num">{p.code}</span> },
+            {
+              key: 'code',
+              header: 'Code',
+              accessor: (p) => <span className="font-mono text-num">{p.code}</span>,
+            },
             {
               key: 'state',
+              fit: true,
               header: 'State',
               accessor: (p) => (
                 <StatusBadge
@@ -640,9 +645,10 @@ export default function AnalyticsAndReports({ onShowToast }) {
                 />
               ),
             },
-            { key: 'used', header: 'Redemptions', align: 'right', accessor: (p) => p.usageCount },
+            { key: 'used', fit: true, header: 'Redemptions', align: 'right', accessor: (p) => p.usageCount },
             {
               key: 'limit',
+              fit: true,
               header: 'Limit',
               align: 'right',
               accessor: (p) => (p.usageLimit === null ? 'No limit' : p.usageLimit),

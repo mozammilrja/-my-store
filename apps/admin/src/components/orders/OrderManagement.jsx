@@ -489,7 +489,6 @@ export function OrderManagement({
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-md items-start">
         <div className={drawerOpen ? 'xl:col-span-8' : 'xl:col-span-12'}>
           <DataTable
-  hugContent
             columns={orderColumns}
             data={filteredOrders}
             selectable

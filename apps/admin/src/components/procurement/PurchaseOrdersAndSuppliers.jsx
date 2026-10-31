@@ -720,7 +720,6 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* LEFT PANE: PO Ledger Table (Cols 8) */}
         <DataTable
-  hugContent
           data={poPager.pageRows}
           columns={poColumns}
           keyField="id"

@@ -5,16 +5,30 @@ import { cn } from "../../lib/utils";
  * Table
  * The scroll container lives here, so a wide table scrolls inside its own
  * panel instead of pushing the page sideways.
+ *
+ * Cells carry a rule on their right edge, so columns read as columns on a wide
+ * dense table. The last cell in a row is left alone, which would otherwise
+ * draw a line down the inside of the panel border.
  */
-export const Table = React.forwardRef(({ className, containerClassName, ...props }, ref) => (
-  <div className={cn("scrollbar-thin relative w-full overflow-x-auto", containerClassName)}>
-    <table
-      ref={ref}
-      className={cn("w-full caption-bottom border-collapse text-left text-body", className)}
-      {...props}
-    />
-  </div>
-));
+const COLUMN_RULES =
+  "[&_th:not(:last-child)]:border-r [&_td:not(:last-child)]:border-r " +
+  "[&_th]:border-subtle [&_td]:border-subtle";
+
+export const Table = React.forwardRef(
+  ({ className, containerClassName, columnRules = true, ...props }, ref) => (
+    <div className={cn("scrollbar-thin relative w-full overflow-x-auto", containerClassName)}>
+      <table
+        ref={ref}
+        className={cn(
+          "w-full caption-bottom border-collapse text-left text-body",
+          columnRules && COLUMN_RULES,
+          className
+        )}
+        {...props}
+      />
+    </div>
+  )
+);
 Table.displayName = "Table";
 
 export const TableHeader = React.forwardRef(({ className, sticky = false, ...props }, ref) => (

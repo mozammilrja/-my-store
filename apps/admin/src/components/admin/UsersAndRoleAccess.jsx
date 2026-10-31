@@ -276,7 +276,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       key: 'security',
       header: 'Security State',
       cell: (user) => (
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-semibold ${user.securityBadge}`}>
+        <span className={`whitespace-nowrap inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-semibold ${user.securityBadge}`}>
           <Icon name={user.securityIcon} className="material-symbols-outlined text-icon-sm" />
           {user.securityState}
         </span>
@@ -322,6 +322,9 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   const nodeGroups = Object.entries(groupBy(filteredUsers, (u) => u.hub)).sort(
     (a, b) => b[1].length - a[1].length
   );
+  // `owner` is the only elevated role the server defines, so it is the only
+  // thing "privileged" can honestly be counted from.
+  const ownerCount = mergedUsers.filter((u) => /owner/i.test(u.role)).length;
   // Module-level grants only exist on records that carry a `modules` array.
   const permissionColumns = [
     ...new Set(filteredUsers.flatMap((u) => (u.modules ?? []).map((m) => m.name))),
@@ -418,7 +421,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         breadcrumb="Everwear Admin / Settings & Admin / Users & Role Access"
         title="Enterprise User Management & Granular Role-Based Access Control (RBAC)"
         badge={
-          <span className="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-status-success-bg text-success text-caption font-semibold">
+          <span className="whitespace-nowrap inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-status-success-bg text-success text-caption font-semibold">
             <span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse"></span>
             Zero Trust SSO Enforced
           </span>
@@ -458,11 +461,10 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         />
         <StatsCard
           label="2FA Enforcement"
-          value="100%"
-          change="0 Non-compliant"
-          changeType="positive"
+          value="Not recorded"
+          changeType="neutral"
           icon="lock_clock"
-          subtitle="Compliant (FIDO2 / Hardware OTP)"
+          subtitle="No second factor is stored against an operator"
         />
         <StatsCard
           label="Privileged Admins"
@@ -473,11 +475,10 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         />
         <StatsCard
           label="Active Node Sessions"
-          value="84 Concurrent"
-          change="BLR-FC1 Peak"
-          changeType="positive"
+          value="Not recorded"
+          changeType="neutral"
           icon="devices"
-          subtitle="Avg. Session Latency 18ms"
+          subtitle="The API keeps no session register"
         />
       </ContentGrid>
 
@@ -491,7 +492,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
  }`}
           >
             <span>Team Directory</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-caption ${
+            <span className={`whitespace-nowrap px-1.5 py-0.5 rounded-full text-caption ${
  activeTab === 'directory' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
  }`}>
               {mergedUsers.length}
@@ -504,10 +505,10 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
  }`}
           >
             <span>Roles & Permission Matrix</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-caption ${
+            <span className={`whitespace-nowrap px-1.5 py-0.5 rounded-full text-caption ${
  activeTab === 'matrix' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
  }`}>
-              12
+              {roleGroups.length}
             </span>
           </button>
           <button
@@ -517,7 +518,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
  }`}
           >
             <span>FC Node Assignments</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-caption ${
+            <span className={`whitespace-nowrap px-1.5 py-0.5 rounded-full text-caption ${
  activeTab === 'nodes' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
  }`}>
               {nodeGroups.length} {nodeGroups.length === 1 ? 'Hub' : 'Hubs'}
@@ -575,7 +576,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                   left={
                     <div className="flex items-center gap-space-sm">
                       <span className="text-subheading text-primary font-semibold">Node Operators &amp; Executives</span>
-                      <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
+                      <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
                         Showing {filteredUsers.length} of {mergedUsers.length}
                       </span>
                     </div>
@@ -632,7 +633,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                       </div>
                       <span className="text-meta font-semibold text-primary truncate">{hubName}</span>
                     </div>
-                    <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold shrink-0">
+                    <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold shrink-0">
                       {members.length} assigned
                     </span>
                   </div>
@@ -716,7 +717,9 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
 
         {/* RIGHT PANEL: 35% Role Policy Inspector & Deep Controls */}
         {!selectedUser ? (
-          <EmptyState icon="person" title="No team member selected" message="Pick a team member from the list to see their access." />
+          <div className="lg:col-span-4">
+            <EmptyState icon="person" title="No team member selected" message="Pick a team member from the list to see their access." />
+          </div>
         ) : (
         <div className="lg:col-span-4 space-y-space-md">
           {/* Main Policy Inspector Card */}
@@ -733,7 +736,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                   Assigned to: <strong className="text-primary">{selectedUser.name}</strong> ({selectedUser.assignedHub})
                 </p>
               </div>
-              <span className={`px-2 py-0.5 rounded-full text-caption font-semibold ${selectedUser.tierBadge}`}>
+              <span className={`whitespace-nowrap px-2 py-0.5 rounded-full text-caption font-semibold ${selectedUser.tierBadge}`}>
                 {selectedUser.tier}
               </span>
             </div>

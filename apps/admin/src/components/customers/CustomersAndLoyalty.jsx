@@ -48,6 +48,10 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
     error: customersError,
     refetch: refetchCustomers,
   } = useCustomersQuery(table.params, { placeholderData: (prev) => prev });
+
+  // The table is paged server-side, so the strip above it cannot be counted
+  // from one page. This pulls the roll the figures are measured over.
+  const { data: rollData } = useCustomersQuery({ limit: 100 });
   const targetDbCustomerId = selectedCustomerId?.startsWith('cus_') ? selectedCustomerId : null;
   const { data: singleCustomerData } = useCustomerQuery(targetDbCustomerId);
 
@@ -64,6 +68,22 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
       setCustomerOrders([]);
     }
   }, [singleCustomerData, targetDbCustomerId]);
+
+  /** Counted over the customer roll, not over one page of the table. */
+  const rollStats = useMemo(() => {
+    const roll = rollData?.customers ?? [];
+    const total = rollData?.count ?? roll.length;
+    const ordered = roll.filter((c) => (c.orderCount ?? 0) > 0);
+    const repeat = roll.filter((c) => (c.orderCount ?? 0) > 1);
+    return {
+      ordered: ordered.length,
+      repeatRate: ordered.length ? (repeat.length / ordered.length) * 100 : null,
+      basis:
+        roll.length < total
+          ? `Of the ${roll.length} most recent of ${total}`
+          : `Of ${roll.length} accounts on record`,
+    };
+  }, [rollData]);
 
   const mergedCustomers = useMemo(() => {
     const fromDb = dbCustomers.map((c, idx) => {
@@ -344,36 +364,32 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
           subtitle="Accounts on record"
         />
         <StatsCard
-          label="VIP Club Couture"
-          value="4,820"
-          change="Tier 1 HNW"
+          label="Have ordered"
+          value={String(rollStats.ordered)}
           changeType="neutral"
           icon="diamond"
-          subtitle="Avg annual spend > ₹1.25L"
+          subtitle={rollStats.basis}
         />
         <StatsCard
-          label="Repeat Purchase Rate"
-          value="41.8%"
-          change="+3.2pp YoY"
-          changeType="positive"
+          label="Repeat purchase rate"
+          value={rollStats.repeatRate == null ? 'Not recorded' : `${rollStats.repeatRate.toFixed(1)}%`}
+          changeType="neutral"
           icon="repeat"
-          subtitle="30-day cohort retention window"
+          subtitle="Of customers who ordered, those who ordered again"
         />
         <StatsCard
-          label="Loyalty Points In Float"
-          value="18.4M Pts"
-          change="Valuation ₹18.4L"
+          label="Loyalty points in float"
+          value="Not recorded"
           changeType="neutral"
           icon="toll"
-          subtitle="Redemption rate: 76.4%"
+          subtitle="No loyalty balance is held against a customer"
         />
         <StatsCard
-          label="Store Credit Liability"
-          value="₹4.12 Lakhs"
-          change="Pending"
-          changeType="warning"
+          label="Store credit liability"
+          value="Not recorded"
+          changeType="neutral"
           icon="account_balance_wallet"
-          subtitle="From returns/exchanges"
+          subtitle="No store credit ledger exists"
         />
       </ContentGrid>
 

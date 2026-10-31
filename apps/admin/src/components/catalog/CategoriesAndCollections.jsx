@@ -640,7 +640,9 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
 
         {/* RIGHT 4-COLUMNS: Visual Merchandising Inspector Drawer (Exact 1:1 with Stitch design) */}
         {!selectedDrop ? (
-          <EmptyState icon="collections_bookmark" title="No collection selected" message="Pick a collection from the list to inspect it." />
+          <div className="xl:col-span-4">
+            <EmptyState icon="collections_bookmark" title="No collection selected" message="Pick a collection from the list to inspect it." />
+          </div>
         ) : (
         <div className="xl:col-span-4 flex flex-col space-y-space-sm">
           <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-md flex flex-col space-y-space-md">

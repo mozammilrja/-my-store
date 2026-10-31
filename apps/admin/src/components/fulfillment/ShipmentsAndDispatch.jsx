@@ -184,10 +184,11 @@ export function ShipmentsAndDispatch({ onShowToast }) {
   const columns = [
     {
       key: 'awb',
+      width: '16rem',
       header: 'AWB & carrier',
       accessor: (s) => (
         <div className="flex min-w-0 flex-col">
-          <span className="truncate font-mono text-num text-primary">{s.awb}</span>
+          <span className="block truncate font-mono text-num text-primary">{s.awb}</span>
           <span className="truncate text-meta text-muted">
             {CARRIER_LABELS[s.carrier] ?? s.carrier}
             {s.isReturn ? ' / return leg' : ''}
@@ -197,6 +198,7 @@ export function ShipmentsAndDispatch({ onShowToast }) {
     },
     {
       key: 'order',
+      width: '16rem',
       header: 'Order & destination',
       accessor: (s) => (
         <div className="flex min-w-0 flex-col">
@@ -216,6 +218,7 @@ export function ShipmentsAndDispatch({ onShowToast }) {
     },
     {
       key: 'pickup',
+      className: 'whitespace-nowrap',
       fit: true,
       header: 'Pickup',
       accessor: (s) =>

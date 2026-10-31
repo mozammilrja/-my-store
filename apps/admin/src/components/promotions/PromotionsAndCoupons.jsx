@@ -21,6 +21,7 @@ import { formatMoney } from '../../lib/format';
 import { EmptyState } from '../shared/FeedbackAndOverlays';
 import { downloadCsv, datedFilename } from '../../lib/export';
 import {
+  useOrdersQuery,
   usePromotionsQuery,
   useCreatePromotionMutation,
   useTogglePromotionMutation,
@@ -43,6 +44,10 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     error: promotionsError,
     refetch: refetchPromotions,
   } = usePromotionsQuery();
+
+  // The GMV and discount-depth strips are measurements of orders, not of the
+  // promotion records, so the orders have to be loaded to state them at all.
+  const { data: ordersData } = useOrdersQuery({ limit: 100 });
   const createPromotionMutation = useCreatePromotionMutation();
   const togglePromotionMutation = useTogglePromotionMutation();
   const deletePromotionMutation = useDeletePromotionMutation();
@@ -172,6 +177,23 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       };
     });
   }, [dbPromotions]);
+
+  /** Every strip above the ledger, measured off the records behind it. */
+  const promoStats = useMemo(() => {
+    const orders = ordersData?.orders ?? [];
+    const withCode = orders.filter((o) => (o.promoCodes ?? []).length > 0);
+    const subtotal = orders.reduce((t, o) => t + (o.totals?.itemSubtotal ?? 0), 0);
+    const discount = orders.reduce((t, o) => t + (o.totals?.discountTotal ?? 0), 0);
+    return {
+      live: mergedCampaigns.filter((c) => c.active).length,
+      total: mergedCampaigns.length,
+      redemptions: dbPromotions.reduce((t, p) => t + (p.usageCount ?? 0), 0),
+      orderCount: orders.length,
+      promoOrders: withCode.length,
+      promoGmv: withCode.reduce((t, o) => t + (o.totals?.total ?? 0), 0),
+      depth: subtotal > 0 ? (discount / subtotal) * 100 : null,
+    };
+  }, [mergedCampaigns, dbPromotions, ordersData]);
 
   const selectedCampaign = mergedCampaigns.find(c => c.code === selectedCode) || mergedCampaigns[0];
 
@@ -395,44 +417,43 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       {/* KPI Summary Banner (5 Metric Cards) */}
       <ContentGrid columns={5}>
         <StatsCard
-          label="Active Promotions"
-          value="24 Live"
-          change="+4 this wk"
-          changeType="positive"
+          label="Active promotions"
+          value={`${promoStats.live} live`}
+          changeType="neutral"
           icon="campaign"
-          subtitle="12 Auto-Applied • 12 Coupon Codes"
+          subtitle={`${promoStats.total} codes on record`}
         />
         <StatsCard
-          label="Promo-Driven GMV"
-          value="₹1.94 Cr"
-          change="+18.2%"
-          changeType="positive"
+          label="Promo-driven GMV"
+          value={formatMoney(promoStats.promoGmv, 'inr')}
+          changeType="neutral"
           icon="payments"
-          subtitle="28.4% of total May GMV volume"
+          subtitle={
+            promoStats.orderCount
+              ? `${promoStats.promoOrders} of ${promoStats.orderCount} orders used a code`
+              : 'No orders loaded'
+          }
         />
         <StatsCard
-          label="Blended Discount Depth"
-          value="18.2%"
-          change="Target <20%"
-          changeType="positive"
+          label="Blended discount depth"
+          value={promoStats.depth == null ? 'Not recorded' : `${promoStats.depth.toFixed(1)}%`}
+          changeType="neutral"
           icon="percent"
-          subtitle="Blended discount depth across orders"
+          subtitle="Discount against item subtotal, all orders"
         />
         <StatsCard
-          label="Coupon Redemptions"
-          value="64,280"
-          change="Uses"
+          label="Coupon redemptions"
+          value={promoStats.redemptions.toLocaleString('en-IN')}
           changeType="neutral"
           icon="confirmation_number"
-          subtitle="Avg. 2.14 vouchers / cart"
+          subtitle="Counted on the promotions themselves"
         />
         <StatsCard
-          label="Margin Shield Triggers"
-          value="312"
-          change="Blocked"
-          changeType="negative"
+          label="Margin shield triggers"
+          value="Not recorded"
+          changeType="neutral"
           icon="security"
-          subtitle="Saved ~₹14.8L in leaks"
+          subtitle="No suppression rule is evaluated or logged"
         />
       </ContentGrid>
 
@@ -588,7 +609,9 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
 
         {/* Right Column: Campaign Inspector (4 Cols ~ 33.3%) */}
         {!selectedCampaign ? (
-          <EmptyState icon="sell" title="No campaign selected" message="Pick a campaign from the list to inspect it." />
+          <div className="lg:col-span-4">
+            <EmptyState icon="sell" title="No campaign selected" message="Pick a campaign from the list to inspect it." />
+          </div>
         ) : (
         <div className="lg:col-span-4 flex flex-col space-y-space-md">
           <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-md">

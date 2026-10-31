@@ -19,6 +19,7 @@ import {
 import { useClientTable } from '../../hooks/useClientTable';
 import { DataTable, TableToolbar } from '../shared/DataTable';
 import { adminApi } from '../../lib/api';
+import { formatMoney } from '../../lib/format';
 import { usePurchaseOrdersQuery, useCreatePurchaseOrderMutation } from '../../hooks/useAdminQueries';
 
 export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
@@ -396,6 +397,27 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
     return [...livePos, ...poList.filter(p => !livePos.some(l => l.id === p.id))];
   }, [livePos, poList]);
 
+  /** The KPI strip, measured off the purchase orders themselves. */
+  const poStats = useMemo(() => {
+    const pos = posData?.purchaseOrders ?? [];
+    const openPos = pos.filter((po) => po.status !== 'received' && po.status !== 'canceled');
+    const now = Date.now();
+    const lines = pos.flatMap((po) => po.items ?? []);
+    const ordered = lines.reduce((t, l) => t + (l.quantity ?? 0), 0);
+    const received = lines.reduce((t, l) => t + (l.received ?? 0), 0);
+    return {
+      open: openPos.length,
+      openValue: openPos.reduce((t, po) => t + (po.totalAmount ?? 0), 0),
+      unitsInbound: openPos
+        .flatMap((po) => po.items ?? [])
+        .reduce((t, l) => t + Math.max(0, (l.quantity ?? 0) - (l.received ?? 0)), 0),
+      overdue: openPos.filter((po) => po.expectedDate && new Date(po.expectedDate).getTime() < now)
+        .length,
+      receiptRate: ordered > 0 ? (received / ordered) * 100 : null,
+      suppliers: new Set(pos.map((po) => po.supplierId ?? po.supplierName).filter(Boolean)).size,
+    };
+  }, [posData]);
+
   const selectedPo = useMemo(() => {
     return allPos.find(p => p.id === selectedPoId) || allPos[0];
   }, [selectedPoId, allPos]);
@@ -551,7 +573,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
       key: 'milestone',
       header: 'Milestone Status',
       cell: (po) => (
-        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-micro font-semibold ${po.milestoneBadge}`}>
+        <span className={`whitespace-nowrap inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-micro font-semibold ${po.milestoneBadge}`}>
           {po.milestonePulse ? (
             <span className="w-1.5 h-1.5 rounded-full bg-status-info animate-pulse" />
           ) : (
@@ -615,47 +637,39 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
       {/* Operational KPI Cards */}
       <ContentGrid columns={5}>
         <StatsCard
-          title="Active Purchase Orders"
-          value="48 POs"
+          title="Open purchase orders"
+          value={`${poStats.open} POs`}
           icon="receipt_long"
-          trend="+8.4% MoM"
-          trendType="up"
-          trendLabel="Valuation ₹3.84 Cr"
+          trendLabel={`Valuation ${formatMoney(poStats.openValue, 'inr')}`}
         />
         <StatsCard
-          title="Inward Pipeline (7D)"
-          value="18,400"
+          title="Units still inbound"
+          value={poStats.unitsInbound.toLocaleString('en-IN')}
           icon="local_shipping"
           iconColor="text-info"
-          badge="9 consignments"
+          badge={`${poStats.open} ${poStats.open === 1 ? 'consignment' : 'consignments'}`}
           badgeVariant="info"
-          trendLabel="BLR-FC1 & BOM-FC2"
+          trendLabel="Ordered minus received"
         />
         <StatsCard
-          title="Overdue Shipments"
-          value="3 POs"
+          title="Overdue shipments"
+          value={`${poStats.overdue} POs`}
           icon="warning"
-          iconColor="text-danger"
-          badge="Critical"
-          badgeVariant="destructive"
-          trendLabel="SLA Escalation Alert"
+          iconColor={poStats.overdue ? 'text-danger' : 'text-muted'}
+          trendLabel="Past their expected date"
         />
         <StatsCard
-          title="Quality Acceptance"
-          value="98.2%"
+          title="Received against ordered"
+          value={poStats.receiptRate == null ? 'Not recorded' : `${poStats.receiptRate.toFixed(1)}%`}
           icon="verified_user"
           iconColor="text-success"
-          badge="Grade-A"
-          badgeVariant="success"
-          trendLabel="> 97.5% Target"
+          trendLabel="No QC grade is stored on a receipt"
         />
         <StatsCard
-          title="Vendor Network"
-          value="34 Mills"
+          title="Suppliers in use"
+          value={`${poStats.suppliers} ${poStats.suppliers === 1 ? 'mill' : 'mills'}`}
           icon="storefront"
-          badge="Tier-1"
-          badgeVariant="secondary"
-          trendLabel="Surat, Jaipur, Tirupur, Ludhiana"
+          trendLabel="Distinct suppliers with a purchase order"
         />
       </ContentGrid>
 
@@ -744,7 +758,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                 <div className="flex items-center gap-2">
                   <Icon name="inventory_2" className="material-symbols-outlined text-icon-md text-accent" />
                   <span className="text-body font-semibold text-primary">Procurement Order Ledger</span>
-                  <span className="px-2 py-0.5 rounded-full bg-surface-container text-muted text-micro font-semibold">
+                  <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-container text-muted text-micro font-semibold">
                     Showing {filteredPoList.length} of 48 POs
                   </span>
                 </div>
@@ -847,15 +861,15 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                 return (
                   <div key={sIdx} className="relative flex items-center justify-between group">
                     {isCompleted ? (
-                      <div className="absolute -left-6 w-5 h-5 rounded-full bg-status-success-solid text-on-accent flex items-center justify-center shadow-sm">
+                      <div className="whitespace-nowrap absolute -left-6 w-5 h-5 rounded-full bg-status-success-solid text-on-accent flex items-center justify-center shadow-sm">
                         <Icon name="check" className="material-symbols-outlined text-icon-sm" />
                       </div>
                     ) : isCurrent ? (
-                      <div className="absolute -left-6 w-5 h-5 rounded-full bg-primary-container text-on-accent flex items-center justify-center ring-4 ring-primary-fixed shadow-md">
+                      <div className="whitespace-nowrap absolute -left-6 w-5 h-5 rounded-full bg-primary-container text-on-accent flex items-center justify-center ring-4 ring-primary-fixed shadow-md">
                         <span className="w-2 h-2 rounded-full bg-on-primary animate-ping"></span>
                       </div>
                     ) : (
-                      <div className="absolute -left-6 w-5 h-5 rounded-full bg-surface-container text-muted flex items-center justify-center">
+                      <div className="whitespace-nowrap absolute -left-6 w-5 h-5 rounded-full bg-surface-container text-muted flex items-center justify-center">
                         <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
                       </div>
                     )}
@@ -932,7 +946,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                   <span className="text-meta font-semibold text-primary">Tirupur Knitwear Hub</span>
                   <span className="text-micro text-muted">99.4% On-Time Fulfillment</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
+                <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
                   Tier-1 Star
                 </span>
               </div>
@@ -941,7 +955,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                   <span className="text-meta font-semibold text-primary">Jaipur Weaves &amp; Prints</span>
                   <span className="text-micro text-muted">98.1% Quality Grade-A Pass</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
+                <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
                   Tier-1 Certified
                 </span>
               </div>
@@ -950,7 +964,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                   <span className="text-meta font-semibold text-primary">Bhilwara TexCraft Co.</span>
                   <span className="text-micro text-muted">97.8% Compliance Rate</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
+                <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
                   Tier-2 Active
                 </span>
               </div>
@@ -976,7 +990,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                   <span className="text-muted">42% (₹1.61 Cr)</span>
                 </div>
                 <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-primary-container h-full w-[42%] rounded-full"></div>
+                  <div className="whitespace-nowrap bg-primary-container h-full w-[42%] rounded-full"></div>
                 </div>
               </div>
               <div>
@@ -985,7 +999,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                   <span className="text-muted">31% (₹1.19 Cr)</span>
                 </div>
                 <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-status-info h-full w-[31%] rounded-full"></div>
+                  <div className="whitespace-nowrap bg-status-info h-full w-[31%] rounded-full"></div>
                 </div>
               </div>
               <div>
@@ -994,7 +1008,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                   <span className="text-muted">18% (₹0.69 Cr)</span>
                 </div>
                 <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-status-warning h-full w-[18%] rounded-full"></div>
+                  <div className="whitespace-nowrap bg-status-warning h-full w-[18%] rounded-full"></div>
                 </div>
               </div>
               <div>
@@ -1003,7 +1017,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                   <span className="text-muted">9% (₹0.35 Cr)</span>
                 </div>
                 <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-status-success h-full w-[9%] rounded-full"></div>
+                  <div className="whitespace-nowrap bg-status-success h-full w-[9%] rounded-full"></div>
                 </div>
               </div>
             </div>

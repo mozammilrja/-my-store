@@ -1,0 +1,3 @@
+
+# Throwaway diagnostic specs; never part of the suite.
+e2e/_tmp-*.spec.js

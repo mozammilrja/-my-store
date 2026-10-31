@@ -256,12 +256,15 @@ export function SystemSettings({ onNavigate, onShowToast }) {
                 <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-meta text-primary">Primary Registered GSTIN</span>
-                    <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">VERIFIED</span>
+                    <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-micro font-semibold">NOT RECORDED</span>
                   </div>
+                  {/* Settings hold a store name, a low-stock threshold and a
+                      support email; there is no GSTIN field to read. The box
+                      used to show a made-up number marked VERIFIED. */}
                   <input
                     readOnly
-                    value="29AABCE1234F1Z8 (Karnataka Principal Place of Business)"
-                    className="w-full h-9 px-3 bg-surface-container-lowest border border-subtle rounded-lg text-meta font-mono text-primary whitespace-nowrap"
+                    value="No GSTIN is stored against this store"
+                    className="w-full h-9 px-3 bg-surface-container-lowest border border-subtle rounded-lg text-meta font-mono text-muted whitespace-nowrap"
                   />
                 </div>
 

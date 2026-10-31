@@ -177,6 +177,24 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     }
   }, [catalogData]);
 
+  /** The stat band, counted off the API payload rather than written in. The
+      row mapper above drops `status` and `variants` and substitutes a stock
+      thumbnail, so counting from it would answer the wrong question. */
+  const catalogStats = useMemo(() => {
+    const rows = catalogData?.products ?? [];
+    const variants = rows.flatMap((p) => p.variants ?? []);
+    const tracked = variants.filter((v) => v.manageInventory);
+    return {
+      published: rows.filter((p) => p.status === 'published').length,
+      draft: rows.filter((p) => p.status === 'draft').length,
+      variants: variants.length,
+      tracked: tracked.length,
+      outOfStock: tracked.filter((v) => (v.stock ?? 0) <= 0).length,
+      noImage: rows.filter((p) => !p.thumbnail && !(p.images ?? []).length).length,
+    };
+  }, [catalogData]);
+
+
   // Keep a real selection as the catalog loads or the list changes under it.
   useEffect(() => {
     if (!allProducts.length) {
@@ -603,48 +621,48 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       {/* Operational Stat Band */}
       <ContentGrid cols={5}>
         <StatsCard
-          title="Total Products"
+          title="Total products"
           value={allProducts.length}
           icon="checkroom"
-          trend="+3.4% mo"
-          trendType="up"
-        />
-
-        <StatsCard
-          title="Active Variants (SKUs)"
-          value="24,190"
-          icon="view_in_ar"
-          iconColor="text-accent"
-          badge="Live in 12 Hubs"
+          badge={`${catalogStats.published} published`}
           badgeVariant="info"
         />
 
         <StatsCard
-          title="Draft Catalog"
-          value="38"
+          title="Variants (SKUs)"
+          value={catalogStats.variants.toLocaleString('en-IN')}
+          icon="view_in_ar"
+          iconColor="text-accent"
+          badge={`${catalogStats.tracked} stock-tracked`}
+          badgeVariant="info"
+        />
+
+        <StatsCard
+          title="Draft catalog"
+          value={String(catalogStats.draft)}
           icon="edit_note"
           iconColor="text-muted"
-          badge="Work in progress"
+          badge="Not on the storefront"
           badgeVariant="secondary"
         />
 
         <StatsCard
           className="hover:border-status-danger/40"
-          title="Stock Depleted"
-          value="86"
+          title="Out of stock"
+          value={String(catalogStats.outOfStock)}
           icon="inventory_2"
           iconColor="text-danger"
-          badge="Urgent Reorder"
+          badge="Tracked variants at zero"
           badgeVariant="destructive"
         />
 
         <StatsCard
           className="hover:border-status-warning/40"
-          title="Pending Studio QC"
-          value="14"
+          title="Missing imagery"
+          value={String(catalogStats.noImage)}
           icon="photo_camera"
           iconColor="text-warning"
-          badge="Asset Review"
+          badge="Products with no image"
           badgeVariant="warning"
         />
       </ContentGrid>

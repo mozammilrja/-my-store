@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { adminApi, describeUploadProblem } from '../../lib/api';
 import { cn } from '../../lib/utils';
+import { VariantMatrixPanel, StockAllocationPanel, StorefrontSeoPanel } from './ProductTabPanels';
 import { useProductsQuery, useUpdateProductMutation } from '../../hooks/useAdminQueries';
 import { Icon,
   Card,
@@ -32,9 +34,33 @@ import { Icon,
 
 const EMPTY_PRODUCT = {};
 
+/** Tab slugs, so the URL says which panel is open rather than a bare number. */
+const TAB_SLUGS = {
+  1: 'details',
+  2: 'media',
+  3: 'variants',
+  4: 'pricing',
+  5: 'tax',
+  6: 'stock',
+  7: 'storefront',
+};
+const SLUG_TO_TAB = Object.fromEntries(Object.entries(TAB_SLUGS).map(([id, slug]) => [slug, Number(id)]));
+
 export function ProductCatalog({ onShowToast, currentHub }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = SLUG_TO_TAB[searchParams.get('tab')] ?? 1;
+  // Pushed, not replaced: moving between tabs is navigation, so Back should
+  // return to the tab you came from.
+  const setActiveTab = (next) =>
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      if (Number(next) === 1) params.delete('tab');
+      else params.set('tab', TAB_SLUGS[Number(next)]);
+      return params;
+    });
+
   const [activeCategory, setActiveCategory] = useState('All');
-  const [activeTab, setActiveTab] = useState(1);
+
   const [allProducts, setAllProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [activeMediaSlot, setActiveMediaSlot] = useState(null);
@@ -351,6 +377,48 @@ export function ProductCatalog({ onShowToast, currentHub }) {
         type: 'error',
         title: 'Upload failed',
         message: err?.message || `${file.name} could not be uploaded.`,
+      });
+    }
+  };
+
+  /** Writes changed variant stock onto the product. */
+  const handleSaveStock = async (variantChanges, onDone) => {
+    if (!backendProductId || !variantChanges.length) return;
+    try {
+      await updateProductMutation.mutateAsync({
+        productId: backendProductId,
+        data: { variants: variantChanges },
+      });
+      onDone?.();
+      onShowToast({
+        type: 'success',
+        title: 'Stock updated',
+        message: `Saved ${variantChanges.length} variant${variantChanges.length === 1 ? '' : 's'}.`,
+      });
+    } catch (err) {
+      onShowToast({
+        type: 'error',
+        title: 'Stock not saved',
+        message: err?.message || 'The stock change was rejected. Nothing was changed.',
+      });
+    }
+  };
+
+  /** Writes the storefront-facing fields the product page reads. */
+  const handleSaveStorefront = async (fields) => {
+    if (!backendProductId) return;
+    try {
+      await updateProductMutation.mutateAsync({ productId: backendProductId, data: fields });
+      onShowToast({
+        type: 'success',
+        title: 'Storefront fields saved',
+        message: `${title} is now at /products/${fields.handle}.`,
+      });
+    } catch (err) {
+      onShowToast({
+        type: 'error',
+        title: 'Not saved',
+        message: err?.message || 'The storefront fields were rejected. Nothing was changed.',
       });
     }
   };
@@ -683,11 +751,13 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           </TabsList>
         </Tabs>
 
-        {/* Main Workspace Split Panels */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg p-space-lg bg-surface-container-lowest">
-          {/* Left Column: Rich Fashion Specification Form (7 Cols) */}
-          <div className="xl:col-span-7 space-y-space-lg">
-            {/* General Identity */}
+        {/* One panel per tab. Every tab owns its content; before this the
+            panels were all rendered at once and the tabs only moved a
+            highlight. */}
+        <div data-testid="product-tab-panel" className="bg-surface-container-lowest p-space-lg">
+          {activeTab === 1 && (
+            <div className="grid grid-cols-1 gap-space-lg xl:grid-cols-12">
+              <div className="flex flex-col gap-space-lg xl:col-span-7">
             <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
@@ -785,8 +855,8 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Material, Weave & Technical Specs */}
+              </div>
+              <div className="flex flex-col gap-space-lg xl:col-span-5">
             <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
@@ -859,8 +929,12 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
               </CardContent>
             </Card>
+              </div>
+            </div>
+          )}
 
-            {/* Studio Lookbook Media Assets (Strip of slots) */}
+          {activeTab === 2 && (
+            <div className="flex flex-col gap-space-lg">
             <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between">
@@ -975,11 +1049,13 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 )}
               </CardContent>
             </Card>
-          </div>
+            </div>
+          )}
 
-          {/* Right Column: Pricing Engine, Tax Setup & SKU Matrix (5 Cols) */}
-          <div className="xl:col-span-5 space-y-space-lg">
-            {/* Commercial Pricing Engine */}
+          {activeTab === 3 && <VariantMatrixPanel product={product} />}
+
+          {activeTab === 4 && (
+            <div className="flex flex-col gap-space-lg">
             <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
@@ -1051,8 +1127,11 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
               </CardContent>
             </Card>
+            </div>
+          )}
 
-            {/* HSN & GST Statutory Compliance */}
+          {activeTab === 5 && (
+            <div className="flex flex-col gap-space-lg">
             <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
@@ -1113,98 +1192,36 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
               </CardContent>
             </Card>
+            </div>
+          )}
 
-            {/* Active Variant Matrix */}
-            <Card className="bg-surface-canvas border-subtle/50">
-              <CardContent className="p-space-lg space-y-space-md">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
-                      <Icon name="layers" className="material-symbols-outlined text-accent text-icon-lg" />
-                      <span>Active SKU Variant Matrix</span>
-                    </h3>
-                    <p className="text-body text-secondary">Emerald &amp; Wine Colorways • XS–XL</p>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="text-accent hover:bg-surface-container text-meta h-7"
-                    onClick={() => onShowToast({ type: 'info', title: 'New Colorway', message: 'Colorway palette generator opened.' })}
-                    type="button"
-                  >
-                    + New Colorway
-                  </Button>
-                </div>
+          {activeTab === 6 && (
+            <StockAllocationPanel
+              product={product}
+              onSave={handleSaveStock}
+              isSaving={updateProductMutation.isPending}
+            />
+          )}
 
-                {/* Colorway 1: Emerald Green */}
-                <div className="bg-surface-container-lowest p-space-md rounded-xl space-y-space-sm shadow-xs border border-subtle">
-                  <div className="flex items-center justify-between border-b border-surface-subtle pb-2">
-                    <ColorSwatch hex="#065F46" name="Emerald Green" />
-                    <Badge variant="success" className="text-caption font-semibold">
-                      5 SKUs Active
-                    </Badge>
-                  </div>
-
-                  <div className="space-y-1.5 pt-1">
-                    {[
-                      { size: 'XS', sku: `${styleCode}-EMR-XS`, ean: '8904321098451', stock: 142 },
-                      { size: 'S', sku: `${styleCode}-EMR-S`, ean: '8904321098452', stock: 298 },
-                      { size: 'M', sku: `${styleCode}-EMR-M`, ean: '8904321098453', stock: 340 },
-                      { size: 'L', sku: `${styleCode}-EMR-L`, ean: '8904321098454', stock: 18 },
-                      { size: 'XL', sku: `${styleCode}-EMR-XL`, ean: '8904321098455', stock: 0 },
-                    ].map((skuItem) => (
-                      <div key={skuItem.size} className="flex items-center justify-between text-body py-1 border-b border-surface-subtle/50 last:border-none">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded bg-surface-subtle flex items-center justify-center font-semibold text-micro text-primary">
-                            {skuItem.size}
-                          </span>
-                          <span className="font-mono text-caption text-muted whitespace-nowrap">
-                            {skuItem.sku}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono text-micro text-muted hidden sm:inline whitespace-nowrap">
-                            EAN: {skuItem.ean}
-                          </span>
-                          <Badge 
-                            variant={
-                              skuItem.stock === 0 ? 'destructive' :
-                              skuItem.stock < 20 ? 'warning' : 'success'
-                            }
-                            className="text-micro py-0 px-1.5 font-semibold"
-                          >
-                            {skuItem.stock} {skuItem.stock === 0 ? 'Out' : skuItem.stock < 20 ? 'Low' : 'In Stock'}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Colorway 2: Wine Berry */}
-                <div className="bg-surface-container-lowest p-space-md rounded-xl space-y-space-sm shadow-xs border border-subtle">
-                  <div className="flex items-center justify-between border-b border-surface-subtle pb-2">
-                    <ColorSwatch hex="#701A75" name="Wine Berry" />
-                    <Badge variant="info" className="text-caption font-semibold">
-                      5 SKUs Generated
-                    </Badge>
-                  </div>
-                  <div className="text-meta text-muted flex items-center justify-between py-1">
-                    <span>Standard Logistics Spec:</span>
-                    <span className="font-mono text-primary whitespace-nowrap">380g • 30×25×4 cm • Polybag Tier 1</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          {activeTab === 7 && (
+            <StorefrontSeoPanel
+              product={product}
+              title={title}
+              description={product.rawBackend?.description ?? ''}
+              onSave={handleSaveStorefront}
+              isSaving={updateProductMutation.isPending}
+            />
+          )}
         </div>
+
 
         {/* Sticky Bottom Master Action Bar */}
         <div className="p-space-md bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-space-md sticky bottom-0 z-30 shadow-lg border-t border-subtle">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-status-success animate-ping"></span>
-            <span className="text-label font-semibold text-primary">Studio Changes Auto-Saved</span>
-            <span className="text-muted text-micro">(Live Sync)</span>
+            <span className="text-label font-semibold text-primary">
+              {updateProductMutation.isPending ? 'Saving changes' : 'Unsaved changes stay local'}
+            </span>
+            <span className="text-muted text-micro">Use the actions on the right to save.</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-space-xs w-full sm:w-auto justify-end">

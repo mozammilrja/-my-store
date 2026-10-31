@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
 import { cn } from "../../lib/utils";
 
@@ -32,6 +33,9 @@ export const Select = React.forwardRef(({
   const [internalValue, setInternalValue] = useState(value !== undefined ? value : defaultValue ?? "");
   const containerRef = useRef(null);
   const listRef = useRef(null);
+  // The popover renders in a portal so no ancestor's `overflow: hidden` can
+  // clip it. That means it needs the trigger's viewport rect to place itself.
+  const [anchor, setAnchor] = useState(null);
 
   useEffect(() => {
     if (value !== undefined) setInternalValue(value);
@@ -77,15 +81,37 @@ export const Select = React.forwardRef(({
     [onValueChange, onChange, name, id]
   );
 
+  const measure = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setAnchor({ top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width });
+  }, []);
+
   const open = useCallback(() => {
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
+    measure();
     setIsOpen(true);
-  }, [selectedIndex]);
+  }, [selectedIndex, measure]);
+
+  // Follow the trigger when the page or any scroll container moves under it.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const sync = () => measure();
+    window.addEventListener("scroll", sync, true);
+    window.addEventListener("resize", sync);
+    return () => {
+      window.removeEventListener("scroll", sync, true);
+      window.removeEventListener("resize", sync);
+    };
+  }, [isOpen, measure]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
     const onPointerDown = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setIsOpen(false);
+      const inTrigger = containerRef.current?.contains(e.target);
+      const inList = listRef.current?.contains(e.target);
+      if (!inTrigger && !inList) setIsOpen(false);
     };
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
@@ -130,6 +156,25 @@ export const Select = React.forwardRef(({
     }
   };
 
+  // Place the popover in viewport coordinates, flipping above the trigger when
+  // there is not enough room below it.
+  const MAX_POPOVER_H = 240; // matches max-h-60
+  const GAP = 6;
+  let placement;
+  if (anchor) {
+    const below = window.innerHeight - anchor.bottom - GAP;
+    const above = anchor.top - GAP;
+    const flip = below < Math.min(MAX_POPOVER_H, above) && above > below;
+    const width = Math.max(anchor.width, 176); // min-w-[11rem]
+    const left = dropdownAlign === "right" ? Math.max(8, anchor.right - width) : Math.min(anchor.left, window.innerWidth - width - 8);
+    placement = {
+      left,
+      width,
+      maxHeight: Math.max(120, Math.min(MAX_POPOVER_H, flip ? above : below)),
+      ...(flip ? { bottom: window.innerHeight - anchor.top + GAP } : { top: anchor.bottom + GAP }),
+    };
+  }
+
   return (
     <div ref={containerRef} className={cn("relative w-full", wrapperClassName)}>
       <button
@@ -160,14 +205,14 @@ export const Select = React.forwardRef(({
         />
       </button>
 
-      {isOpen && (
+      {isOpen && anchor && createPortal(
         <div
           ref={listRef}
           role="listbox"
           aria-label={ariaLabel}
+          style={placement}
           className={cn(
-            "scrollbar-thin absolute top-full z-overlay mt-1.5 max-h-60 w-full min-w-[11rem] animate-zoom-in overflow-y-auto rounded-xl border border-subtle bg-overlay p-1.5 shadow-lg",
-            dropdownAlign === "right" ? "right-0" : "left-0",
+            "scrollbar-thin fixed z-overlay max-h-60 animate-zoom-in overflow-y-auto rounded-xl border border-subtle bg-overlay p-1.5 shadow-lg",
             dropdownClassName
           )}
         >
@@ -197,7 +242,8 @@ export const Select = React.forwardRef(({
               );
             })
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

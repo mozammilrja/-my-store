@@ -148,6 +148,27 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   // One shared pager over the rows this module actually holds.
   const usersPager = useClientTable(filteredUsers);
 
+  // The other three tabs are views over the same operator records, grouped the
+  // way each tab asks about them. Nothing here invents data: every field shown
+  // is one the directory rows already carry.
+  const groupBy = (rows, pick) =>
+    rows.reduce((acc, row) => {
+      const key = pick(row) || 'Unassigned';
+      (acc[key] ||= []).push(row);
+      return acc;
+    }, {});
+
+  const roleGroups = Object.entries(groupBy(filteredUsers, (u) => u.role)).sort(
+    (a, b) => b[1].length - a[1].length
+  );
+  const nodeGroups = Object.entries(groupBy(filteredUsers, (u) => u.hub)).sort(
+    (a, b) => b[1].length - a[1].length
+  );
+  // Module-level grants only exist on records that carry a `modules` array.
+  const permissionColumns = [
+    ...new Set(filteredUsers.flatMap((u) => (u.modules ?? []).map((m) => m.name))),
+  ];
+
   // The API refuses user writes for a staff account; say so before the call.
   const { isOwner: canManageUsers, role } = useSession();
 
@@ -321,179 +342,331 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
         {/* LEFT PANEL: 65% Main User Directory */}
         <div className="lg:col-span-8 space-y-space-md">
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden">
-            {/* Directory Header Controls */}
-            <div className="p-space-md flex flex-wrap items-center justify-between gap-space-md bg-surface-container-lowest border-b border-subtle">
-              <div className="flex items-center gap-space-sm">
-                <span className="text-subheading text-primary font-semibold">Node Operators & Executives</span>
-                <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
-                  Showing {filteredUsers.length} of 148
-                </span>
+          {activeTab === 'directory' && (
+            <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden">
+              {/* Directory Header Controls */}
+              <div className="p-space-md flex flex-wrap items-center justify-between gap-space-md bg-surface-container-lowest border-b border-subtle">
+                <div className="flex items-center gap-space-sm">
+                  <span className="text-subheading text-primary font-semibold">Node Operators & Executives</span>
+                  <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
+                    Showing {filteredUsers.length} of 148
+                  </span>
+                </div>
+                <div className="flex items-center gap-space-sm">
+                  <button
+                    onClick={() => onShowToast?.('Exporting team directory CSV...')}
+                    className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
+                  >
+                    <Icon name="download" className="material-symbols-outlined text-icon" />
+                    <span>CSV</span>
+                  </button>
+                  <button
+                    onClick={() => onShowToast?.('Synchronized employee profiles with Workday HRIS.')}
+                    className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
+                  >
+                    <Icon name="refresh" className="material-symbols-outlined text-icon" />
+                    <span>Sync</span>
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-space-sm">
-                <button
-                  onClick={() => onShowToast?.('Exporting team directory CSV...')}
-                  className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
-                >
-                  <Icon name="download" className="material-symbols-outlined text-icon" />
-                  <span>CSV</span>
-                </button>
-                <button
-                  onClick={() => onShowToast?.('Synchronized employee profiles with Workday HRIS.')}
-                  className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
-                >
-                  <Icon name="refresh" className="material-symbols-outlined text-icon" />
-                  <span>Sync</span>
-                </button>
-              </div>
-            </div>
 
-            {/* High-density Table */}
-            <div className="overflow-x-auto scrollbar-thin">
-              <table className="w-full text-left border-collapse min-w-[960px]">
-                <thead>
-                  <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                    <th className="py-2.5 px-space-md whitespace-nowrap">Operator Identity</th>
-                    <th className="py-2.5 px-space-sm whitespace-nowrap">Primary Role</th>
-                    <th className="py-2.5 px-space-sm whitespace-nowrap">Hub / Node</th>
-                    <th className="py-2.5 px-space-sm whitespace-nowrap">Access Scope &amp; Limit</th>
-                    <th className="py-2.5 px-space-sm whitespace-nowrap">Security State</th>
-                    <th className="py-2.5 px-space-sm whitespace-nowrap">Last Active</th>
-                    <th className="py-2.5 px-space-md text-right whitespace-nowrap">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle text-body text-primary">
-                  {usersPager.pageRows.map((user) => {
-                    const isSelected = selectedUserKey === user.key;
-                    return (
-                      <tr
-                        key={user.key}
-                        onClick={() => setSelectedUserKey(user.key)}
-                        className={`transition-colors group cursor-pointer ${
- user.isSuspended ? 'opacity-75' : ''
- } ${isSelected ? 'bg-primary-fixed/30 hover:bg-primary-fixed/40' : 'hover:bg-surface-subtle/60'}`}
-                      >
-                        <td className="py-3 px-space-md">
-                          <div className="flex items-center gap-3">
-                            {user.avatar ? (
-                              <Thumbnail src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full shadow-sm" imgClassName="object-cover" />
-                            ) : (
-                              <div className="w-9 h-9 rounded-full bg-surface-subtle flex items-center justify-center text-subheading text-muted font-semibold">
-                                FQ
+              {/* High-density Table. The rows scroll inside the card so the card
+                  heading and the sticky column header stay readable instead of
+                  sliding up underneath the fixed app header. */}
+              <div className="overflow-auto scrollbar-thin max-h-[clamp(20rem,calc(100vh-24rem),40rem)]">
+                <table className="w-full text-left border-collapse min-w-[960px]">
+                  <thead>
+                    <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-20 shadow-[0_1px_0_0_rgb(var(--border-subtle))]">
+                      <th className="py-2.5 px-space-md whitespace-nowrap">Operator Identity</th>
+                      <th className="py-2.5 px-space-sm whitespace-nowrap">Primary Role</th>
+                      <th className="py-2.5 px-space-sm whitespace-nowrap">Hub / Node</th>
+                      <th className="py-2.5 px-space-sm whitespace-nowrap">Access Scope &amp; Limit</th>
+                      <th className="py-2.5 px-space-sm whitespace-nowrap">Security State</th>
+                      <th className="py-2.5 px-space-sm whitespace-nowrap">Last Active</th>
+                      <th className="py-2.5 px-space-md text-right whitespace-nowrap">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-subtle text-body text-primary">
+                    {usersPager.pageRows.map((user) => {
+                      const isSelected = selectedUserKey === user.key;
+                      return (
+                        <tr
+                          key={user.key}
+                          onClick={() => setSelectedUserKey(user.key)}
+                          className={`transition-colors group cursor-pointer ${
+   user.isSuspended ? 'opacity-75' : ''
+   } ${isSelected ? 'bg-primary-fixed/30 hover:bg-primary-fixed/40' : 'hover:bg-surface-subtle/60'}`}
+                        >
+                          <td className="py-3 px-space-md">
+                            <div className="flex items-center gap-3">
+                              {user.avatar ? (
+                                <Thumbnail src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full shadow-sm" imgClassName="object-cover" />
+                              ) : (
+                                <div className="w-9 h-9 rounded-full bg-surface-subtle flex items-center justify-center text-subheading text-muted font-semibold">
+                                  FQ
+                                </div>
+                              )}
+                              <div>
+                                <div className={`text-label-lg font-semibold text-primary flex items-center gap-1.5 ${
+   user.isSuspended ? 'line-through' : ''
+   }`}>
+                                  <span>{user.name}</span>
+                                  {user.isOnline && (
+                                    <span className="w-2 h-2 rounded-full bg-status-success" title="Session Online"></span>
+                                  )}
+                                  {user.isExec && (
+                                    <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
+                                      EXEC
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-body text-secondary text-meta">{user.email}</div>
                               </div>
-                            )}
-                            <div>
-                              <div className={`text-label-lg font-semibold text-primary flex items-center gap-1.5 ${
- user.isSuspended ? 'line-through' : ''
- }`}>
-                                <span>{user.name}</span>
-                                {user.isOnline && (
-                                  <span className="w-2 h-2 rounded-full bg-status-success" title="Session Online"></span>
-                                )}
-                                {user.isExec && (
-                                  <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
-                                    EXEC
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-body text-secondary text-meta">{user.email}</div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-space-sm">
-                          <span className={`inline-block max-w-[11rem] truncate rounded-md px-2 py-0.5 text-label font-medium ${user.roleBadge}`} title={user.role}>
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="py-3 px-space-sm">
-                          <span className="flex min-w-0 items-center gap-1 text-label text-primary" title={user.hub}>
-                            <Icon name={user.hubIcon} aria-hidden="true" className="material-symbols-outlined shrink-0 text-icon-sm text-muted" />
-                            <span className="truncate">{user.hub}</span>
-                          </span>
-                        </td>
-                        <td className="py-3 px-space-sm">
-                          <div className="space-y-0.5">
-                            <span className="text-primary font-medium text-meta block">{user.scopeTitle}</span>
-                            <span className={`text-micro block ${user.isSuspended ? 'text-danger font-semibold' : 'text-muted'}`}>
-                              {user.scopeDesc}
+                          </td>
+                          <td className="py-3 px-space-sm">
+                            <span className={`inline-block max-w-[11rem] truncate rounded-md px-2 py-0.5 text-label font-medium ${user.roleBadge}`} title={user.role}>
+                              {user.role}
                             </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-space-sm">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-semibold ${user.securityBadge}`}>
-                            <Icon name={user.securityIcon} className="material-symbols-outlined text-icon-sm" />
-                            {user.securityState}
-                          </span>
-                        </td>
-                        <td className="py-3 px-space-sm text-muted text-meta">
-                          <span>{user.lastActive}</span>
-                          <span className="block text-micro text-muted/70">{user.device}</span>
-                        </td>
-                        <td className="py-3 px-space-md text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {user.isSuspended ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onShowToast?.(`Password reset link sent to ${user.email}`);
-                                }}
-                                className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary transition-colors" title="Reset password" aria-label="Reset password"
-                              >
-                                <Icon name="lock_reset" className="material-symbols-outlined text-icon-md" />
-                              </button>
-                            ) : (
-                              <>
+                          </td>
+                          <td className="py-3 px-space-sm">
+                            <span className="flex min-w-0 items-center gap-1 text-label text-primary" title={user.hub}>
+                              <Icon name={user.hubIcon} aria-hidden="true" className="material-symbols-outlined shrink-0 text-icon-sm text-muted" />
+                              <span className="truncate">{user.hub}</span>
+                            </span>
+                          </td>
+                          <td className="py-3 px-space-sm">
+                            <div className="space-y-0.5">
+                              <span className="text-primary font-medium text-meta block">{user.scopeTitle}</span>
+                              <span className={`text-micro block ${user.isSuspended ? 'text-danger font-semibold' : 'text-muted'}`}>
+                                {user.scopeDesc}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-space-sm">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-semibold ${user.securityBadge}`}>
+                              <Icon name={user.securityIcon} className="material-symbols-outlined text-icon-sm" />
+                              {user.securityState}
+                            </span>
+                          </td>
+                          <td className="py-3 px-space-sm text-muted text-meta">
+                            <span>{user.lastActive}</span>
+                            <span className="block text-micro text-muted/70">{user.device}</span>
+                          </td>
+                          <td className="py-3 px-space-md text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {user.isSuspended ? (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onShowToast?.(`Editing access privileges for ${user.name}`);
+                                    onShowToast?.(`Password reset link sent to ${user.email}`);
                                   }}
-                                  className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary transition-colors"
-                                  title="Edit Permissions"
+                                  className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary transition-colors" title="Reset password" aria-label="Reset password"
                                 >
-                                  <Icon name="edit" className="material-symbols-outlined text-icon-md" />
+                                  <Icon name="lock_reset" className="material-symbols-outlined text-icon-md" />
                                 </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onShowToast?.(`Terminated active session on ${user.device}`);
-                                  }}
-                                  className="p-1 rounded-lg hover:bg-status-danger-bg text-muted hover:text-danger transition-colors"
-                                  title="Kill Session"
-                                >
-                                  <Icon name="logout" className="material-symbols-outlined text-icon-md" />
-                                </button>
-                                {canManageUsers && user.isDbUser && user.role !== 'Store Owner' && (
+                              ) : (
+                                <>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleDeleteUser(user.id, user.name);
+                                      onShowToast?.(`Editing access privileges for ${user.name}`);
                                     }}
-                                    className="p-1 rounded-lg hover:bg-status-danger-bg text-danger transition-colors"
-                                    title="Delete User"
+                                    className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary transition-colors"
+                                    title="Edit Permissions"
                                   >
-                                    <Icon name="delete" className="material-symbols-outlined text-icon-md" />
+                                    <Icon name="edit" className="material-symbols-outlined text-icon-md" />
                                   </button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onShowToast?.(`Terminated active session on ${user.device}`);
+                                    }}
+                                    className="p-1 rounded-lg hover:bg-status-danger-bg text-muted hover:text-danger transition-colors"
+                                    title="Kill Session"
+                                  >
+                                    <Icon name="logout" className="material-symbols-outlined text-icon-md" />
+                                  </button>
+                                  {canManageUsers && user.isDbUser && user.role !== 'Store Owner' && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteUser(user.id, user.name);
+                                      }}
+                                      className="p-1 rounded-lg hover:bg-status-danger-bg text-danger transition-colors"
+                                      title="Delete User"
+                                    >
+                                      <Icon name="delete" className="material-symbols-outlined text-icon-md" />
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-            <TablePagination
-              currentPage={usersPager.page}
-              pageSize={usersPager.limit}
-              totalItems={usersPager.total}
-              onPageChange={usersPager.setPage}
-              onPageSizeChange={usersPager.setLimit}
-            />
-          </div>
+              <TablePagination
+                currentPage={usersPager.page}
+                pageSize={usersPager.limit}
+                totalItems={usersPager.total}
+                onPageChange={usersPager.setPage}
+                onPageSizeChange={usersPager.setLimit}
+              />
+            </div>
+          )}
+
+          {activeTab === 'matrix' && (
+            <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden">
+              <div className="p-space-md border-b border-subtle">
+                <span className="text-subheading text-primary font-semibold">Roles &amp; Permission Matrix</span>
+                <p className="text-meta text-muted mt-0.5">
+                  {roleGroups.length} distinct roles across {filteredUsers.length} operators.
+                </p>
+              </div>
+              <div className="overflow-auto scrollbar-thin max-h-[clamp(20rem,calc(100vh-24rem),40rem)]">
+                <table className="w-full text-left border-collapse min-w-[720px]">
+                  <thead>
+                    <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-20">
+                      <th className="py-2.5 px-space-md whitespace-nowrap">Role</th>
+                      <th className="py-2.5 px-space-md whitespace-nowrap">Operators</th>
+                      <th className="py-2.5 px-space-md whitespace-nowrap">Access Scope</th>
+                      {permissionColumns.map((c) => (
+                        <th key={c} className="py-2.5 px-space-md whitespace-nowrap">{c}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-subtle">
+                    {roleGroups.map(([roleName, members]) => {
+                      const sample = members[0];
+                      return (
+                        <tr key={roleName} className="hover:bg-surface-subtle/60 transition-colors">
+                          <td className="py-2.5 px-space-md">
+                            <span className={`px-2 py-0.5 rounded-md text-label font-semibold ${sample.roleBadge || 'bg-surface-subtle text-primary'}`}>
+                              {roleName}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-space-md">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-body font-semibold text-primary">{members.length}</span>
+                              <span className="text-caption text-muted truncate max-w-[220px]">
+                                {members.map((m) => m.name).join(', ')}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-space-md">
+                            <div className="text-meta text-primary">{sample.scopeTitle}</div>
+                            <div className="text-caption text-muted">{sample.scopeDesc}</div>
+                          </td>
+                          {permissionColumns.map((c) => {
+                            const mod = (sample.modules ?? []).find((m) => m.name === c);
+                            return (
+                              <td key={c} className="py-2.5 px-space-md whitespace-nowrap">
+                                {mod ? (
+                                  <span className="text-caption text-muted">{mod.scopeTag ?? 'Granted'}</span>
+                                ) : (
+                                  <span className="text-caption text-faint">&mdash;</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'nodes' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
+              {nodeGroups.map(([hubName, members]) => (
+                <div key={hubName} className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-md">
+                  <div className="flex items-center justify-between gap-space-sm mb-space-sm">
+                    <div className="flex items-center gap-space-sm min-w-0">
+                      <div className="p-2 rounded-lg bg-surface-subtle text-muted shrink-0">
+                        <Icon name={members[0].hubIcon || 'warehouse'} className="material-symbols-outlined text-icon" />
+                      </div>
+                      <span className="text-meta font-semibold text-primary truncate">{hubName}</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold shrink-0">
+                      {members.length} assigned
+                    </span>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {members.map((m) => (
+                      <li key={m.key || m.email} className="flex items-center justify-between gap-space-sm">
+                        <div className="min-w-0">
+                          <div className="text-label text-primary truncate">{m.name}</div>
+                          <div className="text-caption text-muted truncate">{m.email}</div>
+                        </div>
+                        <span className="text-caption text-muted shrink-0">{m.role}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'audit' && (
+            <div className="space-y-space-md">
+              <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden">
+                <div className="p-space-md border-b border-subtle">
+                  <span className="text-subheading text-primary font-semibold">Session &amp; Security State</span>
+                  <p className="text-meta text-muted mt-0.5">Current posture for {filteredUsers.length} operators.</p>
+                </div>
+                <div className="overflow-auto scrollbar-thin max-h-[clamp(20rem,calc(100vh-28rem),36rem)]">
+                  <table className="w-full text-left border-collapse min-w-[680px]">
+                    <thead>
+                      <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-20">
+                        <th className="py-2.5 px-space-md whitespace-nowrap">Operator</th>
+                        <th className="py-2.5 px-space-md whitespace-nowrap">Security State</th>
+                        <th className="py-2.5 px-space-md whitespace-nowrap">Last Active</th>
+                        <th className="py-2.5 px-space-md whitespace-nowrap">Device</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-subtle">
+                      {filteredUsers.map((u) => (
+                        <tr key={u.key || u.email} className="hover:bg-surface-subtle/60 transition-colors">
+                          <td className="py-2.5 px-space-md">
+                            <div className="text-label text-primary">{u.name}</div>
+                            <div className="text-caption text-muted">{u.email}</div>
+                          </td>
+                          <td className="py-2.5 px-space-md">
+                            <span className={`px-2 py-0.5 rounded-md text-caption font-semibold ${u.securityBadge || 'bg-surface-subtle text-primary'}`}>
+                              {u.securityState}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-space-md text-meta text-muted whitespace-nowrap">{u.lastActive}</td>
+                          <td className="py-2.5 px-space-md text-meta text-muted whitespace-nowrap">{u.device}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-subtle flex items-start gap-space-md">
+                <div className="p-2.5 rounded-xl bg-status-info-bg text-info shrink-0">
+                  <Icon name="history" className="material-symbols-outlined text-icon-xl" />
+                </div>
+                <div>
+                  <div className="text-meta font-semibold text-primary">Event history is not recorded yet</div>
+                  <p className="text-caption text-muted mt-0.5">
+                    The table above is live session state. A per-event audit trail (who changed what,
+                    when, from which address) needs an audit endpoint on the API; the backend exposes
+                    no such route today, so nothing here is back-filled or simulated.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
 
           {/* System Security Policy Banner */}
           <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-subtle flex items-start gap-space-md">

@@ -323,6 +323,14 @@ adminLogisticsRoutes.post("/purchase-orders", async (req, res) => {
 
 /* ---------- Inventory & Warehouse Telemetry ---------- */
 
+/**
+ * Stock on hand per variant.
+ *
+ * It used to also return `allocated: Math.floor(Math.random() * 5)` with a
+ * fixed reorder point and hub, so the figure changed on every refresh and the
+ * other two described a warehouse model the data does not have. Only what a
+ * variant really carries is returned.
+ */
 adminLogisticsRoutes.get("/inventory", async (req, res) => {
   const products = await db.products().find({ status: "published" }).toArray()
   const inventoryItems = products.flatMap((p) =>
@@ -334,9 +342,7 @@ adminLogisticsRoutes.get("/inventory", async (req, res) => {
       sku: v.sku ?? `SKU-${v._id.slice(-6)}`,
       stock: v.stock,
       manageInventory: v.manageInventory,
-      reorderPoint: 15,
-      allocated: Math.floor(Math.random() * 5),
-      hubId: "BLR-FC1",
+      allowBackorder: v.allowBackorder,
     }))
   )
   res.json({ inventory: inventoryItems })

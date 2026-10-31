@@ -15,6 +15,7 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
+import { DataTable, TableToolbar } from '../shared/DataTable';
 import { campaigns } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import {
@@ -183,6 +184,147 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
   if (isPromotionsLoading) {
     return <SkeletonPage variant="cards" stats={6} statsCols={6} label="Loading promotions" />;
   }
+
+
+  // Selected row ids in the shape DataTable expects.
+  const selectedCodes = Object.keys(selectedRows).filter((code) => selectedRows[code]);
+
+  // One column definition per visible column. Cells keep the markup the
+  // hand-rolled table used, so the ledger reads exactly as before.
+  const promoColumns = [
+    {
+      key: 'code',
+      header: 'Campaign & Coupon Code',
+      cell: (camp) => (
+        <div className="flex items-center gap-2">
+          <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${camp.iconColor}`}>
+            <Icon name={camp.icon} className="material-symbols-outlined text-icon" />
+          </div>
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-body-lg font-semibold text-primary tracking-tight">{camp.code}</span>
+              {camp.isAuto && (
+                <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
+                  AUTO
+                </span>
+              )}
+              <button
+                className="text-muted hover:text-primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(camp.code);
+                  onShowToast?.(`Copied coupon code ${camp.code}`);
+                }}
+                title="Copy Code"
+              >
+                <Icon name="content_copy" className="material-symbols-outlined text-icon-sm" />
+              </button>
+            </div>
+            <span className="text-micro text-muted truncate">{camp.name}</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      cell: (camp) => (
+        <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-primary text-caption font-semibold border border-subtle">
+          {camp.type}
+        </span>
+      ),
+    },
+    {
+      key: 'applicability',
+      header: 'Applicability / Guardrails',
+      cell: (camp) => (
+        <div className="flex flex-col">
+          <span className="text-label text-primary font-medium">{camp.applicability}</span>
+          <span className={`text-micro truncate ${camp.isUrgent ? 'text-danger font-semibold' : 'text-warning'}`}>
+            {camp.excluded}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'redemptions',
+      header: 'Redemptions',
+      align: 'right',
+      cell: (camp) => (
+        <div className="flex flex-col items-end">
+          <span className="text-num font-semibold text-primary">{camp.redemptions}</span>
+          <div className="w-16 bg-surface-subtle h-1 rounded-full overflow-hidden mt-1 border border-subtle">
+            <div className={`${camp.progressColor} h-full`} style={{ width: `${camp.progress}%` }} />
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'gmvImpact',
+      header: 'GMV Impact',
+      align: 'right',
+      className: 'text-num font-semibold text-primary',
+      accessor: 'gmvImpact',
+    },
+    {
+      key: 'marginHealth',
+      header: 'Margin Health',
+      align: 'center',
+      cell: (camp) => (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-success-bg text-success text-caption font-medium">
+          <span className="w-1.5 h-1.5 rounded-full bg-status-success" />
+          <span>{camp.marginHealth}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'center',
+      cell: (camp) => (
+        <span className={`px-2 py-0.5 rounded-full text-caption font-medium ${camp.statusColor}`}>
+          {camp.status}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'center',
+      width: '4rem',
+      cell: (camp) => (
+        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {camp.isDbPromo ? (
+            <>
+              <button
+                className={`p-1 rounded hover:bg-surface-subtle cursor-pointer ${camp.active ? 'text-success' : 'text-muted'}`}
+                onClick={() => handleToggleActive(camp.id, camp.active, camp.code)}
+                title={camp.active ? 'Pause Promotion' : 'Activate Promotion'}
+              >
+                <Icon name={camp.active ? 'toggle_on' : 'toggle_off'} className="material-symbols-outlined text-icon-md" />
+              </button>
+              <button
+                className="p-1 rounded hover:bg-status-danger-bg text-muted hover:text-danger cursor-pointer"
+                onClick={() => handleDeletePromo(camp.id, camp.code)}
+                title="Delete Promo"
+              >
+                <Icon name="delete" className="material-symbols-outlined text-icon" />
+              </button>
+            </>
+          ) : (
+            <button
+              className="p-1 rounded hover:bg-surface-subtle text-muted hover:text-primary"
+              onClick={() => onShowToast?.(`Options for promo ${camp.code}`)}
+              title="More actions"
+              aria-label="More actions"
+            >
+              <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
 
   return (
     <PageContainer>
@@ -361,189 +503,54 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-start">
         {/* Left Data Table Column (8 Cols ~ 66.6%) */}
         <div className="lg:col-span-8 flex flex-col space-y-space-md">
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden flex flex-col">
-            {/* Table Header Bar */}
-            <div className="px-space-md py-3 bg-surface-canvas border-b border-subtle flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-subheading text-primary font-semibold">Active Engine Rules</span>
-                <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
-                  {filteredCampaigns.length} Rules
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onShowToast?.('Bulk actions menu opened')}
-                  className="px-2 py-1 rounded bg-surface-subtle border border-subtle text-muted hover:text-primary text-caption uppercase flex items-center gap-1 transition-colors"
-                >
-                  <Icon name="tune" className="material-symbols-outlined text-icon-sm" />
-                  <span>Bulk Actions</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Table Viewport */}
-            <div className="overflow-x-auto scrollbar-thin">
-              <table className="w-full text-left border-collapse min-w-[980px]">
-                <thead>
-                  <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                    <th className="py-2.5 px-3 w-8 whitespace-nowrap">
-                      <input className="rounded bg-surface-canvas text-accent focus:ring-0 cursor-pointer" type="checkbox" />
-                    </th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Campaign &amp; Coupon Code</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Type</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Applicability / Guardrails</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Redemptions</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">GMV Impact</th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">Margin Health</th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">Status</th>
-                    <th className="py-2.5 px-2 text-center w-10 whitespace-nowrap"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle text-body">
-                  {promosPager.pageRows.map((camp) => {
-                    const isSelected = selectedCode === camp.code;
-                    return (
-                      <tr
-                        key={camp.code}
-                        onClick={() => setSelectedCode(camp.code)}
-                        className={`cursor-pointer transition-colors relative ${
- isSelected ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30' : 'bg-surface-container-lowest hover:bg-surface-subtle'
- }`}
-                      >
-                        <td className="py-3 px-3">
-                          <input
-                            checked={!!selectedRows[camp.code]}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              toggleSelectRow(camp.code);
-                            }}
-                            className="rounded bg-surface-canvas text-accent focus:ring-0 cursor-pointer"
-                            type="checkbox"
-                          />
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${camp.iconColor}`}>
-                              <Icon name={camp.icon} className="material-symbols-outlined text-icon" />
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-body-lg font-semibold text-primary tracking-tight">
-                                  {camp.code}
-                                </span>
-                                {camp.isAuto && (
-                                  <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
-                                    AUTO
-                                  </span>
-                                )}
-                                <button
-                                  className="text-muted hover:text-primary"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigator.clipboard.writeText(camp.code);
-                                    onShowToast?.(`Copied coupon code ${camp.code}`);
-                                  }}
-                                  title="Copy Code"
-                                >
-                                  <Icon name="content_copy" className="material-symbols-outlined text-icon-sm" />
-                                </button>
-                              </div>
-                              <span className="text-micro text-muted truncate">{camp.name}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-primary text-caption font-semibold border border-subtle">
-                            {camp.type}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="flex flex-col">
-                            <span className="text-label text-primary font-medium">{camp.applicability}</span>
-                            <span className={`text-micro truncate ${
- camp.isUrgent ? 'text-danger font-semibold' : 'text-warning'
- }`}>
-                              {camp.excluded}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <div className="flex flex-col items-end">
-                            <span className="text-num font-semibold text-primary">
-                              {camp.redemptions}
-                            </span>
-                            <div className="w-16 bg-surface-subtle h-1 rounded-full overflow-hidden mt-1 border border-subtle">
-                              <div className={`${camp.progressColor} h-full`} style={{ width: `${camp.progress}%` }}></div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-right text-num font-semibold text-primary">
-                          {camp.gmvImpact}
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-success-bg text-success text-caption font-medium">
-                            <span className="w-1.5 h-1.5 rounded-full bg-status-success"></span>
-                            <span>{camp.marginHealth}</span>
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-full text-caption font-medium ${camp.statusColor}`}>
-                            {camp.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-2 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            {camp.isDbPromo ? (
-                              <>
-                                <button
-                                  className={`p-1 rounded hover:bg-surface-subtle cursor-pointer ${camp.active ? 'text-success' : 'text-muted'}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleToggleActive(camp.id, camp.active, camp.code);
-                                  }}
-                                  title={camp.active ? "Pause Promotion" : "Activate Promotion"}
-                                >
-                                  <Icon name={camp.active ? 'toggle_on' : 'toggle_off'} className="material-symbols-outlined text-icon-md" />
-                                </button>
-                                <button
-                                  className="p-1 rounded hover:bg-status-danger-bg text-muted hover:text-danger cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeletePromo(camp.id, camp.code);
-                                  }}
-                                  title="Delete Promo"
-                                >
-                                  <Icon name="delete" className="material-symbols-outlined text-icon" />
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                className="p-1 rounded hover:bg-surface-subtle text-muted hover:text-primary"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onShowToast?.(`Options for promo ${camp.code}`);
-                                }} title="More actions" aria-label="More actions"
-                              >
-                                <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <TablePagination
-              currentPage={promosPager.page}
-              pageSize={promosPager.limit}
-              totalItems={promosPager.total}
-              onPageChange={promosPager.setPage}
-              onPageSizeChange={promosPager.setLimit}
-            />
-          </div>
+          <DataTable
+            data={promosPager.pageRows}
+            columns={promoColumns}
+            keyField="code"
+            className="min-w-[980px]"
+            selectable
+            selectedIds={selectedCodes}
+            onSelectRow={(code) => toggleSelectRow(code)}
+            onSelectAll={(checked) =>
+              setSelectedRows(
+                checked ? Object.fromEntries(filteredCampaigns.map((c) => [c.code, true])) : {}
+              )
+            }
+            activeRowId={selectedCode}
+            onRowClick={(row) => setSelectedCode(row.code)}
+            emptyIcon="sell"
+            emptyTitle="No campaigns match these filters"
+            emptyMessage="No promotion rule matches the current search, audience or channel selection."
+            pagination={{
+              page: promosPager.page,
+              pageSize: promosPager.limit,
+              totalItems: promosPager.total,
+              onPageChange: promosPager.setPage,
+              onPageSizeChange: promosPager.setLimit,
+            }}
+            toolbar={
+              <TableToolbar
+                className="bg-surface-canvas px-space-md py-3"
+                left={
+                  <div className="flex items-center gap-2">
+                    <span className="text-subheading text-primary font-semibold">Active Engine Rules</span>
+                    <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
+                      {filteredCampaigns.length} Rules
+                    </span>
+                  </div>
+                }
+                right={
+                  <button
+                    onClick={() => onShowToast?.('Bulk actions menu opened')}
+                    className="px-2 py-1 rounded bg-surface-subtle border border-subtle text-muted hover:text-primary text-caption uppercase flex items-center gap-1 transition-colors"
+                  >
+                    <Icon name="tune" className="material-symbols-outlined text-icon-sm" />
+                    <span>Bulk Actions</span>
+                  </button>
+                }
+              />
+            }
+          />
 
           {/* Real-Time Rule Simulation Log Module */}
           <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-sm">
@@ -591,7 +598,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                 <h2 className="text-heading text-primary font-semibold mt-0.5 flex items-center gap-1.5">
                   {selectedCampaign.code}
                 </h2>
-                <span className="text-meta text-muted">{selectedCampaign.subTitle}</span>
+                <span className="text-meta text-muted">{selectedCampaign.subTitle ?? 'Not recorded'}</span>
               </div>
               <button
                 onClick={() => onShowToast?.(`Refreshed telemetry for ${selectedCampaign.code}`)}
@@ -606,7 +613,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             <div className="p-space-sm rounded-xl bg-surface-canvas border border-subtle flex flex-col space-y-space-sm">
               <div className="flex items-center justify-between">
                 <span className="text-caption text-muted uppercase">Redemption Velocity (Last 6 Hours)</span>
-                <span className="text-micro font-semibold text-success">{selectedCampaign.velocity}</span>
+                <span className="text-micro font-semibold text-success">{selectedCampaign.velocity ?? 'Not recorded'}</span>
               </div>
               {/* Inline SVG Sparkline */}
               <div className="w-full h-14 relative flex items-end">
@@ -624,13 +631,13 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
               <div className="grid grid-cols-2 gap-space-xs pt-1">
                 <div className="bg-surface-container-lowest p-2 rounded-lg border border-subtle">
                   <span className="text-caption text-muted uppercase block">AOV Uplift</span>
-                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.aovUplift}</span>
-                  <span className="text-micro text-success block">{selectedCampaign.aovUpliftSub}</span>
+                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.aovUplift ?? 'Not recorded'}</span>
+                  <span className="text-micro text-success block">{selectedCampaign.aovUpliftSub ?? 'Not recorded'}</span>
                 </div>
                 <div className="bg-surface-container-lowest p-2 rounded-lg border border-subtle">
                   <span className="text-caption text-muted uppercase block">Net Margin Post-Promo</span>
-                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.netMargin}</span>
-                  <span className="text-micro text-success block">{selectedCampaign.netMarginSub}</span>
+                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.netMargin ?? 'Not recorded'}</span>
+                  <span className="text-micro text-success block">{selectedCampaign.netMarginSub ?? 'Not recorded'}</span>
                 </div>
               </div>
             </div>
@@ -663,9 +670,9 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                   <Icon name="check_circle" className="material-symbols-outlined text-icon text-success shrink-0 mt-0.5" />
                   <div className="flex flex-col min-w-0">
                     <span className="text-label font-semibold text-primary">
-                      Category: {selectedCampaign.categoryScope}
+                      Category: {selectedCampaign.categoryScope ?? 'Not recorded'}
                     </span>
-                    <span className="text-micro text-muted">{selectedCampaign.scopeSkus}</span>
+                    <span className="text-micro text-muted">{selectedCampaign.scopeSkus ?? 'Not recorded'}</span>
                   </div>
                 </div>
                 {/* Excluded SKU Badges */}
@@ -674,11 +681,16 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                   <div className="flex flex-col min-w-0 space-y-1">
                     <span className="text-label font-semibold text-primary">Target Exclusions</span>
                     <div className="flex flex-wrap gap-1">
-                      {selectedCampaign.exclusions.map((ex, idx) => (
+                      {(selectedCampaign.exclusions ?? []).map((ex, idx) => (
                         <span key={idx} className="px-2 py-0.5 rounded-full bg-status-danger-bg text-danger text-micro">
                           {ex}
                         </span>
                       ))}
+                      {(selectedCampaign.exclusions ?? []).length === 0 && (
+                        <span className="text-micro text-muted">
+                          No exclusion rules recorded for this promotion.
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -696,15 +708,15 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
               <div className="p-space-sm bg-surface-canvas rounded-xl border border-subtle space-y-2">
                 <div className="flex items-center justify-between text-meta">
                   <span className="text-muted">Device Fingerprint Cap</span>
-                  <span className="font-semibold text-primary">{selectedCampaign.fraudDevice}</span>
+                  <span className="font-semibold text-primary">{selectedCampaign.fraudDevice ?? 'Not recorded'}</span>
                 </div>
                 <div className="flex items-center justify-between text-meta">
                   <span className="text-muted">Customer Identity</span>
-                  <span className="font-semibold text-primary">{selectedCampaign.fraudAuth}</span>
+                  <span className="font-semibold text-primary">{selectedCampaign.fraudAuth ?? 'Not recorded'}</span>
                 </div>
                 <div className="flex items-center justify-between text-meta">
                   <span className="text-muted">Min Cart Qualifying Value</span>
-                  <span className="font-semibold text-primary">{selectedCampaign.fraudMinCart}</span>
+                  <span className="font-semibold text-primary">{selectedCampaign.fraudMinCart ?? 'Not recorded'}</span>
                 </div>
               </div>
             </div>

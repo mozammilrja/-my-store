@@ -1073,6 +1073,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
                 {/* Itemized Table */}
                 <DataTable
+  hugContent
                   data={selectedInvoice.items ?? []}
                   columns={lineItemColumns}
                   keyField="id"

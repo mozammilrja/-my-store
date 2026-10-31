@@ -288,6 +288,10 @@ export function DataTable({
   toolbar,
   caption,
   stickyHeader = true,
+  // Park leftover width in a trailing spacer instead of stretching every column
+  // and stranding gaps mid-row. Columns then size to their own content. Set
+  // `grow: true` on a column to make it absorb the slack instead.
+  hugContent = false,
   containerClassName,
   className,
   ...props
@@ -295,7 +299,8 @@ export function DataTable({
   const [internalPage, setInternalPage] = useState(1);
   const [internalPageSize, setInternalPageSize] = useState(DEFAULT_PAGE_SIZE);
 
-  const totalCols = columns.length + (selectable ? 1 : 0);
+  const hasSpacer = hugContent && !columns.some((c) => c.grow);
+  const totalCols = columns.length + (selectable ? 1 : 0) + (hasSpacer ? 1 : 0);
   const activePage = pagination?.page ?? internalPage;
   const activePageSize = pagination?.pageSize ?? internalPageSize;
 
@@ -349,6 +354,9 @@ export function DataTable({
                 {col.header}
               </TableHead>
             ))}
+            {hasSpacer && (
+              <TableHead aria-hidden="true" className="w-full p-0" />
+            )}
           </TableRow>
         </TableHeader>
 
@@ -424,6 +432,9 @@ export function DataTable({
                       </TableCell>
                     );
                   })}
+                  {hasSpacer && (
+                    <TableCell aria-hidden="true" className="w-full p-0" />
+                  )}
                 </TableRow>
               );
             })

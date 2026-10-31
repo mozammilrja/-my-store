@@ -51,11 +51,9 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
         email: email || `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
         phone: phone || '+91 98800•••••',
         fullPhone: phone || '+91 98800 12345',
-        tier: 'VIP COUTURE',
         tierBadgeClass: 'bg-primary-fixed text-on-primary-fixed font-semibold',
         address,
         cityRegion: `${address.split(',')[0]}, India`,
-        deliveryInstructions: 'Call before delivery'
       },
       items: [
         {

@@ -301,6 +301,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg items-start">
         {/* 65% Main Table Module */}
         <DataTable
+  hugContent
           data={notesPager.pageRows}
           columns={creditNoteColumns}
           keyField="id"

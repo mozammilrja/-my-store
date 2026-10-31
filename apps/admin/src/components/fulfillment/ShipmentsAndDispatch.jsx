@@ -354,6 +354,7 @@ export function ShipmentsAndDispatch({ onShowToast }) {
       />
 
       <DataTable
+  hugContent
         columns={columns}
         data={pager.pageRows}
         keyField="awb"

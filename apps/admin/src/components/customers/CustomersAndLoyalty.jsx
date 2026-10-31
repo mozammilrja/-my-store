@@ -72,24 +72,19 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
         name,
         avatar: null,
         heroAvatar: null,
-        tier: (c.orderCount ?? 0) >= 3 ? 'VIP COUTURE' : 'Gold Tier Member',
-        tierBadge: (c.orderCount ?? 0) >= 3 ? 'bg-primary-container text-on-accent' : 'bg-surface-subtle text-primary',
+        // Derived from the one customer metric the API reports, and labelled
+        // as what it is rather than as an invented membership tier.
+        tier: (c.orderCount ?? 0) >= 3 ? 'Repeat' : (c.orderCount ?? 0) > 0 ? 'Ordered' : 'No orders',
+        tierBadge: (c.orderCount ?? 0) >= 3 ? 'bg-primary-container text-on-accent' : 'bg-surface-subtle text-secondary',
         badgeIcon: (c.orderCount ?? 0) >= 3 ? 'diamond' : 'workspace_premium',
         idBadge: `ID #${c.id.slice(-6).toUpperCase()}`,
         email: c.email,
-        phone: c.phone || '+91 98450 00000',
+        phone: c.phone || 'No phone on file',
         geo: address,
         address: c.addresses?.[0]?.address1 || 'Verified Address On File',
-        birthday: 'Aug 18',
         tenure: `Customer since ${new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`,
-        gmv: '₹48,900',
         orderCount: c.orderCount ?? 0,
         ordersCount: `${c.orderCount ?? 0} Orders`,
-        aov: '₹6,400',
-        returnRate: '2.4% (Low)',
-        returnRateColor: 'text-success',
-        points: '4,800 Pts',
-        pointsValue: 'Worth ₹480',
         storeCredit: '₹0.00',
         openReturns: 'No open returns',
         lastActive: 'Active recently',
@@ -189,9 +184,13 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
             )}
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="text-label-lg font-semibold text-primary flex items-center gap-1.5 flex-wrap">
-              {cust.name}
-              <span className={`px-1.5 py-px rounded-full text-caption tracking-wider uppercase ${cust.tierBadge}`}>
+            <span className="flex min-w-0 items-center gap-1.5 text-label-lg font-semibold text-primary">
+              <span className="truncate" title={cust.name}>
+                {cust.name}
+              </span>
+              <span
+                className={`shrink-0 whitespace-nowrap rounded-full px-1.5 py-px text-caption uppercase tracking-wider ${cust.tierBadge}`}
+              >
                 {cust.tier}
               </span>
             </span>
@@ -214,38 +213,16 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
       ),
     },
     {
-      key: 'lifetime',
-      header: 'Lifetime Orders / GMV',
+      // Order count is the one lifetime figure the API reports. Lifetime GMV,
+      // average order value, return rate and loyalty points were the same
+      // numbers on every row, so those columns are gone rather than invented.
+      key: 'orders',
+      header: 'Orders',
       align: 'right',
       cell: (cust) => (
         <div className="flex flex-col items-end">
-          <span className="font-semibold text-primary text-num">{cust.gmv}</span>
-          <span className="text-muted text-micro">{cust.ordersCount}</span>
-        </div>
-      ),
-    },
-    {
-      key: 'aov',
-      header: 'AOV / Ret Rate',
-      align: 'right',
-      cell: (cust) => (
-        <div className="flex flex-col items-end">
-          <span className="font-medium text-primary text-meta">{cust.aov}</span>
-          <span className={`inline-flex items-center gap-0.5 text-micro font-semibold ${cust.returnRateColor}`}>
-            {cust.returnRate.includes('Low') && <span className="w-1.5 h-1.5 rounded-full bg-status-success mr-0.5" />}
-            {cust.returnRate}
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: 'loyalty',
-      header: 'Loyalty Float',
-      align: 'right',
-      cell: (cust) => (
-        <div className="flex flex-col items-end">
-          <span className="font-semibold text-accent text-meta">{cust.points}</span>
-          <span className="text-muted text-micro">{cust.pointsValue}</span>
+          <span className="text-num font-semibold text-primary tabular-nums">{cust.orderCount}</span>
+          <span className="text-micro text-muted">{cust.orderCount === 1 ? 'order' : 'orders'}</span>
         </div>
       ),
     },
@@ -567,6 +544,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
 
           {/* Directory Data Table */}
           <DataTable
+  hugContent
             data={filteredCustomers}
             columns={customerColumns}
             keyField="id"
@@ -717,12 +695,6 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                   <span>{selectedCustomer.email}</span> • <span>{selectedCustomer.phone}</span>
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-2">
-                  <span className="px-2 py-0.5 rounded bg-surface-subtle text-primary text-micro flex items-center gap-1">
-                    <Icon name="check_circle" className="material-symbols-outlined text-icon-sm text-success" /> GSTIN ON FILE
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-surface-subtle text-primary text-micro flex items-center gap-1">
-                    <Icon name="cake" className="material-symbols-outlined text-icon-sm text-accent" /> Birthday: {selectedCustomer.birthday}
-                  </span>
                   <span className="px-2 py-0.5 rounded bg-surface-subtle text-primary text-micro">
                     {selectedCustomer.address}
                   </span>
@@ -811,22 +783,10 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                     Audit History
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <div className="p-2.5 bg-surface-container-lowest rounded-lg shadow-sm">
-                    <span className="text-micro text-muted block">COUTURE POINTS</span>
-                    <span className="text-heading font-semibold text-accent block mt-0.5">
-                      {selectedCustomer.points}
-                    </span>
-                    <span className="text-micro text-muted">{selectedCustomer.pointsValue}</span>
-                  </div>
-                  <div className="p-2.5 bg-surface-container-lowest rounded-lg shadow-sm">
-                    <span className="text-micro text-muted block">STORE CREDIT LIAB</span>
-                    <span className="text-heading font-semibold text-primary block mt-0.5">
-                      {selectedCustomer.storeCredit}
-                    </span>
-                    <span className="text-micro text-success">{selectedCustomer.openReturns}</span>
-                  </div>
-                </div>
+                <p className="pt-1 text-micro text-muted">
+                  Loyalty points and store credit are not recorded against a customer, so no
+                  balance is shown.
+                </p>
                 <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface-container-lowest text-meta">
                   <span className="text-muted">Personalized Tier Privilege:</span>
                   <span className="font-semibold text-accent">{selectedCustomer.discountPrivilege}</span>

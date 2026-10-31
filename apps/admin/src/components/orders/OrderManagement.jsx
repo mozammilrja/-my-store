@@ -99,11 +99,8 @@ export function OrderManagement({
             email: ord.email,
             phone: phone.replace(/(\d{5})\d+/, '$1•••••'),
             fullPhone: phone,
-            tier: idx === 0 ? 'VIP COUTURE' : 'GOLD TIER',
-            tierBadgeClass: 'bg-primary-fixed text-on-primary-fixed font-semibold',
             address,
             cityRegion: `${city}, India`,
-            deliveryInstructions: 'Fragile luxury garment packaging'
           },
           items: ord.items?.map((it, i) => ({
             id: it.id || `item-${i}`,
@@ -492,6 +489,7 @@ export function OrderManagement({
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-md items-start">
         <div className={drawerOpen ? 'xl:col-span-8' : 'xl:col-span-12'}>
           <DataTable
+  hugContent
             columns={orderColumns}
             data={filteredOrders}
             selectable

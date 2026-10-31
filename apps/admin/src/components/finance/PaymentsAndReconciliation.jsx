@@ -813,6 +813,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
             </div>
 
             <DataTable
+  hugContent
               data={txnPager.pageRows}
               columns={txnColumns}
               keyField="id"

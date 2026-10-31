@@ -521,6 +521,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
         {/* Left Data Table Column (8 Cols ~ 66.6%) */}
         <div className="lg:col-span-8 flex flex-col space-y-space-md">
           <DataTable
+  hugContent
             data={promosPager.pageRows}
             columns={promoColumns}
             keyField="code"

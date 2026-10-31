@@ -174,9 +174,6 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
               <Badge variant="success" className="text-micro py-0 px-1.5 font-semibold">
                 PINCODE VERIFIED
               </Badge>
-              <span className={`px-1.5 py-px rounded text-micro font-semibold ${order.customer.tierBadgeClass}`}>
-                {order.customer.tier}
-              </span>
             </div>
 
             {editingAddress ? (
@@ -215,7 +212,6 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
             <div className="flex flex-wrap items-center gap-3 mt-1.5 text-caption text-muted">
               <span className="font-mono whitespace-nowrap">Phone: {order.customer.phone}</span>
               <span>•</span>
-              <span>Delivery Instructions: "{order.customer.deliveryInstructions}"</span>
             </div>
           </div>
         </div>

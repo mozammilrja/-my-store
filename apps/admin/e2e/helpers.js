@@ -103,6 +103,13 @@ export function watchConsole(page) {
 export async function gotoModule(page, path) {
   await page.goto(`/${path}`, { waitUntil: "load" })
   await expect(page.locator("main h1")).toBeVisible()
+  /*
+   * Wait for the web fonts before anything measures text. Until Inter and the
+   * icon font load the browser lays out with a wider fallback, so borderline
+   * strings wrap to an extra line and typography assertions failed on some
+   * runs and not others depending on whether the font was already cached.
+   */
+  await page.evaluate(() => document.fonts.ready)
   await page.waitForFunction(
     () => !document.querySelector('main [role="status"][aria-busy="true"]'),
     undefined,

@@ -577,6 +577,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         <div className="lg:col-span-8 space-y-space-md">
           {activeTab === 'directory' && (
             <DataTable
+  hugContent
               data={usersPager.pageRows}
               columns={directoryColumns}
               keyField="key"
@@ -629,6 +630,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
 
           {activeTab === 'matrix' && (
             <DataTable
+  hugContent
               data={roleGroups.map(([roleName, members]) => ({ roleName, members, sample: members[0] }))}
               columns={matrixColumns}
               keyField="roleName"
@@ -686,6 +688,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
           {activeTab === 'audit' && (
             <div className="space-y-space-md">
               <DataTable
+  hugContent
                 data={filteredUsers}
                 columns={auditColumns}
                 keyField="email"

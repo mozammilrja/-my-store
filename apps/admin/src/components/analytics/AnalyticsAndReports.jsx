@@ -437,6 +437,7 @@ export default function AnalyticsAndReports({ onShowToast }) {
         }
       >
         <DataTable
+  hugContent
           columns={[
             {
               key: 'title',
@@ -486,6 +487,7 @@ export default function AnalyticsAndReports({ onShowToast }) {
         description="Each sold line counted against every category its product belongs to."
       >
         <DataTable
+  hugContent
           columns={[
             {
               key: 'name',
@@ -625,6 +627,7 @@ export default function AnalyticsAndReports({ onShowToast }) {
         description="Redemptions counted on the promotion itself, so they span its whole life rather than this range."
       >
         <DataTable
+  hugContent
           columns={[
             { key: 'code', header: 'Code', accessor: (p) => <span className="font-mono text-num">{p.code}</span> },
             {

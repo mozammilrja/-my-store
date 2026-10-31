@@ -496,6 +496,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
     {
       key: 'code',
       header: 'PO Code & Origin',
+      grow: true,
       cell: (po) => (
         <div className="flex items-center gap-2.5">
           <div
@@ -505,7 +506,9 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
           />
           <div className="flex flex-col">
             <span className="text-meta font-semibold text-accent">{po.code}</span>
-            <span className="text-meta font-semibold text-primary">{po.supplier}</span>
+            <span className="block max-w-[12rem] truncate text-meta font-semibold text-primary" title={po.supplier}>
+              {po.supplier}
+            </span>
             <span className="text-micro text-muted">{po.origin}</span>
           </div>
         </div>
@@ -737,6 +740,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* LEFT PANE: PO Ledger Table (Cols 8) */}
         <DataTable
+  hugContent
           data={poPager.pageRows}
           columns={poColumns}
           keyField="id"

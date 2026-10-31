@@ -311,6 +311,7 @@ export function GenericView({ path, onNavigate, onShowToast }) {
 
       {/* Main Ledger Table Card */}
       <DataTable
+  hugContent
         data={genericRows}
         columns={genericColumns}
         keyField="id"

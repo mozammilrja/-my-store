@@ -1,7 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, Search } from "lucide-react";
 import { cn } from "../../lib/utils";
+
+/**
+ * The plain text of an option label, which may be an element tree rather than
+ * a string: the filter box has to match against what the eye reads.
+ */
+const nodeText = (node) => {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join("");
+  if (React.isValidElement(node)) return nodeText(node.props.children);
+  return "";
+};
+
+const optionText = (item) => `${nodeText(item.label)} ${item.value ?? ""}`;
 
 /**
  * Select
@@ -9,6 +23,11 @@ import { cn } from "../../lib/utils";
  * `options` array or <option> children and reports changes through either
  * `onChange` (event-shaped) or `onValueChange` (value only).
  * Height matches Input and Button so filter toolbars line up.
+ *
+ * A list long enough to scroll gets a filter box at the top of the popover,
+ * because scrolling a few hundred SKUs to find one is not a way to pick it.
+ * `searchable` forces that box on or off; left alone it appears once the list
+ * passes `searchThreshold` options.
  */
 export const Select = React.forwardRef(({
   value,
@@ -23,6 +42,9 @@ export const Select = React.forwardRef(({
   dropdownAlign = "left",
   disabled = false,
   wrapperClassName,
+  searchable,
+  searchThreshold = 10,
+  searchPlaceholder = "Filter options...",
   name,
   id,
   "aria-label": ariaLabel,
@@ -30,9 +52,12 @@ export const Select = React.forwardRef(({
 }, ref) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [query, setQuery] = useState("");
   const [internalValue, setInternalValue] = useState(value !== undefined ? value : defaultValue ?? "");
   const containerRef = useRef(null);
   const listRef = useRef(null);
+  const optionsRef = useRef(null);
+  const searchRef = useRef(null);
   // The popover renders in a portal so no ancestor's `overflow: hidden` can
   // clip it. That means it needs the trigger's viewport rect to place itself.
   const [anchor, setAnchor] = useState(null);
@@ -71,6 +96,13 @@ export const Select = React.forwardRef(({
   const selectedItem = selectedIndex >= 0 ? items[selectedIndex] : undefined;
   const displayLabel = selectedItem ? selectedItem.label : placeholder;
 
+  const showSearch = searchable ?? items.length > searchThreshold;
+  const visibleItems = useMemo(() => {
+    const q = showSearch ? query.trim().toLowerCase() : "";
+    if (!q) return items;
+    return items.filter((item) => optionText(item).toLowerCase().includes(q));
+  }, [items, query, showSearch]);
+
   const handleSelect = useCallback(
     (itemValue) => {
       setInternalValue(itemValue);
@@ -89,10 +121,27 @@ export const Select = React.forwardRef(({
   }, []);
 
   const open = useCallback(() => {
+    setQuery("");
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
     measure();
     setIsOpen(true);
   }, [selectedIndex, measure]);
+
+  const close = useCallback(({ restoreFocus = false } = {}) => {
+    setIsOpen(false);
+    if (restoreFocus) containerRef.current?.querySelector("button")?.focus();
+  }, []);
+
+  // Typing filters the list under the highlight, so move it back to the top.
+  useEffect(() => {
+    if (isOpen) setActiveIndex(visibleItems.length > 0 ? 0 : -1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  // The filter box takes focus so the first keystroke lands in it.
+  useEffect(() => {
+    if (isOpen && showSearch) searchRef.current?.focus();
+  }, [isOpen, showSearch]);
 
   // Follow the trigger when the page or any scroll container moves under it.
   useEffect(() => {
@@ -119,7 +168,7 @@ export const Select = React.forwardRef(({
 
   useEffect(() => {
     if (!isOpen || activeIndex < 0) return;
-    listRef.current?.children?.[activeIndex]?.scrollIntoView?.({ block: "nearest" });
+    optionsRef.current?.children?.[activeIndex]?.scrollIntoView?.({ block: "nearest" });
   }, [isOpen, activeIndex]);
 
   const onKeyDown = (e) => {
@@ -134,10 +183,10 @@ export const Select = React.forwardRef(({
     if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
-      setIsOpen(false);
+      close({ restoreFocus: true });
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(items.length - 1, i + 1));
+      setActiveIndex((i) => Math.min(visibleItems.length - 1, i + 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex((i) => Math.max(0, i - 1));
@@ -146,10 +195,11 @@ export const Select = React.forwardRef(({
       setActiveIndex(0);
     } else if (e.key === "End") {
       e.preventDefault();
-      setActiveIndex(items.length - 1);
-    } else if (e.key === "Enter" || e.key === " ") {
+      setActiveIndex(visibleItems.length - 1);
+    } else if (e.key === "Enter" || (e.key === " " && !showSearch)) {
+      // Space types a space in the filter box; only Enter commits there.
       e.preventDefault();
-      const item = items[activeIndex];
+      const item = visibleItems[activeIndex];
       if (item && !item.disabled) handleSelect(item.value);
     } else if (e.key === "Tab") {
       setIsOpen(false);
@@ -158,7 +208,7 @@ export const Select = React.forwardRef(({
 
   // Place the popover in viewport coordinates, flipping above the trigger when
   // there is not enough room below it.
-  const MAX_POPOVER_H = 240; // matches max-h-60
+  const MAX_POPOVER_H = showSearch ? 320 : 240; // matches max-h-60, plus the filter box
   const GAP = 6;
   let placement;
   if (anchor) {
@@ -208,40 +258,71 @@ export const Select = React.forwardRef(({
       {isOpen && anchor && createPortal(
         <div
           ref={listRef}
-          role="listbox"
-          aria-label={ariaLabel}
+          role={showSearch ? "none" : "listbox"}
+          aria-label={showSearch ? undefined : ariaLabel}
           style={placement}
           className={cn(
             "scrollbar-thin fixed z-overlay max-h-60 animate-zoom-in overflow-y-auto rounded-xl border border-subtle bg-overlay p-1.5 shadow-lg",
+            showSearch && "flex flex-col overflow-hidden",
             dropdownClassName
           )}
         >
-          {items.length === 0 ? (
-            <div className="px-3 py-2 text-center text-meta text-muted">No options available</div>
-          ) : (
-            items.map((item, idx) => {
-              const isSelected = idx === selectedIndex;
-              const isActive = idx === activeIndex;
-              return (
-                <div
-                  key={`${item.value}-${idx}`}
-                  role="option"
-                  aria-selected={isSelected}
-                  onMouseEnter={() => setActiveIndex(idx)}
-                  onClick={() => !item.disabled && handleSelect(item.value)}
-                  className={cn(
-                    "relative flex w-full cursor-pointer select-none items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-meta font-medium outline-none transition-colors",
-                    isSelected ? "text-accent" : "text-primary",
-                    isActive && !item.disabled && "bg-surface-subtle",
-                    item.disabled && "cursor-not-allowed opacity-50"
-                  )}
-                >
-                  <span className="min-w-0 truncate">{item.label}</span>
-                  {isSelected && <Check aria-hidden="true" className="ml-2 size-4 shrink-0 text-accent" />}
-                </div>
-              );
-            })
+          {showSearch && (
+            <div className="relative mb-1 shrink-0">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-faint"
+              />
+              <input
+                ref={searchRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder={searchPlaceholder}
+                aria-label={ariaLabel ? `Filter ${ariaLabel}` : "Filter options"}
+                className="h-8 w-full rounded-lg border border-subtle bg-surface-container-lowest pl-8 pr-2 text-meta text-primary placeholder:text-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
           )}
+
+          {/* Without the filter box this is `display: contents`, so the options
+              stay direct children of the scrolling popover as before. */}
+          <div
+            ref={optionsRef}
+            role={showSearch ? "listbox" : undefined}
+            aria-label={showSearch ? ariaLabel : undefined}
+            className={showSearch ? "scrollbar-thin -mr-1 min-h-0 flex-1 overflow-y-auto pr-1" : "contents"}
+          >
+            {visibleItems.length === 0 ? (
+              <div className="px-3 py-2 text-center text-meta text-muted">
+                {items.length === 0 ? "No options available" : "No options match that filter"}
+              </div>
+            ) : (
+              visibleItems.map((item, idx) => {
+                const isSelected = selectedItem !== undefined && item === selectedItem;
+                const isActive = idx === activeIndex;
+                return (
+                  <div
+                    key={`${item.value}-${idx}`}
+                    role="option"
+                    aria-selected={isSelected}
+                    onMouseEnter={() => setActiveIndex(idx)}
+                    onClick={() => !item.disabled && handleSelect(item.value)}
+                    className={cn(
+                      "relative flex w-full cursor-pointer select-none items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-meta font-medium outline-none transition-colors",
+                      isSelected ? "text-accent" : "text-primary",
+                      isActive && !item.disabled && "bg-surface-subtle",
+                      item.disabled && "cursor-not-allowed opacity-50"
+                    )}
+                  >
+                    <span className="min-w-0 truncate">{item.label}</span>
+                    {isSelected && <Check aria-hidden="true" className="ml-2 size-4 shrink-0 text-accent" />}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>,
         document.body
       )}

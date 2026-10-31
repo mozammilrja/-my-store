@@ -16,6 +16,7 @@ import {
 } from '../ui';
 import { adminApi } from '../../lib/api';
 import { EmptyState } from '../shared/FeedbackAndOverlays';
+import { formatMoney } from '../../lib/format';
 import {
   useCategoriesQuery,
   useCollectionsQuery,
@@ -153,25 +154,58 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
     // A collection carries a handle, a title and how many products are in it.
     // Sell-through, GMV, season, launch date and channel list were fixed
     // strings on every row; none of them exist in the data.
-    const fromDb = dbCollections.map((col, idx) => ({
-      id: col.id,
-      handle: col.handle,
-      code: `DROP-${col.handle.toUpperCase()}`,
-      title: col.title,
-      productCount: col.productCount ?? 0,
-      skuCount: `${col.productCount ?? 0} ${col.productCount === 1 ? 'product' : 'products'}`,
-      status: (col.productCount ?? 0) > 0 ? 'In use' : 'Empty',
-      statusColor:
-        (col.productCount ?? 0) > 0
-          ? 'bg-status-success-bg text-success'
-          : 'bg-surface-subtle text-muted',
-      isHero: idx === 0,
-    }));
+    const fromDb = dbCollections.map((col, idx) => {
+      const products = col.productCount ?? 0;
+      const range = col.priceRange;
+      return {
+        id: col.id,
+        handle: col.handle,
+        code: `DROP-${col.handle.toUpperCase()}`,
+        title: col.title,
+        thumbnail: col.thumbnail ?? null,
+        productCount: products,
+        variantCount: col.variantCount ?? 0,
+        publishedCount: col.publishedCount ?? 0,
+        stock: col.stock ?? 0,
+        productLabel: `${products} ${products === 1 ? 'product' : 'products'}`,
+        variantLabel: `${col.variantCount ?? 0} ${col.variantCount === 1 ? 'SKU' : 'SKUs'}`,
+        priceRange: range
+          ? range.min === range.max
+            ? formatMoney(range.min, 'inr')
+            : `${formatMoney(range.min, 'inr')} - ${formatMoney(range.max, 'inr')}`
+          : null,
+        updatedLabel: col.updatedAt
+          ? new Date(col.updatedAt).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })
+          : null,
+        status: products > 0 ? 'In use' : 'Empty',
+        statusColor:
+          products > 0 ? 'bg-status-success-bg text-success' : 'bg-surface-subtle text-muted',
+        isHero: idx === 0,
+      };
+    });
 
     return fromDb;
   }, [dbCollections]);
 
 
+
+  /** The ribbon and the tab badges, counted off the taxonomy and the drops. */
+  const catalogShape = useMemo(() => {
+    const cats = dbCategories ?? [];
+    return {
+      categories: cats.length,
+      rootCategories: cats.filter((c) => !c.parentId).length,
+      collections: mergedCollections.length,
+      emptyCollections: mergedCollections.filter((c) => c.productCount === 0).length,
+      grouped: mergedCollections.reduce((n, c) => n + c.productCount, 0),
+      variants: mergedCollections.reduce((n, c) => n + c.variantCount, 0),
+      stock: mergedCollections.reduce((n, c) => n + c.stock, 0),
+    };
+  }, [dbCategories, mergedCollections]);
 
   const selectedDrop = useMemo(() => {
     return mergedCollections.find(d => d.id === selectedDropId) || mergedCollections[0];
@@ -237,38 +271,34 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
       />
 
       {/* KPI / Metric Ribbon */}
-      <ContentGrid columns={5}>
+      <ContentGrid columns={4}>
         <StatsCard
-          label="Active Categories"
-          value="142"
-          change="+8 this season"
-          changeType="positive"
+          label="Categories"
+          value={String(catalogShape.categories)}
+          changeType="neutral"
           icon="account_tree"
-          subtitle="4 Global Depts · 18 Sub-nodes"
+          subtitle={`${catalogShape.rootCategories} top level`}
         />
         <StatsCard
-          label="Curated Drops"
-          value="38 drops"
-          change="6 Live"
+          label="Collection drops"
+          value={`${catalogShape.collections} ${catalogShape.collections === 1 ? 'drop' : 'drops'}`}
           changeType="neutral"
           icon="auto_awesome"
-          subtitle="4 Scheduled · 28 Archived"
+          subtitle={`${catalogShape.emptyCollections} with no product`}
         />
         <StatsCard
-          label="Merch Rules"
-          value="24 Active"
-          change="Smart Boost"
+          label="Products in a drop"
+          value={String(catalogShape.grouped)}
           changeType="neutral"
           icon="tune"
-          subtitle="Avg Margin Lift +4.8%"
+          subtitle={`${catalogShape.variants} variants across them`}
         />
         <StatsCard
-          label="Orphan SKUs"
-          value="0 SKUs"
-          change="100% Synced"
-          changeType="positive"
+          label="Units in stock"
+          value={catalogShape.stock.toLocaleString('en-IN')}
+          changeType="neutral"
           icon="verified"
-          subtitle="Strict Taxonomy Gate Active"
+          subtitle="Tracked variants in collections"
         />
       </ContentGrid>
 
@@ -290,7 +320,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               >
                 <span>Curated Drops & Collections</span>
                 <span className={`px-1.5 py-px rounded-full text-micro ${activeTab === 'drops' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'}`}>
-                  38
+                  {mergedCollections.length}
                 </span>
               </button>
               <button
@@ -304,7 +334,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               >
                 <span>Taxonomy Hierarchy Tree</span>
                 <span className={`px-1.5 py-px rounded-full text-micro ${activeTab === 'tree' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'}`}>
-                  142
+                  {catalogShape.categories}
                 </span>
               </button>
               <button
@@ -318,7 +348,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               >
                 <span>Smart Rules Engine</span>
                 <span className={`px-1.5 py-px rounded-full text-micro ${activeTab === 'rules' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'}`}>
-                  24
+                  {catalogShape.grouped}
                 </span>
               </button>
             </div>
@@ -369,7 +399,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                   <option>Core Evergreen</option>
                 </Select>
               </div>
-              {/* Channel select */}
               {/* Status Pill Filter */}
               <div className="w-44">
                 <Select
@@ -415,11 +444,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                         {/* Lookbook Image */}
                         <div className="relative w-20 h-16 rounded-lg overflow-hidden shrink-0 bg-surface-subtle shadow-inner">
                           <Thumbnail src={col.thumbnail} alt={col.title} className="w-full h-full" imgClassName="object-cover" />
-                          <span className={`absolute bottom-1 right-1 px-1 py-px rounded text-caption uppercase ${
- col.tag === 'Oct 15' ? 'bg-status-warning-solid text-on-accent' : 'bg-scrim/70 text-on-accent'
- }`}>
-                            {col.tag}
-                          </span>
                         </div>
                         {/* Metadata & Title */}
                         <div className="flex flex-col min-w-0">
@@ -427,14 +451,10 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                             <span className="text-subheading text-primary font-semibold truncate hover:text-accent">
                               {col.title}
                             </span>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-caption font-semibold ${
- col.badgeType === 'success'
- ? 'bg-status-success-bg text-success'
- : col.badgeType === 'warning'
- ? 'bg-status-warning-bg text-warning'
- : 'bg-surface-subtle text-muted'
- }`}>
-                              {col.badge}
+                            <span
+                              className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-full text-caption font-semibold ${col.statusColor}`}
+                            >
+                              {col.status}
                             </span>
                             <span className="px-1.5 py-0.5 rounded bg-surface-subtle text-caption text-muted">
                               {col.code}
@@ -443,34 +463,46 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                           <div className="flex items-center gap-space-sm mt-1 text-body text-secondary flex-wrap">
                             <span className="flex items-center gap-1 text-primary font-medium">
                               <Icon name="checkroom" className="material-symbols-outlined text-icon-sm text-accent" />
-                              {col.skusCount} SKUs
+                              {col.productLabel}
                             </span>
                             <span>•</span>
-                            <span>
-                              Price Range: <strong className="text-primary font-semibold">{col.priceRange}</strong>
-                            </span>
-                            <span>•</span>
-                            <span className="text-accent font-medium flex items-center gap-0.5">
-                              <Icon name={col.ruleIcon} className="material-symbols-outlined text-icon-sm" />
-                              {col.ruleText}
-                            </span>
+                            <span>{col.variantLabel}</span>
+                            {col.priceRange && (
+                              <>
+                                <span>•</span>
+                                <span>
+                                  Price range:{' '}
+                                  <strong className="whitespace-nowrap text-primary font-semibold">
+                                    {col.priceRange}
+                                  </strong>
+                                </span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
 
                       {/* Quantitative Metrics Block */}
+                      {/* Collection GMV and a CVR / AOV pair sat here. Neither is
+                          attributed to a collection anywhere, so the two blocks
+                          rendered their labels above empty values. These are
+                          facts the collection does carry. */}
                       <div className="flex items-center gap-space-lg shrink-0 justify-between lg:justify-end pl-6 lg:pl-0">
                         <div className="flex flex-col text-right">
-                          <span className="text-caption text-muted">COLLECTION GMV</span>
-                          <span className="text-subheading text-primary font-semibold">{col.gmv}</span>
-                          <span className={`text-micro ${col.gmvSubColor}`}>{col.gmvSub}</span>
+                          <span className="text-caption text-muted">UNITS IN STOCK</span>
+                          <span className="text-subheading text-primary font-semibold tabular-nums">
+                            {col.stock.toLocaleString('en-IN')}
+                          </span>
+                          <span className="text-micro text-muted">across {col.variantLabel}</span>
                         </div>
                         <div className="hidden sm:flex flex-col text-right">
-                          <span className="text-caption text-muted">CVR / AOV</span>
-                          <span className="text-body text-primary font-medium">{col.cvrAov}</span>
-                          <span className="text-micro text-muted">{col.channelsText}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
+                          <span className="text-caption text-muted">PUBLISHED</span>
+                          <span className="text-body text-primary font-medium tabular-nums">
+                            {col.publishedCount} of {col.productCount}
+                          </span>
+                          <span className="whitespace-nowrap text-micro text-muted">
+                            {col.updatedLabel ? `Updated ${col.updatedLabel}` : 'Never updated'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -485,9 +517,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                     {selectedCount} Collection Selected
                   </span>
                   <span>•</span>
-                  <span>Showing {filteredCollections.length} of 38 Active Drops</span>
-                </div>
-                <div className="flex items-center gap-space-xs">
+                  <span>Showing {filteredCollections.length} of {mergedCollections.length} drops</span>
                 </div>
               </div>
             </div>
@@ -635,7 +665,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
             </div>
           )}
 
-          {/* TAB 4: Marketplace Channels */}
         </div>
 
         {/* RIGHT 4-COLUMNS: Visual Merchandising Inspector Drawer (Exact 1:1 with Stitch design) */}
@@ -665,98 +694,51 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               </div>
             </div>
 
-            {/* Banner & Media Lookbook Preview Container */}
+            {/* The hero image, the sorting weights and the placement targets
+                were `heroBanner`, `marginWeight`, `velocityWeight` and three
+                fixed channel rows. A collection stores none of them, so the
+                panel rendered an empty frame, three labels reading "%" and a
+                slider at zero. These are what it does hold. */}
             <div className="space-y-space-xs">
               <div className="flex items-center justify-between text-caption text-muted">
-                <span>STOREFRONT HERO MEDIA</span>
-                <span>1920×600 (Desktop) · 1080×1350 (App)</span>
+                <span>COLLECTION IMAGE</span>
+                <span>From the first product in the drop</span>
               </div>
-              <div className="relative rounded-lg overflow-hidden bg-surface-canvas shadow-inner group border border-subtle">
-                <div
-                  className="w-full h-32 bg-cover bg-center transition-all duration-300"
-                  style={{ backgroundImage: `url('${selectedDrop.heroBanner}')` }}
-                ></div>
-                <div className="absolute inset-0 bg-gradient-to-t from-scrim/80 via-scrim/20 to-transparent flex flex-col justify-end p-2.5">
-                  <span className="text-on-accent text-subheading font-semibold tracking-tight leading-tight">
-                    {selectedDrop.heroBannerTitle}
-                  </span>
-                  <span className="text-on-accent/80 text-micro">
-                    {selectedDrop.heroBannerSub}
-                  </span>
+              {selectedDrop.thumbnail ? (
+                <div className="relative overflow-hidden rounded-lg border border-subtle bg-surface-canvas shadow-inner">
+                  <img
+                    src={selectedDrop.thumbnail}
+                    alt={selectedDrop.title}
+                    className="h-32 w-full object-cover"
+                  />
                 </div>
-              </div>
+              ) : (
+                <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-subtle bg-surface-canvas text-meta text-muted">
+                  No product in this drop carries an image
+                </div>
+              )}
             </div>
 
-            {/* Merchandising Algorithm Configuration */}
             <div className="space-y-space-xs pt-1">
-              <div className="flex items-center justify-between">
-                <span className="text-caption text-muted uppercase">SORTING & ALGORITHM LOGIC</span>
-                <span className="text-caption text-accent font-semibold">{selectedDrop.engineVersion}</span>
-              </div>
-              <div className="p-space-sm bg-surface-canvas rounded-lg border border-subtle flex flex-col space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Icon name="auto_graph" className="material-symbols-outlined text-icon-md text-accent" />
-                    <span className="text-label font-semibold text-primary">
-                      {selectedDrop.algoTitle}
-                    </span>
+              <span className="text-caption text-muted uppercase">Composition</span>
+              <dl className="flex flex-col gap-space-sm rounded-lg border border-subtle bg-surface-canvas p-space-sm">
+                {[
+                  ['Products', `${selectedDrop.productCount}`],
+                  ['Variants', `${selectedDrop.variantCount}`],
+                  ['Published', `${selectedDrop.publishedCount} of ${selectedDrop.productCount}`],
+                  ['Units in stock', selectedDrop.stock.toLocaleString('en-IN')],
+                  ['Price range', selectedDrop.priceRange ?? 'No priced variant'],
+                  ['Last updated', selectedDrop.updatedLabel ?? 'Never'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between gap-space-md">
+                    <dt className="text-meta text-muted">{label}</dt>
+                    <dd className="whitespace-nowrap text-body text-primary">{value}</dd>
                   </div>
-                  <Icon name="info" className="material-symbols-outlined text-icon text-muted cursor-pointer" />
-                </div>
-                <p className="text-meta text-muted leading-relaxed">
-                  {selectedDrop.algoDesc}
-                </p>
-                <div className="flex items-center justify-between pt-1 text-caption text-muted">
-                  <span>MARGIN WEIGHT: {selectedDrop.marginWeight}%</span>
-                  <span>VELOCITY: {selectedDrop.velocityWeight}%</span>
-                  <span>FRESHNESS: {selectedDrop.freshnessWeight}%</span>
-                </div>
-                {/* Visual Weight Progress Bar */}
-                <div className="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden flex">
-                  <div className="bg-primary-container h-full" style={{ width: `${selectedDrop.marginWeight}%` }}></div>
-                  <div className="bg-fashion-magenta h-full" style={{ width: `${selectedDrop.velocityWeight}%` }}></div>
-                  <div className="bg-status-info h-full" style={{ width: `${selectedDrop.freshnessWeight}%` }}></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Pinned Hero SKUs (Drag & Drop Visual Grid) */}
-
-            {/* Facets & Filters Allowed on Storefront */}
-
-            {/* Storefront placement */}
-            <div className="space-y-space-xs pt-1">
-              <span className="text-caption text-muted uppercase">
-                STOREFRONT PLACEMENT TARGETS
-              </span>
-              <div className="space-y-1.5">
-                <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
-                  <div className="flex items-center gap-2">
-                    <Icon name="smartphone" className="material-symbols-outlined text-icon text-accent" />
-                    <span className="text-body font-medium text-primary">iOS & Android App (Slot A)</span>
-                  </div>
-                  <input defaultChecked className="w-4 h-4 rounded text-accent accent-primary-container cursor-pointer" type="checkbox" />
-                </label>
-                <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
-                  <div className="flex items-center gap-2">
-                    <Icon name="desktop_windows" className="material-symbols-outlined text-icon text-info" />
-                    <span className="text-body font-medium text-primary">Desktop Web Top Carousel</span>
-                  </div>
-                  <input defaultChecked className="w-4 h-4 rounded text-accent accent-primary-container cursor-pointer" type="checkbox" />
-                </label>
-                <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
-                  <div className="flex items-center gap-2">
-                    <Icon name="storefront" className="material-symbols-outlined text-icon text-muted" />
-                    <span className="text-body font-medium text-primary">Myntra Brand Store Landing</span>
-                  </div>
-                  <input defaultChecked className="w-4 h-4 rounded text-accent accent-primary-container cursor-pointer" type="checkbox" />
-                </label>
-              </div>
+                ))}
+              </dl>
             </div>
 
             {/* Bottom Action Commit Button */}
-            <div className="pt-2 flex flex-col space-y-2">
-            </div>
           </div>
 
         </div>

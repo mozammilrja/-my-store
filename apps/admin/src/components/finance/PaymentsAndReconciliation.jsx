@@ -18,6 +18,7 @@ import { useClientTable } from '../../hooks/useClientTable';
 import { DataTable } from '../shared/DataTable';
 import { PersonAvatar } from '../shared/PersonAvatar';
 import { adminApi } from '../../lib/api';
+import { formatMoney } from '../../lib/format';
 import { useOrdersQuery } from '../../hooks/useAdminQueries';
 import { EmptyState } from '../shared/FeedbackAndOverlays';
 import { SectionCard } from '../shared/Layout';
@@ -98,6 +99,23 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
               : ord.paymentStatus === 'refunded'
                 ? 'bg-status-info-bg text-info'
                 : 'bg-status-warning-bg text-warning',
+          // What the payment was actually for, and how the amount is made up.
+          // Both come straight off the order; the drawer had room for them and
+          // was showing nothing.
+          lines: (ord.items ?? []).map((it) => ({
+            id: it.id,
+            title: it.productTitle,
+            variant: it.variantTitle,
+            quantity: it.quantity,
+            total: it.total ?? (it.unitPrice ?? 0) * (it.quantity ?? 1),
+          })),
+          totals: ord.totals ?? null,
+          refunds: (details.refunds ?? []).map((r) => ({
+            id: r.id,
+            amount: r.amount,
+            reason: r.reason,
+            createdAt: r.createdAt,
+          })),
           timeline: [
             {
               title: `Order placed (${ord.paymentMethod?.toUpperCase() || 'PREPAID'})`,
@@ -701,6 +719,82 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                     </div>
                   </dl>
                 </SectionCard>
+
+                {selectedTxn.totals && (
+                  <SectionCard title="Amount breakdown">
+                    <dl className="flex flex-col gap-space-sm">
+                      {[
+                        ['Items', selectedTxn.totals.itemSubtotal],
+                        ['Discount', -(selectedTxn.totals.discountTotal ?? 0)],
+                        ['Shipping', selectedTxn.totals.shippingTotal],
+                        ['Tax', selectedTxn.totals.taxTotal],
+                      ]
+                        .filter(([, v]) => v)
+                        .map(([label, value]) => (
+                          <div key={label} className="flex items-center justify-between gap-space-md">
+                            <dt className="text-meta text-muted">{label}</dt>
+                            <dd
+                              className={`text-num tabular-nums ${value < 0 ? 'text-success' : 'text-secondary'}`}
+                            >
+                              {formatMoney(value, 'inr')}
+                            </dd>
+                          </div>
+                        ))}
+                      <div className="flex items-center justify-between gap-space-md border-t border-subtle pt-space-sm">
+                        <dt className="text-meta font-semibold text-primary">Total</dt>
+                        <dd className="text-num font-semibold tabular-nums text-primary">
+                          {formatMoney(selectedTxn.totals.total ?? 0, 'inr')}
+                        </dd>
+                      </div>
+                    </dl>
+                  </SectionCard>
+                )}
+
+                {selectedTxn.lines?.length > 0 && (
+                  <SectionCard title={`Paid for (${selectedTxn.lines.length})`}>
+                    <ul className="flex flex-col gap-space-sm">
+                      {selectedTxn.lines.map((line) => (
+                        <li key={line.id} className="flex items-start justify-between gap-space-md">
+                          <div className="flex min-w-0 flex-col">
+                            <span className="truncate text-body text-primary" title={line.title}>
+                              {line.title}
+                            </span>
+                            <span className="text-meta text-muted">
+                              {line.variant} / {line.quantity} pc{line.quantity === 1 ? '' : 's'}
+                            </span>
+                          </div>
+                          <span className="shrink-0 text-num tabular-nums text-secondary">
+                            {formatMoney(line.total, 'inr')}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </SectionCard>
+                )}
+
+                {selectedTxn.refunds?.length > 0 && (
+                  <SectionCard title={`Refunds (${selectedTxn.refunds.length})`}>
+                    <ul className="flex flex-col gap-space-sm">
+                      {selectedTxn.refunds.map((refund) => (
+                        <li key={refund.id} className="flex items-start justify-between gap-space-md">
+                          <div className="flex min-w-0 flex-col">
+                            <span className="text-body text-primary">{refund.reason}</span>
+                            <span className="text-meta text-muted">
+                              {new Date(refund.createdAt).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          </div>
+                          <span className="shrink-0 text-num tabular-nums text-danger">
+                            {formatMoney(refund.amount, 'inr')}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </SectionCard>
+                )}
 
                 <SectionCard title="History">
                   <ol className="flex flex-col gap-space-sm">

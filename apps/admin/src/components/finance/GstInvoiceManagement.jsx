@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogContent,
+  DialogBody,
   DialogFooter,
   Alert,
   PageContainer,
@@ -1067,124 +1068,130 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       </div>
 
       {/* Manual Invoice Creation Modal */}
-      <Dialog open={isManualInvoiceModalOpen} onClose={() => setIsManualInvoiceModalOpen(false)}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Icon name="receipt_long" className="material-symbols-outlined text-accent" />
-            <span>Create Manual Tax Invoice</span>
-          </DialogTitle>
-        </DialogHeader>
-        <DialogContent>
-          <form onSubmit={handleCreateManualInvoice} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+      <Dialog
+        open={isManualInvoiceModalOpen}
+        onOpenChange={(open) => !open && setIsManualInvoiceModalOpen(false)}
+        labelledBy="manual-invoice-title"
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle id="manual-invoice-title" className="flex items-center gap-2">
+              <Icon name="receipt_long" className="material-symbols-outlined text-accent" />
+              <span>Create Manual Tax Invoice</span>
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateManualInvoice} className="flex min-h-0 flex-1 flex-col">
+            <DialogBody className="space-y-4 pb-space-md">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Recipient / Customer Name</label>
+                  <Input
+                    required
+                    value={manualForm.customerName}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, customerName: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Phone Number</label>
+                  <Input
+                    required
+                    value={manualForm.customerPhone}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, customerPhone: e.target.value }))}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Recipient / Customer Name</label>
+                <label className="text-meta font-medium text-muted">Delivery / Billing Address</label>
                 <Input
                   required
-                  value={manualForm.customerName}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, customerName: e.target.value }))}
+                  value={manualForm.customerAddress}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, customerAddress: e.target.value }))}
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Phone Number</label>
-                <Input
-                  required
-                  value={manualForm.customerPhone}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, customerPhone: e.target.value }))}
-                />
-              </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <label className="text-meta font-medium text-muted">Delivery / Billing Address</label>
-              <Input
-                required
-                value={manualForm.customerAddress}
-                onChange={(e) => setManualForm(prev => ({ ...prev, customerAddress: e.target.value }))}
-              />
-            </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Destination State &amp; Code</label>
+                  <Select
+                    value={manualForm.stateCode}
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      let stateName = 'Karnataka';
+                      if (code === '27') stateName = 'Maharashtra';
+                      else if (code === '07') stateName = 'Delhi';
+                      else if (code === '36') stateName = 'Telangana';
+                      else if (code === '33') stateName = 'Tamil Nadu';
+                      setManualForm(prev => ({ ...prev, stateCode: code, state: stateName }));
+                    }}
+                  >
+                    <option value="29">Karnataka (29) - Intra State</option>
+                    <option value="27">Maharashtra (27) - Inter State</option>
+                    <option value="07">Delhi (07) - Inter State</option>
+                    <option value="36">Telangana (36) - Inter State</option>
+                    <option value="33">Tamil Nadu (33) - Inter State</option>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Applicable GST Slab</label>
+                  <Select
+                    value={manualForm.slab}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, slab: e.target.value }))}
+                  >
+                    <option value="12%">12% Standard Apparel</option>
+                    <option value="5%">5% Concessional Standard</option>
+                    <option value="18%">18% Premium Footwear / Accessories</option>
+                  </Select>
+                </div>
+              </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Destination State &amp; Code</label>
-                <Select
-                  value={manualForm.stateCode}
-                  onChange={(e) => {
-                    const code = e.target.value;
-                    let stateName = 'Karnataka';
-                    if (code === '27') stateName = 'Maharashtra';
-                    else if (code === '07') stateName = 'Delhi';
-                    else if (code === '36') stateName = 'Telangana';
-                    else if (code === '33') stateName = 'Tamil Nadu';
-                    setManualForm(prev => ({ ...prev, stateCode: code, state: stateName }));
-                  }}
-                >
-                  <option value="29">Karnataka (29) - Intra State</option>
-                  <option value="27">Maharashtra (27) - Inter State</option>
-                  <option value="07">Delhi (07) - Inter State</option>
-                  <option value="36">Telangana (36) - Inter State</option>
-                  <option value="33">Tamil Nadu (33) - Inter State</option>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Garment / Item Description</label>
+                  <Input
+                    required
+                    value={manualForm.itemDesc}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, itemDesc: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">HSN Code</label>
+                  <Select
+                    value={manualForm.hsnCode}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, hsnCode: e.target.value }))}
+                  >
+                    <option value="620442">620442 - Dresses &amp; Ensembles</option>
+                    <option value="620342">620342 - Suits &amp; Trousers</option>
+                    <option value="610910">610910 - Cotton Tees &amp; Tops</option>
+                    <option value="611010">611010 - Knitwear &amp; Cardigans</option>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Applicable GST Slab</label>
-                <Select
-                  value={manualForm.slab}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, slab: e.target.value }))}
-                >
-                  <option value="12%">12% Standard Apparel</option>
-                  <option value="5%">5% Concessional Standard</option>
-                  <option value="18%">18% Premium Footwear / Accessories</option>
-                </Select>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Garment / Item Description</label>
-                <Input
-                  required
-                  value={manualForm.itemDesc}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, itemDesc: e.target.value }))}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Quantity (Pcs)</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={manualForm.qty}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, qty: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Taxable Value (INR)</label>
+                  <Input
+                    type="number"
+                    min="100"
+                    step="0.01"
+                    value={manualForm.taxableVal}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, taxableVal: Number(e.target.value) }))}
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">HSN Code</label>
-                <Select
-                  value={manualForm.hsnCode}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, hsnCode: e.target.value }))}
-                >
-                  <option value="620442">620442 - Dresses &amp; Ensembles</option>
-                  <option value="620342">620342 - Suits &amp; Trousers</option>
-                  <option value="610910">610910 - Cotton Tees &amp; Tops</option>
-                  <option value="611010">611010 - Knitwear &amp; Cardigans</option>
-                </Select>
-              </div>
-            </div>
+            </DialogBody>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Quantity (Pcs)</label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={manualForm.qty}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, qty: Number(e.target.value) }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Taxable Value (INR)</label>
-                <Input
-                  type="number"
-                  min="100"
-                  step="0.01"
-                  value={manualForm.taxableVal}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, taxableVal: Number(e.target.value) }))}
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="pt-2">
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsManualInvoiceModalOpen(false)}>
                 Cancel
               </Button>

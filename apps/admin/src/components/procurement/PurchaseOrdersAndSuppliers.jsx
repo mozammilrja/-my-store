@@ -84,8 +84,15 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
             ? due.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
             : null,
           // Measured against the date the supplier promised, not asserted.
-          daysNotice: !due ? 'No date agreed' : overdue ? 'Overdue' : open ? 'On schedule' : 'Closed',
-          noticeColor: overdue ? 'text-danger' : open ? 'text-success' : 'text-muted',
+          daysNotice: (() => {
+            if (po.status === 'canceled') return 'Cancelled';
+            if (!due) return 'No date agreed';
+            if (!overdue) return open ? 'On schedule' : 'Received on time';
+            const late = Math.max(1, Math.round((Date.now() - due.getTime()) / 86400000));
+            return `${late} day${late === 1 ? '' : 's'} late`;
+          })(),
+          noticeColor:
+            po.status === 'canceled' ? 'text-muted' : overdue ? 'text-danger' : open ? 'text-success' : 'text-muted',
           qtyPcs: `${ordered.toLocaleString('en-IN')} pcs`,
           qtyNum: ordered,
           receivedNum: received,
@@ -588,50 +595,70 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
       cell: (po) => (
         <div className="flex items-center gap-2.5">
           <div
-            className={`w-1.5 h-10 rounded-full shrink-0 ${
+            className={`h-9 w-1.5 shrink-0 rounded-full ${
               selectedPoId === po.id ? 'bg-primary-container' : 'bg-transparent'
             }`}
           />
-          <div className="flex flex-col">
-            <span className="text-meta font-semibold text-accent">{po.code}</span>
-            <span className="block max-w-[12rem] truncate text-meta font-semibold text-primary" title={po.supplier}>
+          {/* The column has width to spare and the cell was stacking three
+              short lines into it, so the code and hub share a row. */}
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="flex items-center gap-2">
+              <span className="whitespace-nowrap text-meta font-semibold text-accent">
+                {po.code}
+              </span>
+              <span className="whitespace-nowrap rounded border border-subtle px-1.5 py-px text-micro text-muted">
+                {po.origin}
+              </span>
+            </span>
+            <span className="truncate text-meta font-semibold text-primary" title={po.supplier}>
               {po.supplier}
             </span>
-            <span className="text-micro text-muted">{po.origin}</span>
           </div>
         </div>
       ),
     },
     {
       key: 'timeline',
-      header: 'Timeline',
+      header: 'Ordered / due',
       cell: (po) => (
-        <div className="flex flex-col">
-          <span className="text-muted font-medium">Ord: {po.orderedDate}</span>
-          <span className="whitespace-nowrap text-primary font-semibold">Prom: {po.promisedDate}</span>
-          <span className={`text-micro font-semibold ${po.noticeColor}`}>{po.daysNotice}</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="whitespace-nowrap text-body font-semibold text-primary">
+            {po.promisedDate ? `Due ${po.promisedDate}` : 'No date agreed'}
+          </span>
+          {/* Ordered date and lateness share a line, so the cell is two lines
+              rather than three and the row keeps to the height of its
+              neighbours. */}
+          <span className="flex items-center gap-1.5 whitespace-nowrap text-micro">
+            <span className="text-muted">Ordered {po.orderedDate}</span>
+            <span aria-hidden="true" className="text-faint">/</span>
+            <span className={`font-semibold ${po.noticeColor}`}>{po.daysNotice}</span>
+          </span>
         </div>
       ),
     },
     {
       key: 'volume',
-      header: 'Volume',
+      header: 'Units',
       align: 'right',
       cell: (po) => (
-        <div className="flex flex-col">
-          <span className="font-semibold text-primary">{po.qtyPcs}</span>
-          <span className="text-micro text-muted">{po.skuBreakdown}</span>
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="whitespace-nowrap text-num font-semibold tabular-nums text-primary">
+            {po.qtyPcs}
+          </span>
+          <span className="whitespace-nowrap text-micro text-muted">{po.skuBreakdown}</span>
         </div>
       ),
     },
     {
       key: 'cost',
-      header: 'Cost & Advance',
+      header: 'Order value',
       align: 'right',
       cell: (po) => (
-        <div className="flex flex-col">
-          <span className="font-semibold text-primary">{po.cost}</span>
-          <span className={`text-micro font-semibold ${po.advanceColor}`}>{po.advance}</span>
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="whitespace-nowrap text-num font-semibold tabular-nums text-primary">
+            {po.cost}
+          </span>
+          <span className="whitespace-nowrap text-micro text-muted">{po.receivedLabel}</span>
         </div>
       ),
     },
@@ -892,51 +919,50 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                 ))}
               </ul>
             </SectionCard>
+            <SectionCard
+              title="Suppliers by order value"
+              description="Totalled from the purchase orders raised with each supplier."
+            >
+              {supplierSpend.length === 0 ? (
+                <EmptyState
+                  icon="store"
+                  title="No purchase orders yet"
+                  message="Suppliers appear here once an order is raised with them."
+                />
+              ) : (
+                <ul className="flex flex-col gap-space-sm">
+                  {supplierSpend.map((row) => (
+                    <li key={row.supplier} className="flex flex-col gap-1">
+                      <div className="flex items-baseline justify-between gap-space-md">
+                        <span className="truncate text-body text-primary" title={row.supplier}>
+                          {row.supplier}
+                        </span>
+                        <span className="shrink-0 text-num tabular-nums text-secondary">
+                          ₹{row.total.toLocaleString('en-IN')}
+                          <span className="ml-2 text-meta text-muted">
+                            {row.count} {row.count === 1 ? 'order' : 'orders'}
+                          </span>
+                        </span>
+                      </div>
+                      <div
+                        className="h-1.5 w-full overflow-hidden rounded-full bg-surface-subtle"
+                        role="progressbar"
+                        aria-valuenow={row.share}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label={`${row.supplier}: ${row.share}% of purchase order value`}
+                        title={`${row.share}% of all purchase order value`}
+                      >
+                        <div className="h-full rounded-full bg-primary-container" style={{ width: `${row.share}%` }} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
           </div>
         )}
       </div>
-
-      <SectionCard
-        title="Suppliers by order value"
-        description="Totalled from the purchase orders raised with each supplier."
-      >
-        {supplierSpend.length === 0 ? (
-          <EmptyState
-            icon="store"
-            title="No purchase orders yet"
-            message="Suppliers appear here once an order is raised with them."
-          />
-        ) : (
-          <ul className="flex flex-col gap-space-sm">
-            {supplierSpend.map((row) => (
-              <li key={row.supplier} className="flex flex-col gap-1">
-                <div className="flex items-baseline justify-between gap-space-md">
-                  <span className="truncate text-body text-primary" title={row.supplier}>
-                    {row.supplier}
-                  </span>
-                  <span className="shrink-0 text-num tabular-nums text-secondary">
-                    ₹{row.total.toLocaleString('en-IN')}
-                    <span className="ml-2 text-meta text-muted">
-                      {row.count} {row.count === 1 ? 'order' : 'orders'}
-                    </span>
-                  </span>
-                </div>
-                <div
-                  className="h-1.5 w-full overflow-hidden rounded-full bg-surface-subtle"
-                  role="progressbar"
-                  aria-valuenow={row.share}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label={`${row.supplier}: ${row.share}% of purchase order value`}
-                  title={`${row.share}% of all purchase order value`}
-                >
-                  <div className="h-full rounded-full bg-primary-container" style={{ width: `${row.share}%` }} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </SectionCard>
 
       {/* Create Purchase Order Modal */}
       {isCreatePoModalOpen && (

@@ -102,12 +102,28 @@ export function watchConsole(page) {
 /** Navigates to a module and waits for its content, not just the shell. */
 export async function gotoModule(page, path) {
   await page.goto(`/${path}`, { waitUntil: "load" })
-  await expect(page.locator("main h1")).toBeVisible()
+
   /*
-   * Wait for the web fonts before anything measures text. Until Inter and the
+   * Wait for the module to finish loading before looking for its heading.
+   *
+   * While a module loads it replaces the whole page with SkeletonPage, which
+   * draws a grey bar where the title goes and carries no h1 at all. Checking
+   * for the heading first therefore raced the API: under the load of a full
+   * run one module per run would miss its window and fail with "element not
+   * found", a different module each time.
+   */
+  await page.waitForFunction(
+    () => !document.querySelector('main [role="status"][aria-busy="true"]'),
+    undefined,
+    { timeout: 30_000 }
+  )
+  await expect(page.locator("main h1")).toBeVisible()
+
+  /*
+   * Then the web fonts, before anything measures text. Until Inter and the
    * icon font load the browser lays out with a wider fallback, so borderline
-   * strings wrap to an extra line and typography assertions failed on some
-   * runs and not others depending on whether the font was already cached.
+   * strings wrap to an extra line and typography assertions failed depending
+   * on whether the font was already cached.
    *
    * waitForFunction rather than evaluating the fonts.ready promise: a module
    * that rewrites the URL on mount navigates underneath us and destroys the
@@ -117,11 +133,6 @@ export async function gotoModule(page, path) {
   await page.waitForFunction(() => document.fonts.status === "loaded", undefined, {
     timeout: 15_000,
   })
-  await page.waitForFunction(
-    () => !document.querySelector('main [role="status"][aria-busy="true"]'),
-    undefined,
-    { timeout: 20_000 }
-  )
 }
 
 /** scrollWidth beyond clientWidth means the page itself scrolls sideways. */

@@ -8,7 +8,6 @@ import {
   StatsCard,
   SectionCard,
   DataTable,
-  TablePagination,
   IconButton,
   FilterBar,
   SearchInput,
@@ -384,17 +383,14 @@ export function ShipmentsAndDispatch({ onShowToast }) {
           ) : null
         }
         caption="Shipments and their latest carrier scan"
+        pagination={{
+          page: pager.page,
+          pageSize: pager.limit,
+          totalItems: pager.total,
+          onPageChange: pager.setPage,
+          onPageSizeChange: pager.setLimit,
+        }}
       />
-
-      {filtered.length > 0 && (
-        <TablePagination
-          currentPage={pager.page}
-          pageSize={pager.limit}
-          totalItems={pager.total}
-          onPageChange={pager.setPage}
-          onPageSizeChange={pager.setLimit}
-        />
-      )}
 
       <AppDrawer
         isOpen={Boolean(selected)}

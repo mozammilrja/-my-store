@@ -36,12 +36,12 @@ import {
   SkeletonPage,
   Thumbnail,
 } from '../ui';
-import { INITIAL_INVENTORY, INITIAL_INVENTORY_METRICS, HUBS } from '../../data/mockData';
+import { HUBS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
-import { useProductsQuery, useInventoryQuery, useAdjustInventoryMutation } from '../../hooks/useAdminQueries';
+import { useInventoryQuery, useAdjustInventoryMutation } from '../../hooks/useAdminQueries';
 
 export default function InventoryWarehouseManagement({ currentHub, onShowToast }) {
-  const [inventoryList, setInventoryList] = useState(INITIAL_INVENTORY);
+  const [inventoryList, setInventoryList] = useState([]);
   const [selectedHub, setSelectedHub] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [stockHealthFilter, setStockHealthFilter] = useState('all');
@@ -55,7 +55,6 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
     error: inventoryError,
     refetch: refetchInventory,
   } = useInventoryQuery();
-  const { data: productsData, isLoading: isProductsLoading } = useProductsQuery({ limit: 50 });
   const adjustInventoryMutation = useAdjustInventoryMutation();
 
   // Populate stock allocations from real backend inventory telemetry
@@ -88,40 +87,24 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
         };
       });
       setInventoryList(liveItems);
-    } else if (productsData?.products?.length > 0) {
-      const liveItems = [];
-      productsData.products.forEach(p => {
-        (p.variants || []).forEach((v, vIdx) => {
-          const stock = v.inventoryQuantity ?? 25;
-          liveItems.push({
-            id: `live-inv-${p.id}-${v.id || vIdx}`,
-            productId: p.id,
-            variantId: v.id,
-            name: p.title,
-            sku: v.sku || `EVR-${p.handle.slice(0, 4).toUpperCase()}-${v.title || 'M'}`,
-            variant: v.title || 'Standard',
-            ean: `89044${Math.floor(1000000 + Math.random() * 9000000)}`,
-            category: p.categoryIds?.[0] ? 'Apparel' : 'Fashion Wear',
-            hub: 'BLR-FC1',
-            bin: `Aisle ${(vIdx % 5) + 1} / Bin ${(vIdx % 12) + 1}`,
-            onHand: stock,
-            reserved: Math.min(stock, Math.floor(stock * 0.15)),
-            ats: Math.max(0, stock - Math.floor(stock * 0.15)),
-            safety: 10,
-            status: stock === 0 ? 'Depleted' : stock < 10 ? 'Critical Low-Stock' : stock > 100 ? 'Overstocked' : 'Healthy',
-            image: p.thumbnail || p.images?.[0] || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=200',
-          });
-        });
-      });
-
-      if (liveItems.length > 0) {
-        setInventoryList(prev => [...liveItems, ...prev.filter(m => !liveItems.some(l => l.sku === m.sku))]);
-      }
     }
-  }, [inventoryData, productsData]);
+  }, [inventoryData]);
+
+  /** Stock totals, counted from the variants on hand. */
+  const stockTotals = useMemo(() => {
+    const tracked = inventoryList.filter((i) => i.tracked);
+    return {
+      tracked: tracked.length,
+      untracked: inventoryList.length - tracked.length,
+      units: tracked.reduce((n, i) => n + (i.onHand ?? 0), 0),
+      low: tracked.filter((i) => i.onHand > 0 && i.onHand < 10).length,
+      out: tracked.filter((i) => i.onHand === 0).length,
+      backorder: tracked.filter((i) => i.onHand === 0 && i.allowBackorder).length,
+    };
+  }, [inventoryList]);
 
   // Selected SKU for right adjustment drawer
-  const [selectedItemId, setSelectedItemId] = useState('inv-2');
+  const [selectedItemId, setSelectedItemId] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(true);
   
   // Stock Adjustment Form State
@@ -295,7 +278,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
 
   const newPhysicalCalculated = selectedItem ? Math.max(0, selectedItem.onHand + adjustmentDelta) : 0;
 
-  if (isInventoryLoading || isProductsLoading) {
+  if (isInventoryLoading) {
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={8} label="Loading inventory" />;
   }
 
@@ -348,50 +331,35 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
         }
       />
 
-      {/* KPI Metrics Grid */}
-      <ContentGrid columns={6}>
+      {/* Counted from the variants the API returned. Valuation, available to
+          sell, reserved stock and cycle accuracy are not derivable from what a
+          variant carries, so they are no longer claimed. */}
+      <ContentGrid columns={4}>
         <StatsCard
-          title="Total SKUs"
-          value={INITIAL_INVENTORY_METRICS.totalSkus}
+          title="Tracked SKUs"
+          value={stockTotals.tracked}
           icon="qr_code_2"
-          trend={INITIAL_INVENTORY_METRICS.totalSkusGrowth}
-          trendType="up"
+          subtitle={`${stockTotals.untracked} not tracked`}
         />
         <StatsCard
-          title="On-Hand Physical"
-          value={`${INITIAL_INVENTORY_METRICS.onHandPhysical.split(' ')[0]} pcs`}
+          title="Units on hand"
+          value={stockTotals.units.toLocaleString('en-IN')}
           icon="inventory_2"
-          trendLabel={`Valuation: ${INITIAL_INVENTORY_METRICS.valuation}`}
+          subtitle="Across tracked variants"
         />
         <StatsCard
-          title="Available-to-Sell"
-          value={`${INITIAL_INVENTORY_METRICS.ats.split(' ')[0]} pcs`}
-          icon="storefront"
-          iconColor="text-success"
-          trendLabel={INITIAL_INVENTORY_METRICS.atsNote}
-        />
-        <StatsCard
-          title="Reserved / Staged"
-          value={`${INITIAL_INVENTORY_METRICS.reserved.split(' ')[0]} pcs`}
-          icon="lock_clock"
-          iconColor="text-info"
-          trendLabel={INITIAL_INVENTORY_METRICS.reservedNote}
-        />
-        <StatsCard
-          title="Critical Low-Stock"
-          value={INITIAL_INVENTORY_METRICS.criticalLow}
+          title="Low stock"
+          value={stockTotals.low}
           icon="warning"
-          iconColor="text-danger"
-          badge="Critical"
-          badgeVariant="destructive"
-          trendLabel={INITIAL_INVENTORY_METRICS.criticalNote}
+          iconColor="text-warning"
+          subtitle="Fewer than 10 units"
         />
         <StatsCard
-          title="Cycle Accuracy"
-          value={INITIAL_INVENTORY_METRICS.cycleAccuracy}
-          icon="verified"
-          iconColor="text-success"
-          trendLabel={INITIAL_INVENTORY_METRICS.accuracyNote}
+          title="Out of stock"
+          value={stockTotals.out}
+          icon="production_quantity_limits"
+          iconColor="text-danger"
+          subtitle={`${stockTotals.backorder} allow backorder`}
         />
       </ContentGrid>
 

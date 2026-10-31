@@ -50,7 +50,7 @@ export function WomenDepartmentLanding({
   return (
     <div className="flex flex-col w-full pb-16">
       {/* Top Breadcrumb Bar */}
-      <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin pt-4 pb-2">
+      <section className="w-full px-margin-mobile md:px-margin pt-4 pb-2">
         <div className="flex items-center gap-2 font-label-caps text-label-caps tracking-wider uppercase text-on-surface-variant">
           <LocalizedClientLink className="hover:text-on-surface transition-colors" href="/">
             Home
@@ -63,7 +63,7 @@ export function WomenDepartmentLanding({
       </section>
 
       {/* Editorial Department Hero */}
-      <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin my-4">
+      <section className="w-full px-margin-mobile md:px-margin my-4">
         <div className="relative w-full rounded-2xl overflow-hidden bg-surface-container-high shadow-md">
           <div
             className="w-full min-h-[460px] md:min-h-[520px] bg-cover bg-center flex flex-col justify-end p-6 sm:p-10 md:p-14 relative"
@@ -108,7 +108,7 @@ export function WomenDepartmentLanding({
       </section>
 
       {/* Metric Badges Ticker */}
-      <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin py-3">
+      <section className="w-full px-margin-mobile md:px-margin py-3">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-surface-container-low/70 rounded-xl p-3.5 flex items-center gap-3 border border-border/40">
             <Icon name="dry_cleaning" size={24} className="text-primary" />
@@ -142,7 +142,7 @@ export function WomenDepartmentLanding({
       </section>
 
       {/* Visual Subcategory Discovery Matrix */}
-      <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin my-6">
+      <section className="w-full px-margin-mobile md:px-margin my-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-4 gap-2">
           <div>
             <div className="flex items-center gap-2 mb-1">

@@ -74,18 +74,23 @@ test("the page shows real figures and names how they are calculated", async ({
   // The orders KPI carries the number the API computed.
   await expect(page.locator("main")).toContainText(String(body.totals.orders))
   // Every metric states its definition rather than leaving the operator guessing.
-  await expect(page.locator("main")).toContainText(/Gross less discounts and refunds/i)
-  await expect(page.locator("main")).toContainText(/Item subtotals, before tax and shipping/i)
+  await expect(page.locator("main")).toContainText(/Gross sales less discounts and refunds/i)
+  await expect(page.locator("main")).toContainText(/Before tax and shipping/i)
+  await expect(page.locator("main")).toContainText(/Order total divided by orders/i)
 
-  // Charts carry a tooltip with the figure behind each bar.
-  const bars = page.locator('main [title*="order"]')
-  expect(await bars.count()).toBeGreaterThan(0)
-  await expect(bars.first()).toHaveAttribute("title", /\d/)
+  // Every chart names what it plots rather than leaving a bare shape.
+  const charts = page.locator('main [role="img"][aria-label]')
+  expect(await charts.count()).toBeGreaterThan(0)
+  await expect(charts.first()).toHaveAttribute("aria-label", /.+/)
 
-  // Proportion bars are labelled, not decorative.
-  const meters = page.locator('main [role="progressbar"]')
-  expect(await meters.count()).toBeGreaterThan(0)
-  await expect(meters.first()).toHaveAttribute("aria-label", /.+/)
+  // The trend is reachable without a pointer: the days are under the chart.
+  await page.getByText("View the days as a table").click()
+  await expect(page.locator("main table caption, main thead")).not.toHaveCount(0)
+
+  // Ranked bars carry their figure on the row, not only on hover.
+  const ranked = page.locator('main [title*="%"]')
+  expect(await ranked.count()).toBeGreaterThan(0)
+  await expect(ranked.first()).toHaveAttribute("title", /\d/)
 })
 
 test("the date range filters the figures and survives a refresh", async ({
@@ -98,7 +103,9 @@ test("the date range filters the figures and survives a refresh", async ({
   await expect(page.locator("main h1")).toBeVisible()
 
   const ordersShown = async () =>
-    Number((await page.locator("main").innerText()).match(/ORDERS\n(\d+)/)?.[1] ?? -1)
+    Number(
+      (await page.locator("main").innerText()).match(/\bOrders\n([\d,]+)/)?.[1]?.replace(/,/g, "") ?? -1
+    )
 
   /*
    * The screen keeps the previous result on screen while the next one loads,
@@ -117,6 +124,7 @@ test("the date range filters the figures and survives a refresh", async ({
   await pickRange("Last 90 days")
   await expect(page).toHaveURL(/range=90d/)
   const wide = await ordersShown()
+  expect(wide, "the orders figure should be readable on the board").toBeGreaterThanOrEqual(0)
 
   await pickRange("Last 7 days")
   await expect(page).toHaveURL(/range=7d/)

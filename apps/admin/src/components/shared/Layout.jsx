@@ -214,6 +214,9 @@ export function StatsCard({
   changeType,
   trendLabel,
   subtitle,
+  // An optional mark under the value: a sparkline, a meter. The tile stays a
+  // figure — the chart is there for the shape, never to carry the number.
+  visual,
   icon,
   iconColor = "text-accent",
   progress,
@@ -256,9 +259,10 @@ export function StatsCard({
         </div>
 
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="text-kpi tabular-nums text-primary">
-            {value}
-          </span>
+          {/* Proportional figures: tabular digits give `121` the width of
+              `000` and make a headline number look loose. Columns of numbers
+              still align — they use tabular-nums where they sit in a table. */}
+          <span className="text-kpi text-primary">{value}</span>
           {delta && (
             <Badge variant={trendVariant} size="sm" className="shrink-0">
               {direction === "up" && (
@@ -280,6 +284,8 @@ export function StatsCard({
         {trendLabel && (
           <p className="truncate text-micro text-muted">{trendLabel}</p>
         )}
+
+        {visual && <div className="mt-0.5 min-w-0">{visual}</div>}
       </div>
 
       {hasFooter && (

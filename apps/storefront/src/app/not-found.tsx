@@ -13,7 +13,7 @@ export default function NotFound() {
   return (
     <>
       <div className="border-b">
-        <div className="mx-auto flex h-16 max-w-[1440px] items-center px-4 sm:px-6 lg:px-10">
+        <div className="flex h-16 w-full items-center px-margin-mobile md:px-margin">
           <Link href="/" aria-label="Everwear home">
             <Wordmark />
           </Link>

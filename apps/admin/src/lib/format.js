@@ -45,3 +45,29 @@ export function formatDateTime(dateInput) {
     minute: '2-digit',
   });
 }
+
+/**
+ * Axis ticks and chart labels need the shape of the number, not its paise.
+ * `en-IN` compacts on the Indian scale (K, L, Cr), which is what an operator
+ * reading an Indian P&L expects to see.
+ */
+export function formatMoneyCompact(amountMinor, currency = 'inr') {
+  if (amountMinor === undefined || amountMinor === null || isNaN(amountMinor)) return '0';
+  const major = amountMinor / 100;
+  const curr = (currency || 'inr').toUpperCase();
+  try {
+    return new Intl.NumberFormat(curr === 'INR' ? 'en-IN' : 'en-US', {
+      style: 'currency',
+      currency: curr,
+      notation: 'compact',
+      maximumFractionDigits: major >= 1000 ? 1 : 0,
+    }).format(major);
+  } catch {
+    return `${curr} ${Math.round(major)}`;
+  }
+}
+
+export function formatCount(value) {
+  if (value === undefined || value === null || isNaN(value)) return '0';
+  return new Intl.NumberFormat('en-IN').format(value);
+}

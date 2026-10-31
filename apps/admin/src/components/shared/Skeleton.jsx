@@ -267,10 +267,13 @@ export function SkeletonChart({ bars = 10, height = 256, legend = true, classNam
           </div>
         </div>
       )}
-      <div className="flex flex-1 items-end gap-1.5 pt-space-md sm:gap-3">
+      {/* items-stretch, not items-end: an auto-height column gives its child
+          nothing to take a percentage of, so every bar collapsed to nothing
+          and the chart placeholder was an empty box with tick stubs. */}
+      <div className="flex flex-1 items-stretch gap-1.5 pt-space-md sm:gap-3">
         {Array.from({ length: bars }).map((_, i) => (
-          <div key={i} className="flex flex-1 flex-col items-center gap-1">
-            <div className="flex h-full w-full items-end justify-center">
+          <div key={i} className="flex min-h-0 flex-1 flex-col items-center gap-1">
+            <div className="flex min-h-0 w-full flex-1 items-end justify-center">
               <Skeleton
                 rounded="sm"
                 className="w-full max-w-[14px]"
@@ -381,7 +384,7 @@ export function SkeletonPage({
         </div>
       ) : (
         <>
-          <SkeletonStatsGrid count={stats} cols={statsCols} progress />
+          {stats > 0 && <SkeletonStatsGrid count={stats} cols={statsCols} progress />}
 
           {variant === "dashboard" && (
             <div className="grid items-start gap-space-lg xl:grid-cols-12">
@@ -400,21 +403,41 @@ export function SkeletonPage({
             </div>
           )}
 
+          {/* Analytics opens on one board — a headline figure, its trend, and
+              a ruled strip of supporting figures in the same frame — so the
+              wait has that shape rather than a row of separate stat cards
+              that then rearrange themselves into something else. */}
           {variant === "analytics" && (
-            <div className="grid gap-space-lg xl:grid-cols-12">
-              <div className="xl:col-span-8">
+            <div className="flex flex-col gap-space-lg">
+              <div className="overflow-hidden rounded-xl border border-subtle bg-surface-container-lowest shadow-xs">
+                <div className="flex flex-col gap-space-lg p-space-lg">
+                  <div className="flex items-start justify-between gap-space-lg">
+                    <div className="flex flex-col gap-2">
+                      <Skeleton className="h-2.5 w-20" />
+                      <Skeleton className="h-8 w-48" />
+                      <Skeleton className="h-2.5 w-56" />
+                    </div>
+                    <Skeleton className="h-3 w-40" />
+                  </div>
+                  <SkeletonChart height={248} legend={false} />
+                </div>
+                <div className="grid grid-cols-2 gap-px border-t border-subtle bg-border-subtle sm:grid-cols-3 xl:grid-cols-5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex flex-col gap-2 bg-surface-container-lowest px-space-lg py-space-md">
+                      <Skeleton className="h-2.5 w-20" />
+                      <Skeleton className="h-5 w-28" />
+                      <Skeleton className="h-2 w-24" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-space-lg lg:grid-cols-[1.55fr_1fr]">
                 <SkeletonCard>
-                  <SkeletonChart />
+                  <SkeletonChart bars={4} height={200} legend={false} />
                 </SkeletonCard>
+                <SkeletonCard lines={5} />
               </div>
-              <div className="xl:col-span-4">
-                <SkeletonCard>
-                  <SkeletonChart bars={5} height={200} legend={false} />
-                </SkeletonCard>
-              </div>
-              <div className="xl:col-span-12">
-                <SkeletonTable rows={rows} columns={columns} />
-              </div>
+              <SkeletonTable rows={rows} columns={columns} />
             </div>
           )}
 

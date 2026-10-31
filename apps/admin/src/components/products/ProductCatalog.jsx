@@ -4,7 +4,7 @@ import confetti from 'canvas-confetti';
 import { adminApi, describeUploadProblem } from '../../lib/api';
 import { cn } from '../../lib/utils';
 import { VariantMatrixPanel, StockAllocationPanel, StorefrontSeoPanel } from './ProductTabPanels';
-import { useProductsQuery, useUpdateProductMutation } from '../../hooks/useAdminQueries';
+import { useProductsQuery, useUpdateProductMutation, useCategoriesQuery } from '../../hooks/useAdminQueries';
 import { Icon,
   Card,
   CardContent,
@@ -135,6 +135,11 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     refetch: refetchCatalog,
   } = useProductsQuery({ limit: 100 });
   const updateProductMutation = useUpdateProductMutation();
+  const { data: categoriesData } = useCategoriesQuery();
+  const categoryNames = useMemo(
+    () => new Map((categoriesData?.categories ?? []).map((c) => [c.id, c.name])),
+    [categoriesData]
+  );
 
   // Sync products when query cache updates
   useEffect(() => {
@@ -149,7 +154,8 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           brand: 'Everwear Atelier',
           collection: 'Autumn / Festive 24',
           department: idx % 2 === 0 ? 'Women' : 'Men',
-          category: idx % 3 === 0 ? "Women's Ethnic" : idx % 3 === 1 ? "Women's Western" : "Men's Casual",
+          categoryIds: p.categoryIds ?? [],
+          category: (p.categoryIds ?? []).map((id) => categoryNames.get(id)).filter(Boolean).join(', '),
           seasonTag: 'AUTUMN / ATELIER 24',
           fabricComposition: p.material || 'Premium Woven Fabric',
           silhouette: 'Tailored Fit',
@@ -164,7 +170,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           storefrontSync: p.status === 'published',
           codActive: true,
           expressShip: true,
-          thumbnail: p.thumbnail || (p.images && p.images[0]) || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBY9Tgm6nn9TMViDB2K0jV_IgnR1CTQzPSh4UF1qP0xioyqkpMq3i7rxekw2L-XzIqJ7t0oI4QqiK1ZfohmEgXR501aua43kgyya37eW_Pnzg1T4YVEcL0PZnC5nDOlZkUy2t-rC3JITisM8eYFYMI4d6TLZtJcydeuJ8KukkLzD8BdJmW5hA7Jm3FflcjpsXIW5n5FvIgEXboyVtaKgQdoBRB4-htL-mHupOCj5v7x',
+          thumbnail: p.thumbnail || p.images?.[0] || null,
           mediaAssets: p.images && p.images.length > 0
             ? p.images.map((img, i) => ({ slot: `Perspective ${i + 1}`, url: img, path: img, isPrimary: i === 0 }))
             : p.thumbnail
@@ -206,10 +212,33 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     }
   }, [allProducts, selectedProductId]);
 
+  /**
+   * One chip per category that has products in it, counted from the catalog.
+   * The chips used to be four fixed labels derived from a product's position
+   * in the array, with counts that fell back to 14, 18, 12 and 6, so they
+   * never added up to the catalog and the filter narrowed by a label no
+   * product really carried.
+   */
+  const categoryChips = useMemo(() => {
+    const counts = new Map();
+    for (const product of allProducts) {
+      for (const id of product.categoryIds ?? []) {
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+    }
+    return [
+      { id: 'All', label: 'All', count: allProducts.length },
+      ...[...counts.entries()]
+        .map(([id, count]) => ({ id, label: categoryNames.get(id) ?? 'Uncategorised', count }))
+        .filter((c) => c.label !== 'Uncategorised')
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
+    ];
+  }, [allProducts, categoryNames]);
+
   // Filtered styles based on activeCategory
   const filteredProducts = useMemo(() => {
     if (activeCategory === 'All') return allProducts;
-    return allProducts.filter(p => p.category?.toLowerCase().includes(activeCategory.toLowerCase()));
+    return allProducts.filter((p) => (p.categoryIds ?? []).includes(activeCategory));
   }, [allProducts, activeCategory]);
 
   // Calculations
@@ -314,10 +343,8 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       storefrontSync: true,
       codActive: true,
       expressShip: true,
-      thumbnail: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBY9Tgm6nn9TMViDB2K0jV_IgnR1CTQzPSh4UF1qP0xioyqkpMq3i7rxekw2L-XzIqJ7t0oI4QqiK1ZfohmEgXR501aua43kgyya37eW_Pnzg1T4YVEcL0PZnC5nDOlZkUy2t-rC3JITisM8eYFYMI4d6TLZtJcydeuJ8KukkLzD8BdJmW5hA7Jm3FflcjpsXIW5n5FvIgEXboyVtaKgQdoBRB4-htL-mHupOCj5v7x',
-      mediaAssets: [
-        { slot: 'Primary Editorial', url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBY9Tgm6nn9TMViDB2K0jV_IgnR1CTQzPSh4UF1qP0xioyqkpMq3i7rxekw2L-XzIqJ7t0oI4QqiK1ZfohmEgXR501aua43kgyya37eW_Pnzg1T4YVEcL0PZnC5nDOlZkUy2t-rC3JITisM8eYFYMI4d6TLZtJcydeuJ8KukkLzD8BdJmW5hA7Jm3FflcjpsXIW5n5FvIgEXboyVtaKgQdoBRB4-htL-mHupOCj5v7x', isPrimary: true }
-      ]
+      thumbnail: null,
+      mediaAssets: []
     };
 
     setAllProducts([newProd, ...allProducts]);
@@ -330,6 +357,26 @@ export function ProductCatalog({ onShowToast, currentHub }) {
   };
 
   const isUploading = uploads.some((u) => u.status === 'uploading');
+
+  /**
+   * Whether anything is actually waiting to be saved. The bar used to read
+   * "Unsaved changes stay local" from the moment the page opened and kept
+   * every action enabled, so Publish was always offered even when it would
+   * send the product's own saved values straight back.
+   *
+   * Only the title and the composed description travel with Publish and Save
+   * draft; images are written as they upload, which is why they are not part
+   * of this.
+   */
+  const canSaveProduct = Boolean(product.rawBackend?.id || product.id?.startsWith('prod_'));
+  const composedDescription = `${silhouette} in ${fabric}. ${pattern}.`;
+  const isDirty =
+    canSaveProduct &&
+    (title.trim() !== (product.title ?? '').trim() ||
+      composedDescription !== (product.rawBackend?.description ?? ''));
+  const savedStatus = product.rawBackend?.status ?? null;
+  const canPublish = canSaveProduct && (isDirty || savedStatus !== 'published');
+  const canSaveDraft = canSaveProduct && (isDirty || savedStatus !== 'draft');
 
   /** The backend id to PATCH, or null when this row only exists in the client. */
   const backendProductId = product.rawBackend?.id || (product.id?.startsWith('prod_') ? product.id : null);
@@ -514,14 +561,6 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     });
   };
 
-  const handleRunQc = () => {
-    onShowToast({
-      type: 'info',
-      title: 'Compliance QC Scan Passed',
-      message: `Style ${styleCode}: HSN ${hsnCode} verified against GST portal. EAN barcodes valid. Zero structural violations.`,
-    });
-  };
-
   const handleExportCsv = () => {
     const csvContent = "data:text/csv;charset=utf-8,StyleCode,Title,Brand,MRP,SellingPrice,ProcurementCost,HSN,GST\n" +
       `${styleCode},"${title}","${brand}",${mrp},${b2cPrice},${procurementCost},${hsnCode},${gstRate}%\n`;
@@ -572,7 +611,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
         <EmptyState
           icon="inventory_2"
           title="No products yet"
-          message="Products created in the catalog will appear here, ready to edit and publish."
+          description="Products created in the catalog will appear here, ready to edit and publish."
         />
       </PageContainer>
     );
@@ -671,18 +710,12 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       <Card>
         <CardContent className="p-2 flex items-center justify-between flex-wrap gap-space-sm">
           <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
-            {[
-              { label: 'All', count: allProducts.length },
-              { label: "Women's Ethnic", count: allProducts.filter(p => p.category?.includes("Ethnic")).length || 14 },
-              { label: "Women's Western", count: allProducts.filter(p => p.category?.includes("Western")).length || 18 },
-              { label: "Men's Casual", count: allProducts.filter(p => p.department === 'Men').length || 12 },
-              { label: 'Accessories & Footwear', count: 6 },
-            ].map((cat) => {
-              const isCatActive = activeCategory === cat.label;
+            {categoryChips.map((cat) => {
+              const isCatActive = activeCategory === cat.id;
               return (
                 <button
-                  key={cat.label}
-                  onClick={() => setActiveCategory(cat.label)}
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
                   className={`px-3 py-1.5 rounded-lg text-label transition-all whitespace-nowrap ${
  isCatActive
  ? 'bg-primary-container text-on-accent font-semibold shadow-xs'
@@ -1247,9 +1280,19 @@ export function ProductCatalog({ onShowToast, currentHub }) {
         <div className="p-space-md bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-space-md sticky bottom-0 z-30 shadow-lg border-t border-subtle">
           <div className="flex items-center gap-2">
             <span className="text-label font-semibold text-primary">
-              {updateProductMutation.isPending ? 'Saving changes' : 'Unsaved changes stay local'}
+              {updateProductMutation.isPending
+                ? 'Saving changes'
+                : isDirty
+                  ? 'Unsaved changes stay local'
+                  : 'All changes saved'}
             </span>
-            <span className="text-muted text-micro">Use the actions on the right to save.</span>
+            <span className="text-muted text-micro">
+              {isDirty
+                ? 'Use the actions on the right to save.'
+                : canSaveProduct
+                  ? `This style is ${savedStatus === 'published' ? 'published' : 'a draft'}.`
+                  : 'This style only exists in the browser and cannot be saved.'}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-space-xs w-full sm:w-auto justify-end">
@@ -1257,6 +1300,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               variant="outline"
               size="sm"
               onClick={handleDiscardDraft}
+              disabled={!isDirty || isSaving}
               className="text-danger hover:bg-status-danger-bg hover:text-danger"
               type="button"
             >
@@ -1266,26 +1310,16 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               variant="outline"
               size="sm"
               onClick={handleSaveDraft}
-              disabled={isSaving}
+              disabled={isSaving || !canSaveDraft}
               type="button"
             >
               Save as Inactive Draft
             </Button>
             <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleRunQc}
-              className="gap-1.5 shadow-xs"
-              type="button"
-            >
-              <Icon name="verified" className="material-symbols-outlined text-icon-md" />
-              <span>Run Compliance QC Check</span>
-            </Button>
-            <Button
               variant="primary"
               size="sm"
               onClick={handlePublish}
-              disabled={isSaving}
+              disabled={isSaving || !canPublish}
               className="gap-1.5 shadow-md"
               type="button"
             >

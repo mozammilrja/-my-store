@@ -1078,7 +1078,7 @@ export function MegaMenu({
 }) {
   return (
     <nav className="relative w-full bg-surface-container-lowest border-b border-border/60 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
-      <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex items-center justify-between relative">
+      <div className="w-full px-margin-mobile md:px-margin flex items-center justify-between relative">
         {/* Navigation Items with Myntra-style Hover Dropdowns */}
         <div className="flex items-center gap-1 sm:gap-2">
           {DEPARTMENTS_DATA.map((dept) => (
@@ -1100,7 +1100,8 @@ export function MegaMenu({
               {/* Myntra-Style Mega Menu Dropdown */}
               <div
                 className={cn(
-                  "hidden group-hover:block absolute top-full left-0 w-[1120px] max-w-[calc(100vw-2rem)]",
+                  "hidden group-hover:block absolute top-full left-margin-mobile md:left-margin w-[1120px]",
+                  "max-w-[calc(100vw-2rem)] md:max-w-[calc(100vw-6rem)]",
                   "bg-white shadow-[0_25px_60px_rgba(0,0,0,0.22)] z-50 border border-border/80 rounded-b-md overflow-hidden",
                   "before:absolute before:-top-4 before:left-0 before:right-0 before:h-4 before:content-['']"
                 )}
@@ -1131,7 +1132,7 @@ export function MegaMenu({
                                 <li key={lIdx}>
                                   <LocalizedClientLink
                                     href={link.href}
-                                    className="text-[#282c3f]/85 dark:text-zinc-700 hover:text-foreground hover:font-bold transition-colors py-0.5 block truncate leading-snug"
+                                    className="text-foreground/85 hover:text-foreground hover:font-bold transition-colors py-0.5 block truncate leading-snug"
                                   >
                                     {link.label}
                                   </LocalizedClientLink>
@@ -1188,7 +1189,7 @@ export function MegaMenu({
             className="font-label-sm text-[13px] uppercase tracking-wider text-secondary font-extrabold py-3.5 px-2.5 flex items-center gap-1.5 transition-colors border-b-4 border-transparent hover:border-secondary"
           >
             <span>Sale</span>
-            <span className="font-label-caps text-[9px] bg-secondary-container text-on-secondary-fixed px-1.5 py-0.2 rounded uppercase font-bold tracking-tight">
+            <span className="font-label-caps text-[11px] bg-secondary-container text-on-secondary-fixed px-1.5 py-0.2 rounded uppercase font-bold tracking-tight">
               Up to 50%
             </span>
           </LocalizedClientLink>

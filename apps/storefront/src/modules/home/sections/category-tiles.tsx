@@ -89,7 +89,7 @@ export function CategoryTiles({ categories }: { categories: Showcase[] }) {
                         Everwear Capsule
                       </div>
                     )}
-                    <span className="absolute top-2.5 left-2.5 bg-surface-container-lowest/90 backdrop-blur-xs px-2 py-0.5 rounded font-label-caps text-[9px] uppercase font-semibold text-foreground shadow-2xs">
+                    <span className="absolute top-2.5 left-2.5 bg-surface-container-lowest/90 backdrop-blur-xs px-2 py-0.5 rounded font-label-caps text-[11px] uppercase font-semibold text-foreground shadow-2xs">
                       {category.count} {category.count === 1 ? "Style" : "Styles"}
                     </span>
                   </div>

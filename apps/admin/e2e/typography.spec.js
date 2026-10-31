@@ -5,7 +5,7 @@ import { MODULES, getAdminToken, seed, gotoModule } from "./helpers.js"
  * The approved type scale, as rendered. Anything outside it means a component
  * invented its own size instead of taking one from the scale.
  */
-const TEXT_SIZES = ["28px", "24px", "22px", "20px", "16px", "14px", "13px", "12px", "11px"]
+const TEXT_SIZES = ["36px", "28px", "24px", "22px", "20px", "16px", "14px", "13px", "12px", "11px"]
 const ICON_SIZES = ["14px", "16px", "18px", "20px", "24px", "32px"]
 const WEIGHTS = ["400", "500", "600"]
 

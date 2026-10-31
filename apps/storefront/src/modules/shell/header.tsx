@@ -3,7 +3,7 @@ import { deliveryDays } from "@lib/util/policies"
 import { Wordmark } from "@/components/store/wordmark"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { Announcement } from "./announcement"
-import { CartDrawer } from "./cart-drawer"
+import { MiniBag } from "./mini-bag"
 import { MegaMenu } from "./mega-menu"
 import { MobileNav, NavLink } from "./mobile-nav"
 import { SearchDialog } from "./search-dialog"
@@ -40,7 +40,7 @@ export async function Header({ countryCode }: { countryCode: string }) {
     <>
       <Announcement countryCode={countryCode} deliveryInfo={deliveryInfo} />
       <header className="sticky top-0 z-40 bg-surface shadow-[0_1px_8px_rgba(0,0,0,0.04)] border-b border-border/60">
-        <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+        <div className="w-full px-margin-mobile md:px-margin">
           <div className="h-20 flex items-center justify-between gap-space-lg">
             {/* Left: Mobile Trigger & Brand Wordmark */}
             <div className="flex items-center gap-space-md shrink-0">
@@ -75,7 +75,7 @@ export async function Header({ countryCode }: { countryCode: string }) {
                 className="relative flex flex-col items-center px-2 py-1 text-on-surface-variant hover:text-on-surface transition-colors"
               >
                 <Icon name="favorite" size={22} />
-                <span className="absolute top-0 right-1 w-4 h-4 bg-primary text-on-primary font-label-caps text-[9px] rounded-full flex items-center justify-center font-bold">
+                <span className="absolute top-0 right-1 size-[18px] bg-primary text-on-primary font-label-caps text-[11px] rounded-full flex items-center justify-center font-bold">
                   3
                 </span>
                 <span className="hidden lg:inline font-label-caps text-label-caps uppercase mt-1">
@@ -87,7 +87,7 @@ export async function Header({ countryCode }: { countryCode: string }) {
                 <SearchDialog desktopBar={false} />
               </div>
 
-              <CartDrawer />
+              <MiniBag />
 
               <div className="flex items-center gap-2 pl-2">
                 <LocalizedClientLink

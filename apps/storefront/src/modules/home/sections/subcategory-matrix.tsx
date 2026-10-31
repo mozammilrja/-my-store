@@ -54,7 +54,7 @@ const TILES = [
 
 export function SubcategoryMatrix() {
   return (
-    <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin my-8">
+    <section className="w-full px-margin-mobile md:px-margin my-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-2">
         <div>
           <div className="flex items-center gap-2 mb-1">

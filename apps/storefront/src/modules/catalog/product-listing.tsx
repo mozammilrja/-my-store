@@ -186,7 +186,7 @@ export async function ProductListing({
             </Button>
           </div>
         ) : (
-          <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4" data-testid="products-list">
+          <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5" data-testid="products-list">
             {result.products.map((product, i) => (
               <li key={product.id}>
                 <ProductCard product={product} priority={i < 4} headingLevel="h2" sizes="(min-width: 1280px) 22vw, (min-width: 640px) 33vw, 50vw" />

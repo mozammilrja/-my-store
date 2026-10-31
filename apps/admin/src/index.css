@@ -234,11 +234,13 @@
   --status-info-solid: 29 78 216;
   --on-status: 255 255 255;
 
-  --chart-1: 129 140 248;
-  --chart-2: 45 212 191;
-  --chart-3: 251 191 36;
-  --chart-4: 244 114 182;
-  --chart-5: 56 189 248;
+  /* Dark slots are stepped down, not flipped: 400-level hues sit above the
+     dark-mode lightness band and read as glowing blocks against the surface. */
+  --chart-1: 99 102 241;
+  --chart-2: 13 148 136;
+  --chart-3: 217 119 6;
+  --chart-4: 236 72 153;
+  --chart-5: 2 132 199;
   --chart-grid: 34 40 52;
   --chart-baseline: 55 63 79;
 

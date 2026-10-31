@@ -2,7 +2,7 @@ import { Icon } from "@/components/ui/icon"
 
 export function MetricsTicker() {
   return (
-    <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin py-6">
+    <section className="w-full px-margin-mobile md:px-margin py-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-surface-container-low rounded-lg p-4 flex items-center gap-3">
           <Icon name="dry_cleaning" size={24} className="text-primary" />

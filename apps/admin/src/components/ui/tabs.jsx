@@ -18,7 +18,13 @@ export const TabsList = ({ className, children, ...props }) => (
   <div
     role="tablist"
     className={cn(
-      "scrollbar-thin flex items-center gap-1 overflow-x-auto border-b border-subtle",
+      /*
+       * overflow-y is explicitly hidden: setting only overflow-x makes the
+       * browser resolve the other axis to auto, and the rail's content sat one
+       * pixel taller than its box, which was enough to draw a vertical
+       * scrollbar beside the tabs. A tab rail scrolls sideways or not at all.
+       */
+      "scrollbar-thin flex items-center gap-1 overflow-x-auto overflow-y-hidden border-b border-subtle",
       className
     )}
     {...props}

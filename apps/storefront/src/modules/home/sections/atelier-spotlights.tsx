@@ -40,7 +40,7 @@ const WORKSHOPS = [
 
 export function AtelierSpotlights() {
   return (
-    <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin my-12">
+    <section className="w-full px-margin-mobile md:px-margin my-12">
       <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-2">
         <div>
           <span className="font-label-caps text-label-caps uppercase text-on-surface-variant tracking-wider font-semibold">

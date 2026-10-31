@@ -538,7 +538,7 @@ export function CatalogFilterSidebar({
                   Archive Sale (Up to 50% Off)
                 </span>
               </div>
-              <span className="font-label-caps text-[9px] bg-secondary-container text-on-secondary-fixed px-1.5 py-0.2 rounded font-bold">
+              <span className="font-label-caps text-[11px] bg-secondary-container text-on-secondary-fixed px-1.5 py-0.2 rounded font-bold">
                 50%
               </span>
             </LocalizedClientLink>

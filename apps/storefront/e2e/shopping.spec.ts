@@ -4,7 +4,12 @@ const COUNTRY = "dk"
 const PRODUCT = `/${COUNTRY}/products/t-shirt`
 
 const bagCount = async (page: import("@playwright/test").Page) => {
-  const text = await page.getByTestId("nav-cart-count").first().textContent()
+  // The header badge is omitted entirely when the bag is empty.
+  const badge = page.getByTestId("nav-cart-count").first()
+  if ((await badge.count()) === 0) {
+    return 0
+  }
+  const text = await badge.textContent()
   return Number(text?.replace(/\D/g, "") ?? 0)
 }
 

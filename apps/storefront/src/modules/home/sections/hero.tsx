@@ -3,7 +3,7 @@ import { Icon } from "@/components/ui/icon"
 
 export function Hero() {
   return (
-    <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin my-4">
+    <section className="w-full px-margin-mobile md:px-margin my-4">
       <div className="relative w-full rounded-xl overflow-hidden bg-surface-container-high shadow-sm">
         <div
           className="w-full min-h-[520px] md:min-h-[580px] bg-cover bg-center flex flex-col justify-end p-6 sm:p-10 md:p-16 relative"

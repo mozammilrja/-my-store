@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { Icon } from "@/components/ui/icon"
 import { cn } from "@/lib/utils"
 import type { Product, Variant } from "@lib/api/types"
 import { addToCart } from "@lib/data/shop"
@@ -126,9 +127,9 @@ export function PurchasePanel({ product }: { product: Product }) {
 
         {/* 1. Rating & Reviews Badge */}
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="inline-flex items-center gap-1 bg-emerald-700 text-white font-bold text-xs px-2 py-0.5 rounded shadow-2xs">
+          <div className="inline-flex items-center gap-1 bg-success text-success-foreground font-bold text-xs px-2 py-0.5 rounded shadow-2xs">
             <span>4.3</span>
-            <span className="text-[10px]">★</span>
+            <Icon name="star" size={11} fill="currentColor" strokeWidth={0} aria-hidden />
           </div>
           <span className="text-xs text-muted-foreground font-medium">
             1,246 Ratings &amp; 89 Reviews
@@ -141,7 +142,7 @@ export function PurchasePanel({ product }: { product: Product }) {
         {/* 2. Price and Discount Display */}
         <div className="flex flex-col gap-1" data-testid="product-price">
           {discountPercent && (
-            <span className="font-label-caps text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+            <span className="font-label-caps text-[11px] font-bold uppercase tracking-wider text-success">
               Top Discount of the Season · Special Price
             </span>
           )}
@@ -157,7 +158,7 @@ export function PurchasePanel({ product }: { product: Product }) {
                   </span>
                 )}
                 {discountPercent && (
-                  <span className="text-sm font-bold text-emerald-700">
+                  <span className="text-sm font-bold text-success">
                     {discountPercent}% off
                   </span>
                 )}
@@ -183,19 +184,19 @@ export function PurchasePanel({ product }: { product: Product }) {
           </div>
           <ul className="text-xs text-muted-foreground flex flex-col gap-1.5">
             <li className="flex items-start gap-1.5">
-              <span className="text-emerald-700 font-bold">•</span>
+              <span className="text-success font-bold">•</span>
               <span>
                 <strong className="text-foreground">Bank Offer:</strong> 10% Instant Discount on select Credit Cards.
               </span>
             </li>
             <li className="flex items-start gap-1.5">
-              <span className="text-emerald-700 font-bold">•</span>
+              <span className="text-success font-bold">•</span>
               <span>
                 <strong className="text-foreground">Special Price:</strong> Get extra ₹150 off on prepaid UPI transactions.
               </span>
             </li>
             <li className="flex items-start gap-1.5">
-              <span className="text-emerald-700 font-bold">•</span>
+              <span className="text-success font-bold">•</span>
               <span>
                 <strong className="text-foreground">Cashback:</strong> 5% unlimited cashback with Everwear Pay.
               </span>
@@ -273,8 +274,8 @@ export function PurchasePanel({ product }: { product: Product }) {
             </button>
           </div>
           {pincodeChecked && (
-            <div className="flex flex-col gap-1 text-xs text-foreground bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-lg">
-              <span className="font-semibold text-emerald-800">
+            <div className="flex flex-col gap-1 text-xs text-foreground bg-success/10 border border-success/20 p-2.5 rounded-lg">
+              <span className="font-semibold text-success">
                 Delivery by 5 Nov, Thursday · Free Delivery
               </span>
               <span className="text-[11px] text-muted-foreground">
@@ -304,8 +305,8 @@ export function PurchasePanel({ product }: { product: Product }) {
           {!selected ? (
             <span className="text-muted-foreground">This combination isn&apos;t available.</span>
           ) : inStock ? (
-            <span className="text-emerald-800 flex items-center gap-1.5 font-semibold">
-              <span className="size-1.5 rounded-full bg-emerald-600 animate-pulse" />
+            <span className="text-success flex items-center gap-1.5 font-semibold">
+              <span className="size-1.5 rounded-full bg-success animate-pulse" />
               In stock · Ready for express dispatch
             </span>
           ) : (

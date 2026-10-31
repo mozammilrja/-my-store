@@ -108,12 +108,12 @@ export function ProductCard({
         {(onSale || isNew) && (
           <div className="pointer-events-none absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
             {onSale && (
-              <span className="bg-secondary-container text-on-secondary-fixed px-2 py-0.5 rounded font-label-caps text-[9px] uppercase font-bold tracking-tight shadow-xs">
+              <span className="bg-secondary-container text-on-secondary-fixed px-2 py-0.5 rounded font-label-caps text-[11px] uppercase font-bold tracking-tight shadow-xs">
                 {discountPercent ? `-${discountPercent}%` : "Sale"}
               </span>
             )}
             {isNew && (
-              <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-label-caps text-[9px] uppercase font-bold tracking-tight shadow-xs">
+              <span className="bg-success/10 text-success px-2 py-0.5 rounded font-label-caps text-[11px] uppercase font-bold tracking-tight shadow-xs">
                 New
               </span>
             )}
@@ -126,7 +126,7 @@ export function ProductCard({
           aria-label="Add to wishlist"
           className="absolute top-2.5 right-2.5 size-7 sm:size-8 rounded-full bg-surface-container-lowest/80 backdrop-blur-xs hover:bg-surface-container-lowest text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors shadow-xs z-10 cursor-pointer"
         >
-          <HeartIcon className="size-3.5 text-stone-600" />
+          <HeartIcon className="size-3.5" />
         </button>
 
         {/* Quick Add Action Bar */}
@@ -154,8 +154,8 @@ export function ProductCard({
 
           {/* Rating */}
           <div className="flex items-center gap-1.5 pt-0.5">
-            <div className="flex items-center text-amber-500 text-[12px]">
-              <StarIcon className="size-3 fill-amber-400 text-amber-400" />
+            <div className="flex items-center text-brand-champagne text-[12px]">
+              <StarIcon className="size-3 fill-brand-champagne text-brand-champagne" />
               <span className="font-label-sm text-xs font-bold ml-1 text-foreground">4.9</span>
             </div>
             {sizeCount > 1 && (

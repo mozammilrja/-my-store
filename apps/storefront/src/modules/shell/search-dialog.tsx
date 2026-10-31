@@ -419,7 +419,7 @@ function SearchPanel({
                       )}
                     </span>
                     <div className="flex flex-col gap-0.5">
-                      <span className="font-label-caps text-[9px] text-secondary uppercase tracking-wider font-semibold">
+                      <span className="font-label-caps text-[11px] text-secondary uppercase tracking-wider font-semibold">
                         Everwear
                       </span>
                       <span className="font-headline-sm text-xs font-medium text-foreground line-clamp-1 group-hover:underline">

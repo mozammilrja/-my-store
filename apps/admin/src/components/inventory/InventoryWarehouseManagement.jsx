@@ -742,22 +742,6 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                 setPage(1);
               }}
             />
-
-            {/* Ledger Summary Bar & Footer */}
-            <div className="flex flex-col items-center justify-between gap-3 border-t border-subtle bg-surface-subtle px-space-md py-space-sm text-meta text-muted sm:flex-row">
-              <div className="flex items-center gap-2">
-                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-status-success" />
-                <span>Ledger synced: <strong className="text-primary">live</strong></span>
-                <span aria-hidden="true" className="h-1 w-1 rounded-full bg-text-faint" />
-                <span className="tabular-nums">
-                  {filteredInventory.length} of {inventoryList.length} SKUs match
-                </span>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleExportCsv}>
-                <Icon name="file_download" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
-                Export ledger CSV
-              </Button>
-            </div>
           </Card>
         </div>
 

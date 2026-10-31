@@ -80,6 +80,11 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
               minute: '2-digit',
             })
           : 'Not issued',
+        issuedAt: issued,
+        // Month the invoice falls in, which is the unit a GST return is filed by.
+        period: issued
+          ? issued.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+          : 'Not issued',
         orderRef: `EVR-${inv.displayId}`,
         customer: inv.customerName ?? 'Guest',
         customerGstin: inv.customerGstin || 'Unregistered',
@@ -175,7 +180,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
 
   // Filters
-  const [selectedPeriod, setSelectedPeriod] = useState('May 2024');
+  const [selectedPeriod, setSelectedPeriod] = useState('all');
   const [selectedState, setSelectedState] = useState('all');
   const [selectedHsn, setSelectedHsn] = useState('all');
   const [selectedSlab, setSelectedSlab] = useState('all');
@@ -204,11 +209,29 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
     return invoices.find(inv => inv.id === selectedInvoiceId) || invoices[0];
   }, [invoices, selectedInvoiceId]);
 
+  /**
+   * Every choice each filter offers, taken from the register itself. The lists
+   * here were fixed: three 2024 financial periods, four states and three HSN
+   * chapters written as `620442`-style codes while an invoice carries
+   * `6204.49.00`. Picking an HSN chapter could therefore never match a row, so
+   * the table emptied; the period control was not read at all.
+   */
+  const filterOptions = useMemo(() => {
+    const uniq = (values) => [...new Set(values.filter(Boolean))].sort();
+    return {
+      periods: uniq(invoices.map((inv) => inv.period)),
+      states: uniq(invoices.map((inv) => inv.state)),
+      hsnCodes: uniq(invoices.flatMap((inv) => (inv.items ?? []).map((item) => item.hsn))),
+      slabs: uniq(invoices.map((inv) => inv.slab)),
+    };
+  }, [invoices]);
+
   // Filtered Invoices
   const filteredInvoices = useMemo(() => {
     return invoices.filter(inv => {
+      if (selectedPeriod !== 'all' && inv.period !== selectedPeriod) return false;
       if (selectedState !== 'all' && inv.state.toLowerCase() !== selectedState.toLowerCase()) return false;
-      if (selectedHsn !== 'all' && inv.hsnCode !== selectedHsn) return false;
+      if (selectedHsn !== 'all' && !(inv.items ?? []).some((item) => item.hsn === selectedHsn)) return false;
       if (selectedSlab !== 'all' && inv.slab !== selectedSlab) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -220,7 +243,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       }
       return true;
     });
-  }, [invoices, selectedState, selectedHsn, selectedSlab, searchQuery]);
+  }, [invoices, selectedPeriod, selectedState, selectedHsn, selectedSlab, searchQuery]);
 
   // One shared pager over the rows this module actually holds.
   const invoicesPager = useClientTable(filteredInvoices);
@@ -577,9 +600,12 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     onChange={(e) => setSelectedPeriod(e.target.value)}
                     className="h-8 text-meta font-medium"
                   >
-                    <option value="May 2024">May 2024 (Active)</option>
-                    <option value="April 2024">April 2024 (Filed)</option>
-                    <option value="March 2024">March 2024 (Reconciled)</option>
+                    <option value="all">All periods</option>
+                    {filterOptions.periods.map((period) => (
+                      <option key={period} value={period}>
+                        {period}
+                      </option>
+                    ))}
                   </Select>
                 </div>
                 <div>
@@ -589,11 +615,12 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     onChange={(e) => setSelectedState(e.target.value)}
                     className="h-8 text-meta font-medium"
                   >
-                    <option value="all">All Destination States</option>
-                    <option value="Karnataka">Karnataka (29) - Intra</option>
-                    <option value="Maharashtra">Maharashtra (27)</option>
-                    <option value="Delhi">Delhi (07)</option>
-                    <option value="Telangana">Telangana (36)</option>
+                    <option value="all">All destination states</option>
+                    {filterOptions.states.map((state) => (
+                      <option key={state} value={state}>
+                        {state}
+                      </option>
+                    ))}
                   </Select>
                 </div>
                 <div>
@@ -603,16 +630,18 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     onChange={(e) => setSelectedHsn(e.target.value)}
                     className="h-8 text-meta font-medium"
                   >
-                    <option value="all">All Apparel HSN</option>
-                    <option value="620442">HSN 6204 (Dresses &amp; Ensembles)</option>
-                    <option value="620342">HSN 6203 (Suits &amp; Trousers)</option>
-                    <option value="610910">HSN 6109 (Cotton Tees)</option>
+                    <option value="all">All HSN codes</option>
+                    {filterOptions.hsnCodes.map((code) => (
+                      <option key={code} value={code}>
+                        HSN {code}
+                      </option>
+                    ))}
                   </Select>
                 </div>
                 <div>
                   <label className="block text-caption text-muted uppercase mb-1">GST Tax Slab</label>
                   <div className="flex items-center gap-1">
-                    {['all', '5%', '12%', '18%'].map(slab => (
+                    {['all', ...filterOptions.slabs].map(slab => (
                       <button
                         key={slab}
                         type="button"
@@ -650,6 +679,15 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-border-subtle">
+                    {/* A filter combination with no match used to leave the
+                        header sitting above nothing at all. */}
+                    {invoicesPager.pageRows.length === 0 && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={10} className="py-10 text-center text-body text-muted">
+                          No invoice matches this period, state, HSN code and slab.
+                        </TableCell>
+                      </TableRow>
+                    )}
                     {invoicesPager.pageRows.map(inv => {
                       const isSelected = selectedInvoice?.id === inv.id;
                       return (
@@ -743,7 +781,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   <EmptyState
                     icon="inventory_2"
                     title="No invoice lines yet"
-                    message="An HSN summary appears once invoices carry line items."
+                    description="An HSN summary appears once invoices carry line items."
                   />
                 ) : (
                   <div className="scrollbar-thin overflow-x-auto">

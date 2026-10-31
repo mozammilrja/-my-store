@@ -401,7 +401,7 @@ export function CategoryNavPanel({
     >
       {/* 1. Sleek Department Bar */}
       <div className="w-full bg-surface-container-low/50 border-b border-border/60 py-2.5 px-margin-mobile md:px-margin">
-        <div className="max-w-[1440px] mx-auto flex flex-wrap items-center justify-between gap-3">
+        <div className="w-full flex flex-wrap items-center justify-between gap-3">
           {/* Department Switcher Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             <span className="font-label-caps text-[11px] text-muted-foreground uppercase tracking-widest mr-2 shrink-0 font-bold hidden sm:inline">
@@ -477,7 +477,7 @@ export function CategoryNavPanel({
 
       {/* 2. Collapsible Visual Category Matrix */}
       {!collapsed && (
-        <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin py-6">
+        <div className="w-full px-margin-mobile md:px-margin py-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Category Cards (1 - 4) */}
             {currentDept.categories.map((cat) => (
@@ -500,14 +500,14 @@ export function CategoryNavPanel({
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
                   <div className="absolute bottom-2.5 left-3 right-3 flex items-end justify-between text-white">
                     <div className="min-w-0 pr-2">
-                      <span className="font-label-caps text-[9px] uppercase tracking-wider font-bold opacity-80 block truncate">
+                      <span className="font-label-caps text-[11px] uppercase tracking-wider font-bold opacity-80 block truncate">
                         {cat.eyebrow}
                       </span>
                       <h3 className="font-headline-sm text-sm font-bold tracking-tight text-white leading-tight truncate">
                         {cat.title}
                       </h3>
                     </div>
-                    <span className="font-label-caps text-[9px] bg-white/20 backdrop-blur-md text-white px-2 py-0.5 rounded-full font-bold shrink-0">
+                    <span className="font-label-caps text-[11px] bg-white/20 backdrop-blur-md text-white px-2 py-0.5 rounded-full font-bold shrink-0">
                       {cat.count}
                     </span>
                   </div>
@@ -530,7 +530,7 @@ export function CategoryNavPanel({
                           {link.label}
                         </span>
                         {link.badge && (
-                          <span className="font-label-caps text-[9px] font-bold px-1.5 py-0.2 rounded uppercase tracking-wider bg-secondary/10 text-secondary border border-secondary/20 shrink-0">
+                          <span className="font-label-caps text-[11px] font-bold px-1.5 py-0.2 rounded uppercase tracking-wider bg-secondary/10 text-secondary border border-secondary/20 shrink-0">
                             {link.badge}
                           </span>
                         )}
@@ -583,7 +583,7 @@ export function CategoryNavPanel({
               {/* Bottom Privilege Box & CTA */}
               <div className="relative z-10 flex flex-col gap-3 mt-auto pt-4">
                 <div className="p-2.5 rounded-lg bg-white/10 backdrop-blur-md border border-white/15">
-                  <span className="font-label-caps text-[9px] uppercase tracking-widest text-secondary block font-bold">
+                  <span className="font-label-caps text-[11px] uppercase tracking-widest text-secondary block font-bold">
                     Privilege Unlocked
                   </span>
                   <p className="font-body-sm text-[11px] text-white/90 mt-0.5 leading-snug">

@@ -159,7 +159,7 @@ export function MobileNav({
                   className="font-headline-sm text-base font-bold text-secondary flex items-center justify-between"
                 >
                   <span>Sale</span>
-                  <span className="font-label-caps text-[9px] bg-secondary-container text-on-secondary-fixed px-1.5 py-0.2 rounded uppercase font-bold tracking-tight">
+                  <span className="font-label-caps text-[11px] bg-secondary-container text-on-secondary-fixed px-1.5 py-0.2 rounded uppercase font-bold tracking-tight">
                     Up to 50%
                   </span>
                 </LocalizedClientLink>

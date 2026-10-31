@@ -7,6 +7,8 @@ import { createDelhiveryShipment, trackDelhiveryShipment } from "../../lib/logis
 import { createBlueDartShipment, trackBlueDartShipment } from "../../lib/logistics/bluedart.js"
 import { createRazorpayRefund } from "../../lib/payments/razorpay.js"
 import { createStripeRefund } from "../../lib/payments/stripe.js"
+import { assetUrl } from "../../lib/serialize.js"
+import { getSettings } from "./settings.js"
 
 export const adminLogisticsRoutes = Router()
 
@@ -330,22 +332,51 @@ adminLogisticsRoutes.post("/purchase-orders", async (req, res) => {
  * fixed reorder point and hub, so the figure changed on every refresh and the
  * other two described a warehouse model the data does not have. Only what a
  * variant really carries is returned.
+ *
+ * The product's categories, thumbnail and option values come along with it:
+ * the ledger has to group, filter and identify a variant on screen, and those
+ * are the only fields it can do that with that are real. The low stock
+ * threshold rides along so the ledger marks the same variants the dashboard
+ * does instead of hard-coding a number of its own.
  */
 adminLogisticsRoutes.get("/inventory", async (req, res) => {
-  const products = await db.products().find({ status: "published" }).toArray()
-  const inventoryItems = products.flatMap((p) =>
-    p.variants.map((v) => ({
-      id: v._id,
-      productId: p._id,
-      productTitle: p.title,
-      variantTitle: v.title,
-      sku: v.sku ?? `SKU-${v._id.slice(-6)}`,
-      stock: v.stock,
-      manageInventory: v.manageInventory,
-      allowBackorder: v.allowBackorder,
-    }))
-  )
-  res.json({ inventory: inventoryItems })
+  const [products, { lowStockThreshold }] = await Promise.all([
+    db.products().find({ status: "published" }).toArray(),
+    getSettings(),
+  ])
+
+  const categoryIds = [...new Set(products.flatMap((p) => p.categoryIds))]
+  const categoryDocs = categoryIds.length
+    ? await db.categories().find({ _id: { $in: categoryIds } }).toArray()
+    : []
+  const categoryName = new Map(categoryDocs.map((c) => [c._id, c.name]))
+
+  const inventoryItems = products.flatMap((p) => {
+    const categories = p.categoryIds
+      .map((id) => categoryName.get(id))
+      .filter((name): name is string => Boolean(name))
+    const productImage = p.thumbnail ?? p.images[0]
+    return p.variants.map((v) => {
+      const image = v.images?.[0] ?? productImage
+      return {
+        id: v._id,
+        productId: p._id,
+        productTitle: p.title,
+        productHandle: p.handle,
+        variantTitle: v.title,
+        options: v.options,
+        sku: v.sku ?? `SKU-${v._id.slice(-6)}`,
+        stock: v.stock,
+        manageInventory: v.manageInventory,
+        allowBackorder: v.allowBackorder,
+        categories,
+        thumbnail: image ? assetUrl(image) : null,
+        updatedAt: p.updatedAt,
+      }
+    })
+  })
+
+  res.json({ inventory: inventoryItems, lowStockThreshold })
 })
 
 adminLogisticsRoutes.post("/inventory/adjust", async (req, res) => {

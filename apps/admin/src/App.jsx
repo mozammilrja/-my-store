@@ -25,7 +25,7 @@ import { MODULE_ROUTES } from './routes';
 // matches the layout that is about to replace it.
 const MODULE_SKELETONS = {
   'overview': { variant: 'dashboard', stats: 6, statsCols: 6 },
-  'analytics-and-reports': { variant: 'analytics', stats: 6, statsCols: 6, columns: 7 },
+  'analytics-and-reports': { variant: 'analytics', stats: 0, columns: 7 },
   'order-management': { variant: 'split', columns: 7, rows: 8 },
   'products': { variant: 'cards', stats: 6, statsCols: 6 },
   'returns-and-exchanges': { variant: 'table', stats: 6, statsCols: 6, columns: 8 },

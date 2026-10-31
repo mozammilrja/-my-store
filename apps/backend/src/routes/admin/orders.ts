@@ -37,6 +37,27 @@ export const toAdminOrder = (o: OrderDoc) => ({
   totals: o.totals,
   paymentMethod: o.paymentMethod,
   paymentStatus: o.paymentStatus,
+  /**
+   * What the gateway reported, which the reconciliation screen reads to show a
+   * reference and a paid date. It was never sent, so every row read back as
+   * "Not recorded" and "Not paid" regardless of its status. The Razorpay
+   * signature and intent ids stay on the server: they are credentials for
+   * verifying a callback, not facts an operator needs.
+   */
+  paymentDetails: o.paymentDetails
+    ? {
+        provider: o.paymentDetails.provider,
+        transactionId: o.paymentDetails.transactionId ?? null,
+        paidAt: o.paymentDetails.paidAt ?? null,
+        failureReason: o.paymentDetails.failureReason ?? null,
+        refunds: (o.paymentDetails.refunds ?? []).map((r) => ({
+          id: r.id,
+          amount: r.amount,
+          reason: r.reason,
+          createdAt: r.createdAt,
+        })),
+      }
+    : null,
   fulfillmentStatus: o.fulfillmentStatus,
   // The reverse-logistics queue is built from this. It was never sent, so the
   // admin could not tell a requested return from a refunded one.

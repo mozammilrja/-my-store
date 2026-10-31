@@ -303,8 +303,12 @@ export function StatsCard({
     </>
   );
 
+  // Cards in a row share a height, so one with a footnote and one without used
+  // to sit as a filled card beside a mostly empty one. Without a footer the
+  // body centres in the card rather than hugging the top and leaving a void.
   const shell = cn(
-    "flex min-h-[7.5rem] min-w-0 flex-col justify-between p-space-md transition-colors",
+    "flex min-h-[7.5rem] min-w-0 flex-col p-space-md transition-colors",
+    hasFooter ? "justify-between" : "justify-center",
     isClickable &&
       "cursor-pointer text-left hover:border-strong hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface-canvas",
     className

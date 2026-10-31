@@ -16,6 +16,7 @@ import {
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
 import { DataTable } from '../shared/DataTable';
+import { PersonAvatar } from '../shared/PersonAvatar';
 import { adminApi } from '../../lib/api';
 import { useOrdersQuery } from '../../hooks/useAdminQueries';
 
@@ -388,9 +389,13 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
       header: 'Customer',
       cell: (t) => (
         <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold text-micro ${t.initialsBg}`}>
-            {t.initials}
-          </div>
+          <PersonAvatar
+            name={t.customer}
+            initials={t.initials}
+            tone={t.initialsBg}
+            className="h-6 w-6"
+            fallbackClassName="text-micro"
+          />
           <span className="font-semibold text-primary truncate max-w-[110px]">{t.customer}</span>
         </div>
       ),
@@ -444,6 +449,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
     },
     {
       key: 'action',
+      fit: true,
       header: 'Action',
       align: 'center',
       cell: (t) =>

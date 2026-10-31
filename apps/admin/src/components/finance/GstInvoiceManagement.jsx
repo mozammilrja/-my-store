@@ -367,7 +367,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
         </>
       ),
     },
-    { key: 'qty', header: 'Qty', align: 'center', className: 'font-mono whitespace-nowrap', accessor: 'qty' },
+    { key: 'qty', fit: true, header: 'Qty', align: 'center', className: 'font-mono whitespace-nowrap', accessor: 'qty' },
     {
       key: 'taxable',
       header: 'Taxable',

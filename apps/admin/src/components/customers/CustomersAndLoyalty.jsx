@@ -20,6 +20,7 @@ import { formatMoney } from '../../lib/format';
 import { useCustomersQuery, useCustomerQuery } from '../../hooks/useAdminQueries';
 import { useServerTable } from '../../hooks/useServerTable';
 import { DataTable } from '../shared/DataTable';
+import { PersonAvatar } from '../shared/PersonAvatar';
 
 export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
   const table = useServerTable();
@@ -170,13 +171,14 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
       cell: (cust) => (
         <div className="flex items-center gap-2.5">
           <div className="relative shrink-0">
-            {cust.avatar ? (
-              <Thumbnail src={cust.avatar} alt={cust.name} className="w-8 h-8 rounded-full shadow-sm" imgClassName="object-cover" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-surface-subtle text-muted text-subheading flex items-center justify-center font-semibold">
-                {cust.initials}
-              </div>
-            )}
+            <PersonAvatar
+              name={cust.name}
+              email={cust.email}
+              src={cust.avatar}
+              initials={cust.initials}
+              className="h-8 w-8 shadow-sm"
+              fallbackClassName="text-label"
+            />
             {cust.tier.includes('COUTURE') && (
               <span
                 className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-primary-container flex items-center justify-center text-on-accent shadow-xs"
@@ -262,6 +264,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
     },
     {
       key: 'action',
+      fit: true,
       header: 'Action',
       align: 'center',
       cell: (cust) =>
@@ -686,13 +689,14 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
             <div className="px-space-md pb-space-md -mt-10 relative space-y-space-md">
               <div className="flex items-end justify-between">
                 <div className="relative shrink-0">
-                  {selectedCustomer.heroAvatar || selectedCustomer.avatar ? (
-                    <Thumbnail src={selectedCustomer.heroAvatar || selectedCustomer.avatar} alt={selectedCustomer.name} className="w-16 h-16 rounded-full shadow-lg" imgClassName="object-cover" />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-surface-subtle text-primary text-kpi-sm font-semibold flex items-center justify-center shadow-lg ring-4 ring-surface-container-lowest">
-                      {selectedCustomer.initials}
-                    </div>
-                  )}
+                  <PersonAvatar
+                    name={selectedCustomer.name}
+                    email={selectedCustomer.email}
+                    src={selectedCustomer.heroAvatar || selectedCustomer.avatar}
+                    initials={selectedCustomer.initials}
+                    className="h-16 w-16 shadow-lg ring-4 ring-surface-container-lowest"
+                    fallbackClassName="text-kpi-sm"
+                  />
                   {selectedCustomer.isOnline && (
                     <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-status-success ring-2 ring-surface-container-lowest"></span>
                   )}

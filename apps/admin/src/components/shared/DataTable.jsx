@@ -338,9 +338,13 @@ export function DataTable({
                 className={cn(
                   col.align === "center" && "text-center",
                   col.align === "right" && "text-right",
+                  // `fit` columns hug their content instead of taking a share of
+                  // the slack: a 1px width plus nowrap is the auto-layout idiom
+                  // for "as narrow as the text allows".
+                  col.fit && "w-px whitespace-nowrap",
                   col.headerClassName
                 )}
-                style={{ width: col.width }}
+                style={{ width: col.fit ? "1px" : col.width }}
               >
                 {col.header}
               </TableHead>
@@ -412,6 +416,7 @@ export function DataTable({
                         className={cn(
                           col.align === "center" && "text-center",
                           col.align === "right" && "text-right tabular-nums",
+                          col.fit && "w-px whitespace-nowrap",
                           col.className
                         )}
                       >

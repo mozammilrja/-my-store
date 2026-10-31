@@ -1,1002 +1,658 @@
-import React, { useState } from 'react';
+import React, { useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Icon, Button } from '../ui';
 import {
-  Icon,
-  Button,
-  Badge,
   PageContainer,
   PageHeader,
   ContentGrid,
   StatsCard,
-  StatusBadge,
+  SectionCard,
+  DataTable,
+  TablePagination,
+  SearchInput,
+  EmptyState,
   ErrorState,
   SkeletonPage,
-  Thumbnail,
-} from '../ui';
-import { useDashboardQuery } from '../../hooks/useAdminQueries';
-import { DataTable, TableToolbar } from '../shared/DataTable';
+  StatusBadge,
+} from '../shared';
+import { useAnalyticsQuery } from '../../hooks/useAdminQueries';
+import { useClientTable } from '../../hooks/useClientTable';
+import { formatMoney } from '../../lib/format';
+import { cn } from '../../lib/utils';
 
-// The four channels the attribution table reports on, lifted out of the markup
-// so the shared table can render them. Figures are unchanged.
-const CHANNEL_ECONOMICS = [
-  {
-    id: 'app',
-    name: 'Mobile App (iOS / Android)',
-    note: 'Owned Direct \u2022 Zero Commission',
-    icon: 'smartphone',
-    iconWrap: 'bg-primary-fixed text-accent',
-    orders: '31,420',
-    gmv: '\u20B98.95 Cr',
-    conv: '3.92%',
-    convBadge: 'bg-status-success-bg text-success',
-    aov: '\u20B92,848',
-    aovClass: 'font-medium',
-    returnRate: '13.2%',
-    returnClass: 'font-semibold text-success',
-    take: '0.0% (\u20B90)',
-    takeClass: 'text-muted font-medium',
-    cm2: '44.6%',
-    cm2Class: 'text-success',
-  },
-  {
-    id: 'web',
-    name: 'Storefront Web (everwear.in)',
-    note: 'Direct Consumer \u2022 Next.js Headless',
-    icon: 'laptop_mac',
-    iconWrap: 'bg-surface-subtle text-primary border border-subtle',
-    orders: '17,890',
-    gmv: '\u20B94.65 Cr',
-    conv: '2.41%',
-    convBadge: 'bg-surface-subtle text-muted border border-subtle',
-    aov: '\u20B92,599',
-    aovClass: 'font-medium',
-    returnRate: '15.8%',
-    returnClass: 'text-primary font-medium',
-    take: '1.8% (PG Gateway)',
-    takeClass: 'text-muted font-medium',
-    cm2: '38.2%',
-    cm2Class: 'text-success',
-  },
-  {
-    id: 'myntra',
-    name: 'Myntra Marketplace',
-    note: 'Syndicated Tier-1 \u2022 Omnichannel API',
-    icon: 'storefront',
-    iconWrap: 'bg-fashion-magenta/10 text-accent',
-    orders: '14,120',
-    gmv: '\u20B93.34 Cr',
-    conv: '4.18%',
-    convBadge: 'bg-status-info-bg text-info',
-    aov: '\u20B92,365',
-    aovClass: 'font-medium',
-    returnRate: '21.4%',
-    returnClass: 'text-danger font-semibold',
-    take: '24.5% Take',
-    takeClass: 'text-warning font-semibold',
-    cm2: '21.8%',
-    cm2Class: 'text-warning',
-  },
-  {
-    id: 'nykaa',
-    name: 'Nykaa Fashion',
-    note: 'Curated Premium \u2022 Designer Assortment',
-    icon: 'diamond',
-    iconWrap: 'bg-status-info-bg text-info',
-    orders: '4,280',
-    gmv: '\u20B91.48 Cr',
-    conv: '1.94%',
-    convBadge: 'bg-surface-subtle text-muted border border-subtle',
-    aov: '\u20B93,458',
-    aovClass: 'font-semibold text-primary',
-    returnRate: '16.1%',
-    returnClass: 'text-primary font-medium',
-    take: '26.0% Take',
-    takeClass: 'text-warning font-semibold',
-    cm2: '23.2%',
-    cm2Class: 'text-warning',
-  },
+/**
+ * Analytics and reports.
+ *
+ * Every figure comes from GET /admin/analytics, which aggregates the orders,
+ * products, customers and operational collections in the database over the
+ * chosen range. This screen used to be a thousand lines of channel economics,
+ * margin tables and return rates typed directly into the file.
+ *
+ * Each metric states how it is calculated, because "net sales" means different
+ * things in different tools and an operator should not have to guess.
+ */
+
+const RANGES = [
+  { id: '7d', label: 'Last 7 days', days: 7 },
+  { id: '30d', label: 'Last 30 days', days: 30 },
+  { id: '90d', label: 'Last 90 days', days: 90 },
+  { id: '12m', label: 'Last 12 months', days: 365 },
 ];
 
-export function AnalyticsAndReports({ onNavigate, onShowToast }) {
-  const [dateRange, setDateRange] = useState('30d'); // '30d', 'mtd', 'q2'
-  const [skuTab, setSkuTab] = useState('top-margin'); // 'top-margin', 'high-returns'
+const FULFILLMENT_LABEL = {
+  unfulfilled: 'Unfulfilled',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  returned: 'Returned',
+};
 
-  // TanStack Query for live dashboard analytics data
-  const {
-    data: dashboardData,
-    isLoading: isDashboardLoading,
-    isError: isDashboardError,
-    error: dashboardError,
-    refetch: refetchDashboard,
-  } = useDashboardQuery();
+const PAYMENT_LABEL = { awaiting: 'Awaiting', paid: 'Paid', refunded: 'Refunded' };
 
-  const handleExportCsv = () => {
-    const headers = ['Channel Name', 'Orders Vol', 'Gross GMV', 'Conv. Rate', 'AOV (INR)', 'Return Rate', 'Take Rate / Comm.', 'CM2 Margin'];
-    const rows = [
-      ['Mobile App (iOS / Android)', '31420', '₹8.95 Cr', '3.92%', '₹2848', '13.2%', '0.0%', '44.6%'],
-      ['Storefront Web (everwear.in)', '17890', '₹4.65 Cr', '2.41%', '₹2599', '15.8%', '1.8%', '38.2%'],
-      ['Myntra Marketplace', '14120', '₹3.34 Cr', '4.18%', '₹2365', '21.4%', '24.5%', '21.8%'],
-      ['Nykaa Fashion', '4280', '₹1.48 Cr', '1.94%', '₹3458', '16.1%', '26.0%', '23.2%']
-    ];
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(',')).join('\n')];
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `everwear_analytics_attribution_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    if (onShowToast) onShowToast('Channel attribution CSV report exported successfully.');
-  };
+const METHOD_LABEL = { cod: 'Cash on delivery', razorpay: 'Razorpay', stripe: 'Stripe' };
 
-  const topMarginSkus = [
-    {
-      name: 'Mulberry Zari Silk Anarkali',
-      sku: 'SKU-ETH-9921',
-      price: '₹6,499',
-      category: "Women's Ethnic",
-      badgeColor: 'bg-primary-fixed text-on-primary-fixed',
-      units: '1,842',
-      margin: '61.4%',
-      marginColor: 'text-success font-semibold',
-      returnRate: '6.2%',
-      returnColor: 'text-success',
-      action: 'Scale Ad Budget',
-      actionBtn: 'bg-primary-container text-on-accent hover:bg-tertiary-container shadow-xs',
-      img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCpP94zi7cPehYqUzYIDCa6Hx3uYaiFv4pd2f65HP92hlZgv0B1uM3eKK7O9kkpeFoe66PSkaVWCJ5EoNiyTHUEeXJU18hEK5XH4vMZabHeHkOKmcvpmgro1uxuDDuHMhSyeBZP1iAvKaKrtzw6wUdxRoyREv1MhYtZd2T0G-QvMf6EoFo9zuyvadwnd_msu1ZUoCbJifF4462hV4dEo4nazFtFmp_-_vxm-qQt8wL0'
-    },
-    {
-      name: 'Handcrafted Chelsea Boot',
-      sku: 'SKU-ACC-4108',
-      price: '₹4,890',
-      category: 'Footwear',
-      badgeColor: 'bg-status-warning-bg text-warning',
-      units: '980',
-      margin: '54.8%',
-      marginColor: 'text-success font-semibold',
-      returnRate: '8.4%',
-      returnColor: 'text-success',
-      action: 'Auto Reorder',
-      actionBtn: 'bg-surface-subtle text-primary hover:bg-surface-variant',
-      img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAMpUbNVdaAkzuR2ovlaQTaYOHwEhwNaEsT7bqWus_62kWTo701StDgqYsQphv2Mx8VROGwVqBBYdC6ja7v3brSMqpwUfcgG9vUNj8XR2SlJKZUZvCuW7dMYLDGUkqhMd-GQWNekSRK9dIwU8i2gggc5FFwAJYrGZyDrkeTigLObowZnz4ywUHSnm4JXH1q_pB4_v3xUtIwyMAnLQcmmBWRKRza2qT5jfZaVtrBjC9I'
-    },
-    {
-      name: 'Structured Linen Blazer - Lilac',
-      sku: 'SKU-WST-3190',
-      price: '₹3,299',
-      category: 'Western',
-      badgeColor: 'bg-primary-fixed text-on-primary-fixed',
-      units: '1,210',
-      margin: '28.2%',
-      marginColor: 'text-warning font-semibold',
-      returnRate: '29.4%',
-      returnColor: 'text-danger font-semibold',
-      action: 'Audit Size Chart',
-      actionBtn: 'bg-status-danger-bg text-danger hover:bg-status-danger hover:text-on-accent',
-      img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCbXDKhQyH7u6hwwXjkfOuEJdcp1KJpGc5vlt2t03GPVZd56HoY9ofEbIcEHeN6ocbCzndgEN3jsoMK-fswMKKh4uZFPy5D8QezQZwNxLOdLR9VxZBjMarju3J6_Elg20kTVW78mh3_HXlQo0tT-lxg10bcnuaSw5R2aciyNIEcu25F8L7V6Qx_atAARdIiu62HDs-zJIZQ4Qg3B8c54Z8y9aMM6cZyiCA0Fwf4JgO1'
-    },
-    {
-      name: 'Raw Washed Selvedge Denim',
-      sku: 'SKU-CAS-1029',
-      price: '₹2,499',
-      category: "Men's Casual",
-      badgeColor: 'bg-status-info-bg text-info',
-      units: '2,310',
-      margin: '22.1%',
-      marginColor: 'text-warning font-semibold',
-      returnRate: '34.8%',
-      returnColor: 'text-danger font-semibold',
-      action: 'Pause Campaigns',
-      actionBtn: 'bg-status-danger-bg text-danger hover:bg-status-danger hover:text-on-accent',
-      img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDdYUl1xuUKgoMxc1BGMtVHmqEzV-6yTgIFnj5DHKtUqak1uIg75kEVY_efhltSQHzn5_K1r_mY0wIFMEE8EoFIqcuXyEEWVYq_VSI6Xaz7E9_mXCZNWo3sHTntownStp68-VUefvBfkPp2Irs69vZRO4L1X8uXmugxZ_-vFBApxW207ed9lVHlxMMcmV7nDVwsONkXmyKt3J8Z59G_IZqnW6CS81BtAVkomJkRRL7c'
-    }
-  ];
+const SHIPMENT_LABEL = {
+  manifested: 'Manifested',
+  pickup_scheduled: 'Pickup scheduled',
+  in_transit: 'In transit',
+  out_for_delivery: 'Out for delivery',
+  delivered: 'Delivered',
+  rto: 'Returned to origin',
+  canceled: 'Cancelled',
+};
 
-  const highReturnSkus = [
-    {
-      name: 'Raw Washed Selvedge Denim',
-      sku: 'SKU-CAS-1029',
-      price: '₹2,499',
-      category: "Men's Casual",
-      badgeColor: 'bg-status-info-bg text-info',
-      units: '2,310',
-      margin: '22.1%',
-      marginColor: 'text-warning font-semibold',
-      returnRate: '34.8%',
-      returnColor: 'text-danger font-semibold',
-      action: 'Pause Campaigns',
-      actionBtn: 'bg-status-danger-bg text-danger hover:bg-status-danger hover:text-on-accent',
-      img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDdYUl1xuUKgoMxc1BGMtVHmqEzV-6yTgIFnj5DHKtUqak1uIg75kEVY_efhltSQHzn5_K1r_mY0wIFMEE8EoFIqcuXyEEWVYq_VSI6Xaz7E9_mXCZNWo3sHTntownStp68-VUefvBfkPp2Irs69vZRO4L1X8uXmugxZ_-vFBApxW207ed9lVHlxMMcmV7nDVwsONkXmyKt3J8Z59G_IZqnW6CS81BtAVkomJkRRL7c'
-    },
-    {
-      name: 'Structured Linen Blazer - Lilac',
-      sku: 'SKU-WST-3190',
-      price: '₹3,299',
-      category: 'Western',
-      badgeColor: 'bg-primary-fixed text-on-primary-fixed',
-      units: '1,210',
-      margin: '28.2%',
-      marginColor: 'text-warning font-semibold',
-      returnRate: '29.4%',
-      returnColor: 'text-danger font-semibold',
-      action: 'Audit Size Chart',
-      actionBtn: 'bg-status-danger-bg text-danger hover:bg-status-danger hover:text-on-accent',
-      img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCbXDKhQyH7u6hwwXjkfOuEJdcp1KJpGc5vlt2t03GPVZd56HoY9ofEbIcEHeN6ocbCzndgEN3jsoMK-fswMKKh4uZFPy5D8QezQZwNxLOdLR9VxZBjMarju3J6_Elg20kTVW78mh3_HXlQo0tT-lxg10bcnuaSw5R2aciyNIEcu25F8L7V6Qx_atAARdIiu62HDs-zJIZQ4Qg3B8c54Z8y9aMM6cZyiCA0Fwf4JgO1'
-    },
-    {
-      name: 'Chanderi Gold Foil Dupatta',
-      sku: 'SKU-ETH-4012',
-      price: '₹1,850',
-      category: "Women's Ethnic",
-      badgeColor: 'bg-primary-fixed text-on-primary-fixed',
-      units: '890',
-      margin: '31.0%',
-      marginColor: 'text-primary font-medium',
-      returnRate: '24.2%',
-      returnColor: 'text-danger font-semibold',
-      action: 'Check Fabric QC',
-      actionBtn: 'bg-status-warning-bg text-warning hover:bg-status-warning hover:text-on-accent',
-      img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCpP94zi7cPehYqUzYIDCa6Hx3uYaiFv4pd2f65HP92hlZgv0B1uM3eKK7O9kkpeFoe66PSkaVWCJ5EoNiyTHUEeXJU18hEK5XH4vMZabHeHkOKmcvpmgro1uxuDDuHMhSyeBZP1iAvKaKrtzw6wUdxRoyREv1MhYtZd2T0G-QvMf6EoFo9zuyvadwnd_msu1ZUoCbJifF4462hV4dEo4nazFtFmp_-_vxm-qQt8wL0'
-    },
-    {
-      name: 'Oversized Boxy Knit Pullover',
-      sku: 'SKU-WST-8820',
-      price: '₹2,199',
-      category: 'Western',
-      badgeColor: 'bg-primary-fixed text-on-primary-fixed',
-      units: '1,450',
-      margin: '34.5%',
-      marginColor: 'text-primary font-medium',
-      returnRate: '21.8%',
-      returnColor: 'text-danger font-semibold',
-      action: 'Update Fit Guide',
-      actionBtn: 'bg-surface-subtle text-primary hover:bg-surface-variant',
-      img: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAMpUbNVdaAkzuR2ovlaQTaYOHwEhwNaEsT7bqWus_62kWTo701StDgqYsQphv2Mx8VROGwVqBBYdC6ja7v3brSMqpwUfcgG9vUNj8XR2SlJKZUZvCuW7dMYLDGUkqhMd-GQWNekSRK9dIwU8i2gggc5FFwAJYrGZyDrkeTigLObowZnz4ywUHSnm4JXH1q_pB4_v3xUtIwyMAnLQcmmBWRKRza2qT5jfZaVtrBjC9I'
-    }
-  ];
+const PO_LABEL = {
+  draft: 'Draft',
+  submitted: 'Submitted',
+  partially_received: 'Partly received',
+  received: 'Received',
+  canceled: 'Cancelled',
+};
 
-  const activeSkuList = skuTab === 'top-margin' ? topMarginSkus : highReturnSkus;
+const dayLabel = (iso) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 
-  if (isDashboardLoading) {
-    return <SkeletonPage variant="analytics" stats={6} statsCols={6} columns={7} label="Loading analytics" />;
+/** The change between this window and the one before it, when one was asked for. */
+function Delta({ current, previous, invert = false }) {
+  if (previous === null || previous === undefined || previous === 0) {
+    return <span className="text-micro text-faint">No comparable period</span>;
   }
-
-
-
-  const skuColumns = [
-    {
-      key: 'sku',
-      header: 'SKU & Product',
-      cell: (item) => (
-        <div className="flex items-center gap-2.5">
-          <Thumbnail src={item.img} alt={item.name} className="w-9 h-11 shrink-0" imgClassName="object-cover" />
-          <div className="min-w-0">
-            <div className="text-meta font-semibold text-primary truncate">{item.name}</div>
-            <div className="truncate text-micro text-muted">
-              {item.sku} &bull; {item.price}
-            </div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'category',
-      header: 'Category',
-      cell: (item) => (
-        <span className={`px-1.5 py-0.5 rounded-full text-micro font-semibold ${item.badgeColor}`}>
-          {item.category}
-        </span>
-      ),
-    },
-    { key: 'units', header: 'Units Sold', align: 'right', className: 'font-medium', accessor: 'units' },
-    { key: 'margin', header: 'Net Margin', align: 'right', cell: (item) => <span className={item.marginColor}>{item.margin}</span> },
-    { key: 'returnRate', header: 'Return Rate', align: 'right', cell: (item) => <span className={item.returnColor}>{item.returnRate}</span> },
-    {
-      key: 'action',
-      header: 'Action Trigger',
-      align: 'right',
-      cell: (item) => (
-        <button
-          onClick={() => onShowToast && onShowToast(`Trigger executed: ${item.action} for ${item.sku}`)}
-          className={`px-2 py-1 rounded text-micro font-semibold transition-colors ${item.actionBtn}`}
-          type="button"
-        >
-          {item.action}
-        </button>
-      ),
-    },
-  ];
-
-  const channelColumns = [
-    {
-      key: 'channel',
-      header: 'Channel Name',
-      cell: (c) => (
-        <div className="flex items-center gap-2.5">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${c.iconWrap}`}>
-            <Icon name={c.icon} className="material-symbols-outlined text-icon-md" />
-          </div>
-          <div>
-            <div className="text-body font-semibold text-primary">{c.name}</div>
-            <div className="truncate text-micro text-muted">{c.note}</div>
-          </div>
-        </div>
-      ),
-    },
-    { key: 'orders', header: 'Orders Vol', align: 'right', className: 'font-medium', accessor: 'orders' },
-    { key: 'gmv', header: 'Gross GMV', align: 'right', className: 'font-semibold text-primary', accessor: 'gmv' },
-    {
-      key: 'conv',
-      header: 'Conv. Rate',
-      align: 'right',
-      cell: (c) => (
-        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-micro font-semibold ${c.convBadge}`}>
-          {c.conv}
-        </span>
-      ),
-    },
-    { key: 'aov', header: 'AOV (\u20B9)', align: 'right', cell: (c) => <span className={c.aovClass}>{c.aov}</span> },
-    { key: 'returnRate', header: 'Return Rate', align: 'right', cell: (c) => <span className={c.returnClass}>{c.returnRate}</span> },
-    { key: 'take', header: 'Take Rate / Comm.', align: 'right', cell: (c) => <span className={c.takeClass}>{c.take}</span> },
-    { key: 'cm2', header: 'CM2 Margin', align: 'right', cell: (c) => <span className={`font-semibold ${c.cm2Class}`}>{c.cm2}</span> },
-  ];
-
+  const change = ((current - previous) / Math.abs(previous)) * 100;
+  const good = invert ? change < 0 : change > 0;
+  const flat = Math.abs(change) < 0.05;
   return (
-    <PageContainer>
-      {dashboardError && (
-        <ErrorState
-          title="Analytics telemetry is unavailable"
-          message={dashboardError?.message}
-          onRetry={() => refetchDashboard()}
-        />
+    <span
+      className={cn(
+        'text-micro font-medium tabular-nums',
+        flat ? 'text-muted' : good ? 'text-success' : 'text-danger'
       )}
-      <PageHeader
-        breadcrumb="Everwear Admin / Core / Analytics & Reports"
-        title="Enterprise Fashion Analytics & Revenue Operations"
-        badge={<Badge variant="primary">Executive Intelligence • FY24-25 Q2 Consolidation</Badge>}
-        description="Multi-channel unit economics, GMV run-rate, SKU margin performance, and returns neutralization metrics across pan-India warehouses."
-        actions={
-          <div className="flex min-w-0 flex-wrap items-center gap-2 lg:shrink-0">
-            <div className="flex items-center bg-surface-subtle p-0.5 rounded-xl shadow-sm border border-subtle">
-              <button
-                onClick={() => setDateRange('30d')}
-                className={`px-3 py-1.5 text-meta font-semibold rounded-lg transition-all ${
- dateRange === '30d'
- ? 'bg-surface-container-lowest text-primary shadow-sm'
- : 'text-muted hover:text-primary'
- }`}
-                type="button"
-              >
-                Last 30 Days
-              </button>
-              <button
-                onClick={() => setDateRange('mtd')}
-                className={`px-3 py-1.5 text-meta font-semibold rounded-lg transition-all ${
- dateRange === 'mtd'
- ? 'bg-surface-container-lowest text-primary shadow-sm'
- : 'text-muted hover:text-primary'
- }`}
-                type="button"
-              >
-                MTD
-              </button>
-              <button
-                onClick={() => setDateRange('q2')}
-                className={`px-3 py-1.5 text-meta font-semibold rounded-lg transition-all ${
- dateRange === 'q2'
- ? 'bg-surface-container-lowest text-primary shadow-sm'
- : 'text-muted hover:text-primary'
- }`}
-                type="button"
-              >
-                Q2 FY24-25
-              </button>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                icon="calendar_month"
-              >
-                Apr 24 – May 24, 2024
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onShowToast && onShowToast('Automated Slack & Email digest scheduled for Monday 09:00 IST.')}
-                icon="schedule_send"
-              >
-                Schedule
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleExportCsv}
-                icon="download"
-              >
-                Export CSV
-              </Button>
-            </div>
-          </div>
-        }
-      />
-
-      {/* KPI Metric Strip (5 Metric Cards) */}
-      <ContentGrid columns={5}>
-        <StatsCard
-          label="Gross Merchandise Value"
-          value="₹18.42 Cr"
-          change="+18.4%"
-          changeType="positive"
-          icon="trending_up"
-          subtitle="Run Rate: ₹221 Cr ARR (103.5% of Plan)"
-        />
-        <StatsCard
-          label="Net Realized Revenue"
-          value="₹14.85 Cr"
-          change="+14.2%"
-          changeType="positive"
-          icon="trending_up"
-          subtitle="Realization Factor: 80.6% GMV"
-        />
-        <StatsCard
-          label="Blended Return Rate"
-          value="16.8%"
-          change="-1.6%"
-          changeType="positive"
-          icon="trending_down"
-          subtitle="RTO Velocity: 4.2% · Customer: 12.6%"
-        />
-        <StatsCard
-          label="CAC vs 12M LTV"
-          value="₹420 / ₹4,850"
-          change="11.5x Multiple"
-          changeType="neutral"
-          icon="analytics"
-          subtitle="Repeat Rate: 41.8% in 90d"
-        />
-        <StatsCard
-          label="Fulfillment SLA (24h)"
-          value="98.4%"
-          change="High Guard"
-          changeType="positive"
-          icon="check_circle"
-          subtitle="Median Dispatch: 11.2 hrs"
-        />
-      </ContentGrid>
-
-      {/* Primary Visual Grid: Multi-Layer Financial Trajectory & Category Share */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Area / Line Chart: Revenue vs Return Deductions vs Fulfillment Cost (Col 8) */}
-        <div className="lg:col-span-8 bg-surface-container-lowest rounded-xl p-5 shadow-sm flex flex-col justify-between border border-subtle">
-          <div>
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-caption text-accent uppercase tracking-wider">
-                    Unit Economics Model
-                  </span>
-                  <span className="text-muted">•</span>
-                  <span className="text-micro text-muted">Rolling 12-Month Trend</span>
-                </div>
-                <h2 className="text-heading font-semibold text-primary mt-0.5">
-                  Gross Realization, Returns Neutralization &amp; Logistics
-                </h2>
-              </div>
-              <div className="flex items-center gap-4 text-micro text-muted">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-primary-container"></span>
-                  <span>GMV (₹ Cr)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-status-danger"></span>
-                  <span>Returns / RTO</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-status-warning"></span>
-                  <span>Fulfillment &amp; Freight</span>
-                </div>
-              </div>
-            </div>
-            <p className="text-meta text-muted mb-4">
-              Analysis highlights healthy margin retention in Q1/Q2 despite promotional seasonal peaks in festival cohorts.
-            </p>
-          </div>
-
-          {/* High Precision SVG Multi-Area Chart */}
-          <div className="w-full h-64 relative mt-2">
-            <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 740 220">
-              <defs>
-                <linearGradient id="areaGmvGrad" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="rgb(var(--chart-1))" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="rgb(var(--chart-1))" stopOpacity="0.0" />
-                </linearGradient>
-                <linearGradient id="areaRetGrad" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="rgb(var(--chart-4))" stopOpacity="0.18" />
-                  <stop offset="100%" stopColor="rgb(var(--chart-4))" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-              {/* Horizontal Guidelines */}
-              <line className="stroke-border-subtle" stroke="currentColor" strokeDasharray="3 3" x1="0" x2="740" y1="20" y2="20" />
-              <line className="stroke-border-subtle" stroke="currentColor" strokeDasharray="3 3" x1="0" x2="740" y1="70" y2="70" />
-              <line className="stroke-border-subtle" stroke="currentColor" strokeDasharray="3 3" x1="0" x2="740" y1="120" y2="120" />
-              <line className="stroke-border-subtle" stroke="currentColor" strokeDasharray="3 3" x1="0" x2="740" y1="170" y2="170" />
-              {/* GMV Area */}
-              <polygon
-                fill="url(#areaGmvGrad)"
-                points="0,200 0,140 67,130 134,120 201,110 268,95 335,80 402,65 469,50 536,55 603,40 670,30 740,18 740,200"
-              />
-              {/* GMV Main Stroke */}
-              <polyline
-                fill="none"
-                points="0,140 67,130 134,120 201,110 268,95 335,80 402,65 469,50 536,55 603,40 670,30 740,18"
-                className="stroke-chart-1" stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2.5"
-              />
-              {/* Returns Deductions Line */}
-              <polygon
-                fill="url(#areaRetGrad)"
-                points="0,200 0,180 67,178 134,175 201,170 268,168 335,162 402,158 469,152 536,155 603,150 670,148 740,142 740,200"
-              />
-              <polyline
-                fill="none"
-                points="0,180 67,178 134,175 201,170 268,168 335,162 402,158 469,152 536,155 603,150 670,148 740,142"
-                className="stroke-chart-4" stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="2"
-              />
-              {/* Fulfillment Cost Stroke */}
-              <polyline
-                fill="none"
-                points="0,192 67,190 134,188 201,185 268,183 335,180 402,176 469,173 536,174 603,171 670,168 740,164"
-                className="stroke-chart-3" stroke="currentColor"
-                strokeDasharray="4 3"
-                strokeWidth="1.8"
-              />
-              {/* Marker Data Points */}
-              <circle cx="740" cy="18" className="fill-chart-1" fill="currentColor" r="4" />
-              <circle cx="740" cy="142" className="fill-chart-4" fill="currentColor" r="3.5" />
-              <circle cx="740" cy="164" className="fill-chart-3" fill="currentColor" r="3.5" />
-            </svg>
-            {/* X-Axis Labels */}
-            <div className="flex justify-between items-center text-muted text-micro font-semibold mt-2">
-              <span>JUN &apos;23</span>
-              <span>JUL</span>
-              <span>AUG</span>
-              <span>SEP</span>
-              <span>OCT (Diwali)</span>
-              <span>NOV</span>
-              <span>DEC</span>
-              <span>JAN &apos;24</span>
-              <span>FEB</span>
-              <span>MAR</span>
-              <span>APR</span>
-              <span className="text-accent font-semibold">MAY &apos;24 (NOW)</span>
-            </div>
-          </div>
-
-          {/* Quick Metrics Ribbon below chart */}
-          <div className="grid grid-cols-3 gap-2 pt-4 mt-2 bg-surface-subtle p-3 rounded-xl border border-subtle">
-            <div>
-              <span className="text-caption text-muted uppercase">Average Order Value (AOV)</span>
-              <div className="text-heading font-semibold text-primary mt-0.5">
-                ₹2,840 <span className="text-success text-meta font-semibold">+6.4%</span>
-              </div>
-            </div>
-            <div>
-              <span className="text-caption text-muted uppercase">Effective Take Rate</span>
-              <div className="text-heading font-semibold text-primary mt-0.5">
-                22.4% <span className="text-muted text-meta font-normal">Post-Comms</span>
-              </div>
-            </div>
-            <div>
-              <span className="text-caption text-muted uppercase">Net Contribution Margin</span>
-              <div className="text-heading font-semibold text-success mt-0.5">
-                32.8% <span className="text-success text-meta font-semibold">Healthy</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Category Share of Gross Sales (Donut & Ranked Bars) (Col 4) */}
-        <div className="lg:col-span-4 bg-surface-container-lowest rounded-xl p-5 shadow-sm flex flex-col justify-between border border-subtle">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <span className="text-caption text-muted uppercase tracking-wider">
-                  Catalog Allocation
-                </span>
-                <h2 className="text-heading font-semibold text-primary mt-0.5">Category Share</h2>
-              </div>
-              <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-info text-micro font-semibold">
-                4 CORE VERTICALS
-              </span>
-            </div>
-            <p className="text-meta text-muted mb-3">
-              Share of Gross Merchandise Value across active seasonal lines.
-            </p>
-
-            {/* Donut Visual + Center Stat */}
-            <div className="relative flex items-center justify-center my-3">
-              <svg className="w-44 h-44 -rotate-90" viewBox="0 0 100 100">
-                {/* Background Ring */}
-                <circle cx="50" cy="50" fill="none" r="38" className="stroke-border-subtle" stroke="currentColor" strokeWidth="12" />
-                {/* Women's Ethnic: 42% */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  fill="none"
-                  r="38"
-                  className="stroke-chart-1" stroke="currentColor"
-                  strokeDasharray="100.28 238.76"
-                  strokeDashoffset="0"
-                  strokeWidth="12"
-                />
-                {/* Women's Western: 31% */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  fill="none"
-                  r="38"
-                  className="stroke-chart-4" stroke="currentColor"
-                  strokeDasharray="74.01 238.76"
-                  strokeDashoffset="-100.28"
-                  strokeWidth="12"
-                />
-                {/* Men's Casuals: 18% */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  fill="none"
-                  r="38"
-                  className="stroke-chart-5" stroke="currentColor"
-                  strokeDasharray="42.97 238.76"
-                  strokeDashoffset="-174.29"
-                  strokeWidth="12"
-                />
-                {/* Accessories & Footwear: 9% */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  fill="none"
-                  r="38"
-                  className="stroke-chart-3" stroke="currentColor"
-                  strokeDasharray="21.49 238.76"
-                  strokeDashoffset="-217.26"
-                  strokeWidth="12"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-                <span className="text-kpi-sm font-semibold text-primary leading-tight">₹18.42 Cr</span>
-                <span className="text-caption text-muted uppercase">Consolidated</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Category Legend & Granular Breakdown */}
-          <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between text-meta">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-primary-container"></span>
-                <span className="font-medium text-primary">Women&apos;s Ethnic</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-primary font-semibold">₹7.74 Cr</span>
-                <span className="text-muted font-semibold text-micro">(42%)</span>
-              </div>
-            </div>
-            <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-              <div className="bg-primary-container h-full" style={{ width: '42%' }}></div>
-            </div>
-
-            <div className="flex items-center justify-between text-meta pt-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-fashion-magenta"></span>
-                <span className="font-medium text-primary">Women&apos;s Western</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-primary font-semibold">₹5.71 Cr</span>
-                <span className="text-muted font-semibold text-micro">(31%)</span>
-              </div>
-            </div>
-            <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-              <div className="bg-fashion-magenta h-full" style={{ width: '31%' }}></div>
-            </div>
-
-            <div className="flex items-center justify-between text-meta pt-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-status-info"></span>
-                <span className="font-medium text-primary">Men&apos;s Casuals</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-primary font-semibold">₹3.31 Cr</span>
-                <span className="text-muted font-semibold text-micro">(18%)</span>
-              </div>
-            </div>
-            <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-              <div className="bg-status-info h-full" style={{ width: '18%' }}></div>
-            </div>
-
-            <div className="flex items-center justify-between text-meta pt-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-status-warning"></span>
-                <span className="font-medium text-primary">Accessories &amp; Footwear</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-primary font-semibold">₹1.66 Cr</span>
-                <span className="text-muted font-semibold text-micro">(9%)</span>
-              </div>
-            </div>
-            <div className="w-full bg-surface-subtle h-1.5 rounded-full overflow-hidden">
-              <div className="bg-status-warning h-full" style={{ width: '9%' }}></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Channel Performance Matrix Table */}
-      <DataTable
-        data={CHANNEL_ECONOMICS}
-        columns={channelColumns}
-        keyField="id"
-        className="min-w-[850px]"
-        emptyIcon="insights"
-        emptyTitle="No channels to compare"
-        emptyMessage="No sales channel reported figures for this period."
-        toolbar={
-          <TableToolbar
-            className="p-5"
-            left={
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-caption text-muted uppercase tracking-wider">Channel Unit Economics</span>
-                  <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
-                    OMNICHANNEL DIRECT + SYNDICATED
-                  </span>
-                </div>
-                <h2 className="text-heading font-semibold text-primary mt-0.5">
-                  Sales Channel Attribution &amp; Margin Realization
-                </h2>
-              </div>
-            }
-            right={
-              <>
-                <span className="text-micro text-muted">Comparing {CHANNEL_ECONOMICS.length} active channels</span>
-                <button
-                  className="p-1 text-muted hover:text-primary rounded-lg transition-colors"
-                  title="Filter columns"
-                  type="button"
-                  onClick={() => onShowToast && onShowToast('Channel dimension filters active: Direct, Marketplace, Partner.')}
-                >
-                  <Icon name="tune" className="material-symbols-outlined text-icon-md" />
-                </button>
-              </>
-            }
-          />
-        }
-      />
-
-      {/* Channel Summary Footer Banner */}
-      <div className="mt-4 pt-2 flex flex-col md:flex-row md:items-center justify-between gap-2 text-muted text-micro bg-surface-subtle p-3 rounded-xl border border-subtle">
-        <div className="flex items-center gap-2">
-          <Icon name="info" className="material-symbols-outlined text-accent text-icon" />
-          <span>
-            Direct app and web traffic drive <strong className="text-primary">73.8%</strong> of total CM2 profit pool with zero third-party platform commissions.
-          </span>
-        </div>
-        <button
-          className="text-accent font-semibold hover:underline shrink-0 text-left md:text-right"
-          type="button"
-          onClick={() => onShowToast && onShowToast('Navigating to commission and syndication payout settings.')}
-        >
-          Configure Commission Splits &rarr;
-        </button>
-      </div>
-
-      {/* Dual Split Diagnostics: Return Reasons Intelligence + Operational SKU Triggers */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Return Reasons Breakdown with Actionable Recommendations (Col 5) */}
-        <div className="lg:col-span-5 bg-surface-container-lowest rounded-xl p-5 shadow-sm flex flex-col justify-between border border-subtle">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <span className="text-caption text-danger uppercase tracking-wider">
-                  Post-Purchase Friction
-                </span>
-                <h3 className="text-heading font-semibold text-primary mt-0.5">Return Reasons Decomposition</h3>
-              </div>
-              <span className="px-2 py-0.5 rounded-full bg-status-danger-bg text-danger text-micro font-semibold">
-                16.8% NET
-              </span>
-            </div>
-            <p className="text-meta text-muted mb-4">
-              Aggregated from verified reverse pickup notes and reverse quality inspection logs.
-            </p>
-
-            {/* Reason Bars */}
-            <div className="space-y-4">
-              {/* Reason 1 */}
-              <div>
-                <div className="flex justify-between items-center text-meta mb-1">
-                  <span className="font-medium text-primary flex items-center gap-1.5">
-                    <Icon name="straighten" className="material-symbols-outlined text-danger text-icon" />
-                    Fit &amp; Size Misalignment
-                  </span>
-                  <span className="font-semibold text-primary">54.0%</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden">
-                  <div className="bg-status-danger h-full" style={{ width: '54%' }}></div>
-                </div>
-                <div className="flex items-center gap-1 mt-1 text-micro text-muted">
-                  <Icon name="lightbulb" className="material-symbols-outlined text-icon-sm text-accent" />
-                  <span><strong className="text-primary">Action:</strong> 3D AR Size recommender ready for deployment on Anarkali Kurta lines.</span>
-                </div>
-              </div>
-
-              {/* Reason 2 */}
-              <div>
-                <div className="flex justify-between items-center text-meta mb-1">
-                  <span className="font-medium text-primary flex items-center gap-1.5">
-                    <Icon name="palette" className="material-symbols-outlined text-warning text-icon" />
-                    Color &amp; Fabric Variation
-                  </span>
-                  <span className="font-semibold text-primary">22.0%</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden">
-                  <div className="bg-status-warning h-full" style={{ width: '22%' }}></div>
-                </div>
-                <div className="flex items-center gap-1 mt-1 text-micro text-muted">
-                  <Icon name="lightbulb" className="material-symbols-outlined text-icon-sm text-accent" />
-                  <span><strong className="text-primary">Action:</strong> Recalibrate studio lighting specs for pure silk / chanderi batches.</span>
-                </div>
-              </div>
-
-              {/* Reason 3 */}
-              <div>
-                <div className="flex justify-between items-center text-meta mb-1">
-                  <span className="font-medium text-primary flex items-center gap-1.5">
-                    <Icon name="local_shipping" className="material-symbols-outlined text-info text-icon" />
-                    Delayed Dispatch / Courier SLA
-                  </span>
-                  <span className="font-semibold text-primary">14.0%</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden">
-                  <div className="bg-status-info h-full" style={{ width: '14%' }}></div>
-                </div>
-                <div className="flex items-center gap-1 mt-1 text-micro text-muted">
-                  <Icon name="lightbulb" className="material-symbols-outlined text-icon-sm text-accent" />
-                  <span><strong className="text-primary">Action:</strong> Shift Tier-2 East zone deliveries to Bluedart Air priority.</span>
-                </div>
-              </div>
-
-              {/* Reason 4 */}
-              <div>
-                <div className="flex justify-between items-center text-meta mb-1">
-                  <span className="font-medium text-primary flex items-center gap-1.5">
-                    <Icon name="broken_image" className="material-symbols-outlined text-muted text-icon" />
-                    Manufacturing Stitching Defect
-                  </span>
-                  <span className="font-semibold text-primary">10.0%</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden">
-                  <div className="bg-secondary h-full" style={{ width: '10%' }}></div>
-                </div>
-                <div className="flex items-center gap-1 mt-1 text-micro text-muted">
-                  <Icon name="lightbulb" className="material-symbols-outlined text-icon-sm text-accent" />
-                  <span><strong className="text-primary">Action:</strong> Penalty notice drafted for Surat Vendor Unit #04.</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Button inside Card */}
-          <div className="mt-4 pt-3 border-t border-surface-subtle">
-            <button
-              onClick={() => onShowToast && onShowToast('Automated Return Shield activated across 4 fulfillment hubs.')}
-              className="w-full py-2 px-3 rounded-xl bg-surface-subtle hover:bg-surface-variant text-primary text-meta font-semibold flex items-center justify-center gap-2 transition-colors border border-subtle"
-              type="button"
-            >
-              <Icon name="verified_user" className="material-symbols-outlined text-icon-md text-accent" />
-              <span>Initiate Automated Return Shield Rules</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Margin Outperformers vs High-Return At-Risk SKUs (Col 7) */}
-        <div className="lg:col-span-7 bg-surface-container-lowest rounded-xl p-5 shadow-sm flex flex-col justify-between border border-subtle">
-          <div>
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <div>
-                <span className="text-caption text-muted uppercase tracking-wider">
-                  Catalog Health Check
-                </span>
-                <h3 className="text-heading font-semibold text-primary mt-0.5">
-                  Margin Champions vs. High-Return At-Risk SKUs
-                </h3>
-              </div>
-              <div className="flex items-center gap-1 bg-surface-subtle p-0.5 rounded-lg text-meta font-semibold border border-subtle">
-                <button
-                  type="button"
-                  onClick={() => setSkuTab('top-margin')}
-                  className={`px-2 py-1 rounded transition-all ${
- skuTab === 'top-margin'
- ? 'bg-surface-container-lowest text-primary shadow-xs'
- : 'text-muted hover:text-primary'
- }`}
-                >
-                  Top Margin (5)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSkuTab('high-returns')}
-                  className={`px-2 py-1 rounded transition-all ${
- skuTab === 'high-returns'
- ? 'bg-surface-container-lowest text-primary shadow-xs'
- : 'text-muted hover:text-primary'
- }`}
-                >
-                  High Returns (5)
-                </button>
-              </div>
-            </div>
-            <p className="text-meta text-muted mb-3">
-              Live catalog intelligence correlating net unit margins with post-delivery return velocity.
-            </p>
-
-            {/* SKU Detailed Mini Table */}
-            <DataTable
-              data={activeSkuList}
-              columns={skuColumns}
-              keyField="sku"
-              className="min-w-[620px]"
-              containerClassName="border-0 bg-transparent shadow-none"
-              emptyIcon="inventory_2"
-              emptyTitle="No SKUs in this band"
-              emptyMessage="No product matches the selected margin or return filter."
-            />
-          </div>
-
-          {/* Quick Operational Trigger Ribbon */}
-          <div className="mt-4 pt-2 flex items-center justify-between text-muted text-micro border-t border-surface-subtle">
-            <span>Showing {activeSkuList.length} of 24 highlighted SKUs with actionable threshold deviations.</span>
-            <button
-              onClick={() => onNavigate && onNavigate('products')}
-              className="text-accent font-semibold hover:underline"
-              type="button"
-            >
-              Open Catalog Diagnostics Studio &rarr;
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Operational Health Footer Ticker */}
-      <div className="bg-surface-subtle rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-muted text-micro border border-subtle">
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1.5 font-semibold text-primary">
-            <span className="w-2 h-2 rounded-full bg-status-success animate-pulse"></span>
-            ANALYTICS ENGINE STATUS: NORMAL
-          </span>
-          <span>•</span>
-          <span>DATA INGESTION PIPELINE: DELTA-LAKE v3.1</span>
-          <span>•</span>
-          <span>CONFIDENCE INTERVAL: 99.8%</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span>Auto-refresh in <strong>04:22</strong></span>
-          <button
-            onClick={() => onShowToast && onShowToast('Recalculating warehouse telemetry cache in Delta Lake...')}
-            className="p-1 hover:text-primary transition-colors rounded"
-            title="Force Data Recalculation"
-            type="button"
-          >
-            <Icon name="refresh" className="material-symbols-outlined text-icon-sm" />
-          </button>
-        </div>
-      </div>
-    </PageContainer>
+    >
+      {flat ? 'No change' : `${change > 0 ? '+' : ''}${change.toFixed(1)}% vs previous`}
+    </span>
   );
 }
 
-export default AnalyticsAndReports;
+/** A bar per day, measured against the busiest day in the range. */
+function RevenueChart({ days, currency }) {
+  const max = Math.max(...days.map((d) => d.revenue), 1);
+  if (!days.length) {
+    return (
+      <EmptyState
+        icon="show_chart"
+        title="No orders in this range"
+        message="Pick a wider date range to see revenue over time."
+      />
+    );
+  }
+  return (
+    <div className="flex h-56 w-full items-end gap-1" role="img" aria-label="Revenue per day">
+      {days.map((d) => (
+        <div key={d.day} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+          <div className="flex w-full flex-1 items-end justify-center">
+            <div
+              className="w-full rounded-t bg-primary-container transition-[height]"
+              style={{ height: `${Math.max(2, (d.revenue / max) * 100)}%` }}
+              title={`${dayLabel(d.day)}: ${formatMoney(d.revenue, currency)} from ${d.orders} ${
+                d.orders === 1 ? 'order' : 'orders'
+              }, ${d.units} ${d.units === 1 ? 'unit' : 'units'}`}
+            />
+          </div>
+          <span className="w-full truncate text-center text-micro text-faint">{dayLabel(d.day)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A labelled proportion bar; never decorative, always carries its number. */
+function Breakdown({ rows, total, currency }) {
+  if (!rows.length) {
+    return <p className="text-meta text-muted">Nothing recorded in this range.</p>;
+  }
+  return (
+    <ul className="flex flex-col gap-space-sm">
+      {rows.map((row) => {
+        const share = total > 0 ? Math.round((row.count / total) * 100) : 0;
+        return (
+          <li key={row.key} className="flex flex-col gap-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="truncate text-body text-primary">{row.label}</span>
+              <span className="shrink-0 text-num tabular-nums text-secondary">
+                {row.count}
+                {row.amount !== undefined && (
+                  <span className="ml-2 text-meta text-muted">{formatMoney(row.amount, currency)}</span>
+                )}
+              </span>
+            </div>
+            <div
+              className="h-1.5 w-full overflow-hidden rounded-full bg-surface-subtle"
+              role="progressbar"
+              aria-valuenow={share}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`${row.label}: ${share}% of ${total}`}
+              title={`${row.label}: ${row.count} of ${total} (${share}%)`}
+            >
+              <div className="h-full rounded-full bg-primary-container" style={{ width: `${share}%` }} />
+            </div>
+            <span className="text-micro text-faint tabular-nums">{share}% of {total}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export default function AnalyticsAndReports({ onShowToast }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const rangeId = searchParams.get('range') ?? '30d';
+  const compare = searchParams.get('compare') === 'previous';
+  const productSearch = searchParams.get('product') ?? '';
+
+  const setParam = (key, value) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (!value) next.delete(key);
+        else next.set(key, value);
+        return next;
+      },
+      { replace: true }
+    );
+
+  const range = RANGES.find((r) => r.id === rangeId) ?? RANGES[1];
+
+  // Whole days, so the same range always asks the API the same question and
+  // the query cache is not churned by the clock ticking.
+  const params = useMemo(() => {
+    const to = new Date();
+    to.setHours(23, 59, 59, 999);
+    const from = new Date(to.getTime() - (range.days - 1) * 24 * 60 * 60 * 1000);
+    from.setHours(0, 0, 0, 0);
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      compare: compare ? 'previous' : 'none',
+    };
+  }, [range.days, compare]);
+
+  const { data, isLoading, isError, error, refetch, isFetching } = useAnalyticsQuery(params, {
+    placeholderData: (prev) => prev,
+  });
+
+  const currency = data?.currency ?? 'inr';
+  const totals = data?.totals;
+  const previous = data?.previous ?? null;
+
+  const productRows = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    const rows = data?.topProducts ?? [];
+    return q ? rows.filter((p) => (p.title ?? '').toLowerCase().includes(q)) : rows;
+  }, [data, productSearch]);
+
+  const productPager = useClientTable(productRows);
+  const categoryPager = useClientTable(data?.categories ?? []);
+
+  if (isLoading && !data) {
+    return <SkeletonPage variant="analytics" stats={6} statsCols={6} columns={7} label="Loading analytics" />;
+  }
+
+  if (isError) {
+    return (
+      <PageContainer>
+        <PageHeader kicker="Core" title="Analytics & reports" />
+        <ErrorState
+          title="Analytics could not be loaded"
+          message={error?.message}
+          onRetry={() => refetch()}
+        />
+      </PageContainer>
+    );
+  }
+
+  const ordersTotal = (data?.orderStatus ?? []).reduce((n, s) => n + s.count, 0);
+  const paymentsTotal = (data?.paymentStatus ?? []).reduce((n, s) => n + s.count, 0);
+  const methodsTotal = (data?.paymentMethods ?? []).reduce((n, s) => n + s.count, 0);
+  const shipmentsTotal = (data?.shipments ?? []).reduce((n, s) => n + s.count, 0);
+  const returnsTotal = (data?.returnReasons ?? []).reduce((n, s) => n + s.count, 0);
+
+  return (
+    <PageContainer>
+      <PageHeader
+        kicker="Core"
+        title="Analytics & reports"
+        description={`Calculated from ${data?.region?.name ?? 'the operating region'}'s orders over the selected range. Amounts in ${currency.toUpperCase()}.`}
+        breadcrumb="Core / Analytics & Reports"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {RANGES.map((r) => (
+              <Button
+                key={r.id}
+                size="sm"
+                variant={r.id === range.id ? 'default' : 'outline'}
+                onClick={() => setParam('range', r.id)}
+              >
+                {r.label}
+              </Button>
+            ))}
+            <Button
+              size="sm"
+              variant={compare ? 'default' : 'outline'}
+              onClick={() => setParam('compare', compare ? '' : 'previous')}
+              title="Compare with the period immediately before this one"
+            >
+              Compare
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
+              <Icon name="refresh" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+              <span>{isFetching ? 'Refreshing' : 'Refresh'}</span>
+            </Button>
+          </div>
+        }
+      />
+
+      <ContentGrid columns={6}>
+        <StatsCard
+          title="Net sales"
+          value={formatMoney(totals?.netSales ?? 0, currency)}
+          icon="payments"
+          subtext="Gross less discounts and refunds"
+          trendLabel={compare ? <Delta current={totals?.netSales ?? 0} previous={previous?.netSales} /> : undefined}
+        />
+        <StatsCard
+          title="Gross sales"
+          value={formatMoney(totals?.grossSales ?? 0, currency)}
+          icon="trending_up"
+          subtext="Item subtotals, before tax and shipping"
+          trendLabel={compare ? <Delta current={totals?.grossSales ?? 0} previous={previous?.grossSales} /> : undefined}
+        />
+        <StatsCard
+          title="Orders"
+          value={totals?.orders ?? 0}
+          icon="shopping_bag"
+          subtext={`${totals?.cancelledOrders ?? 0} cancelled, counted separately`}
+          trendLabel={compare ? <Delta current={totals?.orders ?? 0} previous={previous?.orders} /> : undefined}
+        />
+        <StatsCard
+          title="Average order value"
+          value={totals?.aov === null ? '—' : formatMoney(totals?.aov ?? 0, currency)}
+          icon="receipt_long"
+          subtext="Order total divided by orders"
+          trendLabel={compare ? <Delta current={totals?.aov ?? 0} previous={previous?.aov} /> : undefined}
+        />
+        <StatsCard
+          title="Units sold"
+          value={totals?.units ?? 0}
+          icon="inventory_2"
+          subtext="Item quantities across orders"
+          trendLabel={compare ? <Delta current={totals?.units ?? 0} previous={previous?.units} /> : undefined}
+        />
+        <StatsCard
+          title="Return rate"
+          value={totals?.returnRate === null ? '—' : `${totals?.returnRate}%`}
+          icon="assignment_return"
+          iconColor="text-warning"
+          subtext={`${totals?.refundedOrders ?? 0} refunded of ${totals?.orders ?? 0}`}
+          trendLabel={
+            compare ? (
+              <Delta current={totals?.refundedOrders ?? 0} previous={previous?.refundedOrders} invert />
+            ) : undefined
+          }
+        />
+      </ContentGrid>
+
+      <SectionCard
+        title="Revenue over time"
+        description={`Order totals per day, ${data?.range?.timezone ?? 'local'} day boundaries.`}
+      >
+        <RevenueChart days={data?.daily ?? []} currency={currency} />
+      </SectionCard>
+
+      <ContentGrid columns={2}>
+        <SectionCard title="Where the money went" description="How the range's takings break down.">
+          <dl className="flex flex-col gap-space-sm">
+            {[
+              ['Gross sales', totals?.grossSales, 'Item subtotals before anything is added or taken off'],
+              ['Discounts', -(totals?.discounts ?? 0), 'Promotions and coupons applied at checkout'],
+              ['Refunds', -(totals?.refunds ?? 0), 'Order totals of orders that ended up refunded'],
+              ['Net sales', totals?.netSales, 'Gross sales less discounts and refunds'],
+              ['Tax collected', totals?.tax, 'Held on behalf of the tax authority, not revenue'],
+              ['Shipping collected', totals?.shipping, 'Charged to customers for delivery'],
+            ].map(([label, amount, hint]) => (
+              <div key={label} className="flex items-start justify-between gap-space-md">
+                <div className="flex min-w-0 flex-col">
+                  <dt className="text-body text-primary">{label}</dt>
+                  <dd className="text-meta text-muted">{hint}</dd>
+                </div>
+                <span
+                  className={cn(
+                    'shrink-0 text-num tabular-nums',
+                    (amount ?? 0) < 0 ? 'text-danger' : 'text-primary'
+                  )}
+                >
+                  {formatMoney(amount ?? 0, currency)}
+                </span>
+              </div>
+            ))}
+          </dl>
+        </SectionCard>
+
+        <SectionCard title="Customers" description="Counted by who placed the orders in this range.">
+          <div className="flex flex-col gap-space-md">
+            <div className="flex flex-wrap gap-space-lg">
+              <div className="flex flex-col">
+                <span className="text-meta text-muted">Ordered in range</span>
+                <span className="text-kpi-sm tabular-nums text-primary">{totals?.activeCustomers ?? 0}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-meta text-muted">First-time</span>
+                <span className="text-kpi-sm tabular-nums text-primary">{totals?.newCustomers ?? 0}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-meta text-muted">Returning</span>
+                <span className="text-kpi-sm tabular-nums text-primary">
+                  {totals?.returningCustomers ?? 0}
+                </span>
+              </div>
+            </div>
+            <p className="text-meta text-muted">
+              A customer counts as first-time when their earliest order falls inside this range.
+              Guest checkouts carry no account and are not counted here.
+            </p>
+          </div>
+        </SectionCard>
+      </ContentGrid>
+
+      <ContentGrid columns={3}>
+        <SectionCard title="Order status" description="Fulfilment state of orders placed in this range.">
+          <Breakdown
+            rows={(data?.orderStatus ?? []).map((s) => ({
+              key: s.status,
+              label: FULFILLMENT_LABEL[s.status] ?? s.status,
+              count: s.count,
+            }))}
+            total={ordersTotal}
+            currency={currency}
+          />
+        </SectionCard>
+
+        <SectionCard title="Payment status" description="Including cancelled orders.">
+          <Breakdown
+            rows={(data?.paymentStatus ?? []).map((s) => ({
+              key: s.status,
+              label: PAYMENT_LABEL[s.status] ?? s.status,
+              count: s.count,
+              amount: s.amount,
+            }))}
+            total={paymentsTotal}
+            currency={currency}
+          />
+        </SectionCard>
+
+        <SectionCard title="Payment method" description="How customers paid.">
+          <Breakdown
+            rows={(data?.paymentMethods ?? []).map((s) => ({
+              key: s.method,
+              label: METHOD_LABEL[s.method] ?? s.method,
+              count: s.count,
+              amount: s.amount,
+            }))}
+            total={methodsTotal}
+            currency={currency}
+          />
+        </SectionCard>
+      </ContentGrid>
+
+      <SectionCard
+        title="Product performance"
+        description="Revenue counted at the price each line actually sold for."
+        action={
+          <SearchInput
+            value={productSearch}
+            onChange={(value) => setParam('product', value)}
+            onClear={() => setParam('product', '')}
+            label="Search products"
+            placeholder="Product name"
+          />
+        }
+      >
+        <DataTable
+          columns={[
+            {
+              key: 'title',
+              header: 'Product',
+              // Long garment names wrapped to four lines on a phone and broke
+              // the row rhythm; the full name stays available on hover.
+              className: 'max-w-[14rem]',
+              accessor: (p) => (
+                <span className="block truncate" title={p.title ?? 'Unknown product'}>
+                  {p.title ?? 'Unknown product'}
+                </span>
+              ),
+            },
+            { key: 'units', header: 'Units', align: 'right', accessor: (p) => p.units },
+            { key: 'orders', header: 'Order lines', align: 'right', accessor: (p) => p.orders },
+            {
+              key: 'revenue',
+              header: 'Revenue',
+              align: 'right',
+              accessor: (p) => formatMoney(p.revenue, currency),
+            },
+          ]}
+          data={productPager.pageRows}
+          keyField="productId"
+          emptyIcon="inventory_2"
+          emptyTitle={productSearch ? 'No products match that search' : 'Nothing sold in this range'}
+          emptyMessage={
+            productSearch
+              ? 'Clear the search to see every product that sold.'
+              : 'Widen the date range to see product performance.'
+          }
+          caption="Products by revenue in the selected range"
+        />
+        {productRows.length > 0 && (
+          <TablePagination
+            currentPage={productPager.page}
+            pageSize={productPager.limit}
+            totalItems={productPager.total}
+            onPageChange={productPager.setPage}
+            onPageSizeChange={productPager.setLimit}
+          />
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Category performance"
+        description="Each sold line counted against every category its product belongs to."
+      >
+        <DataTable
+          columns={[
+            {
+              key: 'name',
+              header: 'Category',
+              className: 'max-w-[14rem]',
+              accessor: (c) => (
+                <span className="block truncate" title={c.name}>
+                  {c.name}
+                </span>
+              ),
+            },
+            { key: 'units', header: 'Units', align: 'right', accessor: (c) => c.units },
+            {
+              key: 'revenue',
+              header: 'Revenue',
+              align: 'right',
+              accessor: (c) => formatMoney(c.revenue, currency),
+            },
+          ]}
+          data={categoryPager.pageRows}
+          keyField="categoryId"
+          emptyIcon="folder_open"
+          emptyTitle="No category sales in this range"
+          emptyMessage="Products sold in this range are not assigned to a category."
+          caption="Categories by revenue in the selected range"
+        />
+        {(data?.categories ?? []).length > 0 && (
+          <TablePagination
+            currentPage={categoryPager.page}
+            pageSize={categoryPager.limit}
+            totalItems={categoryPager.total}
+            onPageChange={categoryPager.setPage}
+            onPageSizeChange={categoryPager.setLimit}
+          />
+        )}
+      </SectionCard>
+
+      <ContentGrid columns={2}>
+        <SectionCard title="Why customers returned" description="Reasons recorded on return requests.">
+          <Breakdown
+            rows={(data?.returnReasons ?? []).map((r) => ({
+              key: r.reason,
+              label: r.reason,
+              count: r.count,
+            }))}
+            total={returnsTotal}
+            currency={currency}
+          />
+        </SectionCard>
+
+        <SectionCard title="Shipments" description="Parcels created in this range, by carrier state.">
+          <Breakdown
+            rows={(data?.shipments ?? []).map((s) => ({
+              key: s.status,
+              label: SHIPMENT_LABEL[s.status] ?? s.status,
+              count: s.count,
+            }))}
+            total={shipmentsTotal}
+            currency={currency}
+          />
+        </SectionCard>
+      </ContentGrid>
+
+      <ContentGrid columns={2}>
+        <SectionCard title="GST and invoices" description="Tax invoices issued in this range.">
+          {(data?.invoices ?? []).length === 0 ? (
+            <EmptyState
+              icon="receipt_long"
+              title="No invoices in this range"
+              message="An invoice is raised when an order is paid."
+            />
+          ) : (
+            <div className="scrollbar-thin w-full overflow-x-auto">
+              <table className="w-full border-collapse text-left text-body">
+                <caption className="sr-only">GST invoice totals by status</caption>
+                <thead className="bg-surface-subtle">
+                  <tr className="border-b border-subtle">
+                    <th className="h-10 px-3 text-caption uppercase text-secondary">Status</th>
+                    <th className="h-10 px-3 text-right text-caption uppercase text-secondary">Count</th>
+                    <th className="h-10 px-3 text-right text-caption uppercase text-secondary">Taxable</th>
+                    <th className="h-10 px-3 text-right text-caption uppercase text-secondary">CGST</th>
+                    <th className="h-10 px-3 text-right text-caption uppercase text-secondary">SGST</th>
+                    <th className="h-10 px-3 text-right text-caption uppercase text-secondary">IGST</th>
+                    <th className="h-10 px-3 text-right text-caption uppercase text-secondary">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.invoices.map((row) => (
+                    <tr key={row.status} className="border-b border-subtle">
+                      <td className="px-3 py-2">
+                        <StatusBadge
+                          status={row.status === 'paid' ? 'Paid' : row.status === 'canceled' ? 'Cancelled' : 'Issued'}
+                          variant={row.status === 'paid' ? 'success' : row.status === 'canceled' ? 'destructive' : 'info'}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{row.count}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(row.taxable, currency)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(row.cgst, currency)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(row.sgst, currency)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(row.igst, currency)}</td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                        {formatMoney(row.grandTotal, currency)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Purchase orders" description="Raised with suppliers in this range.">
+          {(data?.purchaseOrders ?? []).length === 0 ? (
+            <EmptyState
+              icon="local_shipping"
+              title="No purchase orders in this range"
+              message="Procurement raised nothing with suppliers over these dates."
+            />
+          ) : (
+            <ul className="flex flex-col gap-space-sm">
+              {data.purchaseOrders.map((row) => (
+                <li key={row.status} className="flex items-center justify-between gap-space-md">
+                  <span className="text-body text-primary">{PO_LABEL[row.status] ?? row.status}</span>
+                  <span className="text-num tabular-nums text-secondary">
+                    {row.count}
+                    <span className="ml-2 text-meta text-muted">{formatMoney(row.amount, currency)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+      </ContentGrid>
+
+      <SectionCard
+        title="Promotion usage"
+        description="Redemptions counted on the promotion itself, so they span its whole life rather than this range."
+      >
+        <DataTable
+          columns={[
+            { key: 'code', header: 'Code', accessor: (p) => <span className="font-mono text-num">{p.code}</span> },
+            {
+              key: 'state',
+              header: 'State',
+              accessor: (p) => (
+                <StatusBadge
+                  status={p.active ? 'Live' : 'Paused'}
+                  variant={p.active ? 'success' : 'neutral'}
+                />
+              ),
+            },
+            { key: 'used', header: 'Redemptions', align: 'right', accessor: (p) => p.usageCount },
+            {
+              key: 'limit',
+              header: 'Limit',
+              align: 'right',
+              accessor: (p) => (p.usageLimit === null ? 'No limit' : p.usageLimit),
+            },
+          ]}
+          data={data?.promotions ?? []}
+          keyField="code"
+          emptyIcon="sell"
+          emptyTitle="No promotions yet"
+          emptyMessage="Codes created in Promotions & coupons appear here."
+          caption="Promotion codes and how often they have been redeemed"
+        />
+      </SectionCard>
+    </PageContainer>
+  );
+}

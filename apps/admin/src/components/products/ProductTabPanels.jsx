@@ -205,6 +205,7 @@ export function StockAllocationPanel({ product, onSave, isSaving, canEdit = true
     },
     {
       key: 'tracked',
+      fit: true,
       header: 'Track inventory',
       align: 'center',
       cell: (row) => (
@@ -218,6 +219,7 @@ export function StockAllocationPanel({ product, onSave, isSaving, canEdit = true
     },
     {
       key: 'backorder',
+      fit: true,
       header: 'Allow backorder',
       align: 'center',
       cell: (row) => (
@@ -231,6 +233,7 @@ export function StockAllocationPanel({ product, onSave, isSaving, canEdit = true
     },
     {
       key: 'status',
+      fit: true,
       header: 'Status',
       cell: (row) =>
         !row.tracked ? (

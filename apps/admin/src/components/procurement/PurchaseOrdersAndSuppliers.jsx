@@ -560,6 +560,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
     },
     {
       key: 'action',
+      fit: true,
       header: 'Action',
       align: 'center',
       cell: (po) => (

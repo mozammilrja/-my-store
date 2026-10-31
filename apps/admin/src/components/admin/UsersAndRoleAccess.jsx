@@ -17,6 +17,7 @@ import {
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
 import { DataTable, TableToolbar } from '../shared/DataTable';
+import { PersonAvatar } from '../shared/PersonAvatar';
 import { useSession } from '../../lib/session';
 import { adminApi } from '../../lib/api';
 import { useUsersQuery, useCreateUserMutation, useDeleteUserMutation } from '../../hooks/useAdminQueries';
@@ -199,13 +200,13 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       header: 'Operator Identity',
       cell: (user) => (
         <div className="flex items-center gap-3">
-          {user.avatar ? (
-            <Thumbnail src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full shadow-sm" imgClassName="object-cover" />
-          ) : (
-            <div className="w-9 h-9 rounded-full bg-surface-subtle flex items-center justify-center text-subheading text-muted font-semibold">
-              FQ
-            </div>
-          )}
+          <PersonAvatar
+            name={user.name}
+            email={user.email}
+            src={user.avatar}
+            className="h-9 w-9 shadow-sm"
+            fallbackClassName="text-label"
+          />
           <div>
             <div className={`text-label-lg font-semibold text-primary flex items-center gap-1.5 ${user.isSuspended ? 'line-through' : ''}`}>
               <span>{user.name}</span>
@@ -273,6 +274,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
     },
     {
       key: 'actions',
+      fit: true,
       header: 'Actions',
       align: 'right',
       cell: (user) => (

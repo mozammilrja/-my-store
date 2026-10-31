@@ -166,6 +166,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
     },
     {
       key: 'status',
+      fit: true,
       header: 'Status',
       cell: (note) => (
         <span className={`px-2 py-0.5 rounded-full text-caption font-semibold ${note.statusBadge}`}>{note.status}</span>
@@ -173,6 +174,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
     },
     {
       key: 'action',
+      fit: true,
       header: 'Action',
       align: 'center',
       cell: (note) => (

@@ -294,6 +294,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     },
     {
       key: 'status',
+      fit: true,
       header: 'Status',
       align: 'center',
       cell: (camp) => (
@@ -304,6 +305,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     },
     {
       key: 'actions',
+      fit: true,
       header: '',
       align: 'center',
       width: '4rem',

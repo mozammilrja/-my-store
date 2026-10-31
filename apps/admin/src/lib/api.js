@@ -250,6 +250,7 @@ export const adminApi = {
 
   // Dashboard Overview
   dashboard: () => api('/admin/dashboard'),
+  analytics: (query) => api('/admin/analytics', { query }),
 
   // Orders
   orders: (params = {}) => api('/admin/orders', { query: params }),

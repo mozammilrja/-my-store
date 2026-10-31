@@ -31,7 +31,7 @@ registerOnClearToken(() => {
 export const QUERY_KEYS = {
   // Overview / Analytics
   dashboard: ['admin', 'dashboard'],
-  analytics: (range) => ['admin', 'analytics', range],
+  analytics: (params) => ['admin', 'analytics', params ?? {}],
 
   // Orders
   orders: (params) => ['admin', 'orders', params ?? {}],

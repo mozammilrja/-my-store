@@ -209,6 +209,7 @@ export function ShipmentsAndDispatch({ onShowToast }) {
     },
     {
       key: 'items',
+      fit: true,
       header: 'Items',
       align: 'right',
       accessor: (s) => s.itemsCount ?? 0,
@@ -245,6 +246,7 @@ export function ShipmentsAndDispatch({ onShowToast }) {
     },
     {
       key: 'actions',
+      fit: true,
       header: 'Actions',
       align: 'right',
       accessor: (s) => (
@@ -286,13 +288,25 @@ export function ShipmentsAndDispatch({ onShowToast }) {
       />
 
       <ContentGrid columns={4}>
-        <StatsCard title="Shipments" value={counts.all} icon="local_shipping" />
-        <StatsCard title="In flight" value={counts.open} icon="flight_takeoff" iconColor="text-info" />
+        <StatsCard
+          title="Shipments"
+          value={counts.all}
+          icon="local_shipping"
+          subtitle={`${counts.delivered} delivered so far`}
+        />
+        <StatsCard
+          title="In flight"
+          value={counts.open}
+          icon="flight_takeoff"
+          iconColor="text-info"
+          subtitle={`${counts.awaitingPickup} still awaiting pickup`}
+        />
         <StatsCard
           title="Out for delivery"
           value={counts.outForDelivery}
           icon="electric_moped"
           iconColor="text-warning"
+          subtitle="With a delivery associate today"
         />
         <StatsCard
           title="Exceptions"

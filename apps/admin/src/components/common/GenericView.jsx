@@ -221,6 +221,7 @@ export function GenericView({ path, onNavigate, onShowToast }) {
     },
     {
       key: 'compliance',
+      fit: true,
       header: 'Compliance',
       align: 'right',
       cell: () => (
@@ -231,6 +232,7 @@ export function GenericView({ path, onNavigate, onShowToast }) {
     },
     {
       key: 'actions',
+      fit: true,
       header: 'Actions',
       align: 'right',
       cell: (row) => (

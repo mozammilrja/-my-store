@@ -1,3 +1,4 @@
+import { formatMoney } from '../../lib/format';
 import React, { useState } from 'react';
 import { Icon,
   Card,
@@ -9,6 +10,9 @@ import { Icon,
   Separator,
   Thumbnail,
 } from '../ui';
+
+/** Minor units in, a localised amount out. */
+const money = (minor, currency) => formatMoney(Number(minor) || 0, currency);
 
 export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }) {
   const [editingAddress, setEditingAddress] = useState(false);
@@ -286,40 +290,39 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
         </div>
       </div>
 
-      {/* Financial & Intra-State Tax Reconciliation Breakdown */}
-      <div className="bg-surface-canvas p-space-sm rounded-lg space-y-1.5 text-body text-body border border-subtle/50">
+      {/* Order totals, straight from the order's own totals block. The API
+          reports one tax figure, so no intra/inter-state split is invented. */}
+      <div className="flex flex-col gap-1.5 rounded-lg border border-subtle bg-surface-subtle p-space-sm text-body">
         <div className="flex justify-between text-muted">
-          <span>Subtotal (Taxable Value):</span>
-          <span className="font-mono font-medium text-primary tabular-nums whitespace-nowrap">
-            ₹{order.payment.taxableValue.toFixed(2)}
+          <span>Item subtotal</span>
+          <span className="whitespace-nowrap font-mono font-medium tabular-nums text-primary">
+            {money(order.payment.itemSubtotal)}
+          </span>
+        </div>
+        {order.payment.discountTotal > 0 && (
+          <div className="flex justify-between text-muted">
+            <span>Discount</span>
+            <span className="whitespace-nowrap font-mono tabular-nums text-success">
+              −{money(order.payment.discountTotal)}
+            </span>
+          </div>
+        )}
+        <div className="flex justify-between text-muted">
+          <span>Shipping</span>
+          <span className="whitespace-nowrap font-mono tabular-nums text-primary">
+            {order.payment.shippingTotal > 0 ? money(order.payment.shippingTotal) : 'Free'}
           </span>
         </div>
         <div className="flex justify-between text-muted">
-          <span>Intra-state CGST (6.0%):</span>
-          <span className="font-mono text-primary tabular-nums whitespace-nowrap">
-            ₹{order.payment.cgst.toFixed(2)}
-          </span>
-        </div>
-        <div className="flex justify-between text-muted">
-          <span>Intra-state SGST (6.0%):</span>
-          <span className="font-mono text-primary tabular-nums whitespace-nowrap">
-            ₹{order.payment.sgst.toFixed(2)}
-          </span>
-        </div>
-        <div className="flex justify-between text-muted">
-          <span>Packaging &amp; shipping</span>
-          <span className="text-success uppercase text-caption">
-            FREE (Orders &gt; ₹1,499)
+          <span>Tax</span>
+          <span className="whitespace-nowrap font-mono tabular-nums text-primary">
+            {money(order.payment.taxTotal)}
           </span>
         </div>
         <Separator className="my-1" />
-        <div className="flex justify-between items-center text-subheading pt-0.5">
-          <span className="font-semibold text-primary">
-            Total Paid ({order.payment.mode})
-          </span>
-          <span className="font-semibold text-accent tabular-nums">
-            ₹{order.payment.totalPaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-          </span>
+        <div className="flex items-center justify-between pt-0.5 text-subheading">
+          <span className="text-primary">Total {order.payment.method ? `(${order.payment.method})` : ''}</span>
+          <span className="tabular-nums text-accent">{money(order.payment.total)}</span>
         </div>
       </div>
 

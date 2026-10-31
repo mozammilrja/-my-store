@@ -12,7 +12,9 @@ import {
   ErrorState,
   SkeletonPage,
   SearchInput,
+  TablePagination,
 } from '../ui';
+import { useClientTable } from '../../hooks/useClientTable';
 import { adminApi } from '../../lib/api';
 import { useOrdersQuery } from '../../hooks/useAdminQueries';
 
@@ -327,6 +329,9 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
       return true;
     });
   }, [activeTab, methodFilter, statusFilter, searchQuery, transactions]);
+
+  // One shared pager over the rows this module actually holds.
+  const txnPager = useClientTable(filteredTransactions);
 
   const handleTriggerSync = () => {
     setIsSyncing(true);
@@ -713,7 +718,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle text-meta text-primary">
-                  {filteredTransactions.map((t) => {
+                  {txnPager.pageRows.map((t) => {
                     const isSelected = selectedTxnId === t.id;
                     const isDiscrepancy = t.status === 'Discrepancy';
                     const isDisputed = t.status === 'Chargeback Hold';
@@ -812,27 +817,13 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
               </table>
             </div>
 
-            {/* Pagination Footer */}
-            <div className="px-4 py-3 bg-surface-container-lowest flex flex-col sm:flex-row items-center justify-between gap-3 text-muted text-meta border-t border-subtle">
-              <div className="flex items-center gap-2">
-                <span>Showing <span className="font-semibold text-primary">1 - {filteredTransactions.length}</span> of <span className="font-semibold text-primary">42,190</span> reconciliation entries</span>
-                <span className="text-muted/40">•</span>
-                <span>Batch Settled: ₹12.48 Cr</span>
-              </div>
-              <div className="flex items-center gap-1.5 font-semibold">
-                <button className="px-2.5 py-1 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary transition-colors cursor-pointer border border-subtle">
-                  Previous
-                </button>
-                <button className="px-2.5 py-1 rounded-lg bg-primary-container text-on-accent">1</button>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary transition-colors border border-subtle">2</button>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary transition-colors border border-subtle">3</button>
-                <span className="px-1 text-muted">...</span>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary transition-colors border border-subtle">4,219</button>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary transition-colors cursor-pointer border border-subtle">
-                  Next
-                </button>
-              </div>
-            </div>
+            <TablePagination
+              currentPage={txnPager.page}
+              pageSize={txnPager.limit}
+              totalItems={txnPager.total}
+              onPageChange={txnPager.setPage}
+              onPageSizeChange={txnPager.setLimit}
+            />
           </div>
 
           {/* Right Side: Detailed Settlement Breakdown Drawer (Sticky) */}

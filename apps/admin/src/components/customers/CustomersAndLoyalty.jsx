@@ -13,18 +13,22 @@ import {
   SkeletonPage,
   Thumbnail,
   SearchInput,
+  EmptyState,
 } from '../ui';
 import { customerList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
 import { useCustomersQuery, useCustomerQuery } from '../../hooks/useAdminQueries';
+import { useServerTable } from '../../hooks/useServerTable';
+import { TablePagination } from '../shared/DataTable';
 
 export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
-  const [activeSegment, setActiveSegment] = useState('all'); // 'all', 'vip', 'risk', 'dormant', 'rfm'
-  const [selectedCustomerId, setSelectedCustomerId] = useState('cust-1');
-  const [searchQuery, setSearchQuery] = useState('');
+  const table = useServerTable();
+  const [activeSegment, setActiveSegment] = useState('all'); // 'all', 'vip', 'dormant'
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const searchQuery = table.search;
+  const setSearchQuery = table.setSearch;
   const [tierFilter, setTierFilter] = useState('ALL');
-  const [ltvFilter, setLtvFilter] = useState('ALL');
   const [cityFilter, setCityFilter] = useState('ALL');
   const [activeFilters, setActiveFilters] = useState([
     { id: 'f-tier', label: 'VIP Club Couture' },
@@ -40,8 +44,8 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
     isError: isCustomersError,
     error: customersError,
     refetch: refetchCustomers,
-  } = useCustomersQuery({ limit: 50 });
-  const targetDbCustomerId = selectedCustomerId?.startsWith('cust_') ? selectedCustomerId : null;
+  } = useCustomersQuery(table.params, { placeholderData: (prev) => prev });
+  const targetDbCustomerId = selectedCustomerId?.startsWith('cus_') ? selectedCustomerId : null;
   const { data: singleCustomerData } = useCustomerQuery(targetDbCustomerId);
 
   useEffect(() => {
@@ -79,6 +83,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
         birthday: 'Aug 18',
         tenure: `Customer since ${new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`,
         gmv: '₹48,900',
+        orderCount: c.orderCount ?? 0,
         ordersCount: `${c.orderCount ?? 0} Orders`,
         aov: '₹6,400',
         returnRate: '2.4% (Low)',
@@ -114,45 +119,31 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
       };
     });
 
-    return [...fromDb, ...customerList.filter(m => !fromDb.some(d => d.email === m.email))];
+    return fromDb;
   }, [dbCustomers, customerOrders]);
 
   const selectedCustomer = useMemo(() => {
     return mergedCustomers.find(c => c.id === selectedCustomerId) || mergedCustomers[0];
   }, [mergedCustomers, selectedCustomerId]);
 
+  // Search and paging are applied by the API. Segment and tier read the
+  // customer's real order count, so they stay client-side over the page.
   const filteredCustomers = useMemo(() => {
-    return mergedCustomers.filter(c => {
-      if (activeSegment === 'vip' && !c.tier.includes('COUTURE')) return false;
-      if (activeSegment === 'risk' && !c.returnRate.includes('9.0%') && !c.returnRate.includes('7.1%') && !c.id.includes('cust-3')) return false;
-      if (activeSegment === 'dormant' && c.id !== 'cust-3' && c.id !== 'cust-5') return false;
+    return mergedCustomers.filter((c) => {
+      const orders = c.orderCount ?? 0;
+      if (activeSegment === 'vip' && orders < 3) return false;
+      if (activeSegment === 'dormant' && orders !== 0) return false;
 
-      if (tierFilter !== 'ALL') {
-        if (tierFilter === 'vip' && !c.tier.includes('COUTURE')) return false;
-        if (tierFilter === 'gold' && !c.tier.includes('Gold')) return false;
-        if (tierFilter === 'new' && !c.tier.includes('New')) return false;
+      if (tierFilter === 'vip' && orders < 3) return false;
+      if (tierFilter === 'gold' && (orders === 0 || orders >= 3)) return false;
+      if (tierFilter === 'new' && orders !== 0) return false;
+
+      if (cityFilter !== 'ALL' && !String(c.geo || '').toLowerCase().includes(cityFilter.toLowerCase())) {
+        return false;
       }
-
-      if (cityFilter !== 'ALL') {
-        if (!c.geo.toLowerCase().includes(cityFilter.toLowerCase())) return false;
-      }
-
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        if (
-          !c.name.toLowerCase().includes(q) &&
-          !c.email.toLowerCase().includes(q) &&
-          !c.phone.includes(q) &&
-          !c.geo.toLowerCase().includes(q) &&
-          !c.idBadge.toLowerCase().includes(q)
-        ) {
-          return false;
-        }
-      }
-
       return true;
     });
-  }, [activeSegment, tierFilter, cityFilter, searchQuery]);
+  }, [mergedCustomers, activeSegment, tierFilter, cityFilter]);
 
   const removeFilter = (id) => {
     setActiveFilters(prev => prev.filter(f => f.id !== id));
@@ -397,18 +388,6 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
               </div>
               <div className="min-w-[10.5rem]">
                 <Select
-                  value={ltvFilter}
-                  onChange={(e) => setLtvFilter(e.target.value)}
-                  className="h-9"
-                >
-                  <option value="ALL">LTV Threshold</option>
-                  <option value="25k">&gt; ₹25,000</option>
-                  <option value="50k">&gt; ₹50,000</option>
-                  <option value="100k">&gt; ₹1,00,000</option>
-                </Select>
-              </div>
-              <div className="min-w-[10.5rem]">
-                <Select
                   value={cityFilter}
                   onChange={(e) => setCityFilter(e.target.value)}
                   className="h-9"
@@ -609,43 +588,13 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
               </table>
             </div>
 
-            {/* Table Pagination Footer */}
-            <div className="p-3 bg-surface-subtle flex flex-col sm:flex-row items-center justify-between gap-2 text-meta text-muted select-none border-t border-subtle">
-              <div className="flex items-center gap-2">
-                <span>Per page:</span>
-                <Select className="h-7 px-2 rounded bg-surface-container-lowest text-primary font-medium border border-subtle w-16" defaultValue="25">
-                  <option value="25">25</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </Select>
-                <span className="hidden sm:inline">Showing records 1 - 5 of 148,290</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  className="p-1 rounded bg-surface-container-lowest text-muted hover:text-primary disabled:opacity-40 cursor-pointer"
-                  disabled
-                  type="button" title="Previous page" aria-label="Previous page"
-                >
-                  <Icon name="chevron_left" className="material-symbols-outlined text-icon" />
-                </button>
-                <button className="px-2 py-0.5 rounded bg-primary-container text-on-accent font-semibold cursor-pointer" type="button">
-                  1
-                </button>
-                <button className="px-2 py-0.5 rounded bg-surface-container-lowest hover:bg-surface-container-high text-primary cursor-pointer" type="button">
-                  2
-                </button>
-                <button className="px-2 py-0.5 rounded bg-surface-container-lowest hover:bg-surface-container-high text-primary cursor-pointer" type="button">
-                  3
-                </button>
-                <span className="px-1 text-muted">...</span>
-                <button className="px-2 py-0.5 rounded bg-surface-container-lowest hover:bg-surface-container-high text-primary cursor-pointer" type="button">
-                  5,931
-                </button>
-                <button className="p-1 rounded bg-surface-container-lowest text-muted hover:text-primary cursor-pointer" type="button" title="Next page" aria-label="Next page">
-                  <Icon name="chevron_right" className="material-symbols-outlined text-icon" />
-                </button>
-              </div>
-            </div>
+            <TablePagination
+              currentPage={table.page}
+              pageSize={table.limit}
+              totalItems={customersData?.count ?? 0}
+              onPageChange={table.setPage}
+              onPageSizeChange={table.setLimit}
+            />
           </div>
 
           {/* Segment Quick-Actions & Cohort Intelligence Widget (2 Bottom Cards) */}
@@ -709,6 +658,18 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
 
         {/* Right Inspector / Customer 360 Detail Drawer (4 Cols) */}
         <div className="lg:col-span-4 flex flex-col space-y-space-md min-w-0">
+          {!selectedCustomer ? (
+            <EmptyState
+              icon="person_search"
+              title={isCustomersError ? 'Customer profile unavailable' : 'No customer selected'}
+              description={
+                isCustomersError
+                  ? 'The directory could not be loaded, so there is no profile to inspect.'
+                  : 'Pick a row from the directory to open the 360 profile.'
+              }
+            />
+          ) : (
+          <>
           {/* Top Inspector Card */}
           <div className="bg-surface-container-lowest rounded-xl shadow-md overflow-hidden relative border border-subtle">
             {/* Header Banner Pattern */}
@@ -980,6 +941,8 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
               <span className="font-semibold text-primary">{selectedCustomer.spendSplit}</span>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
     </PageContainer>

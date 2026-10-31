@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { INITIAL_ORDERS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { formatMoney, formatDate } from '../../lib/format';
 import { OrderDetailDrawer } from './OrderDetailDrawer';
 import { CreateOrderModal } from './CreateOrderModal';
 import { useOrdersQuery, useCancelOrderMutation, useUpdateOrderStatusMutation } from '../../hooks/useAdminQueries';
+import { useServerTable } from '../../hooks/useServerTable';
 import { Icon,
   Card,
   CardContent,
@@ -37,18 +37,18 @@ export function OrderManagement({
   selectedOrderId,
   onSelectOrder 
 }) {
-  const [orders, setOrders] = useState(INITIAL_ORDERS);
-  const [activeTab, setActiveTab] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [paymentFilter, setPaymentFilter] = useState('All');
-  const [warehouseFilter, setWarehouseFilter] = useState('All Hubs');
-  const [courierFilter, setCourierFilter] = useState('All 3PL');
-  const [selectedIds, setSelectedIds] = useState(['EVR-984210-BLR']);
+  const [orders, setOrders] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [rowsPerPage, setRowsPerPage] = useState('25');
 
-  const [internalActiveId, setInternalActiveId] = useState('EVR-984210-BLR');
+  const [internalActiveId, setInternalActiveId] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(true);
+
+  // Paging, search and the two filters the API can actually answer.
+  const table = useServerTable({ filters: { fulfillment: 'all', payment: 'all' } });
+  const { page, setPage, limit, setLimit, search: searchQuery, setSearch: setSearchQuery } = table;
+  const activeTab = table.filters.fulfillment;
+  const paymentFilter = table.filters.payment;
 
   // TanStack Query: orders data fetching and mutations
   const {
@@ -57,13 +57,15 @@ export function OrderManagement({
     isError: isOrdersError,
     error: ordersError,
     refetch: refetchOrders,
-  } = useOrdersQuery({ limit: 50 });
+    isFetching: isOrdersFetching,
+  } = useOrdersQuery(table.params, { placeholderData: (prev) => prev });
   const cancelOrderMutation = useCancelOrderMutation();
   const updateStatusMutation = useUpdateOrderStatusMutation();
 
   // Sync orders whenever query data changes
   useEffect(() => {
-    if (apiData?.orders && apiData.orders.length > 0) {
+    if (!apiData?.orders) return;
+    {
       const apiOrders = apiData.orders.map((ord, idx) => {
         const customerName = ord.shippingAddress 
           ? `${ord.shippingAddress.firstName || ''} ${ord.shippingAddress.lastName || ''}`.trim() || ord.email.split('@')[0]
@@ -131,18 +133,18 @@ export function OrderManagement({
             bagId: `BAG-882-${idx}`,
             pickupSlot: '16:00 - 18:00 IST'
           },
+          // Money stays in the minor units the API reports; the view formats it.
           payment: {
-            type: ord.paymentStatus === 'paid' ? 'prepaid' : 'cod',
-            method: ord.paymentStatus === 'paid' ? 'Razorpay UPI (Instant)' : 'Cash on Delivery',
-            totalPaid: totalAmount,
-            subtotal: totalAmount,
-            discount: '₹0.00',
-            shipping: '₹0.00',
-            cgst: '₹240.00',
-            sgst: '₹240.00',
-            igst: '₹0.00',
-            statusBadge: ord.paymentStatus === 'paid' ? 'PAID (VERIFIED)' : 'PENDING ON DELIVERY',
-            statusVariant: ord.paymentStatus === 'paid' ? 'success' : 'warning'
+            type: ord.paymentMethod === 'cod' ? 'cod' : 'prepaid',
+            method: ord.paymentMethod === 'cod' ? 'Cash on delivery' : 'Prepaid',
+            itemSubtotal: ord.totals?.itemSubtotal ?? 0,
+            discountTotal: ord.totals?.discountTotal ?? 0,
+            shippingTotal: ord.totals?.shippingTotal ?? 0,
+            taxTotal: ord.totals?.taxTotal ?? 0,
+            total: ord.totals?.total ?? 0,
+            currency: ord.currency,
+            statusBadge: ord.paymentStatus === 'paid' ? 'Paid' : ord.paymentStatus === 'refunded' ? 'Refunded' : 'Awaiting payment',
+            statusVariant: ord.paymentStatus === 'paid' ? 'success' : ord.paymentStatus === 'refunded' ? 'info' : 'warning'
           },
           currentTimelineStep: isDelivered ? 9 : isShipped ? 7 : 5,
           timeline: [
@@ -160,7 +162,7 @@ export function OrderManagement({
         };
       });
 
-      setOrders([...apiOrders, ...INITIAL_ORDERS]);
+      setOrders(apiOrders);
       if (apiOrders.length > 0) {
         setInternalActiveId(apiOrders[0].id);
       }
@@ -181,40 +183,8 @@ export function OrderManagement({
   };
 
   // Filter orders
-  const filteredOrders = useMemo(() => {
-    return orders.filter(ord => {
-      // Tab filter
-      if (activeTab === 'Packed & Ready' && ord.status !== 'Packed & Staged' && ord.status !== 'Packed & Ready') return false;
-      if (activeTab === 'In Transit' && ord.status !== 'Dispatched' && ord.status !== 'In Transit') return false;
-      if (activeTab === 'Delivered' && ord.status !== 'Delivered') return false;
-      if (activeTab === 'Exceptions' && ord.status !== 'On Hold' && ord.status !== 'Cancelled') return false;
-
-      // Search
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesId = ord.id.toLowerCase().includes(q);
-        const matchesName = ord.customer.name.toLowerCase().includes(q);
-        const matchesAwb = ord.courier?.awb?.toLowerCase().includes(q);
-        const matchesPhone = (ord.customer.fullPhone || ord.customer.phone || '').toLowerCase().includes(q);
-        if (!matchesId && !matchesName && !matchesAwb && !matchesPhone) return false;
-      }
-      // Payment filter
-      if (paymentFilter !== 'All') {
-        if (paymentFilter.includes('COD') && ord.payment?.type !== 'cod') return false;
-        if (paymentFilter.includes('Prepaid') && ord.payment?.type !== 'prepaid') return false;
-      }
-      // Warehouse filter
-      if (warehouseFilter !== 'All Hubs') {
-        if (!ord.nodeFc?.includes(warehouseFilter.split(' ')[0])) return false;
-      }
-      // Courier filter
-      if (courierFilter !== 'All 3PL') {
-        const cName = courierFilter.replace('Courier: ', '');
-        if (!ord.courier?.partner?.toLowerCase().includes(cName.toLowerCase())) return false;
-      }
-      return true;
-    });
-  }, [orders, activeTab, searchQuery, paymentFilter, warehouseFilter, courierFilter]);
+  // The API already applied the tab, the search and the payment filter.
+  const filteredOrders = orders;
 
   const handleSelectAll = (checked) => {
     if (checked) {
@@ -474,19 +444,23 @@ export function OrderManagement({
       />
 
       {/* Operational Filter & State Navigation Bar */}
+      {/* Tabs and filters map onto the parameters /admin/orders accepts:
+          fulfillment status, payment status and a free-text query. The hub and
+          courier filters are gone: an order carries no such field. */}
       <FilterBar
         tabs={[
-          { id: 'All', label: 'All Orders', count: orders.length },
-          { id: 'Packed & Ready', label: 'Packed & Ready', count: orders.filter(o => o.status === 'Packed & Staged').length || 14 },
-          { id: 'In Transit', label: 'In Transit', count: orders.filter(o => o.status === 'Dispatched').length || 8 },
-          { id: 'Delivered', label: 'Delivered', count: orders.filter(o => o.status === 'Delivered').length || 6 },
-          { id: 'Exceptions', label: 'Exceptions', count: 3 },
+          { id: 'all', label: 'All orders', count: apiData?.count },
+          { id: 'unfulfilled', label: 'Unfulfilled' },
+          { id: 'shipped', label: 'Shipped' },
+          { id: 'delivered', label: 'Delivered' },
+          { id: 'returned', label: 'Returned' },
         ]}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={(id) => table.setFilter('fulfillment', id)}
         search={
           <SearchInput
-            placeholder="Search Order, AWB, Phone..."
+            placeholder="Search order number, email or surname"
+            label="Search orders"
             value={searchQuery}
             onChange={setSearchQuery}
             onClear={() => setSearchQuery('')}
@@ -496,19 +470,20 @@ export function OrderManagement({
           <>
             <FilterDropdown
               value={paymentFilter}
-              onChange={setPaymentFilter}
-              options={['All Payments', 'Prepaid (UPI / Cards)', 'COD (Cash on Delivery)']}
+              onChange={(value) => table.setFilter('payment', value)}
+              label="Payment status"
+              options={[
+                { value: 'all', label: 'All payments' },
+                { value: 'paid', label: 'Paid' },
+                { value: 'awaiting', label: 'Awaiting payment' },
+                { value: 'refunded', label: 'Refunded' },
+              ]}
             />
-            <FilterDropdown
-              value={warehouseFilter}
-              onChange={setWarehouseFilter}
-              options={['All Hubs', 'BLR-FC1 (Bengaluru)', 'BOM-FC2 (Mumbai)', 'DEL-FC3 (Delhi NCR)', 'CCU-FC4 (Kolkata)']}
-            />
-            <FilterDropdown
-              value={courierFilter}
-              onChange={setCourierFilter}
-              options={['All 3PL Couriers', 'BlueDart Express', 'Delhivery Air', 'Shadowfax Air']}
-            />
+            {table.activeFilterCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={table.resetFilters}>
+                Clear filters
+              </Button>
+            )}
           </>
         }
       />
@@ -531,13 +506,29 @@ export function OrderManagement({
             activeRowId={activeOrder?.id}
             onRowClick={(row) => handleRowClick(row.id)}
             isLoading={isOrdersLoading}
-            emptyTitle="No orders found"
-            emptyMessage="No orders match your active filter criteria."
+            isError={isOrdersError}
+            errorTitle="Orders could not be loaded"
+            errorMessage={ordersError?.message}
+            onRetry={() => refetchOrders()}
+            emptyTitle={table.activeFilterCount ? 'No orders match these filters' : 'No orders yet'}
+            emptyMessage={
+              table.activeFilterCount
+                ? 'Clear the search or filters to see the rest of the queue.'
+                : 'Orders placed in the storefront appear here as soon as they are confirmed.'
+            }
+            emptyAction={
+              table.activeFilterCount ? (
+                <Button variant="outline" size="sm" onClick={table.resetFilters}>
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
             pagination={{
-              page: 1,
-              pageSize: Number(rowsPerPage),
-              totalItems: filteredOrders.length,
-              onPageSizeChange: (sz) => setRowsPerPage(String(sz)),
+              page,
+              pageSize: limit,
+              totalItems: apiData?.count ?? 0,
+              onPageChange: setPage,
+              onPageSizeChange: setLimit,
             }}
           />
         </div>

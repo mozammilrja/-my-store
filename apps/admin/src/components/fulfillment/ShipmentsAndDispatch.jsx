@@ -12,7 +12,9 @@ import {
   ErrorState,
   SkeletonPage,
   SearchInput,
+  TablePagination,
 } from '../ui';
+import { useClientTable } from '../../hooks/useClientTable';
 import { shipmentList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useShipmentsQuery } from '../../hooks/useAdminQueries';
@@ -95,6 +97,9 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
       return true;
     });
   }, [activeTab, carrierFilter, nodeFilter, speedFilter, searchQuery]);
+
+  // One shared pager over the rows this module actually holds.
+  const shipmentsPager = useClientTable(filteredShipments);
 
   const handleSelectParcel = (awb) => {
     setSelectedParcels(prev =>
@@ -452,7 +457,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                   </tr>
                 </thead>
                 <tbody className="text-body divide-y divide-border-subtle">
-                  {filteredShipments.map(item => {
+                  {shipmentsPager.pageRows.map(item => {
                     const isSelected = selectedAwb === item.awb;
                     const isChecked = selectedParcels.includes(item.awb);
 
@@ -566,37 +571,13 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
               </table>
             </div>
 
-            {/* Table Pagination Footer */}
-            <div className="p-space-sm bg-surface-canvas flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-subtle">
-              <div className="text-body text-secondary">
-                Showing <span className="font-medium text-primary">1–5</span> of <span className="font-medium text-primary">892</span> packages awaiting carrier departure
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-muted hover:text-primary text-label shadow-sm disabled:opacity-50 cursor-pointer"
-                  disabled
-                  type="button"
-                >
-                  Previous
-                </button>
-                <button className="px-2.5 py-1 rounded-lg bg-primary-container text-on-accent text-label font-medium cursor-pointer" type="button">
-                  1
-                </button>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-primary hover:bg-surface-subtle text-label shadow-sm cursor-pointer" type="button">
-                  2
-                </button>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-primary hover:bg-surface-subtle text-label shadow-sm cursor-pointer" type="button">
-                  3
-                </button>
-                <span className="text-muted px-1">...</span>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-primary hover:bg-surface-subtle text-label shadow-sm cursor-pointer" type="button">
-                  178
-                </button>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-muted hover:text-primary text-label shadow-sm cursor-pointer" type="button">
-                  Next
-                </button>
-              </div>
-            </div>
+            <TablePagination
+              currentPage={shipmentsPager.page}
+              pageSize={shipmentsPager.limit}
+              totalItems={shipmentsPager.total}
+              onPageChange={shipmentsPager.setPage}
+              onPageSizeChange={shipmentsPager.setLimit}
+            />
           </div>
         </div>
 

@@ -1,0 +1,1 @@
+export { useClientTable } from './useServerTable';

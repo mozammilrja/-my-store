@@ -31,6 +31,7 @@ import {
   SearchInput,
   FilterDropdown,
   TablePagination,
+  DEFAULT_PAGE_SIZE,
   ErrorState,
   SkeletonPage,
   Thumbnail,
@@ -153,7 +154,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
 
   // Filtered Inventory
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const filteredInventory = useMemo(() => {
     return inventoryList.filter(item => {

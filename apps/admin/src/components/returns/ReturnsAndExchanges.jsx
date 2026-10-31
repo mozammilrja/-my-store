@@ -39,7 +39,9 @@ import { Icon,
   ErrorState,
   SkeletonPage,
   Thumbnail,
+  TablePagination,
 } from '../ui';
+import { useClientTable } from '../../hooks/useClientTable';
 
 export function ReturnsAndExchanges({ onShowToast, currentHub }) {
   const [returnsList, setReturnsList] = useState(INITIAL_RETURNS);
@@ -158,6 +160,9 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
       return true;
     });
   }, [returnsList, searchQuery, reasonFilter]);
+
+  // One shared pager over the rows this module actually holds.
+  const returnsPager = useClientTable(filteredReturns);
 
   const handleApproveRefund = () => {
     confetti({
@@ -532,7 +537,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-border-subtle/50">
-                {filteredReturns.map((item) => {
+                {returnsPager.pageRows.map((item) => {
                   const isSelected = activeReturn?.id === item.id;
                   return (
                     <TableRow
@@ -620,21 +625,13 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
             </Table>
           </div>
 
-          <div className="p-space-md flex flex-wrap items-center justify-between gap-space-sm bg-surface-canvas text-muted text-label border-t border-subtle">
-            <div className="flex items-center gap-2">
-              <span>Rows per page:</span>
-              <span className="font-semibold text-primary">10</span>
-              <span className="mx-2">|</span>
-              <span>Showing 1-{filteredReturns.length} of 186 items</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-meta" disabled>Previous</Button>
-              <Button variant="primary" size="sm" className="h-7 w-7 p-0 text-meta">1</Button>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-meta">2</Button>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-meta">3</Button>
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-meta">Next</Button>
-            </div>
-          </div>
+          <TablePagination
+            currentPage={returnsPager.page}
+            pageSize={returnsPager.limit}
+            totalItems={returnsPager.total}
+            onPageChange={returnsPager.setPage}
+            onPageSizeChange={returnsPager.setLimit}
+          />
         </Card>
 
         {/* Right Pane: Dock Triage & QC Grading Station (4/5 cols) */}

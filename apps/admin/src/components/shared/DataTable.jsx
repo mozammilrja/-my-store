@@ -105,43 +105,60 @@ export function TableLoadingState({ colSpan = 8, rows = 5, selectable = false })
   );
 }
 
+/** The one page-size ladder the whole admin uses. */
+export const PAGE_SIZES = [10, 20, 50, 100]
+export const DEFAULT_PAGE_SIZE = 10
+
 /**
  * TablePagination
- * Record range and rows-per-page on the left, the stepper on the right.
+ * Record range and page size on the left, the stepper on the right. Renders
+ * nothing when everything already fits on one page, so a short table does not
+ * carry an empty control strip.
  */
 export function TablePagination({
   currentPage = 1,
-  pageSize = 25,
+  pageSize = DEFAULT_PAGE_SIZE,
   totalItems = 0,
   onPageChange,
   onPageSizeChange,
-  pageSizeOptions = [10, 25, 50, 100],
+  pageSizeOptions = PAGE_SIZES,
+  alwaysShow = false,
   className,
 }) {
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const page = Math.min(Math.max(1, currentPage), totalPages);
-  const startItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
-  const endItem = Math.min(page * pageSize, totalItems);
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const page = Math.min(Math.max(1, currentPage), totalPages)
+  const startItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1
+  const endItem = Math.min(page * pageSize, totalItems)
+
+  // One page of results needs no controls; an empty result needs none either.
+  if (!alwaysShow && totalPages <= 1 && totalItems <= Math.min(...pageSizeOptions)) return null
 
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-between gap-space-sm border-t border-subtle bg-surface-subtle px-space-md py-space-sm text-meta text-muted sm:flex-row",
+        "flex h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-subtle bg-surface-subtle px-space-md text-meta text-muted",
         className
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <span>
-          Showing <span className="font-semibold tabular-nums text-primary">{startItem}</span>–
-          <span className="font-semibold tabular-nums text-primary">{endItem}</span> of{" "}
-          <span className="font-semibold tabular-nums text-primary">{totalItems}</span>
+          {totalItems === 0 ? (
+            "No records"
+          ) : (
+            <>
+              <span className="font-medium tabular-nums text-primary">{startItem}</span>–
+              <span className="font-medium tabular-nums text-primary">{endItem}</span> of{" "}
+              <span className="font-medium tabular-nums text-primary">{totalItems.toLocaleString()}</span>
+            </>
+          )}
         </span>
 
-        {onPageSizeChange && (
+        {onPageSizeChange && totalItems > Math.min(...pageSizeOptions) && (
           <label className="hidden items-center gap-1.5 md:flex">
-            <span className="text-micro">Rows</span>
+            <span>Rows</span>
             <Select
               className="h-8 w-[4.5rem] px-2 text-meta"
+              wrapperClassName="w-auto"
               aria-label="Rows per page"
               value={String(pageSize)}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
@@ -157,8 +174,9 @@ export function TablePagination({
           size="sm"
           disabled={page <= 1}
           onClick={() => onPageChange && onPageChange(page - 1)}
+          aria-label="Previous page"
         >
-          <Icon name="chevron_left" className="material-symbols-outlined text-icon" />
+          <Icon name="chevron_left" aria-hidden="true" className="material-symbols-outlined text-icon" />
           <span className="hidden sm:inline">Previous</span>
         </Button>
 
@@ -171,9 +189,10 @@ export function TablePagination({
           size="sm"
           disabled={page >= totalPages}
           onClick={() => onPageChange && onPageChange(page + 1)}
+          aria-label="Next page"
         >
           <span className="hidden sm:inline">Next</span>
-          <Icon name="chevron_right" className="material-symbols-outlined text-icon" />
+          <Icon name="chevron_right" aria-hidden="true" className="material-symbols-outlined text-icon" />
         </Button>
       </div>
     </div>
@@ -271,7 +290,7 @@ export function DataTable({
   ...props
 }) {
   const [internalPage, setInternalPage] = useState(1);
-  const [internalPageSize, setInternalPageSize] = useState(25);
+  const [internalPageSize, setInternalPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const totalCols = columns.length + (selectable ? 1 : 0);
   const activePage = pagination?.page ?? internalPage;

@@ -13,7 +13,9 @@ import {
   SkeletonPage,
   Thumbnail,
   Select,
+  TablePagination,
 } from '../ui';
+import { useClientTable } from '../../hooks/useClientTable';
 import { usersList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useUsersQuery, useCreateUserMutation, useDeleteUserMutation } from '../../hooks/useAdminQueries';
@@ -142,6 +144,8 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
     }
     return true;
   });
+  // One shared pager over the rows this module actually holds.
+  const usersPager = useClientTable(filteredUsers);
 
   if (isUsersLoading) {
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={6} label="Loading users and roles" />;
@@ -361,7 +365,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle text-body text-primary">
-                  {filteredUsers.map((user) => {
+                  {usersPager.pageRows.map((user) => {
                     const isSelected = selectedUserKey === user.key;
                     return (
                       <tr
@@ -484,23 +488,13 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
               </table>
             </div>
 
-            {/* Table Pagination Footer */}
-            <div className="p-space-md bg-surface-subtle border-t border-subtle flex items-center justify-between">
-              <span className="text-label text-muted">
-                Showing 1 to {filteredUsers.length} of 148 team members
-              </span>
-              <div className="flex items-center gap-1">
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-subtle text-muted hover:text-primary text-label disabled:opacity-50" disabled>
-                  Previous
-                </button>
-                <button className="px-2.5 py-1 rounded bg-primary-container text-on-accent text-label font-semibold">1</button>
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-subtle text-muted hover:text-primary text-label">2</button>
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-subtle text-muted hover:text-primary text-label">3</button>
-                <span className="px-1 text-muted">...</span>
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-subtle text-muted hover:text-primary text-label">25</button>
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-subtle text-muted hover:text-primary text-label">Next</button>
-              </div>
-            </div>
+            <TablePagination
+              currentPage={usersPager.page}
+              pageSize={usersPager.limit}
+              totalItems={usersPager.total}
+              onPageChange={usersPager.setPage}
+              onPageSizeChange={usersPager.setLimit}
+            />
           </div>
 
           {/* System Security Policy Banner */}

@@ -13,7 +13,9 @@ import {
   ErrorState,
   SkeletonPage,
   Thumbnail,
+  TablePagination,
 } from '../ui';
+import { useClientTable } from '../../hooks/useClientTable';
 import { notesList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useCreditNotesQuery } from '../../hooks/useAdminQueries';
@@ -69,6 +71,8 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
     }
     return true;
   });
+  // One shared pager over the rows this module actually holds.
+  const notesPager = useClientTable(filteredNotes);
 
   if (isCreditNotesLoading) {
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={7} label="Loading credit notes" />;
@@ -225,7 +229,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle text-primary">
-                {filteredNotes.map((note) => {
+                {notesPager.pageRows.map((note) => {
                   const isSelected = selectedNoteId === note.id;
                   return (
                     <tr
@@ -295,27 +299,13 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
             </table>
           </div>
 
-          {/* Pagination Footer */}
-          <div className="p-3 bg-surface-container-lowest border-t border-subtle flex items-center justify-between text-secondary text-body">
-            <div className="flex items-center gap-2">
-              <span>Showing 1 to {filteredNotes.length} of 1,340 credit note entries</span>
-              <span className="w-1 h-1 rounded-full bg-border-strong"></span>
-              <span className="text-caption">Auto-sync with ClearTax every 15 mins</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary disabled:opacity-40" disabled type="button" title="Previous page" aria-label="Previous page">
-                <Icon name="chevron_left" className="material-symbols-outlined text-icon-md" />
-              </button>
-              <span className="px-2 py-0.5 rounded bg-surface-subtle text-label font-semibold text-primary">1</span>
-              <button className="px-2 py-0.5 rounded hover:bg-surface-subtle text-label text-muted" type="button">2</button>
-              <button className="px-2 py-0.5 rounded hover:bg-surface-subtle text-label text-muted" type="button">3</button>
-              <span className="text-muted">...</span>
-              <button className="px-2 py-0.5 rounded hover:bg-surface-subtle text-label text-muted" type="button">224</button>
-              <button className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary" type="button" title="Next page" aria-label="Next page">
-                <Icon name="chevron_right" className="material-symbols-outlined text-icon-md" />
-              </button>
-            </div>
-          </div>
+          <TablePagination
+            currentPage={notesPager.page}
+            pageSize={notesPager.limit}
+            totalItems={notesPager.total}
+            onPageChange={notesPager.setPage}
+            onPageSizeChange={notesPager.setLimit}
+          />
         </div>
 
         {/* 35% Inspector Panel (Exact from Stitch design) */}

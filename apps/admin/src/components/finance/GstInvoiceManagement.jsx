@@ -29,7 +29,9 @@ import {
   StatusBadge,
   ErrorState,
   SkeletonPage,
+  TablePagination,
 } from '../ui';
+import { useClientTable } from '../../hooks/useClientTable';
 import {
   INITIAL_GST_METRICS,
   INITIAL_GST_INVOICES,
@@ -136,6 +138,9 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       return true;
     });
   }, [invoices, selectedState, selectedHsn, selectedSlab, searchQuery]);
+
+  // One shared pager over the rows this module actually holds.
+  const invoicesPager = useClientTable(filteredInvoices);
 
   const handleDownloadGstr1Json = () => {
     const payload = {
@@ -577,7 +582,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-border-subtle">
-                    {filteredInvoices.map(inv => {
+                    {invoicesPager.pageRows.map(inv => {
                       const isSelected = selectedInvoice?.id === inv.id;
                       return (
                         <TableRow
@@ -824,17 +829,13 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
               </div>
             )}
 
-            {/* Pagination & Summary Footer */}
-            <div className="p-4 bg-surface-container-lowest border-t border-subtle flex flex-col sm:flex-row items-center justify-between gap-3 text-meta text-muted">
-              <div>
-                Showing <span className="font-semibold text-primary">1 to {filteredInvoices.length}</span> of <span className="font-semibold text-primary">{invoices.length}</span> entries
-              </div>
-              <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" className="h-7 text-meta">Prev</Button>
-                <Button variant="default" size="sm" className="h-7 w-7 p-0 text-meta bg-primary-container text-on-accent">1</Button>
-                <Button variant="outline" size="sm" className="h-7 text-meta">Next</Button>
-              </div>
-            </div>
+            <TablePagination
+              currentPage={invoicesPager.page}
+              pageSize={invoicesPager.limit}
+              totalItems={invoicesPager.total}
+              onPageChange={invoicesPager.setPage}
+              onPageSizeChange={invoicesPager.setLimit}
+            />
           </Card>
 
           {/* HSN Rate Summary Micro-Card */}

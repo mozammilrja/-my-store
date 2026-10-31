@@ -14,7 +14,9 @@ import {
   ErrorState,
   SkeletonPage,
   Thumbnail,
+  TablePagination,
 } from '../ui';
+import { useClientTable } from '../../hooks/useClientTable';
 import { adminApi } from '../../lib/api';
 import { usePurchaseOrdersQuery, useCreatePurchaseOrderMutation } from '../../hooks/useAdminQueries';
 
@@ -406,6 +408,9 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
     });
   }, [statusFilter, supplierFilter, targetHubFilter, allPos]);
 
+  // One shared pager over the rows this module actually holds.
+  const poPager = useClientTable(filteredPoList);
+
   const handleCreatePoSubmit = (e) => {
     e.preventDefault();
     setIsCreatePoModalOpen(false);
@@ -677,7 +682,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle text-meta text-primary">
-                {filteredPoList.map((po) => {
+                {poPager.pageRows.map((po) => {
                   const isSelected = selectedPoId === po.id;
                   return (
                     <tr
@@ -752,30 +757,13 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
             </table>
           </div>
 
-          {/* Pagination / Footer Bar */}
-          <div className="px-4 py-3 bg-surface-canvas flex items-center justify-between text-meta border-t border-subtle">
-            <span className="text-muted font-medium">Page 1 of 8 (48 Active PO entries)</span>
-            <div className="flex items-center gap-1 font-semibold">
-              <button
-                className="px-2.5 py-1 rounded bg-surface-subtle text-muted opacity-50 cursor-not-allowed border border-subtle"
-                disabled
-                type="button"
-              >
-                Prev
-              </button>
-              <button className="px-2.5 py-1 rounded bg-primary-container text-on-accent">1</button>
-              <button className="px-2.5 py-1 rounded bg-surface-subtle hover:bg-surface-container text-primary border border-subtle">
-                2
-              </button>
-              <button className="px-2.5 py-1 rounded bg-surface-subtle hover:bg-surface-container text-primary border border-subtle">
-                3
-              </button>
-              <span className="px-1 text-muted">...</span>
-              <button className="px-2.5 py-1 rounded bg-surface-subtle hover:bg-surface-container text-primary border border-subtle">
-                Next
-              </button>
-            </div>
-          </div>
+          <TablePagination
+            currentPage={poPager.page}
+            pageSize={poPager.limit}
+            totalItems={poPager.total}
+            onPageChange={poPager.setPage}
+            onPageSizeChange={poPager.setLimit}
+          />
         </div>
 
         {/* RIGHT PANE: Selected PO Detailed Inspector (Cols 4) */}

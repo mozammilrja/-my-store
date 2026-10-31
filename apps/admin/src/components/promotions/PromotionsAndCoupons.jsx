@@ -12,7 +12,9 @@ import {
   ErrorState,
   SkeletonPage,
   SearchInput,
+  TablePagination,
 } from '../ui';
+import { useClientTable } from '../../hooks/useClientTable';
 import { campaigns } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import {
@@ -168,6 +170,8 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     }
     return true;
   });
+  // One shared pager over the rows this module actually holds.
+  const promosPager = useClientTable(filteredCampaigns);
 
   const toggleSelectRow = (code) => {
     setSelectedRows(prev => ({
@@ -396,7 +400,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle text-body">
-                  {filteredCampaigns.map((camp) => {
+                  {promosPager.pageRows.map((camp) => {
                     const isSelected = selectedCode === camp.code;
                     return (
                       <tr
@@ -532,25 +536,13 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
               </table>
             </div>
 
-            {/* Table Pagination Footer */}
-            <div className="px-space-md py-2.5 bg-surface-canvas border-t border-subtle flex items-center justify-between text-meta text-muted">
-              <div className="flex items-center gap-1">
-                <span>Showing <strong className="text-primary">1-5</strong> of 24 promo engines</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest shadow-sm text-muted hover:text-primary font-medium border border-subtle" disabled>
-                  Prev
-                </button>
-                <div className="flex items-center gap-1">
-                  <button className="w-6 h-6 rounded bg-primary-container text-on-accent font-semibold text-center leading-6">1</button>
-                  <button className="w-6 h-6 rounded hover:bg-surface-subtle text-muted text-center leading-6">2</button>
-                  <button className="w-6 h-6 rounded hover:bg-surface-subtle text-muted text-center leading-6">3</button>
-                </div>
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest shadow-sm text-muted hover:text-primary font-medium border border-subtle">
-                  Next
-                </button>
-              </div>
-            </div>
+            <TablePagination
+              currentPage={promosPager.page}
+              pageSize={promosPager.limit}
+              totalItems={promosPager.total}
+              onPageChange={promosPager.setPage}
+              onPageSizeChange={promosPager.setLimit}
+            />
           </div>
 
           {/* Real-Time Rule Simulation Log Module */}

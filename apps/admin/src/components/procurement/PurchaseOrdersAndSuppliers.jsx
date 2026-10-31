@@ -850,7 +850,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
         {/* RIGHT PANE: Selected PO Detailed Inspector (Cols 4) */}
         {!selectedPo ? (
           <div className="lg:col-span-4">
-            <EmptyState icon="local_shipping" title="No purchase order selected" message="Pick a purchase order from the ledger to inspect it." />
+            <EmptyState icon="local_shipping" title="No purchase order selected" description="Pick a purchase order from the ledger to inspect it." />
           </div>
         ) : (
           <div className="sticky top-20 flex flex-col gap-space-md lg:col-span-4">
@@ -927,7 +927,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                 <EmptyState
                   icon="store"
                   title="No purchase orders yet"
-                  message="Suppliers appear here once an order is raised with them."
+                  description="Suppliers appear here once an order is raised with them."
                 />
               ) : (
                 <ul className="flex flex-col gap-space-sm">

@@ -440,7 +440,7 @@ export function ShipmentsAndDispatch({ onShowToast }) {
                 <EmptyState
                   icon="pin_drop"
                   title="No scans yet"
-                  message="The carrier has not reported movement for this parcel."
+                  description="The carrier has not reported movement for this parcel."
                 />
               ) : (
                 <ol className="flex flex-col gap-space-sm">

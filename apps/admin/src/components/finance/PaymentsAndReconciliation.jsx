@@ -667,7 +667,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
               <EmptyState
                 icon="account_balance_wallet"
                 title="No payment selected"
-                message="Pick a payment from the ledger to see its detail."
+                description="Pick a payment from the ledger to see its detail."
               />
             ) : (
               <div className="sticky top-20 flex flex-col gap-space-md">

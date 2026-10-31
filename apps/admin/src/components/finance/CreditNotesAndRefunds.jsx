@@ -344,7 +344,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
             <EmptyState
               icon="receipt_long"
               title="No credit note selected"
-              message="Pick a credit note from the register to inspect it."
+              description="Pick a credit note from the register to inspect it."
             />
           ) : (
             <>
@@ -389,7 +389,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
                   <EmptyState
                     icon="search_off"
                     title="Invoice not found"
-                    message={`No invoice matching ${selectedNote.invoice} is in the register.`}
+                    description={`No invoice matching ${selectedNote.invoice} is in the register.`}
                   />
                 ) : (
                   <dl className="flex flex-col gap-space-sm">

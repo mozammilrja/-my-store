@@ -610,7 +610,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
         {/* Right Column: Campaign Inspector (4 Cols ~ 33.3%) */}
         {!selectedCampaign ? (
           <div className="lg:col-span-4">
-            <EmptyState icon="sell" title="No campaign selected" message="Pick a campaign from the list to inspect it." />
+            <EmptyState icon="sell" title="No campaign selected" description="Pick a campaign from the list to inspect it." />
           </div>
         ) : (
         <div className="lg:col-span-4 flex flex-col space-y-space-md">

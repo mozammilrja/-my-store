@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Icon,
   Button,
@@ -25,14 +26,29 @@ import {
   useCreateCollectionMutation
 } from '../../hooks/useAdminQueries';
 
+const TABS = ['drops', 'tree'];
+
 export function CategoriesAndCollections({ onNavigate, onShowToast }) {
-  const [activeTab, setActiveTab] = useState('drops'); // 'drops', 'tree', 'rules'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'drops';
+  // Pushed, not replaced: switching tabs is navigation, so Back returns to the
+  // tab you came from.
+  const setActiveTab = (next) =>
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      if (next === 'drops') params.delete('tab');
+      else params.set('tab', next);
+      return params;
+    });
+
   const [selectedDropId, setSelectedDropId] = useState(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [seasonFilter, setSeasonFilter] = useState('All Seasons (2024-25)');
-  const [statusFilter, setStatusFilter] = useState('Active & Scheduled');
+  // Both tabs filter on whether the row actually holds products, which is the
+  // only status either a collection or a category carries.
+  const [statusFilter, setStatusFilter] = useState('all');
   const [viewDensity, setViewDensity] = useState('list'); // 'list' | 'grid'
-  const [selectedCheckboxes, setSelectedCheckboxes] = useState({ 'col-1': true });
+  const [selectedCheckboxes, setSelectedCheckboxes] = useState({});
 
   // TanStack Query for categories and collections
   const {
@@ -207,20 +223,39 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
     };
   }, [dbCategories, mergedCollections]);
 
-  const selectedDrop = useMemo(() => {
-    return mergedCollections.find(d => d.id === selectedDropId) || mergedCollections[0];
-  }, [mergedCollections, selectedDropId]);
-
   const filteredCollections = useMemo(() => {
-    return mergedCollections.filter(d => {
-      if (seasonFilter !== 'All Seasons (2024-25)' && d.season !== seasonFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        if (!d.title.toLowerCase().includes(q) && !d.code.toLowerCase().includes(q)) return false;
-      }
+    const q = searchQuery.trim().toLowerCase();
+    return mergedCollections.filter((d) => {
+      if (statusFilter === 'in-use' && d.productCount === 0) return false;
+      if (statusFilter === 'empty' && d.productCount > 0) return false;
+      if (q && !d.title.toLowerCase().includes(q) && !d.code.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [mergedCollections, searchQuery, seasonFilter]);
+  }, [mergedCollections, searchQuery, statusFilter]);
+
+  /** The taxonomy list obeys the same search box and status select. */
+  const filteredCategories = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return (dbCategories ?? []).filter((c) => {
+      const products = c.productCount ?? 0;
+      if (statusFilter === 'in-use' && products === 0) return false;
+      if (statusFilter === 'empty' && products > 0) return false;
+      if (q && !c.name.toLowerCase().includes(q) && !c.handle.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [dbCategories, searchQuery, statusFilter]);
+
+  // Resolved against the filtered list, so the inspector never describes a
+  // collection the filters have hidden.
+  const selectedDrop = useMemo(() => {
+    return filteredCollections.find((d) => d.id === selectedDropId) || filteredCollections[0] || null;
+  }, [filteredCollections, selectedDropId]);
+
+  const isTree = activeTab === 'tree';
+
+  const selectedCategory = useMemo(() => {
+    return filteredCategories.find((c) => c.id === selectedCategoryId) || filteredCategories[0] || null;
+  }, [filteredCategories, selectedCategoryId]);
 
   const toggleCheckbox = (id) => {
     setSelectedCheckboxes(prev => ({
@@ -320,7 +355,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               >
                 <span>Curated Drops & Collections</span>
                 <span className={`px-1.5 py-px rounded-full text-micro ${activeTab === 'drops' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'}`}>
-                  {mergedCollections.length}
+                  {filteredCollections.length}
                 </span>
               </button>
               <button
@@ -334,21 +369,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               >
                 <span>Taxonomy Hierarchy Tree</span>
                 <span className={`px-1.5 py-px rounded-full text-micro ${activeTab === 'tree' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'}`}>
-                  {catalogShape.categories}
-                </span>
-              </button>
-              <button
-                onClick={() => setActiveTab('rules')}
-                className={`px-space-md py-1.5 rounded-lg text-label flex items-center gap-2 transition-all ${
- activeTab === 'rules'
- ? 'bg-primary-container text-on-accent shadow-sm font-semibold'
- : 'hover:bg-surface-subtle text-muted'
- }`}
-                type="button"
-              >
-                <span>Smart Rules Engine</span>
-                <span className={`px-1.5 py-px rounded-full text-micro ${activeTab === 'rules' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'}`}>
-                  {catalogShape.grouped}
+                  {filteredCategories.length}
                 </span>
               </button>
             </div>
@@ -379,37 +400,26 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                 value={searchQuery}
                 onChange={(value) => setSearchQuery(value)}
                 onClear={() => setSearchQuery('')}
-                placeholder="Search title, slug, tag or hero model"
-                label="Search collections"
+                placeholder={isTree ? 'Search category name or slug' : 'Search collection title or code'}
+                label={isTree ? 'Search categories' : 'Search collections'}
                 className="w-full flex-1"
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Season select */}
+              {/* A collection and a category each carry one real status:
+                  whether any product sits in it. The season and lifecycle
+                  selects that stood here filtered on fields that neither a
+                  collection nor a category holds. */}
               <div className="w-48">
-                <Select
-                  value={seasonFilter}
-                  onChange={(e) => setSeasonFilter(e.target.value)}
-                  className="h-8 text-meta"
-                >
-                  <option>All Seasons (2024-25)</option>
-                  <option>Festive Atelier '24</option>
-                  <option>Autumn/Winter '24</option>
-                  <option>Summer Essentials '24</option>
-                  <option>Core Evergreen</option>
-                </Select>
-              </div>
-              {/* Status Pill Filter */}
-              <div className="w-44">
                 <Select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="h-8 text-meta"
+                  aria-label={isTree ? 'Filter categories' : 'Filter collections'}
                 >
-                  <option>Active &amp; Scheduled</option>
-                  <option>Active Live Only</option>
-                  <option>Draft / In Review</option>
-                  <option>Archived</option>
+                  <option value="all">{isTree ? 'All categories' : 'All collections'}</option>
+                  <option value="in-use">With products</option>
+                  <option value="empty">Empty</option>
                 </Select>
               </div>
             </div>
@@ -524,153 +534,192 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
           )}
 
           {/* TAB 2: Taxonomy Hierarchy Tree */}
+          {/* TAB 2: Taxonomy Hierarchy Tree. The two hand-written trees that
+              stood below the live list ("Women's Ethnic Atelier, 48
+              sub-categories, 1,280 SKUs" and a men's equivalent) described a
+              taxonomy that does not exist: categories are flat in the database
+              and carry their own product counts. */}
           {activeTab === 'tree' && (
-            <div className="bg-surface-container-lowest p-5 rounded-xl border border-subtle shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
+            <div className="bg-surface-container-lowest p-space-md rounded-xl border border-subtle shadow-sm flex flex-col gap-space-sm">
+              <div className="flex items-center justify-between gap-space-md">
                 <div>
-                  <h3 className="font-semibold text-primary">Everwear Apparel Master Hierarchy</h3>
-                  <p className="text-meta text-muted">{dbCategories.length} Active Master Categories · Synchronized with MongoDB</p>
+                  <h3 className="font-semibold text-primary">Apparel taxonomy</h3>
+                  <p className="text-meta text-muted">
+                    {filteredCategories.length === dbCategories.length
+                      ? `${dbCategories.length} ${dbCategories.length === 1 ? 'category' : 'categories'} in the catalog`
+                      : `Showing ${filteredCategories.length} of ${dbCategories.length} categories`}
+                  </p>
                 </div>
-                <button
-                  onClick={() => setIsCategoryModalOpen(true)}
-                  className="px-3 py-1.5 bg-primary-container hover:bg-primary-container-hover text-on-accent text-meta font-semibold rounded-lg shadow-sm cursor-pointer transition-colors"
-                >
-                  + Add Root Node
-                </button>
+                <Button variant="outline" size="sm" icon="add" onClick={() => setIsCategoryModalOpen(true)}>
+                  Add category
+                </Button>
               </div>
 
-              <div className="space-y-3 text-meta">
-                {/* Live MongoDB Categories */}
-                {dbCategories.length > 0 && (
-                  <div className="p-3 bg-surface-canvas rounded-lg border border-primary-container/20 space-y-2">
-                    <div className="flex items-center justify-between font-semibold text-primary">
-                      <div className="flex items-center gap-2">
-                        <Icon name="database" className="material-symbols-outlined text-icon text-accent" />
-                        <span>Active Database Categories ({dbCategories.length})</span>
-                      </div>
-                      <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed text-micro font-semibold">Live in API</span>
-                    </div>
-                    <div className="space-y-1.5 pt-1">
-                      {dbCategories.map(cat => (
-                        <div key={cat.id} className="flex items-center justify-between py-1.5 px-2 bg-surface-container-lowest rounded border border-subtle">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-accent font-semibold whitespace-nowrap">/{cat.handle}</span>
-                            <span className="text-primary font-medium">{cat.name}</span>
-                            {cat.description && <span className="text-muted text-micro">({cat.description})</span>}
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono text-muted whitespace-nowrap">{cat.productCount ?? 0} Products</span>
-                            <button
-                              onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                              className="text-muted hover:text-danger p-0.5 rounded"
-                              title="Delete Category"
-                            >
-                              <Icon name="delete" className="material-symbols-outlined text-icon-sm" />
-                            </button>
+              {filteredCategories.length === 0 ? (
+                <EmptyState
+                  icon="account_tree"
+                  title={dbCategories.length === 0 ? 'No categories yet' : 'No category matches these filters'}
+                  description={
+                    dbCategories.length === 0
+                      ? 'Create a category to start building the catalog taxonomy.'
+                      : 'Clear the search or the status filter to see the rest of the taxonomy.'
+                  }
+                />
+              ) : (
+                <div className="flex flex-col gap-space-xs">
+                  {filteredCategories.map((cat) => {
+                    const isSelected = selectedCategory?.id === cat.id;
+                    const products = cat.productCount ?? 0;
+                    return (
+                      <div
+                        key={cat.id}
+                        onClick={() => setSelectedCategoryId(cat.id)}
+                        className={`flex cursor-pointer items-center justify-between gap-space-md rounded-lg border p-space-sm transition-colors ${
+                          isSelected
+                            ? 'border-primary bg-primary-fixed/40'
+                            : 'border-subtle bg-surface-canvas hover:bg-surface-bright'
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-space-sm">
+                          <Icon name="folder" className="material-symbols-outlined text-icon text-accent" />
+                          <div className="flex min-w-0 flex-col">
+                            <span className="truncate text-body font-medium text-primary">{cat.name}</span>
+                            <span className="truncate font-mono text-micro text-muted">/{cat.handle}</span>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Women's Ethnic */}
-                <div className="p-3 bg-surface-canvas rounded-lg border border-subtle">
-                  <div className="flex items-center justify-between font-semibold text-primary cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <Icon name="folder" className="material-symbols-outlined text-icon text-accent" />
-                      <span>Women's Ethnic Atelier (48 Sub-categories)</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro">1,280 SKUs Active</span>
-                  </div>
-                  <div className="pl-6 mt-2 space-y-1.5 text-muted">
-                    <div className="flex items-center justify-between py-1 border-b border-subtle">
-                      <span>└── Sarees (Chanderi, Banarasi, Raw Silk, Georgette)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">420 SKUs</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 border-b border-subtle">
-                      <span>└── Kurtas & Sets (Anarkali, Straight Fit, Palazzo Combos)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">540 SKUs</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1">
-                      <span>└── Lehengas & Dupattas (Bridal Velvet, Zari Heavy, Festive Organza)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">320 SKUs</span>
-                    </div>
-                  </div>
+                        <div className="flex shrink-0 items-center gap-space-sm">
+                          <span className="whitespace-nowrap font-mono text-meta text-secondary">
+                            {products} {products === 1 ? 'product' : 'products'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCategory(cat.id, cat.name);
+                            }}
+                            className="rounded p-0.5 text-muted hover:text-danger"
+                            title={`Delete ${cat.name}`}
+                            aria-label={`Delete ${cat.name}`}
+                          >
+                            <Icon name="delete" className="material-symbols-outlined text-icon-sm" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                {/* Men's Sartorial & Casual */}
-                <div className="p-3 bg-surface-canvas rounded-lg border border-subtle">
-                  <div className="flex items-center justify-between font-semibold text-primary cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <Icon name="folder" className="material-symbols-outlined text-icon text-accent" />
-                      <span>Men's Sartorial & Casuals (36 Sub-categories)</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-info text-micro">940 SKUs Active</span>
-                  </div>
-                  <div className="pl-6 mt-2 space-y-1.5 text-muted">
-                    <div className="flex items-center justify-between py-1 border-b border-subtle">
-                      <span>└── Shirts & Knits (Supima Cotton, French Linen, Oxford Weave)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">380 SKUs</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 border-b border-subtle">
-                      <span>└── Outerwear & Tailored (Cashmere Overcoats, Merino Wool, Sherwanis)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">240 SKUs</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1">
-                      <span>└── Denim & Trousers (Shuttle-Loom Selvedge, Pleated Chinos)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">320 SKUs</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
-          {/* TAB 3: Smart Rules Engine */}
-          {activeTab === 'rules' && (
-            <div className="bg-surface-container-lowest p-5 rounded-xl border border-subtle shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-primary">Dynamic Merchandising & Re-ranking Rules</h3>
-                  <p className="text-meta text-muted">24 Active visual rules regulating product placements across storefronts</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-meta text-primary">RULE #01: High Gross Margin Booster</span>
-                    <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">Active in 18 Collections</span>
-                  </div>
-                  <p className="text-meta text-muted">IF Gross Margin &gt;= 55% AND Local FC Stock &gt; 10 THEN Elevate Rank by +35 positions.</p>
-                  <div className="flex items-center gap-4 text-micro text-muted font-mono whitespace-nowrap">
-                    <span>Lift: +4.8% Net Contribution</span>
-                    <span>Evaluation Latency: 12ms</span>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-meta text-primary">RULE #02: Low Inventory Demotion Guardrail</span>
-                    <span className="px-2 py-0.5 rounded-full bg-status-warning-bg text-warning text-micro font-semibold">Storewide Guard</span>
-                  </div>
-                  <p className="text-meta text-muted">IF Total Size Availability &lt; 2 Sizes THEN Demote to Page 2+ to prevent bounce rate spike.</p>
-                  <div className="flex items-center gap-4 text-micro text-muted font-mono whitespace-nowrap">
-                    <span>Prevents 8.4% Out-of-Stock Clicks</span>
-                    <span>Active 24/7</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
         </div>
 
-        {/* RIGHT 4-COLUMNS: Visual Merchandising Inspector Drawer (Exact 1:1 with Stitch design) */}
-        {!selectedDrop ? (
+        {/* RIGHT 4-COLUMNS: the inspector describes whatever the active tab
+            lists. It used to render the collection inspector on every tab, so
+            selecting Taxonomy left a collection's details on screen beside a
+            list of categories. */}
+        {isTree ? (
+          !selectedCategory ? (
+            <div className="xl:col-span-4">
+              <EmptyState
+                icon="account_tree"
+                title="No category selected"
+                description="Pick a category from the taxonomy to inspect it."
+              />
+            </div>
+          ) : (
+            <div className="xl:col-span-4 flex flex-col space-y-space-sm">
+              <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-md flex flex-col space-y-space-md">
+                <div className="flex items-start justify-between gap-space-sm">
+                  <div className="flex min-w-0 flex-col">
+                    <div className="flex items-center gap-1.5 text-caption text-accent uppercase font-semibold">
+                      <Icon name="account_tree" className="material-symbols-outlined text-icon-sm" />
+                      Category Inspector
+                    </div>
+                    <h2 className="text-heading text-primary font-semibold tracking-tight mt-0.5 truncate">
+                      {selectedCategory.name}
+                    </h2>
+                    <span className="font-mono text-body text-secondary">/{selectedCategory.handle}</span>
+                  </div>
+                  <span
+                    className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-caption font-semibold ${
+                      (selectedCategory.productCount ?? 0) > 0
+                        ? 'bg-status-success-bg text-success'
+                        : 'bg-surface-subtle text-muted'
+                    }`}
+                  >
+                    {(selectedCategory.productCount ?? 0) > 0 ? 'IN USE' : 'EMPTY'}
+                  </span>
+                </div>
+
+                {selectedCategory.description && (
+                  <p className="text-meta text-secondary">{selectedCategory.description}</p>
+                )}
+
+                <div className="space-y-space-xs pt-1">
+                  <span className="text-caption text-muted uppercase">Details</span>
+                  <dl className="flex flex-col gap-space-sm rounded-lg border border-subtle bg-surface-canvas p-space-sm">
+                    {[
+                      ['Products', `${selectedCategory.productCount ?? 0}`],
+                      [
+                        'Parent',
+                        selectedCategory.parentId
+                          ? dbCategories.find((c) => c.id === selectedCategory.parentId)?.name ??
+                            selectedCategory.parentId
+                          : 'Top level',
+                      ],
+                      [
+                        'Last updated',
+                        selectedCategory.updatedAt
+                          ? new Date(selectedCategory.updatedAt).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : 'Never',
+                      ],
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex items-center justify-between gap-space-md">
+                        <dt className="text-meta text-muted">{label}</dt>
+                        <dd className="truncate text-body text-primary">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+
+                <div className="flex items-center gap-space-xs border-t border-subtle pt-space-sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon="inventory_2"
+                    onClick={() => onNavigate?.('product-catalog')}
+                  >
+                    View products
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon="delete"
+                    onClick={() => handleDeleteCategory(selectedCategory.id, selectedCategory.name)}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )
+        ) : !selectedDrop ? (
           <div className="xl:col-span-4">
-            <EmptyState icon="collections_bookmark" title="No collection selected" message="Pick a collection from the list to inspect it." />
+            <EmptyState
+              icon="collections_bookmark"
+              title={mergedCollections.length === 0 ? 'No collections yet' : 'No collection selected'}
+              description={
+                mergedCollections.length === 0
+                  ? 'Create a collection drop to start grouping products.'
+                  : 'Pick a collection from the list to inspect it.'
+              }
+            />
           </div>
         ) : (
         <div className="xl:col-span-4 flex flex-col space-y-space-sm">

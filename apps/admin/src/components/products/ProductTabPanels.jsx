@@ -43,7 +43,7 @@ export function VariantMatrixPanel({ product }) {
         <EmptyState
           icon="grid_view"
           title="This product has no variants"
-          message="Variants are created with the product. A product without them is sold as a single SKU."
+          description="Variants are created with the product. A product without them is sold as a single SKU."
         />
       </SectionCard>
     );
@@ -145,7 +145,7 @@ export function StockAllocationPanel({ product, onSave, isSaving, canEdit = true
         <EmptyState
           icon="warehouse"
           title="Nothing to allocate"
-          message="This product has no variants, so there is no stock to hold against it."
+          description="This product has no variants, so there is no stock to hold against it."
         />
       </SectionCard>
     );

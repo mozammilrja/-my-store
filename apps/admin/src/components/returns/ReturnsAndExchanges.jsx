@@ -724,7 +724,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
         {/* Right Pane: Dock Triage & QC Grading Station (4/5 cols) */}
         {!activeReturn ? (
           <div className="lg:col-span-5 xl:col-span-4">
-            <EmptyState icon="swap_horizontal_circle" title="No return selected" message="Pick a return from the queue to inspect it." />
+            <EmptyState icon="swap_horizontal_circle" title="No return selected" description="Pick a return from the queue to inspect it." />
           </div>
         ) : (
         <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-space-md">

@@ -193,7 +193,9 @@ adminStoreRoutes.get("/categories", async (_req, res) => {
       handle: c.handle,
       name: c.name,
       description: c.description ?? null,
+      parentId: c.parentId ?? null,
       productCount: countBy.get(c._id) ?? 0,
+      updatedAt: c.updatedAt ?? null,
     })),
   })
 })

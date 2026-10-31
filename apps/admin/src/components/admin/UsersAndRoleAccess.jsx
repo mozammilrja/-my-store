@@ -718,7 +718,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         {/* RIGHT PANEL: 35% Role Policy Inspector & Deep Controls */}
         {!selectedUser ? (
           <div className="lg:col-span-4">
-            <EmptyState icon="person" title="No team member selected" message="Pick a team member from the list to see their access." />
+            <EmptyState icon="person" title="No team member selected" description="Pick a team member from the list to see their access." />
           </div>
         ) : (
         <div className="lg:col-span-4 space-y-space-md">

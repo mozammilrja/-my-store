@@ -1,4 +1,5 @@
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { Icon } from "@/components/ui/icon"
 
 export function Hero() {
   return (
@@ -34,9 +35,11 @@ export function Hero() {
                 className="px-6 py-3 rounded-lg bg-surface-container-lowest text-primary font-label-md text-label-md tracking-wider uppercase hover:bg-surface-container-high transition-all shadow-md flex items-center gap-2 group font-semibold cursor-pointer"
               >
                 Shop New Season
-                <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">
-                  arrow_forward
-                </span>
+                <Icon
+                  name="arrow_forward"
+                  size={18}
+                  className="group-hover:translate-x-1 transition-transform"
+                />
               </LocalizedClientLink>
 
               <LocalizedClientLink

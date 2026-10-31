@@ -1,6 +1,7 @@
 "use client"
 
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { Icon } from "@/components/ui/icon"
 
 export function ServiceGuarantee() {
   return (
@@ -8,7 +9,7 @@ export function ServiceGuarantee() {
       <div className="p-8 rounded-2xl bg-surface-container-low flex flex-col lg:flex-row items-center justify-between gap-6 shadow-sm">
         <div className="flex items-center gap-5">
           <div className="w-14 h-14 rounded-full bg-surface-container-lowest shadow-sm flex items-center justify-center text-secondary shrink-0">
-            <span className="material-symbols-outlined text-[32px]">auto_stories</span>
+            <Icon name="auto_stories" size={32} />
           </div>
           <div className="flex flex-col">
             <span className="font-label-caps text-label-caps uppercase tracking-wider text-secondary font-bold">

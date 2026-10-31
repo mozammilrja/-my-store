@@ -4,6 +4,7 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 import Image from "next/image"
 import { useState } from "react"
 import { toast } from "sonner"
+import { Icon } from "@/components/ui/icon"
 
 type ProductItem = {
   id: string
@@ -183,9 +184,7 @@ export function TrendingGrid() {
       <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="material-symbols-outlined text-secondary text-[20px]">
-              local_fire_department
-            </span>
+            <Icon name="local_fire_department" size={20} className="text-secondary" />
             <span className="font-label-caps text-label-caps uppercase tracking-wider text-secondary font-semibold">
               Trending Across India
             </span>
@@ -281,14 +280,12 @@ export function TrendingGrid() {
                   onClick={() => toggleWishlist(prod.id, prod.title)}
                   className="absolute top-3 right-3 w-8 h-8 rounded-full bg-surface-container-lowest/90 backdrop-blur-sm flex items-center justify-center text-on-surface hover:text-error transition-colors cursor-pointer"
                 >
-                  <span
-                    className={`material-symbols-outlined text-[18px] ${
-                      isFavorited ? "text-error" : ""
-                    }`}
-                    style={isFavorited ? { fontVariationSettings: "'FILL' 1" } : undefined}
-                  >
-                    favorite
-                  </span>
+                  <Icon
+                    name="favorite"
+                    size={18}
+                    className={isFavorited ? "text-error" : ""}
+                    fill={isFavorited ? "currentColor" : "none"}
+                  />
                 </button>
 
                 {/* Hover Quick Add Size Bar */}
@@ -319,12 +316,12 @@ export function TrendingGrid() {
                   <div className="flex items-center justify-between text-on-surface-variant font-label-caps text-label-caps uppercase">
                     <span>{prod.brand}</span>
                     <span className="flex items-center gap-0.5 text-on-surface">
-                      <span
-                        className="material-symbols-outlined text-[14px]"
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        star
-                      </span>{" "}
+                      <Icon
+                        name="star"
+                        size={14}
+                        fill="currentColor"
+                        className="text-amber-500"
+                      />{" "}
                       {prod.rating}
                     </span>
                   </div>

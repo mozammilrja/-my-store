@@ -92,7 +92,7 @@ export function CartDrawer() {
           data-testid="nav-cart-link"
         >
           <div className="relative flex items-center">
-            <span className="material-symbols-outlined text-on-surface text-[22px]">shopping_bag</span>
+            <ShoppingBagIcon className="size-[22px] text-on-surface" />
             <span
               className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-secondary text-on-secondary font-label-caps text-[9px] rounded-full flex items-center justify-center font-bold"
               data-testid="nav-cart-count"

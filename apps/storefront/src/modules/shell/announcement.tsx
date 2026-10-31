@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { X } from "lucide-react"
 
 export function Announcement({
   countryCode,
@@ -44,7 +45,7 @@ export function Announcement({
           onClick={() => setDismissed(true)}
           className="p-1 text-on-primary/60 hover:text-on-primary transition-colors flex items-center justify-center shrink-0 cursor-pointer"
         >
-          <span className="material-symbols-outlined text-[16px]">close</span>
+          <X className="size-4" />
         </button>
       </div>
     </div>

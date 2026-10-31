@@ -1,11 +1,11 @@
+import { Icon } from "@/components/ui/icon"
+
 export function MetricsTicker() {
   return (
     <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin py-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-surface-container-low rounded-lg p-4 flex items-center gap-3">
-          <span className="material-symbols-outlined text-primary text-[24px] shrink-0">
-            dry_cleaning
-          </span>
+          <Icon name="dry_cleaning" size={24} className="text-primary" />
           <div>
             <span className="font-label-sm text-label-sm font-semibold text-on-surface block">
               Pre-Shrunk 100% Cotton
@@ -17,9 +17,7 @@ export function MetricsTicker() {
         </div>
 
         <div className="bg-surface-container-low rounded-lg p-4 flex items-center gap-3">
-          <span className="material-symbols-outlined text-primary text-[24px] shrink-0">
-            straighten
-          </span>
+          <Icon name="straighten" size={24} className="text-primary" />
           <div>
             <span className="font-label-sm text-label-sm font-semibold text-on-surface block">
               Calibrated Indian Fit
@@ -31,9 +29,7 @@ export function MetricsTicker() {
         </div>
 
         <div className="bg-surface-container-low rounded-lg p-4 flex items-center gap-3">
-          <span className="material-symbols-outlined text-primary text-[24px] shrink-0">
-            local_shipping
-          </span>
+          <Icon name="local_shipping" size={24} className="text-primary" />
           <div>
             <span className="font-label-sm text-label-sm font-semibold text-on-surface block">
               Same-Day Dispatch
@@ -45,9 +41,7 @@ export function MetricsTicker() {
         </div>
 
         <div className="bg-surface-container-low rounded-lg p-4 flex items-center gap-3">
-          <span className="material-symbols-outlined text-primary text-[24px] shrink-0">
-            swap_horizontal_circle
-          </span>
+          <Icon name="swap_horizontal_circle" size={24} className="text-primary" />
           <div>
             <span className="font-label-sm text-label-sm font-semibold text-on-surface block">
               Doorstep Try &amp; Exchange

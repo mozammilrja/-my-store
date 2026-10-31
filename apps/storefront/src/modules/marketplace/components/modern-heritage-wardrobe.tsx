@@ -7,6 +7,7 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { addToCart } from "@lib/data/shop"
 import { notifyCartUpdated } from "@lib/util/cart-events"
+import { Icon } from "@/components/ui/icon"
 
 const PRODUCTS = [
   {
@@ -131,7 +132,7 @@ export function ModernHeritageWardrobe() {
             href="/store"
             className="px-4 py-2 rounded bg-surface-container-low text-on-surface font-label-sm text-label-sm hover:bg-surface-container transition-colors flex items-center gap-2"
           >
-            <span className="material-symbols-outlined text-[18px]">filter_list</span>
+            <Icon name="filter_list" size={18} />
             <span>Refine Filters</span>
           </LocalizedClientLink>
           <LocalizedClientLink
@@ -139,7 +140,7 @@ export function ModernHeritageWardrobe() {
             className="px-4 py-2 rounded bg-primary text-on-primary font-label-sm text-label-sm hover:bg-surface-container-highest hover:text-on-surface transition-colors flex items-center gap-2 font-medium"
           >
             <span>Sort: Curated Editorial</span>
-            <span className="material-symbols-outlined text-[16px]">expand_more</span>
+            <Icon name="expand_more" size={16} />
           </LocalizedClientLink>
         </div>
       </div>
@@ -176,9 +177,11 @@ export function ModernHeritageWardrobe() {
                     : "bg-surface-container-lowest/80 text-on-surface hover:bg-primary hover:text-on-primary"
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">
-                  {favorites[prod.id] ? "favorite" : "favorite_border"}
-                </span>
+                <Icon
+                  name={favorites[prod.id] ? "favorite" : "favorite_border"}
+                  size={16}
+                  fill={favorites[prod.id] ? "currentColor" : "none"}
+                />
               </button>
             </LocalizedClientLink>
 

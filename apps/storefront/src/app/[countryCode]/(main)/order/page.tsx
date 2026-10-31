@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { Container } from "@/components/store/container"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { TruckIcon, PackageCheckIcon } from "lucide-react"
+import { Icon } from "@/components/ui/icon"
 
 export default function OrderTrackingPage() {
   const params = useParams()
@@ -124,7 +125,7 @@ export default function OrderTrackingPage() {
             href="/shipping"
             className="p-4 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors flex flex-col gap-1 border border-border/40"
           >
-            <span className="material-symbols-outlined text-[22px] text-primary">schedule</span>
+            <Icon name="schedule" size={22} className="text-primary" />
             <span className="font-label-sm font-semibold text-on-surface mt-1">Shipping &amp; Transit Times</span>
             <span className="font-body-sm text-xs text-on-surface-variant">Review metro &amp; standard shipping delivery windows.</span>
           </LocalizedClientLink>
@@ -133,7 +134,7 @@ export default function OrderTrackingPage() {
             href="/returns"
             className="p-4 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors flex flex-col gap-1 border border-border/40"
           >
-            <span className="material-symbols-outlined text-[22px] text-primary">assignment_return</span>
+            <Icon name="assignment_return" size={22} className="text-primary" />
             <span className="font-label-sm font-semibold text-on-surface mt-1">Returns &amp; Exchanges</span>
             <span className="font-body-sm text-xs text-on-surface-variant">Initiate a 14-day doorstep exchange or return.</span>
           </LocalizedClientLink>
@@ -142,7 +143,7 @@ export default function OrderTrackingPage() {
             href="/contact"
             className="p-4 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors flex flex-col gap-1 border border-border/40"
           >
-            <span className="material-symbols-outlined text-[22px] text-primary">support_agent</span>
+            <Icon name="support_agent" size={22} className="text-primary" />
             <span className="font-label-sm font-semibold text-on-surface mt-1">Live Concierge Desk</span>
             <span className="font-body-sm text-xs text-on-surface-variant">Connect directly with our dedicated customer team.</span>
           </LocalizedClientLink>

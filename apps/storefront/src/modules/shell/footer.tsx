@@ -3,6 +3,7 @@
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { toast } from "sonner"
 import { useState } from "react"
+import { Icon } from "@/components/ui/icon"
 
 export function Footer() {
   const [email, setEmail] = useState("")
@@ -19,9 +20,7 @@ export function Footer() {
         {/* Top Feature Badges */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-space-lg pb-space-xl border-b border-surface-container">
           <div className="flex items-start gap-space-sm">
-            <span className="material-symbols-outlined text-primary text-[28px] shrink-0">
-              verified
-            </span>
+            <Icon name="verified" size={28} className="text-primary" />
             <div>
               <h5 className="font-label-md text-label-md font-semibold text-on-surface">
                 100% Genuine Curations
@@ -33,9 +32,7 @@ export function Footer() {
           </div>
 
           <div className="flex items-start gap-space-sm">
-            <span className="material-symbols-outlined text-primary text-[28px] shrink-0">
-              published_with_changes
-            </span>
+            <Icon name="published_with_changes" size={28} className="text-primary" />
             <div>
               <h5 className="font-label-md text-label-md font-semibold text-on-surface">
                 Complimentary Exchanges
@@ -47,9 +44,7 @@ export function Footer() {
           </div>
 
           <div className="flex items-start gap-space-sm">
-            <span className="material-symbols-outlined text-primary text-[28px] shrink-0">
-              lock
-            </span>
+            <Icon name="lock" size={28} className="text-primary" />
             <div>
               <h5 className="font-label-md text-label-md font-semibold text-on-surface">
                 Encrypted Settlements
@@ -61,9 +56,7 @@ export function Footer() {
           </div>
 
           <div className="flex items-start gap-space-sm">
-            <span className="material-symbols-outlined text-primary text-[28px] shrink-0">
-              loyalty
-            </span>
+            <Icon name="loyalty" size={28} className="text-primary" />
             <div>
               <h5 className="font-label-md text-label-md font-semibold text-on-surface">
                 Atelier Privilege Club

@@ -1,5 +1,6 @@
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
+import { Icon } from "@/components/ui/icon"
 
 const WORKSHOPS = [
   {
@@ -79,9 +80,7 @@ export function AtelierSpotlights() {
                   <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
                     {shop.title}
                   </h3>
-                  <span className="material-symbols-outlined text-secondary text-[20px]">
-                    {shop.icon}
-                  </span>
+                  <Icon name={shop.icon} size={20} className="text-secondary" />
                 </div>
                 <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mt-0.5">
                   {shop.subtitle}
@@ -101,9 +100,7 @@ export function AtelierSpotlights() {
                 className="font-label-caps text-label-caps text-primary uppercase font-bold tracking-wider hover:text-secondary flex items-center gap-1 cursor-pointer"
               >
                 Explore Origin{" "}
-                <span className="material-symbols-outlined text-[14px]">
-                  arrow_forward
-                </span>
+                <Icon name="arrow_forward" size={14} />
               </LocalizedClientLink>
             </div>
           </div>

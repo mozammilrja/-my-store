@@ -1,4 +1,5 @@
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { Icon } from "@/components/ui/icon"
 
 const PILLARS = [
   {
@@ -79,9 +80,7 @@ export function WardrobeDirectory() {
           {PILLARS.map((pillar, idx) => (
             <div key={idx} className="flex flex-col gap-3">
               <div className="flex items-center gap-2 pb-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">
-                  {pillar.icon}
-                </span>
+                <Icon name={pillar.icon} size={20} className="text-primary" />
                 <h3 className="font-label-md text-label-md font-bold text-on-surface uppercase tracking-wider">
                   {pillar.title}
                 </h3>

@@ -3,6 +3,7 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 import { ProductListing } from "@modules/catalog/product-listing"
 import type { Listing } from "@modules/catalog/params"
 import type { Category } from "@lib/api/types"
+import { Icon } from "@/components/ui/icon"
 
 const SUBCATEGORIES = [
   {
@@ -107,7 +108,7 @@ export function MenDepartmentLanding({
                   className="px-6 py-3 rounded-lg bg-white text-black font-label-md text-xs sm:text-sm tracking-wider uppercase hover:bg-neutral-200 transition-all shadow-md flex items-center gap-2 font-semibold"
                 >
                   Shop New Season
-                  <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                  <Icon name="arrow_forward" size={18} />
                 </a>
                 <LocalizedClientLink
                   href="/categories/shirts"
@@ -125,28 +126,28 @@ export function MenDepartmentLanding({
       <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin py-3">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-surface-container-low rounded-xl p-3.5 flex items-center gap-3 border border-border/60">
-            <span className="material-symbols-outlined text-primary text-[24px]">dry_cleaning</span>
+            <Icon name="dry_cleaning" size={24} className="text-primary" />
             <div>
               <span className="font-label-sm text-xs font-semibold text-on-surface block">Pre-Shrunk 100% Cotton</span>
               <span className="font-body-sm text-[11px] text-on-surface-variant">Lab-tested color fastness</span>
             </div>
           </div>
           <div className="bg-surface-container-low rounded-xl p-3.5 flex items-center gap-3 border border-border/60">
-            <span className="material-symbols-outlined text-primary text-[24px]">straighten</span>
+            <Icon name="straighten" size={24} className="text-primary" />
             <div>
               <span className="font-label-sm text-xs font-semibold text-on-surface block">Calibrated Indian Fit</span>
               <span className="font-body-sm text-[11px] text-on-surface-variant">Sized XS to 4XL tailored precision</span>
             </div>
           </div>
           <div className="bg-surface-container-low rounded-xl p-3.5 flex items-center gap-3 border border-border/60">
-            <span className="material-symbols-outlined text-primary text-[24px]">local_shipping</span>
+            <Icon name="local_shipping" size={24} className="text-primary" />
             <div>
               <span className="font-label-sm text-xs font-semibold text-on-surface block">Same-Day Dispatch</span>
               <span className="font-body-sm text-[11px] text-on-surface-variant">In 18 metro hub pincodes</span>
             </div>
           </div>
           <div className="bg-surface-container-low rounded-xl p-3.5 flex items-center gap-3 border border-border/60">
-            <span className="material-symbols-outlined text-primary text-[24px]">swap_horizontal_circle</span>
+            <Icon name="swap_horizontal_circle" size={24} className="text-primary" />
             <div>
               <span className="font-label-sm text-xs font-semibold text-on-surface block">Doorstep Try &amp; Exchange</span>
               <span className="font-body-sm text-[11px] text-on-surface-variant">14-day zero hassle pickup</span>

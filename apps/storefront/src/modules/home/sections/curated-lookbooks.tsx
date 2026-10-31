@@ -3,6 +3,7 @@
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
 import { useRef } from "react"
+import { Icon } from "@/components/ui/icon"
 
 const LOOKBOOKS = [
   {
@@ -74,7 +75,7 @@ export function CuratedLookbooks() {
             onClick={() => scroll("left")}
             className="w-10 h-10 rounded-full bg-surface-container-low hover:bg-surface-container flex items-center justify-center text-on-surface transition-colors cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[20px]">west</span>
+            <Icon name="west" size={20} />
           </button>
           <button
             type="button"
@@ -82,7 +83,7 @@ export function CuratedLookbooks() {
             onClick={() => scroll("right")}
             className="w-10 h-10 rounded-full bg-surface-container-low hover:bg-surface-container flex items-center justify-center text-on-surface transition-colors cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[20px]">east</span>
+            <Icon name="east" size={20} />
           </button>
         </div>
       </div>

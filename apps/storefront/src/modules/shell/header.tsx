@@ -7,6 +7,7 @@ import { CartDrawer } from "./cart-drawer"
 import { MegaMenu } from "./mega-menu"
 import { MobileNav, NavLink } from "./mobile-nav"
 import { SearchDialog } from "./search-dialog"
+import { Icon } from "@/components/ui/icon"
 
 export const NEW_IN_HREF = "/store?sort=newest"
 
@@ -65,7 +66,7 @@ export async function Header({ countryCode }: { countryCode: string }) {
                 href="/contact"
                 className="hidden lg:flex flex-col items-center px-2 py-1 text-on-surface-variant hover:text-on-surface transition-colors"
               >
-                <span className="material-symbols-outlined text-[22px]">support_agent</span>
+                <Icon name="support_agent" size={22} />
                 <span className="font-label-caps text-label-caps uppercase mt-1">Concierge</span>
               </LocalizedClientLink>
 
@@ -73,7 +74,7 @@ export async function Header({ countryCode }: { countryCode: string }) {
                 href="/account"
                 className="relative flex flex-col items-center px-2 py-1 text-on-surface-variant hover:text-on-surface transition-colors"
               >
-                <span className="material-symbols-outlined text-[22px]">favorite</span>
+                <Icon name="favorite" size={22} />
                 <span className="absolute top-0 right-1 w-4 h-4 bg-primary text-on-primary font-label-caps text-[9px] rounded-full flex items-center justify-center font-bold">
                   3
                 </span>
@@ -95,8 +96,8 @@ export async function Header({ countryCode }: { countryCode: string }) {
                   data-testid="nav-account-link"
                   className="flex items-center gap-2 group"
                 >
-                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                    <span className="material-symbols-outlined text-on-primary text-[18px]">person</span>
+                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary">
+                    <Icon name="person" size={18} />
                   </div>
                 </LocalizedClientLink>
               </div>

@@ -50,6 +50,15 @@ export default function RootLayout(props: { children: React.ReactNode }) {
       data-mode="light"
       className={`${inter.variable} ${display.variable}`}
     >
+      <head>
+        <link
+          rel="preload"
+          href="/fonts/material-symbols-outlined.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body>
         <TooltipProvider>
           <main className="relative">{props.children}</main>

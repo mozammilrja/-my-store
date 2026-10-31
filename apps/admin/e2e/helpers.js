@@ -108,8 +108,15 @@ export async function gotoModule(page, path) {
    * icon font load the browser lays out with a wider fallback, so borderline
    * strings wrap to an extra line and typography assertions failed on some
    * runs and not others depending on whether the font was already cached.
+   *
+   * waitForFunction rather than evaluating the fonts.ready promise: a module
+   * that rewrites the URL on mount navigates underneath us and destroys the
+   * execution context mid-promise. waitForFunction re-runs after a navigation
+   * instead of failing.
    */
-  await page.evaluate(() => document.fonts.ready)
+  await page.waitForFunction(() => document.fonts.status === "loaded", undefined, {
+    timeout: 15_000,
+  })
   await page.waitForFunction(
     () => !document.querySelector('main [role="status"][aria-busy="true"]'),
     undefined,

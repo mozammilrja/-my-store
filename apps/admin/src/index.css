@@ -2,6 +2,160 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url('/fonts/material-symbols-outlined.woff2') format('woff2');
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga' 1;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  user-select: none;
+  vertical-align: middle;
+}
+
+/* ========================================================
+   Design Tokens - CSS Custom Properties (Light / Dark)
+   ======================================================== */
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --surface-canvas: 250 250 250;
+  --surface-container-lowest: 255 255 255;
+  --surface-container-low: 244 242 253;
+  --surface-container: 238 237 247;
+  --surface-container-high: 232 231 241;
+  --surface-container-highest: 227 225 236;
+  --surface-subtle: 244 244 245;
+  --surface: 251 248 255;
+  --surface-bright: 251 248 255;
+  --surface-dim: 218 217 227;
+  --surface-variant: 227 225 236;
+  --background: 251 248 255;
+
+  /* Borders & Dividers */
+  --border-subtle: 228 228 231;
+  --border-strong: 212 212 216;
+
+  /* Text & Typography */
+  --text-primary: 9 9 11;
+  --text-secondary: 113 113 122;
+  --on-surface: 26 27 34;
+  --on-surface-variant: 74 68 85;
+  --on-background: 26 27 34;
+  --secondary: 95 94 96;
+
+  /* Secondary Surfaces & Outlines */
+  --secondary-fixed: 229 225 228;
+  --secondary-fixed-dim: 200 198 200;
+  --secondary-container: 229 225 228;
+  --on-secondary: 255 255 255;
+  --on-secondary-container: 101 100 102;
+  --on-secondary-fixed: 28 27 29;
+  --on-secondary-fixed-variant: 71 70 73;
+
+  --outline: 123 116 134;
+  --outline-variant: 204 195 215;
+
+  /* Status Pill Backgrounds */
+  --status-success-bg: 236 253 245;
+  --status-warning-bg: 255 251 235;
+  --status-danger-bg: 255 241 242;
+  --status-info-bg: 239 246 255;
+
+  /* Primary Branding & Accents */
+  --primary: 83 0 183;
+  --primary-container: 109 40 217;
+  --primary-fixed: 235 221 255;
+  --primary-fixed-dim: 211 187 255;
+  --on-primary: 255 255 255;
+  --on-primary-container: 218 197 255;
+  --on-primary-fixed: 37 0 89;
+  --on-primary-fixed-variant: 91 0 197;
+  --inverse-primary: 211 187 255;
+  --inverse-surface: 47 48 56;
+  --inverse-on-surface: 241 239 250;
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* Surfaces - Layered Enterprise Dark Palette */
+  --surface-canvas: 13 14 18;
+  --surface-container-lowest: 19 21 27;
+  --surface-container-low: 24 26 34;
+  --surface-container: 30 32 42;
+  --surface-container-high: 37 40 54;
+  --surface-container-highest: 45 49 66;
+  --surface-subtle: 26 28 38;
+  --surface: 19 21 27;
+  --surface-bright: 37 40 54;
+  --surface-dim: 15 16 21;
+  --surface-variant: 30 32 42;
+  --background: 13 14 18;
+
+  /* Borders & Dividers */
+  --border-subtle: 38 41 56;
+  --border-strong: 54 58 78;
+
+  /* Text & Typography */
+  --text-primary: 243 244 246;
+  --text-secondary: 156 163 175;
+  --on-surface: 243 244 246;
+  --on-surface-variant: 156 163 175;
+  --on-background: 243 244 246;
+  --secondary: 156 163 175;
+
+  /* Secondary Surfaces & Outlines */
+  --secondary-fixed: 37 40 54;
+  --secondary-fixed-dim: 30 32 42;
+  --secondary-container: 30 32 42;
+  --on-secondary: 243 244 246;
+  --on-secondary-container: 209 213 219;
+  --on-secondary-fixed: 243 244 246;
+  --on-secondary-fixed-variant: 156 163 175;
+
+  --outline: 74 78 99;
+  --outline-variant: 45 49 66;
+
+  /* Status Pill Backgrounds - High Contrast Dark Accents */
+  --status-success-bg: 16 48 38;
+  --status-warning-bg: 50 32 12;
+  --status-danger-bg: 52 18 26;
+  --status-info-bg: 18 36 64;
+
+  /* Primary Branding & Accents */
+  --primary: 139 92 246;
+  --primary-container: 109 40 217;
+  --primary-fixed: 54 30 92;
+  --primary-fixed-dim: 76 40 128;
+  --on-primary: 255 255 255;
+  --on-primary-container: 237 233 254;
+  --on-primary-fixed: 221 214 254;
+  --on-primary-fixed-variant: 196 181 253;
+  --inverse-primary: 109 40 217;
+  --inverse-surface: 243 244 246;
+  --inverse-on-surface: 19 21 27;
+}
+
 @layer base {
   * {
     @apply border-border-subtle;
@@ -9,145 +163,161 @@
   body {
     @apply bg-surface-canvas text-text-primary;
     font-feature-settings: "rlig" 1, "calt" 1;
-    transition: background-color 0.2s ease, color 0.2s ease;
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
 }
 
 /* ========================================================
-   Admin Complete Dark Theme System (Tailwind Dark Mode)
+   Direct Utility Overrides for Dev Server & PostCSS Hot Sync
+   Ensures 100% Consistent Dark Mode In Every Environment
    ======================================================== */
-.dark {
-  color-scheme: dark;
-}
 
-/* Surfaces */
+/* Dark Mode Surfaces & Canvas */
 .dark body,
 .dark .bg-surface-canvas {
-  background-color: #0b0c10 !important;
+  background-color: rgb(var(--surface-canvas)) !important;
 }
 
-.dark .bg-surface-container-lowest,
-.dark .bg-white {
-  background-color: #121319 !important;
+.dark .bg-surface-container-lowest {
+  background-color: rgb(var(--surface-container-lowest)) !important;
+}
+
+/* Opacity variants used in Header, Modals, Overlays */
+.dark .bg-surface-container-lowest\/90 {
+  background-color: rgba(19, 21, 27, 0.9) !important;
+}
+
+.dark .bg-surface-container-lowest\/80 {
+  background-color: rgba(19, 21, 27, 0.8) !important;
 }
 
 .dark .bg-surface-container-low {
-  background-color: #161822 !important;
+  background-color: rgb(var(--surface-container-low)) !important;
 }
 
 .dark .bg-surface-container {
-  background-color: #1c1e2b !important;
+  background-color: rgb(var(--surface-container)) !important;
 }
 
 .dark .bg-surface-container-high {
-  background-color: #232536 !important;
+  background-color: rgb(var(--surface-container-high)) !important;
 }
 
 .dark .bg-surface-container-highest {
-  background-color: #2a2d40 !important;
+  background-color: rgb(var(--surface-container-highest)) !important;
 }
 
 .dark .bg-surface-subtle {
-  background-color: #181a24 !important;
+  background-color: rgb(var(--surface-subtle)) !important;
 }
 
-/* Text & Headings */
+/* Dark Mode Borders & Dividing Lines */
+.dark .border-border-subtle {
+  border-color: rgb(var(--border-subtle)) !important;
+}
+
+.dark .border-border-subtle\/50 {
+  border-color: rgba(38, 41, 56, 0.5) !important;
+}
+
+.dark .divide-border-subtle > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(var(--border-subtle)) !important;
+}
+
+.dark .divide-border-subtle\/50 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(38, 41, 56, 0.5) !important;
+}
+
+.dark .border-border-strong {
+  border-color: rgb(var(--border-strong)) !important;
+}
+
+/* Dark Mode Text & Typography */
 .dark .text-text-primary,
-.dark .text-on-surface,
-.dark .text-zinc-900,
-.dark .text-gray-900,
-.dark .text-slate-900 {
-  color: #f3f4f6 !important;
+.dark .text-on-surface {
+  color: rgb(var(--text-primary)) !important;
 }
 
 .dark .text-text-secondary,
 .dark .text-secondary,
-.dark .text-on-surface-variant,
-.dark .text-zinc-500,
-.dark .text-zinc-600,
-.dark .text-gray-500,
-.dark .text-gray-600 {
-  color: #9ca3af !important;
+.dark .text-on-surface-variant {
+  color: rgb(var(--text-secondary)) !important;
 }
 
-/* Borders & Dividers */
-.dark .border-border-subtle,
-.dark .border-zinc-200,
-.dark .border-gray-200 {
-  border-color: #222433 !important;
+/* Dark Mode Interactive States & Hover */
+.dark .hover\:bg-surface-subtle:hover {
+  background-color: rgb(var(--surface-subtle)) !important;
 }
 
-.dark .border-border-strong,
-.dark .border-zinc-300,
-.dark .border-gray-300 {
-  border-color: #32364a !important;
+.dark .hover\:bg-surface-container:hover {
+  background-color: rgb(var(--surface-container)) !important;
 }
 
-/* Status Pills & Indicators */
-.dark .bg-status-success-bg {
-  background-color: rgba(5, 150, 105, 0.18) !important;
+.dark .hover\:bg-surface-container-high:hover {
+  background-color: rgb(var(--surface-container-high)) !important;
 }
 
-.dark .bg-status-warning-bg {
-  background-color: rgba(217, 119, 6, 0.18) !important;
-}
-
-.dark .bg-status-danger-bg {
-  background-color: rgba(225, 29, 72, 0.18) !important;
-}
-
-.dark .bg-status-info-bg {
-  background-color: rgba(37, 99, 235, 0.18) !important;
+.dark .hover\:bg-surface-container-low:hover {
+  background-color: rgb(var(--surface-container-low)) !important;
 }
 
 /* Form Controls & Inputs */
 .dark input,
 .dark textarea,
 .dark select {
-  background-color: #161822 !important;
-  color: #f3f4f6 !important;
-  border-color: #2a2d40 !important;
+  background-color: rgb(var(--surface-container-lowest));
+  color: rgb(var(--text-primary));
+  border-color: rgb(var(--border-subtle));
+  color-scheme: dark;
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #6b7280 !important;
+  color: rgb(var(--text-secondary));
 }
 
 .dark input:focus,
 .dark textarea:focus,
 .dark select:focus {
-  border-color: #8b5cf6 !important;
-  outline-color: #8b5cf6 !important;
+  border-color: rgb(var(--primary-container));
+  outline-color: rgb(var(--primary-container));
 }
 
-/* Interactive Hovers & Selections */
-.dark .hover\:bg-surface-subtle:hover,
-.dark .hover\:bg-surface-container-low:hover,
-.dark .hover\:bg-zinc-50:hover,
-.dark .hover\:bg-gray-50:hover {
-  background-color: #1c1e2b !important;
+/* Fallback for hardcoded light classes */
+.dark .bg-white {
+  background-color: rgb(var(--surface-container-lowest)) !important;
 }
 
-/* Dialogs, Drawers & Modals */
+.dark .text-black,
+.dark .text-zinc-900,
+.dark .text-gray-900,
+.dark .text-slate-900 {
+  color: rgb(var(--text-primary)) !important;
+}
+
+.dark .text-zinc-500,
+.dark .text-zinc-600,
+.dark .text-gray-500,
+.dark .text-gray-600 {
+  color: rgb(var(--text-secondary)) !important;
+}
+
+.dark .border-zinc-200,
+.dark .border-gray-200 {
+  border-color: rgb(var(--border-subtle)) !important;
+}
+
+.dark .border-zinc-300,
+.dark .border-gray-300 {
+  border-color: rgb(var(--border-strong)) !important;
+}
+
+/* Dialogs, Drawers & Popovers */
 .dark [role="dialog"],
+.dark [role="listbox"],
 .dark [data-state="open"] {
-  background-color: #121319 !important;
-  border-color: #262838 !important;
-}
-
-/* Table Headers & Rows */
-.dark th {
-  background-color: #161822 !important;
-  color: #9ca3af !important;
-}
-
-.dark td {
-  border-color: #222433 !important;
-}
-
-.dark tr:hover td {
-  background-color: #161822 !important;
+  background-color: rgb(var(--surface-container-lowest));
+  border-color: rgb(var(--border-subtle));
 }
 
 /* Shadows in Dark Mode */
@@ -155,8 +325,9 @@
 .dark .shadow-sm,
 .dark .shadow-md,
 .dark .shadow-lg,
-.dark .shadow-xl {
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.6) !important;
+.dark .shadow-xl,
+.dark .shadow-2xl {
+  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.65) !important;
 }
 
 /* Scrollbars in Dark Mode */
@@ -166,41 +337,27 @@
 }
 
 .dark ::-webkit-scrollbar-track {
-  background: #0b0c10;
+  background: rgb(var(--surface-canvas));
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #232536;
+  background: rgb(var(--surface-container-high));
   border-radius: 9999px;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #32364a;
+  background: rgb(var(--surface-container-highest));
 }
 
-/* Badges, Kbd and Highlighting */
+/* Kbd Elements */
 .dark kbd {
-  background-color: #1c1e2b !important;
-  color: #9ca3af !important;
-  border-color: #2a2d40 !important;
-}
-
-.dark .bg-primary-fixed {
-  background-color: rgba(109, 40, 217, 0.25) !important;
-  color: #ddd6fe !important;
-}
-
-.dark .text-on-primary-fixed {
-  color: #ddd6fe !important;
-}
-
-.dark .bg-primary-fixed\/40 {
-  background-color: rgba(109, 40, 217, 0.3) !important;
-  color: #c4b5fd !important;
+  background-color: rgb(var(--surface-subtle));
+  color: rgb(var(--text-secondary));
+  border-color: rgb(var(--border-subtle));
 }
 
 /* Dark Mode SVGs, Guidelines & Vector Rings */
 .dark svg line[stroke="#F4F4F5"],
 .dark svg circle[stroke="#F4F4F5"] {
-  stroke: #222433 !important;
+  stroke: rgb(var(--border-subtle)) !important;
 }

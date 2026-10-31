@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { INITIAL_RETURNS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useOrdersQuery, useUpdateOrderStatusMutation, useProcessReturnMutation } from '../../hooks/useAdminQueries';
 import { Icon,
@@ -42,10 +41,55 @@ import { Icon,
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
+import { EmptyState } from '../shared/FeedbackAndOverlays';
+
+/** The return lifecycle the API models, in order. */
+const RETURN_STAGE = {
+  requested: { label: 'Requested', step: 0 },
+  approved: { label: 'Approved', step: 1 },
+  pickup_scheduled: { label: 'Pickup scheduled', step: 2 },
+  received: { label: 'Received', step: 3 },
+  inspected: { label: 'Inspected', step: 4 },
+  refunded: { label: 'Refunded', step: 5 },
+  rejected: { label: 'Rejected', step: 5 },
+};
+
+const fullDate = (value) =>
+  value
+    ? new Date(value).toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : 'Unknown';
+
+/**
+ * The stages this return has actually reached. The record carries the current
+ * status and two timestamps, so stages up to the current one are marked done
+ * and the rest are shown as still to come, rather than inventing scan times.
+ */
+function buildTimeline(order, returnRequest) {
+  const current = RETURN_STAGE[returnRequest?.status];
+  return Object.entries(RETURN_STAGE)
+    .filter(([key]) => key !== 'rejected' || returnRequest?.status === 'rejected')
+    .map(([key, stage]) => ({
+      label: stage.label,
+      done: current ? stage.step <= current.step : false,
+      isCurrent: returnRequest?.status === key,
+      at:
+        returnRequest?.status === key
+          ? fullDate(returnRequest?.updatedAt ?? returnRequest?.requestedAt)
+          : stage.step === 0 && returnRequest?.requestedAt
+            ? fullDate(returnRequest.requestedAt)
+            : null,
+    }));
+}
 
 export function ReturnsAndExchanges({ onShowToast, currentHub }) {
-  const [returnsList, setReturnsList] = useState(INITIAL_RETURNS);
-  const [selectedReturnId, setSelectedReturnId] = useState('RET-2024-89211');
+  const [returnsList, setReturnsList] = useState([]);
+  const [selectedReturnId, setSelectedReturnId] = useState(null);
   const [activeTab, setActiveTab] = useState('Pending QC');
   const [searchQuery, setSearchQuery] = useState('');
   const [reasonFilter, setReasonFilter] = useState('All');
@@ -73,6 +117,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
           const amountNum = ord.totals?.total ? ord.totals.total / 100 : 2799;
           const customerName = ord.shippingAddress ? `${ord.shippingAddress.firstName || ''} ${ord.shippingAddress.lastName || ''}`.trim() : ord.email;
           const firstItem = ord.items?.[0];
+          const rr = ord.returnRequest;
 
           return {
             id: `RET-2024-${89000 + (ord.displayId || idx)}`,
@@ -95,22 +140,27 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               color: 'Artisan Finish',
               image: firstItem?.thumbnail || 'https://lh3.googleusercontent.com/aida-public/AB6AXuCRc7p8-sFVXf_4tMKl_INWCswdgvyHVPmUN_QEIGfHhb-FdAAYqf-IJW6dDBOp8Oq8upu2YDuVnnNI_yA6V_cjyzBcP9y2WUAP50JmlnjYjXgR8Xe5UTSI_zsJUdaQeg-KJMo8tCAwhjaXR9V6nKKhmYZJy5F-BcetGkiRPBb41ZlKtAH5QVFcGVl3b8HsgOQEN36lKupdRUArLfZkGbfWb_cJPLWGj371Ao8_U7zJ',
             },
-            returnReason: 'Size/Fit Issue',
-            reasonDetail: 'Customer requested doorstep size exchange / refund inspection.',
-            requestedDate: '24 May 2024, 11:20 IST',
-            qcStatus: 'Pending Inspection',
-            qcGrade: 'Pending',
-            refundStatus: ord.paymentStatus === 'refunded' ? 'Disbursed' : 'Awaiting QC Approval',
+            // From the order's own return request. The reason, the dates and
+            // the reverse AWB used to be fixed strings regardless of the record.
+            returnReason: rr?.reason || 'Not given',
+            reasonDetail: rr?.reason || 'No detail was recorded with this request.',
+            requestedDate: rr?.requestedAt ? fullDate(rr.requestedAt) : fullDate(ord.createdAt),
+            qcStatus: RETURN_STAGE[rr?.status]?.label ?? 'Not inspected',
+            qcGrade: rr?.status === 'inspected' || rr?.status === 'refunded' ? 'Inspected' : 'Pending',
+            refundStatus: ord.paymentStatus === 'refunded' ? 'Refunded' : 'Awaiting refund',
             refundValue: amountNum,
-            settlementEngine: 'Instant UPI (Razorpay)',
-            channel: 'Storefront Self-Service',
-            hubLocation: 'BLR-FC1 Hub',
-            courier: {
-              partner: 'BlueDart Reverse',
-              awb: `R-BLR-${Math.floor(10000000 + Math.random() * 90000000)}`,
-              pickupTime: 'Today, 17:30 IST',
-            },
-            returnType: 'Refund to Original Source',
+            timeline: buildTimeline(ord, rr),
+            channel: 'Storefront',
+            // The order records how it was paid; the refund goes back the same way.
+            settlementEngine:
+              { cod: 'Bank transfer (was cash on delivery)', razorpay: 'Razorpay', stripe: 'Stripe' }[
+                ord.paymentMethod
+              ] ?? 'Original payment method',
+            customerNote: rr?.reason ?? null,
+            courier: rr?.returnAwb
+              ? { partner: rr.carrier || 'Carrier not set', awb: rr.returnAwb, pickupTime: null }
+              : null,
+            returnType: 'Refund to the original payment method',
           };
         });
         // Replace, never append: under StrictMode this effect runs twice and
@@ -151,7 +201,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
         const matchesId = item.id.toLowerCase().includes(q);
         const matchesOrder = item.orderRef.toLowerCase().includes(q);
         const matchesCustomer = item.customer.name.toLowerCase().includes(q);
-        const matchesAwb = item.courier.awb.toLowerCase().includes(q);
+        const matchesAwb = (item.courier?.awb ?? '').toLowerCase().includes(q);
         if (!matchesId && !matchesOrder && !matchesCustomer && !matchesAwb) return false;
       }
       if (reasonFilter !== 'All' && item.returnReason !== reasonFilter) {
@@ -249,8 +299,8 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
       `"${r.variant}"`,
       `"${r.returnReason}"`,
       r.refundValue,
-      r.courier.partner,
-      r.courier.awb,
+      r.courier?.partner ?? '',
+      r.courier?.awb ?? '',
       `"${r.qcStatus}"`
     ]);
 
@@ -585,10 +635,12 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                       <TableCell className="py-3 px-3">
                         <div className="flex flex-col">
                           <span className="text-num text-primary text-meta font-mono whitespace-nowrap">
-                            {item.courier.partner} #{item.courier.awb}
+                            {item.courier
+                              ? `${item.courier.partner} #${item.courier.awb}`
+                              : 'No reverse pickup booked'}
                           </span>
                           <span className="text-micro text-success">
-                            {item.courier.dockStatus}
+                            {item.courier?.dockStatus ?? ''}
                           </span>
                         </div>
                       </TableCell>
@@ -635,6 +687,9 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
         </Card>
 
         {/* Right Pane: Dock Triage & QC Grading Station (4/5 cols) */}
+        {!activeReturn ? (
+          <EmptyState icon="swap_horizontal_circle" title="No return selected" message="Pick a return from the queue to inspect it." />
+        ) : (
         <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-space-md">
           <Card className="shadow-md">
             <CardContent className="p-space-md flex flex-col gap-space-md">
@@ -645,7 +700,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                       Dock Triage Station #04
                     </Badge>
                     <Badge variant={activeReturn.qcStatus.includes('Passed') ? 'success' : 'warning'} className="text-micro font-semibold">
-                      {activeReturn.qcStatus.toUpperCase()}
+                      {(activeReturn.qcStatus ?? 'Not inspected').toUpperCase()}
                     </Badge>
                   </div>
                   <h2 className="text-subheading font-semibold text-primary mt-1">
@@ -804,7 +859,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               <div className="bg-surface-canvas p-space-sm rounded-lg flex flex-col gap-1.5 border border-subtle/50">
                 <div className="flex items-center justify-between text-caption text-muted">
                   <span>SETTLEMENT ENGINE</span>
-                  <span>{activeReturn.settlementEngine.toUpperCase()}</span>
+                  <span>{(activeReturn.settlementEngine ?? 'Original payment method').toUpperCase()}</span>
                 </div>
                 <div className="flex items-center justify-between text-body">
                   <span className="text-muted">Original Transaction:</span>
@@ -866,17 +921,32 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                 <Badge variant="secondary" className="text-micro">LIVE LOGS</Badge>
               </div>
               <div className="relative pl-5 space-y-3 mt-1 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-border-subtle">
-                {activeReturn.timeline.map((step, idx) => (
+                {(activeReturn.timeline ?? []).map((step, idx) => (
                   <div key={idx} className="relative flex flex-col">
-                    <div className={`absolute -left-5 top-1 w-2.5 h-2.5 rounded-full ${step.color} shadow-xs`}></div>
-                    <span className="text-label font-semibold text-primary">{step.step}</span>
-                    <span className="text-micro text-muted">{step.time} • {step.actor}</span>
+                    <div
+                      className={`absolute -left-5 top-1 h-2.5 w-2.5 rounded-full shadow-xs ${
+                        step.isCurrent
+                          ? 'bg-status-info-solid'
+                          : step.done
+                            ? 'bg-status-success-solid'
+                            : 'bg-surface-container-high'
+                      }`}
+                    />
+                    <span
+                      className={`text-label font-semibold ${step.done ? 'text-primary' : 'text-faint'}`}
+                    >
+                      {step.label}
+                    </span>
+                    <span className="text-micro text-muted">
+                      {step.at ?? (step.done ? 'Completed' : 'Not reached yet')}
+                    </span>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
         </div>
+        )}
       </div>
 
       {/* Manual Return Modal */}

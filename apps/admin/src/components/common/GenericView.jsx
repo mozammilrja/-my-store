@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from '../ui';
+import { DataTable, TableToolbar } from '../shared/DataTable';
 
 const ROUTE_DATA = {
   'analytics-and-reports': {
@@ -174,6 +175,83 @@ export function GenericView({ path, onNavigate, onShowToast }) {
     tableTitle: 'Operational Logs & Ledger'
   };
 
+
+  // The placeholder ledger: five synthetic records, shaped as data so this view
+  // uses the same shared table as the real modules.
+  const genericRows = [1, 2, 3, 4, 5].map((i) => ({
+    id: i,
+    ref: `#EVR-${data.title.substring(0, 3).toUpperCase()}-904${i}`,
+    entity: `Batch Protocol ${i} \u2022 Standard Dispatch`,
+    node: ['BLR-FC1', 'BOM-FC2', 'DEL-FC1', 'CCU-FC4'][i % 4],
+    value: `\u20B9${(i * 14200 + 4900).toLocaleString('en-IN')}`,
+  }));
+
+  const genericColumns = [
+    {
+      key: 'ref',
+      header: 'Record Ref',
+      className: 'font-mono font-semibold text-accent whitespace-nowrap',
+      accessor: 'ref',
+    },
+    {
+      key: 'entity',
+      header: 'Primary Entity',
+      cell: (row) => (
+        <>
+          <div className="font-semibold text-primary">{row.entity}</div>
+          <span className="text-meta text-muted">Updated 3 mins ago</span>
+        </>
+      ),
+    },
+    {
+      key: 'node',
+      header: 'Node Cluster',
+      cell: (row) => (
+        <span className="px-2 py-0.5 rounded bg-surface-subtle text-primary font-mono text-meta border border-subtle whitespace-nowrap">
+          {row.node}
+        </span>
+      ),
+    },
+    {
+      key: 'value',
+      header: 'Metric / Val',
+      align: 'right',
+      className: 'font-mono font-semibold text-primary whitespace-nowrap',
+      accessor: 'value',
+    },
+    {
+      key: 'compliance',
+      header: 'Compliance',
+      align: 'right',
+      cell: () => (
+        <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold border border-status-success/20">
+          Validated
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      cell: (row) => (
+        <button
+          onClick={() =>
+            onShowToast({
+              type: 'info',
+              title: 'Record Inspected',
+              message: `Audit ledger verified for protocol #${row.id}.`,
+            })
+          }
+          className="p-1 rounded hover:bg-surface-container text-muted hover:text-primary"
+          title="More actions"
+          aria-label="More actions"
+        >
+          <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
+        </button>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col w-full space-y-space-lg animate-fade-in">
       {/* Breadcrumb & Header */}
@@ -230,68 +308,29 @@ export function GenericView({ path, onNavigate, onShowToast }) {
       </div>
 
       {/* Main Ledger Table Card */}
-      <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-lg flex flex-col space-y-space-md">
-        <div className="flex items-center justify-between border-b border-subtle pb-space-sm">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-status-success animate-pulse"></span>
-            <h3 className="text-subheading font-semibold text-primary">
-              {data.tableTitle}
-            </h3>
-          </div>
-          <span className="text-caption text-muted font-mono whitespace-nowrap">
-            LIVE SYNC • 1,248 TPS
-          </span>
-        </div>
-
-        <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full text-left text-body min-w-[850px] border-collapse">
-            <thead>
-              <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                <th className="py-2.5 px-3 whitespace-nowrap">RECORD REF</th>
-                <th className="py-2.5 px-3 whitespace-nowrap">PRIMARY ENTITY</th>
-                <th className="py-2.5 px-3 whitespace-nowrap">NODE CLUSTER</th>
-                <th className="py-2.5 px-3 text-right whitespace-nowrap">METRIC / VAL</th>
-                <th className="py-2.5 px-3 text-right whitespace-nowrap">COMPLIANCE</th>
-                <th className="py-2.5 px-3 text-right whitespace-nowrap">ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle/50">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <tr key={i} className="hover:bg-surface-subtle transition-colors group">
-                  <td className="py-3 px-3 font-mono font-semibold text-accent whitespace-nowrap">
-                    #EVR-{data.title.substring(0, 3).toUpperCase()}-904{i}
-                  </td>
-                  <td className="py-3 px-3">
-                    <div className="font-semibold text-primary">Batch Protocol {i} • Standard Dispatch</div>
-                    <span className="text-meta text-muted">Updated 3 mins ago</span>
-                  </td>
-                  <td className="py-3 px-3">
-                    <span className="px-2 py-0.5 rounded bg-surface-subtle text-primary font-mono text-meta border border-subtle whitespace-nowrap">
-                      {['BLR-FC1', 'BOM-FC2', 'DEL-FC1', 'CCU-FC4'][i % 4]}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-right font-mono font-semibold text-primary tabular-nums whitespace-nowrap">
-                    ₹{(i * 14200 + 4900).toLocaleString('en-IN')}
-                  </td>
-                  <td className="py-3 px-3 text-right">
-                    <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold border border-status-success/20">
-                      Validated
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-right">
-                    <button
-                      onClick={() => onShowToast({ type: 'info', title: 'Record Inspected', message: `Audit ledger verified for protocol #${i}.` })}
-                      className="p-1 rounded hover:bg-surface-container text-muted hover:text-primary" title="More actions" aria-label="More actions"
-                    >
-                      <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        data={genericRows}
+        columns={genericColumns}
+        keyField="id"
+        className="min-w-[850px]"
+        emptyIcon="database"
+        emptyTitle="No records in this ledger yet"
+        emptyMessage="This module has no backing endpoint, so no records are listed."
+        toolbar={
+          <TableToolbar
+            className="px-space-lg py-space-sm"
+            left={
+              <div className="flex items-center gap-2">
+                <Icon name="table_rows" className="material-symbols-outlined text-icon-md text-accent" />
+                <h3 className="text-subheading font-semibold text-primary">{data.tableTitle}</h3>
+              </div>
+            }
+            right={
+              <span className="text-caption text-muted font-mono whitespace-nowrap">LIVE SYNC &bull; 1,248 TPS</span>
+            }
+          />
+        }
+      />
     </div>
   );
 }

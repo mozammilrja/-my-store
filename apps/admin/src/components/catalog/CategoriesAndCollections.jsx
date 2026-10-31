@@ -14,8 +14,8 @@ import {
   Thumbnail,
   SearchInput,
 } from '../ui';
-import { collectionsData } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
+import { EmptyState } from '../shared/FeedbackAndOverlays';
 import {
   useCategoriesQuery,
   useCollectionsQuery,
@@ -26,7 +26,7 @@ import {
 
 export function CategoriesAndCollections({ onNavigate, onShowToast }) {
   const [activeTab, setActiveTab] = useState('drops'); // 'drops', 'tree', 'rules', 'channels'
-  const [selectedDropId, setSelectedDropId] = useState('col-1');
+  const [selectedDropId, setSelectedDropId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [seasonFilter, setSeasonFilter] = useState('All Seasons (2024-25)');
   const [channelFilter, setChannelFilter] = useState('All Omnichannel');
@@ -151,24 +151,25 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
 
   // Merge live collections with mock collections
   const mergedCollections = useMemo(() => {
+    // A collection carries a handle, a title and how many products are in it.
+    // Sell-through, GMV, season, launch date and channel list were fixed
+    // strings on every row; none of them exist in the data.
     const fromDb = dbCollections.map((col, idx) => ({
       id: col.id,
+      handle: col.handle,
       code: `DROP-${col.handle.toUpperCase()}`,
       title: col.title,
-      season: 'Festive Atelier 2024-25',
-      skuCount: col.productCount ? `${col.productCount} SKUs` : '18 SKUs',
-      sellThrough: '92.4%',
-      sellThroughColor: 'bg-status-success-bg text-success',
-      gmv: '₹14.8L',
-      status: 'Live & Active',
-      statusColor: 'bg-status-success-bg text-success',
-      channels: ['Everwear.com', 'Mobile App', 'Flagship BLR'],
-      launchDate: 'Active Now',
+      productCount: col.productCount ?? 0,
+      skuCount: `${col.productCount ?? 0} ${col.productCount === 1 ? 'product' : 'products'}`,
+      status: (col.productCount ?? 0) > 0 ? 'In use' : 'Empty',
+      statusColor:
+        (col.productCount ?? 0) > 0
+          ? 'bg-status-success-bg text-success'
+          : 'bg-surface-subtle text-muted',
       isHero: idx === 0,
-      image: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=400',
     }));
 
-    return [...fromDb, ...collectionsData.filter(d => !fromDb.some(c => c.id === d.id))];
+    return fromDb;
   }, [dbCollections]);
 
 
@@ -763,6 +764,9 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
         </div>
 
         {/* RIGHT 4-COLUMNS: Visual Merchandising Inspector Drawer (Exact 1:1 with Stitch design) */}
+        {!selectedDrop ? (
+          <EmptyState icon="collections_bookmark" title="No collection selected" message="Pick a collection from the list to inspect it." />
+        ) : (
         <div className="xl:col-span-4 flex flex-col space-y-space-sm">
           <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-md flex flex-col space-y-space-md">
             {/* Inspector Top Header */}
@@ -848,67 +852,8 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
             </div>
 
             {/* Pinned Hero SKUs (Drag & Drop Visual Grid) */}
-            <div className="space-y-space-xs pt-1">
-              <div className="flex items-center justify-between">
-                <span className="text-caption text-muted uppercase">
-                  PINNED HERO ITEMS (SLOTS 1-4)
-                </span>
-                <button
-                  onClick={() => onShowToast?.('Search catalog to pin SKU to hero slot...')}
-                  className="text-caption text-accent font-semibold hover:underline"
-                  type="button"
-                >
-                  + Pin SKU
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-space-xs">
-                {selectedDrop.pinnedItems.map((pin) => (
-                  <div
-                    key={pin.slot}
-                    className="p-2 bg-surface-canvas rounded-lg border border-subtle flex items-center gap-2 relative group hover:bg-surface-bright transition-colors"
-                  >
-                    <span className="absolute top-1 left-1 w-4 h-4 rounded-full bg-primary-container text-on-accent text-micro flex items-center justify-center font-semibold">
-                      {pin.slot}
-                    </span>
-                    <Thumbnail src={pin.image} alt={pin.name} className="w-10 h-12 shrink-0" imgClassName="object-cover" />
-                    <div className="flex flex-col min-w-0 pr-1">
-                      <span className="text-micro font-semibold text-primary truncate">{pin.name}</span>
-                      <span className="text-micro text-muted">{pin.price} · {pin.margin}</span>
-                      <span className="text-micro text-success">{pin.stock}</span>
-                    </div>
-                    <Icon name="drag_indicator" className="material-symbols-outlined text-icon-sm text-outline ml-auto group-hover:text-primary cursor-grab" />
-                  </div>
-                ))}
-                {/* Empty slot */}
-                <div
-                  onClick={() => onShowToast?.(`Pin SKU to Slot 4 for ${selectedDrop.code}`)}
-                  className="p-2 bg-surface-canvas rounded-lg flex items-center justify-center border-dashed border-2 border-subtle hover:border-primary-container text-muted hover:text-accent cursor-pointer transition-colors h-16"
-                >
-                  <div className="flex items-center gap-1 text-caption font-semibold">
-                    <Icon name="add_circle" className="material-symbols-outlined text-icon" />
-                    <span>Pin Slot {selectedDrop.pinnedItems.length + 1}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* Facets & Filters Allowed on Storefront */}
-            <div className="space-y-space-xs pt-1">
-              <span className="text-caption text-muted uppercase">
-                ACTIVE COLLECTION FACETS
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {selectedDrop.facets.map((facet, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-canvas border border-subtle text-body text-meta font-medium text-primary"
-                  >
-                    <Icon name={idx === 0 ? 'palette' : idx === 1 ? 'straighten' : 'sell'} className="material-symbols-outlined text-icon-sm text-muted" />
-                    {facet}
-                  </span>
-                ))}
-              </div>
-            </div>
 
             {/* Omnichannel Visibility Matrix */}
             <div className="space-y-space-xs pt-1">
@@ -979,6 +924,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
             </button>
           </div>
         </div>
+        )}
       </div>
 
       {/* New Category Modal */}

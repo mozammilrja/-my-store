@@ -15,7 +15,6 @@ import {
   SearchInput,
   EmptyState,
 } from '../ui';
-import { customerList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
 import { useCustomersQuery, useCustomerQuery } from '../../hooks/useAdminQueries';
@@ -218,12 +217,10 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
       {/* KPI / Performance Matrix Strip (5 Cards) */}
       <ContentGrid columns={5}>
         <StatsCard
-          label="Total Customers"
-          value="148,290"
-          change="+12.4% MoM"
-          changeType="positive"
+          label="Total customers"
+          value={customersData?.count ?? mergedCustomers.length}
           icon="groups"
-          subtitle="Omnichannel active pan-India"
+          subtitle="Accounts on record"
         />
         <StatsCard
           label="VIP Club Couture"
@@ -279,7 +276,7 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
                 <span className={`px-1.5 py-px rounded-full text-micro ${
  activeSegment === 'all' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
  }`}>
-                  148,290
+                  {customersData?.count ?? mergedCustomers.length}
                 </span>
               </button>
               <button

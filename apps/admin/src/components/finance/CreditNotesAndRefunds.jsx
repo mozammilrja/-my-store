@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Icon,
   Button,
@@ -16,9 +16,10 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
-import { notesList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
+import { formatMoney } from '../../lib/format';
 import { useCreditNotesQuery } from '../../hooks/useAdminQueries';
+import { EmptyState } from '../shared/FeedbackAndOverlays';
 
 export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
   const [selectedNoteId, setSelectedNoteId] = useState('#CN-2024-001420');
@@ -26,7 +27,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
   const [disbursementFilter, setDisbursementFilter] = useState('All');
   const [statusTab, setStatusTab] = useState('all'); // 'all', 'reconciled', 'syncing', 'disputed'
   const [searchFilter, setSearchFilter] = useState('');
-  const [notesData, setNotesData] = useState(notesList);
+  const [notesData, setNotesData] = useState([]);
 
   // TanStack Query for credit notes
   const {
@@ -38,23 +39,42 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
   } = useCreditNotesQuery();
 
   useEffect(() => {
-    if (creditNotesData?.creditNotes?.length) {
+    if (creditNotesData?.creditNotes) {
       const live = creditNotesData.creditNotes.map(cn => ({
         id: `#${cn.creditNoteNumber}`,
         invoice: `#${cn.invoiceNumber}`,
         date: new Date(cn.createdAt).toLocaleDateString(),
         customer: cn.customerName,
-        type: 'Return Refund',
         reason: cn.reason,
         originalAmt: `₹${(cn.refundAmount / 100).toLocaleString()}`,
-        taxReversal: `₹${Math.round((cn.refundAmount * 0.12) / 100).toLocaleString()}`,
         refundAmt: `₹${(cn.refundAmount / 100).toLocaleString()}`,
-        disbursement: 'Source Payment Gateway',
-        status: 'Reconciled',
-        statusClass: 'bg-status-success-bg text-success',
+        // The note records its own state; it used to read "Reconciled" for all.
+        status: { issued: 'Issued', settled: 'Settled', canceled: 'Cancelled' }[cn.status] ?? cn.status,
+        statusClass:
+          cn.status === 'settled'
+            ? 'bg-status-success-bg text-success'
+            : cn.status === 'canceled'
+              ? 'bg-status-danger-bg text-danger'
+              : 'bg-status-info-bg text-info',
       }));
-      setNotesData(prev => [...live, ...prev.filter(p => !live.some(l => l.id === p.id))]);
+      setNotesData(live);
     }
+  }, [creditNotesData]);
+
+  const noteStats = useMemo(() => {
+    const raw = creditNotesData?.creditNotes ?? [];
+    const sum = (rows) => rows.reduce((n, c) => n + (c.refundAmount ?? 0), 0);
+    const settled = raw.filter((c) => c.status === 'settled');
+    const issued = raw.filter((c) => c.status === 'issued');
+    return {
+      total: raw.length,
+      refundMinor: sum(raw),
+      settled: settled.length,
+      settledMinor: sum(settled),
+      issued: issued.length,
+      issuedMinor: sum(issued),
+      canceled: raw.filter((c) => c.status === 'canceled').length,
+    };
   }, [creditNotesData]);
 
   const selectedNote = notesData.find(n => n.id === selectedNoteId) || notesData[0];
@@ -128,60 +148,45 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
         }
       />
 
-      {/* KPI Metrics Strip */}
-      <ContentGrid columns={5}>
+      {/* Figures below are counted from the credit notes the API returns. They
+          were fixed strings before: a 42.84 lakh total and 1,340 notes against
+          a register holding a fraction of that. */}
+      <ContentGrid columns={4}>
         <StatsCard
-          title="Active Credit Notes (MTD)"
-          value="₹42,84,100"
+          title="Credit notes"
+          value={noteStats.total}
           icon="receipt_long"
-          trend="+8.4%"
-          trendType="up"
-          trendLabel="1,340 notes issued"
+          subtitle="In the register"
         />
         <StatsCard
-          title="GST Reversal Claimed"
-          value="₹4,12,890"
-          icon="account_balance"
-          iconColor="text-info"
-          badge="Filed"
-          badgeVariant="info"
-          trendLabel="CGST + SGST + IGST"
-        />
-        <StatsCard
-          title="Store Credit Float"
-          value="₹28.40 L"
+          title="Refund value"
+          value={formatMoney(noteStats.refundMinor, 'inr')}
           icon="account_balance_wallet"
-          badge="Float"
-          badgeVariant="secondary"
-          trendLabel="Unspent wallet liability"
+          subtitle="Across every note"
         />
         <StatsCard
-          title="Bank Refund TAT"
-          value="4.2 Hours"
-          icon="bolt"
+          title="Settled"
+          value={noteStats.settled}
+          icon="check_circle"
           iconColor="text-success"
-          badge="99.1%"
-          badgeVariant="success"
-          trendLabel="Razorpay Instant API"
+          subtitle={formatMoney(noteStats.settledMinor, 'inr')}
         />
         <StatsCard
-          title="Pending Approvals"
-          value="14 Flagged"
-          icon="error_outline"
+          title="Awaiting settlement"
+          value={noteStats.issued}
+          icon="pending"
           iconColor="text-warning"
-          badge="Action Required"
-          badgeVariant="warning"
-          trendLabel="RTO Reroute"
+          subtitle={formatMoney(noteStats.issuedMinor, 'inr')}
         />
       </ContentGrid>
 
       {/* Filter & Segment Bar */}
       <FilterBar
         tabs={[
-          { id: 'all', label: 'All', count: '1,340' },
-          { id: 'reconciled', label: 'Reconciled', count: '1,288' },
-          { id: 'syncing', label: 'GSTR-1 Syncing', count: '38' },
-          { id: 'disputed', label: 'Disputed / Hold', count: '14' },
+          { id: 'all', label: 'All', count: noteStats.total },
+          { id: 'settled', label: 'Settled', count: noteStats.settled },
+          { id: 'issued', label: 'Issued', count: noteStats.issued },
+          { id: 'canceled', label: 'Cancelled', count: noteStats.canceled },
         ]}
         activeTab={statusTab}
         onTabChange={setStatusTab}
@@ -309,6 +314,9 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
         </div>
 
         {/* 35% Inspector Panel (Exact from Stitch design) */}
+          {!selectedNote ? (
+            <EmptyState icon="receipt_long" title="No credit note selected" message="Pick a credit note from the register to inspect it." />
+          ) : (
         <div className="xl:col-span-4 space-y-space-md">
           {/* Detailed Inspector Card */}
           <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden">
@@ -523,6 +531,7 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
             </div>
           </div>
         </div>
+          )}
       </div>
     </PageContainer>
   );

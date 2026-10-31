@@ -581,7 +581,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                 >
                   <span>All Transactions</span>
                   <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
-                    42,190
+                    {transactions.length}
                   </span>
                 </button>
                 <button

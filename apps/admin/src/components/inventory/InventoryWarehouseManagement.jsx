@@ -61,10 +61,13 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
   // Populate stock allocations from real backend inventory telemetry
   useEffect(() => {
     if (inventoryData?.inventory?.length > 0) {
+      // Only what a variant actually carries. Reserved stock, available-to-sell,
+      // EAN, bin location, reorder point and category were all invented here:
+      // the EAN was re-randomised on every render, and "reserved" was a flat
+      // 15% of whatever the stock happened to be.
       const liveItems = inventoryData.inventory.map((inv, idx) => {
-        const stock = inv.stock ?? 25;
-        const reserved = inv.allocated ?? Math.min(stock, Math.floor(stock * 0.15));
-        const ats = Math.max(0, stock - reserved);
+        const stock = inv.stock ?? 0;
+        const tracked = inv.manageInventory !== false;
         return {
           id: `live-inv-${inv.productId}-${inv.id || idx}`,
           productId: inv.productId,
@@ -72,19 +75,19 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
           name: inv.productTitle,
           sku: inv.sku,
           variant: inv.variantTitle || 'Standard',
-          ean: `89044${Math.floor(1000000 + Math.random() * 9000000)}`,
-          category: 'Apparel & Couture',
-          hub: inv.hubId || 'BLR-FC1',
-          bin: `Aisle ${(idx % 5) + 1} / Bin ${(idx % 12) + 1}`,
           onHand: stock,
-          reserved,
-          ats,
-          safety: inv.reorderPoint || 10,
-          status: stock === 0 ? 'Depleted' : ats < (inv.reorderPoint || 10) ? 'Critical Low-Stock' : stock > 100 ? 'Overstocked' : 'Healthy',
-          image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&q=80&w=200',
+          tracked,
+          allowBackorder: inv.allowBackorder ?? false,
+          status: !tracked
+            ? 'Not tracked'
+            : stock === 0
+              ? 'Out of stock'
+              : stock < 10
+                ? 'Low stock'
+                : 'In stock',
         };
       });
-      setInventoryList(prev => [...liveItems, ...prev.filter(m => !liveItems.some(l => l.sku === m.sku))]);
+      setInventoryList(liveItems);
     } else if (productsData?.products?.length > 0) {
       const liveItems = [];
       productsData.products.forEach(p => {

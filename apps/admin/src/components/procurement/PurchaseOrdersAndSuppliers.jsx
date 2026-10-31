@@ -17,6 +17,7 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
+import { DataTable, TableToolbar } from '../shared/DataTable';
 import { adminApi } from '../../lib/api';
 import { usePurchaseOrdersQuery, useCreatePurchaseOrderMutation } from '../../hooks/useAdminQueries';
 
@@ -489,6 +490,94 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={7} label="Loading purchase orders" />;
   }
 
+
+  // Ledger columns. Cells keep the markup the hand-rolled table used.
+  const poColumns = [
+    {
+      key: 'code',
+      header: 'PO Code & Origin',
+      cell: (po) => (
+        <div className="flex items-center gap-2.5">
+          <div
+            className={`w-1.5 h-10 rounded-full shrink-0 ${
+              selectedPoId === po.id ? 'bg-primary-container' : 'bg-transparent'
+            }`}
+          />
+          <div className="flex flex-col">
+            <span className="text-meta font-semibold text-accent">{po.code}</span>
+            <span className="text-meta font-semibold text-primary">{po.supplier}</span>
+            <span className="text-micro text-muted">{po.origin}</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'timeline',
+      header: 'Timeline',
+      cell: (po) => (
+        <div className="flex flex-col">
+          <span className="text-muted font-medium">Ord: {po.orderedDate}</span>
+          <span className="whitespace-nowrap text-primary font-semibold">Prom: {po.promisedDate}</span>
+          <span className={`text-micro font-semibold ${po.noticeColor}`}>{po.daysNotice}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'volume',
+      header: 'Volume',
+      align: 'right',
+      cell: (po) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-primary">{po.qtyPcs}</span>
+          <span className="text-micro text-muted">{po.skuBreakdown}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'cost',
+      header: 'Cost & Advance',
+      align: 'right',
+      cell: (po) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-primary">{po.cost}</span>
+          <span className={`text-micro font-semibold ${po.advanceColor}`}>{po.advance}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'milestone',
+      header: 'Milestone Status',
+      cell: (po) => (
+        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-micro font-semibold ${po.milestoneBadge}`}>
+          {po.milestonePulse ? (
+            <span className="w-1.5 h-1.5 rounded-full bg-status-info animate-pulse" />
+          ) : (
+            <Icon name="dock" className="material-symbols-outlined text-icon-sm" />
+          )}
+          {po.milestone}
+        </span>
+      ),
+    },
+    {
+      key: 'action',
+      header: 'Action',
+      align: 'center',
+      cell: (po) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedPoId(po.id);
+          }}
+          className="p-1 rounded text-accent hover:bg-surface-container transition-colors"
+          title="Inspect PO Details"
+          type="button"
+        >
+          <Icon name="chevron_right" className="material-symbols-outlined text-icon-md" />
+        </button>
+      ),
+    },
+  ];
+
   return (
     <PageContainer>
       {posError && (
@@ -646,125 +735,49 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
       {/* Split Grid: Comprehensive PO Ledger (8 cols) + Selected PO Detailed Inspector (4 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* LEFT PANE: PO Ledger Table (Cols 8) */}
-        <div className="lg:col-span-8 bg-surface-container-lowest rounded-xl shadow-sm flex flex-col overflow-hidden border border-subtle">
-          {/* Table Header Bar */}
-          <div className="px-4 py-3 bg-surface-subtle flex items-center justify-between border-b border-subtle">
-            <div className="flex items-center gap-2">
-              <Icon name="inventory_2" className="material-symbols-outlined text-icon-md text-accent" />
-              <span className="text-body font-semibold text-primary">Procurement Order Ledger</span>
-              <span className="px-2 py-0.5 rounded-full bg-surface-container text-muted text-micro font-semibold">
-                Showing {filteredPoList.length} of 48 POs
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleExportCsv}
-                className="p-1 rounded text-muted hover:text-primary hover:bg-surface-container transition-colors"
-                title="Export Ledger as CSV"
-                type="button"
-              >
-                <Icon name="download" className="material-symbols-outlined text-icon-md" />
-              </button>
-            </div>
-          </div>
-
-          {/* Ledger Table */}
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-left border-collapse min-w-[850px]">
-              <thead>
-                <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                  <th className="py-2.5 px-3 whitespace-nowrap">PO Code &amp; Origin</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Timeline</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Volume</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Cost &amp; Advance</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Milestone Status</th>
-                  <th className="py-2.5 px-3 text-center whitespace-nowrap">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle text-meta text-primary">
-                {poPager.pageRows.map((po) => {
-                  const isSelected = selectedPoId === po.id;
-                  return (
-                    <tr
-                      key={po.id}
-                      onClick={() => setSelectedPoId(po.id)}
-                      className={`transition-colors cursor-pointer ${
- isSelected
- ? 'bg-surface-container-low'
- : 'bg-surface-container-lowest hover:bg-surface-subtle'
- }`}
-                    >
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            className={`w-1.5 h-10 rounded-full shrink-0 ${
- isSelected ? 'bg-primary-container' : 'bg-transparent'
- }`}
-                          ></div>
-                          <div className="flex flex-col">
-                            <span className="text-meta font-semibold text-accent">{po.code}</span>
-                            <span className="text-meta font-semibold text-primary">{po.supplier}</span>
-                            <span className="text-micro text-muted">{po.origin}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="flex flex-col">
-                          <span className="text-muted font-medium">Ord: {po.orderedDate}</span>
-                          <span className="whitespace-nowrap text-primary font-semibold">Prom: {po.promisedDate}</span>
-                          <span className={`text-micro font-semibold ${po.noticeColor}`}>{po.daysNotice}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-primary">{po.qtyPcs}</span>
-                          <span className="text-micro text-muted">{po.skuBreakdown}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-primary">{po.cost}</span>
-                          <span className={`text-micro font-semibold ${po.advanceColor}`}>{po.advance}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-micro font-semibold ${po.milestoneBadge}`}>
-                          {po.milestonePulse ? (
-                            <span className="w-1.5 h-1.5 rounded-full bg-status-info animate-pulse"></span>
-                          ) : (
-                            <Icon name="dock" className="material-symbols-outlined text-icon-sm" />
-                          )}
-                          {po.milestone}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedPoId(po.id);
-                          }}
-                          className="p-1 rounded text-accent hover:bg-surface-container transition-colors"
-                          title="Inspect PO Details"
-                          type="button"
-                        >
-                          <Icon name="chevron_right" className="material-symbols-outlined text-icon-md" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <TablePagination
-            currentPage={poPager.page}
-            pageSize={poPager.limit}
-            totalItems={poPager.total}
-            onPageChange={poPager.setPage}
-            onPageSizeChange={poPager.setLimit}
-          />
-        </div>
+        <DataTable
+          data={poPager.pageRows}
+          columns={poColumns}
+          keyField="id"
+          className="min-w-[850px]"
+          containerClassName="lg:col-span-8"
+          activeRowId={selectedPoId}
+          onRowClick={(po) => setSelectedPoId(po.id)}
+          emptyIcon="inventory_2"
+          emptyTitle="No purchase orders match these filters"
+          emptyMessage="No PO matches the current search, supplier or milestone selection."
+          pagination={{
+            page: poPager.page,
+            pageSize: poPager.limit,
+            totalItems: poPager.total,
+            onPageChange: poPager.setPage,
+            onPageSizeChange: poPager.setLimit,
+          }}
+          toolbar={
+            <TableToolbar
+              className="bg-surface-subtle px-4 py-3"
+              left={
+                <div className="flex items-center gap-2">
+                  <Icon name="inventory_2" className="material-symbols-outlined text-icon-md text-accent" />
+                  <span className="text-body font-semibold text-primary">Procurement Order Ledger</span>
+                  <span className="px-2 py-0.5 rounded-full bg-surface-container text-muted text-micro font-semibold">
+                    Showing {filteredPoList.length} of 48 POs
+                  </span>
+                </div>
+              }
+              right={
+                <button
+                  onClick={handleExportCsv}
+                  className="p-1 rounded text-muted hover:text-primary hover:bg-surface-container transition-colors"
+                  title="Export Ledger as CSV"
+                  type="button"
+                >
+                  <Icon name="download" className="material-symbols-outlined text-icon-md" />
+                </button>
+              }
+            />
+          }
+        />
 
         {/* RIGHT PANE: Selected PO Detailed Inspector (Cols 4) */}
         <div className="lg:col-span-4 bg-surface-container-lowest rounded-xl shadow-sm p-5 flex flex-col space-y-4 border border-subtle sticky top-20">
@@ -813,7 +826,7 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
               <span className="text-caption text-muted uppercase">Fabric &amp; Style Breakdown</span>
               <span className="text-micro text-muted">{selectedPo.styles.length} Line Items</span>
             </div>
-            {selectedPo.styles.map((style, sIdx) => (
+            {(selectedPo.styles ?? []).map((style, sIdx) => (
               <div
                 key={sIdx}
                 className="p-3 rounded-lg bg-surface-canvas flex items-center justify-between gap-2 hover:shadow-sm transition-shadow border border-subtle"
@@ -846,7 +859,12 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
             <div className="relative pl-6 space-y-3.5 pt-1">
               {/* Continuous Track Line */}
               <div className="absolute left-2.5 top-2 bottom-2 w-0.5 bg-surface-container"></div>
-              {selectedPo.steps.map((st, sIdx) => {
+              {(selectedPo.steps ?? []).length === 0 && (
+                <span className="text-micro text-muted">
+                  No milestone history recorded for this purchase order.
+                </span>
+              )}
+              {(selectedPo.steps ?? []).map((st, sIdx) => {
                 const isCompleted = st.status === 'completed';
                 const isCurrent = st.status === 'current';
 
@@ -887,32 +905,32 @@ export function PurchaseOrdersAndSuppliers({ onNavigate, onShowToast }) {
                 <Icon name="fact_check" className="material-symbols-outlined text-icon text-accent" />
                 <span className="text-meta font-semibold text-primary">GRN Intake &amp; Discrepancy Checker</span>
               </div>
-              <span className={`px-1.5 py-0.5 rounded text-micro font-semibold ${selectedPo.grnSummary.toleranceColor}`}>
-                {selectedPo.grnSummary.tolerance}
+              <span className={`px-1.5 py-0.5 rounded text-micro font-semibold ${(selectedPo.grnSummary?.toleranceColor ?? 'bg-surface-subtle text-muted')}`}>
+                {(selectedPo.grnSummary?.tolerance ?? 'Not recorded')}
               </span>
             </div>
             <div className="space-y-1 text-meta">
               <div className="flex items-center justify-between text-muted font-medium">
                 <span>Ordered Quantity:</span>
-                <span className="font-semibold text-primary">{selectedPo.grnSummary.orderedQty}</span>
+                <span className="font-semibold text-primary">{(selectedPo.grnSummary?.orderedQty ?? 'Not recorded')}</span>
               </div>
               <div className="flex items-center justify-between text-muted font-medium">
                 <span>Pre-Dispatch Mill Count:</span>
-                <span className="font-semibold text-primary">{selectedPo.grnSummary.millCount}</span>
+                <span className="font-semibold text-primary">{(selectedPo.grnSummary?.millCount ?? 'Not recorded')}</span>
               </div>
               <div className="flex items-center justify-between text-muted font-medium">
                 <span>Allowed Variation Limit:</span>
-                <span className="font-semibold text-primary">{selectedPo.grnSummary.limit}</span>
+                <span className="font-semibold text-primary">{(selectedPo.grnSummary?.limit ?? 'Not recorded')}</span>
               </div>
               <div className="flex items-center justify-between text-muted font-medium">
                 <span>Barcoding Status:</span>
-                <span className="font-semibold text-success">{selectedPo.grnSummary.barcoding}</span>
+                <span className="font-semibold text-success">{(selectedPo.grnSummary?.barcoding ?? 'Not recorded')}</span>
               </div>
             </div>
             <div className="pt-2 border-t border-subtle flex items-center justify-between">
-              <span className="text-micro font-semibold text-muted">Quality Inward Slip: {selectedPo.grnSummary.docket}</span>
+              <span className="text-micro font-semibold text-muted">Quality Inward Slip: {(selectedPo.grnSummary?.docket ?? 'Not recorded')}</span>
               <button
-                onClick={() => onShowToast && onShowToast(`GRN Docket ${selectedPo.grnSummary.docket} authorized.`)}
+                onClick={() => onShowToast && onShowToast(`GRN Docket ${(selectedPo.grnSummary?.docket ?? 'Not recorded')} authorized.`)}
                 className="text-micro text-accent font-semibold hover:underline flex items-center gap-0.5 cursor-pointer"
                 type="button"
               >

@@ -16,8 +16,9 @@ import {
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
 import { DataTable, TableToolbar } from '../shared/DataTable';
-import { campaigns } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
+import { formatMoney } from '../../lib/format';
+import { EmptyState } from '../shared/FeedbackAndOverlays';
 import {
   usePromotionsQuery,
   useCreatePromotionMutation,
@@ -132,32 +133,43 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     }
   };
 
-  // Merge live promotions with mock campaigns
+  // Promotions as the API holds them. GMV impact and margin health used to be
+  // typed in as a fixed "4.2L" and "Safe (48%)" for every row; neither figure
+  // exists anywhere in the data, so neither is shown.
   const mergedCampaigns = useMemo(() => {
-    const fromDb = dbPromotions.map(p => ({
-      code: p.code,
-      id: p.id,
-      isDbPromo: true,
-      name: p.type === 'percentage' ? `${p.value}% Off Entire Order` : `Flat ₹${p.value / 100} Discount`,
-      type: p.type === 'percentage' ? 'Percentage' : 'Fixed Minor',
-      applicability: 'All Omnichannel Channels',
-      excluded: p.usageLimit ? `Limit: ${p.usageLimit} uses` : 'Unlimited Uses',
-      isUrgent: false,
-      redemptions: `${p.usageCount ?? 0} Uses`,
-      progress: Math.min(100, Math.round(((p.usageCount ?? 0) / (p.usageLimit || 100)) * 100)),
-      progressColor: 'bg-primary-container',
-      gmvImpact: '₹4.2L',
-      marginHealth: 'Safe (48%)',
-      marginHealthColor: 'bg-status-success-bg text-success',
-      status: p.active ? 'Live' : 'Paused',
-      statusColor: p.active ? 'bg-status-success-bg text-success' : 'bg-surface-subtle text-muted',
-      icon: 'local_offer',
-      iconColor: 'bg-primary-container text-on-accent',
-      isAuto: false,
-      active: p.active,
-    }));
+    const dateLabel = (value) =>
+      value ? new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : null;
 
-    return [...fromDb, ...campaigns.filter(c => !fromDb.some(p => p.code === c.code))];
+    return dbPromotions.map((p) => {
+      const limit = p.usageLimit ?? null;
+      const used = p.usageCount ?? 0;
+      const starts = dateLabel(p.startsAt);
+      const ends = dateLabel(p.endsAt);
+      const endsInPast = p.endsAt ? new Date(p.endsAt) < new Date() : false;
+
+      return {
+        code: p.code,
+        id: p.id,
+        isDbPromo: true,
+        name:
+          p.type === 'percentage'
+            ? `${p.value}% off the order`
+            : `Flat ${formatMoney(p.value, p.currency ?? 'inr')} off`,
+        type: p.type === 'percentage' ? 'Percentage' : 'Fixed amount',
+        discountLabel:
+          p.type === 'percentage' ? `${p.value}%` : formatMoney(p.value, p.currency ?? 'inr'),
+        window: starts && ends ? `${starts} to ${ends}` : starts ? `From ${starts}` : 'No end date',
+        windowWarning: endsInPast && p.active ? 'End date has passed' : null,
+        usageLabel: limit ? `${used} of ${limit}` : `${used} uses`,
+        progress: limit ? Math.min(100, Math.round((used / limit) * 100)) : null,
+        progressColor: 'bg-primary-container',
+        status: p.active ? 'Live' : 'Paused',
+        statusColor: p.active ? 'bg-status-success-bg text-success' : 'bg-surface-subtle text-muted',
+        icon: 'local_offer',
+        iconColor: 'bg-primary-container text-on-accent',
+        active: p.active,
+      };
+    });
   }, [dbPromotions]);
 
   const selectedCampaign = mergedCampaigns.find(c => c.code === selectedCode) || mergedCampaigns[0];
@@ -235,14 +247,20 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       ),
     },
     {
-      key: 'applicability',
-      header: 'Applicability / Guardrails',
+      key: 'discount',
+      header: 'Discount',
+      align: 'right',
+      cell: (camp) => <span className="text-num font-semibold text-primary">{camp.discountLabel}</span>,
+    },
+    {
+      key: 'window',
+      header: 'Active window',
       cell: (camp) => (
         <div className="flex flex-col">
-          <span className="text-label text-primary font-medium">{camp.applicability}</span>
-          <span className={`text-micro truncate ${camp.isUrgent ? 'text-danger font-semibold' : 'text-warning'}`}>
-            {camp.excluded}
-          </span>
+          <span className="text-label text-primary">{camp.window}</span>
+          {camp.windowWarning && (
+            <span className="text-micro font-semibold text-warning">{camp.windowWarning}</span>
+          )}
         </div>
       ),
     },
@@ -251,30 +269,27 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       header: 'Redemptions',
       align: 'right',
       cell: (camp) => (
-        <div className="flex flex-col items-end">
-          <span className="text-num font-semibold text-primary">{camp.redemptions}</span>
-          <div className="w-16 bg-surface-subtle h-1 rounded-full overflow-hidden mt-1 border border-subtle">
-            <div className={`${camp.progressColor} h-full`} style={{ width: `${camp.progress}%` }} />
-          </div>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-num font-semibold text-primary">{camp.usageLabel}</span>
+          {camp.progress === null ? (
+            <span className="text-micro text-faint">No limit</span>
+          ) : (
+            <>
+              <div
+                className="h-1 w-16 overflow-hidden rounded-full border border-subtle bg-surface-subtle"
+                role="progressbar"
+                aria-valuenow={camp.progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`${camp.code} redemption limit used`}
+                title={`${camp.progress}% of the redemption limit used`}
+              >
+                <div className={`${camp.progressColor} h-full`} style={{ width: `${camp.progress}%` }} />
+              </div>
+              <span className="text-micro text-muted tabular-nums">{camp.progress}% of limit</span>
+            </>
+          )}
         </div>
-      ),
-    },
-    {
-      key: 'gmvImpact',
-      header: 'GMV Impact',
-      align: 'right',
-      className: 'text-num font-semibold text-primary',
-      accessor: 'gmvImpact',
-    },
-    {
-      key: 'marginHealth',
-      header: 'Margin Health',
-      align: 'center',
-      cell: (camp) => (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-success-bg text-success text-caption font-medium">
-          <span className="w-1.5 h-1.5 rounded-full bg-status-success" />
-          <span>{camp.marginHealth}</span>
-        </span>
       ),
     },
     {
@@ -582,6 +597,9 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
         </div>
 
         {/* Right Column: Campaign Inspector (4 Cols ~ 33.3%) */}
+        {!selectedCampaign ? (
+          <EmptyState icon="sell" title="No campaign selected" message="Pick a campaign from the list to inspect it." />
+        ) : (
         <div className="lg:col-span-4 flex flex-col space-y-space-md">
           <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-md">
             {/* Inspector Header */}
@@ -790,6 +808,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Create Promo Campaign Modal */}

@@ -7,7 +7,11 @@
   "scripts": {
     "dev": "vite --port 7001 --strictPort",
     "build": "vite build",
-    "preview": "vite preview --port 7001"
+    "preview": "vite preview --port 7001",
+    "test:e2e": "playwright test",
+    "test:e2e:modules": "playwright test e2e/modules.spec.js",
+    "test:e2e:responsive": "playwright test --project=responsive",
+    "test:e2e:typography": "playwright test --project=typography"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.105.0",
@@ -26,6 +30,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "vite": "^6.0.5"
+    "vite": "^6.0.5",
+    "@playwright/test": "^1.56.1"
   }
 }

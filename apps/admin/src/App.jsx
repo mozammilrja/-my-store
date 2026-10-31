@@ -6,6 +6,7 @@ import { Header } from './components/layout/Header';
 import { CommandPalette } from './components/common/CommandPalette';
 import { NotificationsModal } from './components/common/NotificationsModal';
 import { Toast } from './components/common/Toast';
+import { SkeletonPage } from './components/shared/Skeleton';
 
 // Lazy-loaded domain module chunks for performance and code-splitting
 const ExecutiveOverview = React.lazy(() => import('./components/overview/ExecutiveOverview').then(m => ({ default: m.ExecutiveOverview })));
@@ -45,18 +46,29 @@ const KNOWN_MODULES = new Set([
   'system-settings',
 ]);
 
-function ViewLoadingFallback() {
-  return (
-    <div className="w-full flex flex-col gap-6 animate-pulse p-4" aria-busy="true" aria-label="Loading module">
-      <div className="h-8 w-64 bg-surface-container-high rounded-md" />
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-28 bg-surface-container-low border border-border/50 rounded-xl" />
-        ))}
-      </div>
-      <div className="h-96 bg-surface-container-low border border-border/50 rounded-xl w-full" />
-    </div>
-  );
+// The shape each module's chunk resolves into, so the first paint already
+// matches the layout that is about to replace it.
+const MODULE_SKELETONS = {
+  'overview': { variant: 'dashboard', stats: 6, statsCols: 6 },
+  'analytics-and-reports': { variant: 'analytics', stats: 6, statsCols: 6, columns: 7 },
+  'order-management': { variant: 'split', columns: 7, rows: 8 },
+  'products': { variant: 'cards', stats: 6, statsCols: 6 },
+  'returns-and-exchanges': { variant: 'table', stats: 6, statsCols: 6, columns: 8 },
+  'inventory-and-warehouses': { variant: 'table', stats: 6, statsCols: 6, columns: 8 },
+  'purchase-orders-and-suppliers': { variant: 'table', stats: 6, statsCols: 6, columns: 7 },
+  'gst-and-tax-invoices': { variant: 'table', stats: 6, statsCols: 6, columns: 8 },
+  'payments-and-reconciliation': { variant: 'table', stats: 6, statsCols: 6, columns: 7 },
+  'categories-and-collections': { variant: 'cards', stats: 6, statsCols: 6 },
+  'shipments-and-dispatch': { variant: 'table', stats: 6, statsCols: 6, columns: 7 },
+  'customers-and-loyalty': { variant: 'split', stats: 6, statsCols: 6, columns: 6 },
+  'credit-notes-and-refunds': { variant: 'table', stats: 6, statsCols: 6, columns: 7 },
+  'promotions-and-coupons': { variant: 'cards', stats: 6, statsCols: 6 },
+  'users-and-role-access': { variant: 'table', stats: 6, statsCols: 6, columns: 6 },
+  'system-settings': { variant: 'settings' },
+};
+
+function ViewLoadingFallback({ path }) {
+  return <SkeletonPage {...(MODULE_SKELETONS[path] || { variant: 'table' })} />;
 }
 
 const getInitialPath = () => {
@@ -160,7 +172,7 @@ export function App() {
   };
 
   return (
-    <div className="bg-surface-canvas min-h-screen text-text-primary antialiased selection:bg-primary-fixed selection:text-on-primary-fixed">
+    <div className="bg-surface-canvas min-h-screen text-primary antialiased selection:bg-primary-fixed selection:text-on-primary-fixed">
       {/* Fixed Sidebar */}
       <Sidebar
         currentPath={currentPath}
@@ -174,10 +186,10 @@ export function App() {
       />
 
       {/* Main Content Area */}
-      <div 
-        className={`transition-all duration-300 pl-0 ${
-          isCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[260px]'
-        }`}
+      <div
+        className={`transition-[padding] duration-300 ease-out-expo pl-0 ${
+ isCollapsed ? 'lg:pl-sidebar-collapsed' : 'lg:pl-sidebar'
+ }`}
       >
         {/* Top Header */}
         <Header
@@ -192,8 +204,9 @@ export function App() {
         />
 
         {/* Dynamic Route View */}
-        <main className="w-full pt-16 bg-surface-canvas min-h-screen px-4 md:px-space-lg py-4 md:py-space-lg">
-          <Suspense fallback={<ViewLoadingFallback />}>
+        <main id="main-content" className="w-full min-h-screen bg-surface-canvas pt-header">
+          <div className="mx-auto w-full max-w-content px-4 py-space-lg md:px-space-xl md:py-space-xl">
+          <Suspense fallback={<ViewLoadingFallback path={currentPath} />}>
             {currentPath === 'overview' && (
             <ExecutiveOverview
               onNavigate={handleNavigate}
@@ -317,6 +330,7 @@ export function App() {
               />
             )}
           </Suspense>
+          </div>
         </main>
       </div>
 

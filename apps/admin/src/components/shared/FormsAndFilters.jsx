@@ -1,17 +1,19 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
-import { Icon, Input, Select, Button } from '../ui';
+import { Icon, Input, Textarea, Select } from '../ui';
 
 /**
  * SearchInput
- * Reusable search control with search icon, clear button, and optional keyboard shortcut badge.
+ * Search field with a leading icon, a clear button and an optional shortcut
+ * hint. Height matches Select and Button so filter rows line up.
  */
 export function SearchInput({
   value,
   onChange,
   onClear,
-  placeholder = "Search...",
+  placeholder = "Search",
   shortcut,
+  label,
   className,
   inputClassName,
   ...props
@@ -19,20 +21,21 @@ export function SearchInput({
   const showClear = Boolean(value && String(value).length > 0 && onClear);
 
   return (
-    <div className={cn("relative min-w-[200px] flex-1 sm:flex-initial", className)}>
+    <div className={cn("relative min-w-[13rem] flex-1 sm:flex-initial", className)}>
       <Icon
         name="search"
-        className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary text-[16px] pointer-events-none"
+        aria-hidden="true"
+        className="material-symbols-outlined pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-icon text-faint"
       />
       <Input
-        type="text"
+        type="search"
+        aria-label={label || placeholder}
         placeholder={placeholder}
         value={value ?? ""}
         onChange={(e) => onChange && onChange(e.target.value, e)}
         className={cn(
-          "pl-8 pr-8 h-8.5 bg-surface-canvas text-xs transition-colors",
-          showClear && "pr-8",
-          shortcut && "pr-14",
+          "h-9 pl-8 text-meta [&::-webkit-search-cancel-button]:appearance-none",
+          showClear ? "pr-8" : shortcut ? "pr-12" : "pr-3",
           inputClassName
         )}
         {...props}
@@ -40,17 +43,18 @@ export function SearchInput({
       {showClear && (
         <button
           onClick={onClear}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-secondary hover:text-text-primary rounded-full hover:bg-surface-subtle"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-faint transition-colors hover:bg-surface-subtle hover:text-primary"
           title="Clear search"
+          aria-label="Clear search"
           type="button"
         >
-          <Icon name="close" className="material-symbols-outlined text-[14px]" />
+          <Icon name="close" className="material-symbols-outlined text-icon-sm" />
         </button>
       )}
       {shortcut && !showClear && (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden sm:flex items-center px-1.5 py-0.5 rounded bg-surface-subtle border border-border-subtle text-text-secondary text-[10px] font-mono pointer-events-none">
+        <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 items-center rounded border border-subtle bg-surface-subtle px-1.5 py-0.5 text-micro text-muted sm:flex">
           {shortcut}
-        </div>
+        </kbd>
       )}
     </div>
   );
@@ -58,69 +62,69 @@ export function SearchInput({
 
 /**
  * FilterDropdown
- * Styled dropdown selector designed specifically for table and list filters.
+ * A Select sized for a filter toolbar.
  */
 export function FilterDropdown({
   value,
   onChange,
   options = [],
-  placeholder = "Filter...",
-  icon,
+  placeholder = "Filter",
+  label,
   className,
   ...props
 }) {
   return (
-    <div className={cn("relative inline-block", className)}>
-      <Select
-        value={value}
-        onChange={(e) => onChange && onChange(e.target.value, e)}
-        className="h-8.5 text-xs bg-surface-canvas font-medium min-w-[130px]"
-        {...props}
-      >
-        {options.map((opt, idx) => {
-          const val = typeof opt === "object" ? opt.value : opt;
-          const label = typeof opt === "object" ? opt.label : opt;
-          return (
-            <option key={idx} value={val}>
-              {label}
-            </option>
-          );
-        })}
-      </Select>
-    </div>
+    <Select
+      value={value}
+      onChange={(e) => onChange && onChange(e.target.value, e)}
+      options={options}
+      placeholder={placeholder}
+      aria-label={label}
+      wrapperClassName="w-auto"
+      className={cn("h-9 w-auto min-w-[9rem] text-meta", className)}
+      {...props}
+    />
   );
 }
 
 /**
  * DateRangeFilter
- * Segmented range toggle button group (e.g. 'Today', 'Yesterday', 'Last 7D', 'MTD').
+ * Segmented control. The outer padding plus a 28px button keeps the whole
+ * group at the same 36px as the controls beside it.
  */
 export function DateRangeFilter({
   ranges = ["Today", "Yesterday", "Last 7D", "MTD"],
   activeRange,
   onRangeChange,
+  label = "Date range",
   className,
 }) {
   return (
-    <div className={cn("flex items-center bg-surface-container-high p-1 rounded-xl shadow-xs border border-border-subtle/40", className)}>
+    <div
+      role="group"
+      aria-label={label}
+      className={cn(
+        "scrollbar-thin flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-subtle bg-surface-subtle p-1",
+        className
+      )}
+    >
       {ranges.map((range) => {
         const isActive = activeRange === range;
         return (
-          <Button
+          <button
             key={range}
-            variant={isActive ? "default" : "ghost"}
-            size="sm"
+            type="button"
+            aria-pressed={isActive}
             onClick={() => onRangeChange && onRangeChange(range)}
             className={cn(
-              "h-7 px-2.5 font-label-sm text-label-sm transition-all",
+              "h-7 whitespace-nowrap rounded-md px-2.5 text-label transition-colors",
               isActive
-                ? "bg-surface-container-lowest text-primary font-semibold shadow-xs hover:bg-surface-container-lowest"
-                : "text-text-secondary hover:text-text-primary"
+                ? "bg-surface-container-lowest font-semibold text-accent shadow-xs"
+                : "text-muted hover:text-primary"
             )}
-            type="button"
           >
             {range}
-          </Button>
+          </button>
         );
       })}
     </div>
@@ -129,8 +133,13 @@ export function DateRangeFilter({
 
 /**
  * FilterBar
- * Responsive bar wrapping status tabs, search input, filter selects and actions.
+ * Status pills on the left, search and filters on the right.
  */
+const TAB_SCROLL_FADE = {
+  maskImage: 'linear-gradient(to right, black calc(100% - 1.5rem), transparent)',
+  WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 1.5rem), transparent)',
+};
+
 export function FilterBar({
   tabs = [],
   activeTab,
@@ -144,13 +153,19 @@ export function FilterBar({
   return (
     <div
       className={cn(
-        "p-space-sm bg-surface-container-lowest border border-border-subtle rounded-xl shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-space-sm",
+        "flex flex-col items-stretch justify-between gap-space-sm rounded-xl border border-subtle bg-surface-container-lowest p-space-sm shadow-xs lg:flex-row lg:items-center",
         className
       )}
     >
-      {/* Left: Status Filter Tabs */}
       {tabs.length > 0 && (
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 no-scrollbar">
+        /* A tab clipped mid-word reads as broken, so the scroller fades at its
+           right edge to say "there is more". */
+        <div
+          role="tablist"
+          aria-label="Status filter"
+          className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-0.5 pr-2 lg:pb-0"
+          style={TAB_SCROLL_FADE}
+        >
           {tabs.map((tab) => {
             const tabId = typeof tab === "object" ? tab.id : tab;
             const tabLabel = typeof tab === "object" ? tab.label : tab;
@@ -160,12 +175,14 @@ export function FilterBar({
             return (
               <button
                 key={tabId}
+                role="tab"
+                aria-selected={isActive}
                 onClick={() => onTabChange && onTabChange(tabId)}
                 className={cn(
-                  "px-3 py-1.5 rounded-lg font-label-sm text-label-sm transition-all flex items-center gap-1.5 whitespace-nowrap",
+                  "flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-label transition-colors",
                   isActive
-                    ? "bg-primary-container text-on-primary font-semibold shadow-xs"
-                    : "bg-surface-subtle hover:bg-surface-container text-on-surface-variant"
+                    ? "bg-primary-container font-semibold text-on-accent"
+                    : "bg-surface-subtle text-muted hover:bg-surface-container hover:text-primary"
                 )}
                 type="button"
               >
@@ -173,8 +190,10 @@ export function FilterBar({
                 {count !== undefined && (
                   <span
                     className={cn(
-                      "px-1.5 py-0.2 rounded-full text-[10px]",
-                      isActive ? "bg-white/20 text-white" : "bg-surface-container text-text-secondary"
+                      "rounded-full px-1.5 py-px text-micro tabular-nums",
+                      isActive
+                        ? "bg-scrim/25 text-on-accent"
+                        : "bg-surface-container-high text-muted"
                     )}
                   >
                     {count}
@@ -186,8 +205,7 @@ export function FilterBar({
         </div>
       )}
 
-      {/* Right: Search + Filter Dropdowns + Additional Actions */}
-      <div className="flex flex-wrap items-center gap-space-xs">
+      <div className="flex shrink-0 flex-wrap items-center gap-space-xs">
         {search}
         {filters}
         {actions}
@@ -199,7 +217,8 @@ export function FilterBar({
 
 /**
  * FormField
- * Form control container providing accessible label, required indicator, helper text, and error validation messages.
+ * Label, control, then either helper text or the validation message. The
+ * message slot keeps its height so a field does not jump when it errors.
  */
 export function FormField({
   label,
@@ -212,21 +231,25 @@ export function FormField({
   children,
   ...props
 }) {
+  const describedBy = error ? `${id || label}-error` : helperText ? `${id || label}-hint` : undefined;
+
   return (
-    <div className={cn("space-y-1.5 w-full", className)} {...props}>
+    <div className={cn("flex w-full min-w-0 flex-col gap-1.5", className)} {...props}>
       {label && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <label
             htmlFor={id}
-            className="font-label-sm text-label-sm font-semibold text-text-primary flex items-center gap-1"
+            className="flex items-center gap-1 text-label font-medium text-primary"
           >
             {label}
-            {required && <span className="text-status-danger">*</span>}
+            {required && (
+              <span className="text-danger" aria-hidden="true">
+                *
+              </span>
+            )}
           </label>
           {badge && (
-            <span className="font-label-xs-caps text-[10px] text-text-secondary">
-              {badge}
-            </span>
+            <span className="text-micro text-muted">{badge}</span>
           )}
         </div>
       )}
@@ -234,13 +257,16 @@ export function FormField({
       {children}
 
       {error ? (
-        <p className="text-[11px] text-status-danger font-medium flex items-center gap-1">
-          <Icon name="error" className="material-symbols-outlined text-[13px]" />
+        <p
+          id={describedBy}
+          className="flex items-center gap-1 text-micro text-danger"
+        >
+          <Icon name="error" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
           {error}
         </p>
       ) : (
         helperText && (
-          <p className="text-[11px] text-text-secondary leading-normal">
+          <p id={describedBy} className="text-micro leading-normal text-muted">
             {helperText}
           </p>
         )
@@ -249,10 +275,20 @@ export function FormField({
   );
 }
 
-/**
- * FormSelect
- * Convenient wrapper integrating Select inside a FormField.
- */
+/** Input wrapped in a FormField, so a form row is one call. */
+export function FormInput({ label, required, helperText, error, id, className, inputClassName, ...props }) {
+  return (
+    <FormField label={label} required={required} helperText={helperText} error={error} id={id} className={className}>
+      <Input
+        id={id}
+        aria-invalid={error ? true : undefined}
+        className={cn(error && "border-status-danger focus-visible:border-status-danger", inputClassName)}
+        {...props}
+      />
+    </FormField>
+  );
+}
+
 export function FormSelect({
   label,
   required,
@@ -268,31 +304,21 @@ export function FormSelect({
   ...props
 }) {
   return (
-    <FormField
-      label={label}
-      required={required}
-      helperText={helperText}
-      error={error}
-      id={id}
-      className={className}
-    >
+    <FormField label={label} required={required} helperText={helperText} error={error} id={id} className={className}>
       <Select
         id={id}
         value={value}
         onChange={onChange}
-        className={cn("h-9 bg-surface-container-lowest", error && "border-status-danger", selectClassName)}
         placeholder={placeholder}
         options={options}
+        aria-label={label}
+        className={cn(error && "border-status-danger", selectClassName)}
         {...props}
       />
     </FormField>
   );
 }
 
-/**
- * FormTextarea
- * Styled multi-line input supporting dark mode, validation errors, and character counter.
- */
 export function FormTextarea({
   label,
   required,
@@ -309,33 +335,38 @@ export function FormTextarea({
   ...props
 }) {
   return (
-    <FormField
-      label={label}
-      required={required}
-      helperText={helperText}
-      error={error}
-      id={id}
-      className={className}
-    >
-      <textarea
+    <FormField label={label} required={required} helperText={helperText} error={error} id={id} className={className}>
+      <Textarea
         id={id}
         rows={rows}
         maxLength={maxLength}
         value={value ?? ""}
         onChange={(e) => onChange && onChange(e.target.value, e)}
         placeholder={placeholder}
-        className={cn(
-          "flex w-full rounded-lg border border-border-subtle bg-surface-container-lowest px-3 py-2 text-sm font-body-sm text-text-primary shadow-xs transition-colors placeholder:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary-container disabled:cursor-not-allowed disabled:opacity-50",
-          error && "border-status-danger",
-          textareaClassName
-        )}
+        aria-invalid={error ? true : undefined}
+        className={cn(error && "border-status-danger focus-visible:border-status-danger", textareaClassName)}
         {...props}
       />
       {maxLength && (
-        <div className="text-right text-[10px] text-text-secondary">
+        <div className="text-right text-micro tabular-nums text-muted">
           {String(value || "").length} / {maxLength}
         </div>
       )}
     </FormField>
+  );
+}
+
+/** Groups fields on a consistent column grid. */
+export function FormGrid({ columns = 2, className, children, ...props }) {
+  const colClass = {
+    1: "grid-cols-1",
+    2: "grid-cols-1 sm:grid-cols-2",
+    3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+  }[columns] || "grid-cols-1 sm:grid-cols-2";
+
+  return (
+    <div className={cn("grid gap-space-md", colClass, className)} {...props}>
+      {children}
+    </div>
   );
 }

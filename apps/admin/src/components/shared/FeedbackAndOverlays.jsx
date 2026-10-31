@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { cn } from '../../lib/utils';
 import {
   Badge,
@@ -9,14 +9,21 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogBody,
   DialogFooter,
   Card,
-  CardContent,
 } from '../ui';
+import { SkeletonRegion, SkeletonTable, SkeletonStatsGrid } from './Skeleton';
+
+const SUCCESS_WORDS = ['deliver', 'paid', 'settled', 'active', 'publish', 'complet', 'success', 'grade a', 'live', 'approved', 'reconciled'];
+const WARNING_WORDS = ['transit', 'dispatch', 'pending', 'awaiting', 'staging', 'pack', 'pick', 'review', 'cod', 'hold', 'partial'];
+const DANGER_WORDS = ['cancel', 'reject', 'fail', 'breach', 'destruct', 'urgent', 'error', 'overdue', 'expired', 'blocked'];
+const INFO_WORDS = ['manifest', 'new', 'info', 'prepaid', 'express', 'draft', 'scheduled'];
 
 /**
  * StatusBadge
- * Intelligent badge mapping commerce statuses to accessible semantic variants.
+ * Maps a commerce status string onto one of the tinted Badge variants, so
+ * the same word always reads the same colour across all sixteen modules.
  */
 export function StatusBadge({
   status,
@@ -28,86 +35,34 @@ export function StatusBadge({
   children,
   ...props
 }) {
-  const displayStatus = children || status || "";
+  const displayStatus = children ?? status ?? "";
   const normalized = String(displayStatus).toLowerCase().trim();
 
-  // Determine variant automatically if not explicitly provided
   let computedVariant = variant;
   if (!computedVariant) {
-    if (
-      normalized.includes("deliver") ||
-      normalized.includes("paid") ||
-      normalized.includes("settled") ||
-      normalized.includes("active") ||
-      normalized.includes("publish") ||
-      normalized.includes("complet") ||
-      normalized.includes("success") ||
-      normalized.includes("grade a") ||
-      normalized.includes("live")
-    ) {
-      computedVariant = "success";
-    } else if (
-      normalized.includes("transit") ||
-      normalized.includes("dispatch") ||
-      normalized.includes("pending") ||
-      normalized.includes("awaiting") ||
-      normalized.includes("staging") ||
-      normalized.includes("pack") ||
-      normalized.includes("pick") ||
-      normalized.includes("review") ||
-      normalized.includes("cod")
-    ) {
-      computedVariant = "warning";
-    } else if (
-      normalized.includes("cancel") ||
-      normalized.includes("reject") ||
-      normalized.includes("fail") ||
-      normalized.includes("breach") ||
-      normalized.includes("destruct") ||
-      normalized.includes("urgent") ||
-      normalized.includes("error")
-    ) {
-      computedVariant = "destructive";
-    } else if (
-      normalized.includes("manifest") ||
-      normalized.includes("new") ||
-      normalized.includes("info") ||
-      normalized.includes("prepaid") ||
-      normalized.includes("express")
-    ) {
-      computedVariant = "info";
-    } else if (normalized.includes("vip")) {
-      computedVariant = "vip";
-    } else if (normalized.includes("gold")) {
-      computedVariant = "gold";
-    } else {
-      computedVariant = "secondary";
-    }
+    if (SUCCESS_WORDS.some((w) => normalized.includes(w))) computedVariant = "success";
+    else if (WARNING_WORDS.some((w) => normalized.includes(w))) computedVariant = "warning";
+    else if (DANGER_WORDS.some((w) => normalized.includes(w))) computedVariant = "destructive";
+    else if (INFO_WORDS.some((w) => normalized.includes(w))) computedVariant = "info";
+    else if (normalized.includes("vip")) computedVariant = "vip";
+    else if (normalized.includes("gold")) computedVariant = "gold";
+    else computedVariant = "secondary";
   }
 
-  const dotColors = {
+  const dotColor = {
     success: "bg-status-success",
     warning: "bg-status-warning",
     destructive: "bg-status-danger",
     info: "bg-status-info",
-    vip: "bg-purple-400",
-    gold: "bg-amber-400",
-    secondary: "bg-text-secondary",
+    vip: "bg-primary",
+    gold: "bg-status-warning",
+    secondary: "bg-text-faint",
   }[computedVariant] || "bg-status-info";
 
   return (
-    <Badge
-      variant={computedVariant}
-      size={size}
-      className={cn("gap-1 font-semibold whitespace-nowrap", className)}
-      {...props}
-    >
-      {showDot && (
-        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotColors)} />
-      )}
-      {icon && (
-        <Icon name={icon} className="material-symbols-outlined text-[13px] shrink-0" />
-      )}
+    <Badge variant={computedVariant} size={size} className={cn("font-semibold", className)} {...props}>
+      {showDot && <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotColor)} />}
+      {icon && <Icon name={icon} aria-hidden="true" className="material-symbols-outlined shrink-0 text-icon-sm" />}
       <span>{displayStatus}</span>
     </Badge>
   );
@@ -115,7 +70,7 @@ export function StatusBadge({
 
 /**
  * ConfirmDialog
- * Standard modal for confirming destructive or critical actions with primary/cancel buttons.
+ * Confirmation for a destructive or irreversible action.
  */
 export function ConfirmDialog({
   isOpen,
@@ -125,56 +80,51 @@ export function ConfirmDialog({
   message = "This action cannot be undone.",
   confirmText = "Confirm",
   cancelText = "Cancel",
-  variant = "destructive", // 'destructive' | 'primary'
+  variant = "destructive",
   isLoading = false,
   icon,
 }) {
+  const isDestructive = variant === "destructive";
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <div className="flex items-center gap-3 mb-1">
-            <div
+          <div className="flex items-start gap-3">
+            <span
               className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                variant === "destructive"
-                  ? "bg-status-danger-bg text-status-danger"
-                  : "bg-primary-fixed/40 text-primary"
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+                isDestructive
+                  ? "bg-status-danger-bg text-danger"
+                  : "bg-primary-fixed text-on-primary-fixed"
               )}
             >
               <Icon
-                name={icon || (variant === "destructive" ? "warning" : "help")}
-                className="material-symbols-outlined text-[20px]"
+                name={icon || (isDestructive ? "warning" : "help")}
+                aria-hidden="true"
+                className="material-symbols-outlined text-icon-lg"
               />
+            </span>
+            <div className="flex min-w-0 flex-col gap-1">
+              <DialogTitle>{title}</DialogTitle>
+              <DialogDescription>{message}</DialogDescription>
             </div>
-            <DialogTitle className="text-base font-bold text-text-primary">
-              {title}
-            </DialogTitle>
           </div>
-          <DialogDescription className="text-xs text-text-secondary pl-13">
-            {message}
-          </DialogDescription>
         </DialogHeader>
 
-        <DialogFooter className="mt-4 gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            disabled={isLoading}
-            type="button"
-          >
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={isLoading}>
             {cancelText}
           </Button>
           <Button
-            variant={variant === "destructive" ? "destructive" : "primary"}
+            variant={isDestructive ? "destructive" : "primary"}
             size="sm"
             onClick={onConfirm}
             disabled={isLoading}
-            className="gap-1.5 font-semibold"
-            type="button"
           >
-            {isLoading && <Icon name="sync" className="material-symbols-outlined text-[14px] animate-spin" />}
+            {isLoading && (
+              <Icon name="sync" aria-hidden="true" className="material-symbols-outlined animate-spin text-icon-sm" />
+            )}
             <span>{confirmText}</span>
           </Button>
         </DialogFooter>
@@ -185,7 +135,7 @@ export function ConfirmDialog({
 
 /**
  * AppDialog
- * Clean, customizable modal dialog with header, scrollable body, and action footer.
+ * Header, scrolling body, action footer.
  */
 export function AppDialog({
   isOpen,
@@ -196,22 +146,35 @@ export function AppDialog({
   footer,
   children,
   className,
+  bodyClassName,
 }) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose && onClose()}>
       <DialogContent className={cn(maxWidth, className)}>
         {(title || description) && (
           <DialogHeader>
-            {title && <DialogTitle className="text-base font-bold">{title}</DialogTitle>}
-            {description && <DialogDescription className="text-xs text-text-secondary">{description}</DialogDescription>}
+            <div className="flex items-start justify-between gap-space-md">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                {title && <DialogTitle>{title}</DialogTitle>}
+                {description && <DialogDescription>{description}</DialogDescription>}
+              </div>
+              <Button
+                variant="ghost"
+                size="iconSm"
+                onClick={onClose}
+                title="Close"
+                aria-label="Close dialog"
+                className="-mr-1 shrink-0"
+              >
+                <Icon name="close" aria-hidden="true" className="material-symbols-outlined text-icon-md" />
+              </Button>
+            </div>
           </DialogHeader>
         )}
 
-        <div className="py-2 overflow-y-auto max-h-[70vh]">
-          {children}
-        </div>
+        <DialogBody className={cn("py-1", bodyClassName)}>{children}</DialogBody>
 
-        {footer && <DialogFooter className="mt-2">{footer}</DialogFooter>}
+        {footer && <DialogFooter>{footer}</DialogFooter>}
       </DialogContent>
     </Dialog>
   );
@@ -219,7 +182,8 @@ export function AppDialog({
 
 /**
  * AppDrawer
- * Standard slide-over drawer panel for detail views (e.g. order details, customer drilldowns).
+ * Right-hand slide-over for detail views. Closes on Escape and on the scrim,
+ * and locks the page behind it so the body does not scroll underneath.
  */
 export function AppDrawer({
   isOpen,
@@ -233,61 +197,69 @@ export function AppDrawer({
   children,
   className,
 }) {
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onClose?.();
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in">
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-overlay overflow-hidden" role="dialog" aria-modal="true" aria-label={title}>
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+        className="absolute inset-0 animate-fade-in bg-scrim/50 backdrop-blur-xs"
         onClick={onClose}
+        aria-hidden="true"
       />
 
-      <div className="fixed inset-y-0 right-0 pl-10 max-w-full flex">
+      <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
         <div
           className={cn(
-            "w-screen bg-surface-container-lowest border-l border-border-subtle shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-200",
+            "flex w-screen animate-slide-in-from-right flex-col justify-between border-l border-subtle bg-surface-container-lowest shadow-2xl",
             width,
             className
           )}
         >
-          {/* Drawer Header */}
-          <div className="p-space-md border-b border-border-subtle flex items-center justify-between gap-space-sm bg-surface-subtle shrink-0">
-            <div className="space-y-0.5 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-headline-sm text-sm font-bold text-text-primary truncate">
+          <div className="flex shrink-0 items-center justify-between gap-space-sm border-b border-subtle bg-surface-subtle p-space-md">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <h3 className="truncate text-subheading font-semibold text-primary">
                   {title}
                 </h3>
                 {badge}
               </div>
-              {subtitle && (
-                <p className="text-xs text-text-secondary truncate">{subtitle}</p>
-              )}
+              {subtitle && <p className="truncate text-meta text-muted">{subtitle}</p>}
             </div>
 
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex shrink-0 items-center gap-1">
               {actions}
               <Button
                 variant="ghost"
                 size="iconSm"
                 onClick={onClose}
-                className="text-secondary hover:text-text-primary"
-                type="button"
-                title="Close drawer"
+                title="Close panel"
+                aria-label="Close panel"
               >
-                <Icon name="close" className="material-symbols-outlined text-[18px]" />
+                <Icon name="close" aria-hidden="true" className="material-symbols-outlined text-icon-md" />
               </Button>
             </div>
           </div>
 
-          {/* Drawer Scrollable Body */}
-          <div className="flex-1 overflow-y-auto p-space-md space-y-space-md">
+          <div className="scrollbar-thin flex flex-1 flex-col gap-space-md overflow-y-auto p-space-md">
             {children}
           </div>
 
-          {/* Drawer Footer */}
           {footer && (
-            <div className="p-space-md border-t border-border-subtle bg-surface-subtle shrink-0">
+            <div className="shrink-0 border-t border-subtle bg-surface-subtle p-space-md">
               {footer}
             </div>
           )}
@@ -299,11 +271,11 @@ export function AppDrawer({
 
 /**
  * EmptyState
- * Reusable centered empty state container with icon, title, description, and action button.
+ * A short message and the one action that resolves it.
  */
 export function EmptyState({
   icon = "inbox",
-  title = "No data available",
+  title = "Nothing here yet",
   description = "There are no records to display in this view.",
   action,
   className,
@@ -311,76 +283,129 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center p-12 text-center rounded-2xl border border-dashed border-border-subtle bg-surface-canvas/50 space-y-3",
+        "flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-strong bg-surface-subtle/60 p-10 text-center",
         className
       )}
     >
-      <div className="w-12 h-12 rounded-2xl bg-surface-subtle border border-border-subtle flex items-center justify-center text-text-secondary">
-        <Icon name={icon} className="material-symbols-outlined text-[24px]" />
+      <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-subtle bg-surface-container-lowest text-faint">
+        <Icon name={icon} aria-hidden="true" className="material-symbols-outlined text-icon-lg" />
+      </span>
+      <div className="flex max-w-sm flex-col gap-1">
+        <h4 className="text-body font-semibold text-primary">{title}</h4>
+        <p className="text-meta leading-relaxed text-muted">{description}</p>
       </div>
-      <div className="space-y-1 max-w-sm">
-        <h4 className="font-semibold text-sm text-text-primary">{title}</h4>
-        <p className="text-xs text-text-secondary leading-relaxed">{description}</p>
-      </div>
-      {action && <div className="pt-2">{action}</div>}
+      {action && <div className="pt-1">{action}</div>}
     </div>
   );
 }
 
 /**
  * LoadingState
- * Module loading placeholder.
+ * Inline spinner for a small region. Whole pages and panels use the Skeleton
+ * family instead, so the wait has the shape of the content.
  */
-export function LoadingState({
-  message = "Loading operational telemetry...",
-  className,
-}) {
+export function LoadingState({ message = "Loading", className }) {
   return (
     <div
-      className={cn(
-        "flex flex-col items-center justify-center p-16 space-y-4 text-center",
-        className
-      )}
+      role="status"
+      aria-live="polite"
+      className={cn("flex flex-col items-center justify-center gap-3 p-10 text-center", className)}
     >
-      <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      <span className="font-label-sm text-xs text-text-secondary">{message}</span>
+      <span className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <span className="text-meta text-muted">{message}</span>
     </div>
   );
 }
 
 /**
  * ErrorState
- * Error alert card with retry capability.
+ * Inline failure notice with a retry. Never leaves a skeleton running.
  */
 export function ErrorState({
-  title = "Failed to load operational data",
-  message = "An error occurred while connecting to Everwear Commerce API.",
+  title = "Could not load this data",
+  message = "The Everwear Commerce API did not answer. Check the connection and try again.",
   onRetry,
   className,
 }) {
   return (
-    <Card className={cn("border-status-danger/30 bg-status-danger-bg/20 p-space-md", className)}>
-      <div className="flex items-start justify-between gap-space-sm">
-        <div className="flex items-start gap-3">
-          <Icon name="error" className="material-symbols-outlined text-status-danger text-[22px] shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <h4 className="font-semibold text-sm text-text-primary">{title}</h4>
-            <p className="text-xs text-text-secondary">{message}</p>
+    <Card className={cn("border-status-danger/25 bg-status-danger-bg p-space-md", className)} role="alert">
+      <div className="flex flex-wrap items-start justify-between gap-space-sm">
+        <div className="flex min-w-0 items-start gap-3">
+          <Icon
+            name="error"
+            aria-hidden="true"
+            className="material-symbols-outlined mt-0.5 shrink-0 text-icon-lg text-danger"
+          />
+          <div className="flex min-w-0 flex-col gap-1">
+            <h4 className="text-body font-semibold text-primary">{title}</h4>
+            <p className="text-meta text-muted">{message}</p>
           </div>
         </div>
         {onRetry && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRetry}
-            className="border-status-danger/40 text-status-danger hover:bg-status-danger-bg shrink-0 gap-1"
-            type="button"
-          >
-            <Icon name="refresh" className="material-symbols-outlined text-[14px]" />
+          <Button variant="outline" size="sm" onClick={onRetry} className="shrink-0">
+            <Icon name="refresh" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
             <span>Retry</span>
           </Button>
         )}
       </div>
     </Card>
   );
+}
+
+/**
+ * ModuleState
+ * The loading / error / empty decision every module repeats, in one place.
+ * Returns `null` once there is data to render, so a background refetch keeps
+ * the current content on screen instead of flashing a skeleton.
+ *
+ *   const gate = <ModuleState isLoading={q.isLoading} isError={q.isError} ... />
+ *   if (gate) return gate
+ */
+export function ModuleState({
+  isLoading,
+  isError,
+  error,
+  onRetry,
+  isEmpty = false,
+  skeleton,
+  emptyIcon,
+  emptyTitle,
+  emptyDescription,
+  emptyAction,
+  errorTitle,
+  label = "Loading",
+}) {
+  if (isLoading) {
+    return (
+      skeleton || (
+        <SkeletonRegion label={label} className="flex flex-col gap-space-lg">
+          <SkeletonStatsGrid count={4} />
+          <SkeletonTable rows={6} columns={6} />
+        </SkeletonRegion>
+      )
+    );
+  }
+
+  if (isError) {
+    return (
+      <ErrorState
+        title={errorTitle}
+        message={error?.message || undefined}
+        onRetry={onRetry}
+      />
+    );
+  }
+
+  if (isEmpty) {
+    return (
+      <EmptyState
+        icon={emptyIcon}
+        title={emptyTitle}
+        description={emptyDescription}
+        action={emptyAction}
+      />
+    );
+  }
+
+  return null;
 }

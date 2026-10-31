@@ -29,14 +29,44 @@ import { Icon,
   StatsCard,
   SectionCard,
   StatusBadge,
+  ErrorState,
+  EmptyState,
+  SkeletonPage,
+  Thumbnail,
 } from '../ui';
+
+const INCIDENT_VARIANT = {
+  CRITICAL: 'destructive',
+  WARNING: 'warning',
+  INFO: 'info',
+};
+
+const RELATIVE_STEPS = [
+  [60, 'sec'],
+  [3600, 'min'],
+  [86400, 'hr'],
+];
+
+function relativeTime(iso) {
+  if (!iso) return '—';
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (Number.isNaN(seconds)) return '—';
+  if (seconds < 10) return 'just now';
+  for (const [limit, unit] of RELATIVE_STEPS) {
+    if (seconds < limit) {
+      const divisor = limit === 60 ? 1 : limit === 3600 ? 60 : 3600;
+      return `${Math.floor(seconds / divisor)} ${unit} ago`;
+    }
+  }
+  return `${Math.floor(seconds / 86400)} d ago`;
+}
 
 export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
   const [timeRange, setTimeRange] = useState('Today');
   const [chartMode, setChartMode] = useState('Hourly GMV');
   const [incidents, setIncidents] = useState(OPERATIONAL_INCIDENTS);
   const [isSyncing, setIsSyncing] = useState(false);
-  const { data: dashboardData, isLoading, refetch } = useDashboardQuery();
+  const { data: dashboardData, isLoading, isError, error, refetch } = useDashboardQuery();
 
   const defaultOrders = useMemo(() => [
     {
@@ -129,10 +159,10 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
         return {
           ref: `#EW-${ro.displayId || 1000 + i}`,
           fullId: `EVR-${ro.displayId || 1000 + i}-BLR`,
-          timeAgo: 'Just now',
+          timeAgo: relativeTime(ro.createdAt),
           customer: name,
-          tier: 'VIP COUTURE',
-          tierVariant: 'vip',
+          tier: ro.paymentStatus === 'paid' ? 'PREPAID' : 'COD',
+          tierVariant: 'secondary',
           email: ro.email,
           items: `${ro.items?.length || 1} items`,
           value: val,
@@ -181,6 +211,8 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
   };
 
   // Metrics adjusted by time range
+  const openIncidents = incidents.filter((i) => !i.resolved);
+
   const metrics = {
     gmv: timeRange === 'Today' ? '₹4,82,94,200' :
          timeRange === 'Yesterday' ? '₹3,94,20,500' :
@@ -192,33 +224,45 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
     aov: '₹3,258',
     deliveredPct: '94.8%',
     activeNodes: '4 / 4 Nodes',
-    exceptionsCount: incidents.filter(i => !i.resolved).length,
+    exceptionsCount: openIncidents.length,
     depletedSkus: dashboardData?.lowStock?.length || 86
   };
+
+  if (isLoading) {
+    return <SkeletonPage variant="dashboard" stats={6} statsCols={6} label="Loading executive overview" />;
+  }
 
   return (
     <PageContainer>
       {/* Live System Telemetry Status Bar */}
-      <Card className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm bg-surface-container-low px-space-md py-space-xs rounded-xl shadow-xs border-border-subtle/50">
-        <div className="flex items-center gap-space-sm">
-          <span className="flex h-2 w-2 rounded-full bg-status-success animate-ping"></span>
-          <span className="font-label-xs-caps text-label-xs-caps text-status-success tracking-wider uppercase font-semibold">
-            Live Telemetry Online
+      <Card className="flex flex-col justify-between gap-space-sm px-space-md py-space-sm sm:flex-row sm:items-center">
+        <div className="flex min-w-0 items-center gap-space-sm">
+          <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-status-success" />
+          <span className="shrink-0 text-caption uppercase tracking-wider text-success">
+            Live telemetry online
           </span>
-          <span className="text-secondary text-body-sm">•</span>
-          <span className="font-body-sm text-body-sm text-secondary">
-            Connected to Everwear Commerce API (Cluster BLR-FC1 • Port 9100 • Replica Set rs0)
+          <span aria-hidden="true" className="h-1 w-1 shrink-0 rounded-full bg-text-faint" />
+          <span className="truncate text-body text-secondary">
+            Connected to the Everwear Commerce API
           </span>
         </div>
-        <div className="flex items-center gap-space-md font-label-xs-caps text-label-xs-caps text-secondary">
+        <div className="flex shrink-0 items-center gap-space-md text-caption text-muted">
           <span className="flex items-center gap-1 font-medium">
-            <Icon name="cloud_done" className="material-symbols-outlined text-[14px] text-status-success" /> 
-            Live Sync: Active
+            <Icon name="cloud_done" aria-hidden="true" className="material-symbols-outlined text-icon-sm text-success" />
+            Live sync active
           </span>
-          <span className="text-secondary/40">|</span>
-          <span className="text-text-secondary font-mono">Clusters: BLR • BOM • DEL • CCU</span>
+          <span aria-hidden="true" className="h-1 w-1 rounded-full bg-text-faint" />
+          <span className="font-mono whitespace-nowrap">BLR · BOM · DEL · CCU</span>
         </div>
       </Card>
+
+      {isError && (
+        <ErrorState
+          title="Live dashboard telemetry is unavailable"
+          message={error?.message}
+          onRetry={() => refetch()}
+        />
+      )}
 
       {/* Page Title & Operational Actions Toolbar */}
       <PageHeader
@@ -238,20 +282,20 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
               size="default"
               onClick={handleFlashSync}
               disabled={isSyncing}
-              className="gap-1.5 font-label-md"
+              className="gap-1.5"
               type="button"
             >
-              <Icon name="sync" className={`material-symbols-outlined text-[18px] text-primary ${isSyncing ? 'animate-spin' : ''}`} />
+              <Icon name="sync" className={`material-symbols-outlined text-icon-md text-accent ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'Syncing...' : 'Flash Sync'}</span>
             </Button>
             <Button
               variant="primary"
               size="default"
               onClick={handleDownloadPdf}
-              className="gap-1.5 font-label-md"
+              className="gap-1.5"
               type="button"
             >
-              <Icon name="download" className="material-symbols-outlined text-[18px]" />
+              <Icon name="download" className="material-symbols-outlined text-icon-md" />
               <span>Daily Brief (PDF)</span>
             </Button>
           </>
@@ -261,7 +305,6 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
       {/* KPI Metric Grid (7 Cards Bento) */}
       <ContentGrid cols={7}>
         <StatsCard
-          className="xl:col-span-2"
           title="Gross Merchandise Value"
           value={metrics.gmv}
           trend={metrics.gmvGrowth}
@@ -286,7 +329,7 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
           title="On-Time Dispatch SLA"
           value={metrics.deliveredPct}
           icon="local_shipping"
-          iconColor="text-status-success"
+          iconColor="text-success"
           trend="Target: 92%"
           trendType="neutral"
           trendLabel="within 4h"
@@ -297,7 +340,7 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
           title="Active Hub Nodes"
           value={metrics.activeNodes}
           icon="hub"
-          iconColor="text-status-info"
+          iconColor="text-info"
           badge="OPERATIONAL"
           badgeVariant="success"
           trendLabel="All Nodes Live"
@@ -309,7 +352,7 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
           title="Critical Exceptions"
           value={metrics.exceptionsCount}
           icon="warning"
-          iconColor="text-status-danger"
+          iconColor="text-danger"
           badge="ACTION REQ"
           badgeVariant="destructive"
           trendLabel="Immediate action"
@@ -320,7 +363,7 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
           title="Depleted Stock (SKUs)"
           value={metrics.depletedSkus}
           icon="inventory_2"
-          iconColor="text-status-warning"
+          iconColor="text-warning"
           trend="Out of stock"
           trendType="down"
           trendLabel="in 1+ hub"
@@ -334,27 +377,27 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
         {/* Left Column (8 Cols): Sales Velocity & Hub Throughput Charts */}
         <div className="xl:col-span-8 space-y-space-lg">
           <Card className="p-space-lg shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm pb-space-md border-b border-border-subtle">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm pb-space-md border-b border-subtle">
               <div>
-                <CardTitle className="font-headline-md text-headline-md font-semibold text-text-primary">
+                <CardTitle className="text-heading font-semibold text-primary">
                   Sales Velocity &amp; Hub Throughput
                 </CardTitle>
-                <CardDescription className="font-body-sm text-body-sm text-text-secondary">
+                <CardDescription className="text-body text-secondary">
                   Hourly order volume compared to prior period baseline across all omnichannel channels.
                 </CardDescription>
               </div>
 
               {/* Chart Mode Toggle */}
-              <div className="flex items-center gap-1 bg-surface-subtle p-1 rounded-xl border border-border-subtle text-xs">
+              <div className="flex items-center gap-1 bg-surface-subtle p-1 rounded-xl border border-subtle text-meta">
                 {['Hourly GMV', 'Units Dispatched', 'Prepaid vs COD'].map((mode) => (
                   <button
                     key={mode}
                     onClick={() => setChartMode(mode)}
                     className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                      chartMode === mode
-                        ? 'bg-surface-container-lowest text-primary font-semibold shadow-xs'
-                        : 'text-text-secondary hover:text-text-primary'
-                    }`}
+ chartMode === mode
+ ? 'bg-surface-container-lowest text-accent font-semibold shadow-xs'
+ : 'text-muted hover:text-primary'
+ }`}
                     type="button"
                   >
                     {mode}
@@ -365,12 +408,12 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
 
             {/* Stylized Visual Chart */}
             <div className="pt-space-md space-y-space-md">
-              <div className="h-64 w-full bg-surface-canvas rounded-xl border border-border-subtle p-space-md flex flex-col justify-between">
-                <div className="flex items-center justify-between text-xs font-mono text-text-secondary">
+              <div className="flex h-64 w-full flex-col justify-between rounded-xl border border-subtle bg-surface-subtle p-space-md">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-meta font-mono text-muted">
                   <span>₹80L peak</span>
                   <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-primary"></span> Today's Velocity</span>
-                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-secondary-fixed-dim"></span> Baseline (Last Week)</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-chart-1"></span> Today’s velocity</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-chart-baseline"></span> Baseline (last week)</span>
                   </div>
                 </div>
 
@@ -392,16 +435,16 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
                       <div className="w-full flex items-end justify-center gap-1 h-36">
                         <div 
                           style={{ height: `${col.base}%` }} 
-                          className="w-full max-w-[12px] bg-secondary-fixed-dim/60 rounded-t-xs"
+                          className="w-full max-w-[12px] rounded-t-sm bg-chart-baseline"
                           title={`Baseline: ${col.base}%`}
                         />
                         <div 
                           style={{ height: `${col.val}%` }} 
-                          className="w-full max-w-[14px] bg-primary-container rounded-t-xs group-hover:bg-primary transition-colors"
+                          className="w-full max-w-[14px] rounded-t-sm bg-chart-1 transition-colors group-hover:bg-primary-hover"
                           title={`Today: ${col.val}%`}
                         />
                       </div>
-                      <span className="text-[10px] font-mono text-text-secondary">{col.hour}</span>
+                      <span className="text-micro font-mono text-muted whitespace-nowrap">{col.hour}</span>
                     </div>
                   ))}
                 </div>
@@ -411,12 +454,12 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
 
           {/* Top Selling Garments Table */}
           <Card className="p-space-lg shadow-sm">
-            <div className="flex items-center justify-between pb-space-md border-b border-border-subtle">
+            <div className="flex items-center justify-between pb-space-md border-b border-subtle">
               <div>
-                <CardTitle className="font-headline-md text-headline-md font-semibold text-text-primary">
+                <CardTitle className="text-heading font-semibold text-primary">
                   Top Performing Garments &amp; Styles (Real-Time)
                 </CardTitle>
-                <CardDescription className="font-body-sm text-body-sm text-text-secondary">
+                <CardDescription className="text-body text-secondary">
                   Highest velocity luxury garments by unit sell-through, gross margin &amp; regional demand.
                 </CardDescription>
               </div>
@@ -424,7 +467,7 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
                 variant="outline"
                 size="sm"
                 onClick={() => onNavigate('products')}
-                className="text-xs"
+                className="text-meta"
                 type="button"
               >
                 View Catalog Master →
@@ -434,13 +477,13 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
             <div className="overflow-x-auto pt-2">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-b border-border-subtle">
-                    <TableHead className="font-label-xs-caps text-label-xs-caps uppercase text-text-secondary">Garment Style</TableHead>
-                    <TableHead className="font-label-xs-caps text-label-xs-caps uppercase text-text-secondary">Category</TableHead>
-                    <TableHead className="font-label-xs-caps text-label-xs-caps uppercase text-text-secondary">Units Sold</TableHead>
-                    <TableHead className="font-label-xs-caps text-label-xs-caps uppercase text-text-secondary">Revenue</TableHead>
-                    <TableHead className="font-label-xs-caps text-label-xs-caps uppercase text-text-secondary">Gross Margin</TableHead>
-                    <TableHead className="font-label-xs-caps text-label-xs-caps uppercase text-text-secondary">Stock Status</TableHead>
+                  <TableRow className="border-b border-subtle">
+                    <TableHead>Garment Style</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Units Sold</TableHead>
+                    <TableHead>Revenue</TableHead>
+                    <TableHead>Gross Margin</TableHead>
+                    <TableHead>Stock Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -457,19 +500,19 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
                         onClick={() => onNavigate('products')}
                       >
                         <TableCell>
-                          <div className="flex items-center gap-2.5">
-                            <img src={item.image} alt={title} className="w-9 h-11 object-cover rounded-md bg-surface-subtle" />
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-xs text-text-primary">{title}</span>
-                              <span className="font-mono text-[10px] text-text-secondary">{item.sku}</span>
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <Thumbnail src={item.image} alt={title} className="w-9 h-11 rounded-md" imgClassName="object-cover" />
+                            <div className="flex min-w-0 flex-col">
+                              <span className="line-clamp-2 font-semibold text-meta text-primary" title={title}>{title}</span>
+                              <span className="font-mono text-micro text-muted whitespace-nowrap">{item.sku}</span>
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs text-text-secondary">{item.category}</TableCell>
-                        <TableCell className="font-mono text-xs font-semibold">{units} pcs</TableCell>
-                        <TableCell className="font-mono text-xs font-bold text-text-primary">{item.revenue}</TableCell>
+                        <TableCell className="text-meta text-muted">{item.category}</TableCell>
+                        <TableCell className="font-mono text-meta font-semibold whitespace-nowrap">{units} pcs</TableCell>
+                        <TableCell className="font-mono text-meta font-semibold text-primary whitespace-nowrap">{item.revenue}</TableCell>
                         <TableCell>
-                          <Badge variant="success" className="text-[10px]">{margin}%</Badge>
+                          <Badge variant="success" className="text-micro">{margin}%</Badge>
                         </TableCell>
                         <TableCell>
                           <StatusBadge status={stock} size="sm" />
@@ -487,56 +530,88 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
         <div className="xl:col-span-4 space-y-space-lg">
           {/* Operations Exception Triage Queue */}
           <Card className="p-space-md shadow-sm border-l-4 border-l-status-danger">
-            <div className="flex items-center justify-between pb-2 border-b border-border-subtle">
+            <div className="flex items-center justify-between pb-2 border-b border-subtle">
               <div className="flex items-center gap-2">
-                <Icon name="notification_important" className="material-symbols-outlined text-status-danger text-[20px]" />
-                <CardTitle className="font-headline-sm text-sm font-bold text-text-primary">
+                <Icon name="notification_important" className="material-symbols-outlined text-danger text-icon-lg" />
+                <CardTitle className="text-body font-semibold text-primary">
                   Operations Exception Triage
                 </CardTitle>
               </div>
-              <Badge variant="destructive" className="text-[10px]">
-                {incidents.filter(i => !i.resolved).length} Pending
+              <Badge variant="destructive" size="sm">
+                {openIncidents.length} pending
               </Badge>
             </div>
 
             <div className="space-y-space-sm pt-2">
-              {incidents.filter(i => !i.resolved).map((inc) => (
-                <div key={inc.id} className="p-3 bg-surface-subtle rounded-xl space-y-2 border border-border-subtle/60">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[10px] font-bold text-status-danger">{inc.ref}</span>
-                    <Badge variant="outline" className="text-[9px]">{inc.hub}</Badge>
+              {openIncidents.length === 0 ? (
+                <EmptyState
+                  icon="task_alt"
+                  title="No open exceptions"
+                  description="Every fulfillment node is inside its SLA window."
+                  className="p-6"
+                />
+              ) : (
+                openIncidents.map((inc) => (
+                  <div
+                    key={inc.id}
+                    className="flex flex-col gap-2 rounded-xl border border-subtle bg-surface-subtle p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <StatusBadge
+                        status={inc.level}
+                        size="sm"
+                        variant={INCIDENT_VARIANT[inc.level] || 'info'}
+                        showDot
+                      />
+                      <Badge variant="outline" size="sm" className="min-w-0">
+                        <span className="truncate">{inc.node}</span>
+                      </Badge>
+                    </div>
+                    <div className="text-meta font-semibold text-primary">{inc.title}</div>
+                    <p className="text-micro leading-relaxed text-muted">{inc.desc}</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <span className="font-mono text-micro text-muted whitespace-nowrap">
+                        {inc.etaText || 'Awaiting action'}
+                      </span>
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        {inc.dismissText && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleResolveIncident(inc.id, inc.dismissText)}
+                          >
+                            {inc.dismissText}
+                          </Button>
+                        )}
+                        {inc.actionText && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleResolveIncident(inc.id, inc.actionText)}
+                          >
+                            {inc.actionText}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs font-semibold text-text-primary">{inc.title}</div>
-                  <div className="text-[11px] text-text-secondary">{inc.description}</div>
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[10px] text-text-secondary font-mono">{inc.time}</span>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleResolveIncident(inc.id, inc.action)}
-                      className="h-7 text-xs px-2.5"
-                      type="button"
-                    >
-                      {inc.action}
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </Card>
 
           {/* Real-Time Ingested Orders Stream */}
           <Card className="p-space-md shadow-sm">
-            <div className="flex items-center justify-between pb-2 border-b border-border-subtle">
+            <div className="flex items-center justify-between pb-2 border-b border-subtle">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-status-success animate-pulse"></span>
-                <CardTitle className="font-headline-sm text-sm font-bold text-text-primary">
+                <CardTitle className="text-body font-semibold text-primary">
                   Live Dispatch Stream
                 </CardTitle>
               </div>
               <button 
                 onClick={() => onNavigate('order-management')}
-                className="text-primary text-xs font-semibold hover:underline"
+                className="text-accent text-meta font-semibold hover:underline"
                 type="button"
               >
                 All Orders →
@@ -551,19 +626,19 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
                     onSelectOrder?.(ord.fullId);
                     onNavigate('order-management', ord.fullId);
                   }}
-                  className="p-2.5 rounded-xl hover:bg-surface-subtle transition-colors cursor-pointer border border-border-subtle/40 space-y-1"
+                  className="p-2.5 rounded-xl hover:bg-surface-subtle transition-colors cursor-pointer border border-subtle/40 space-y-1"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-bold text-text-primary">{ord.ref}</span>
-                    <span className="text-[10px] text-text-secondary font-mono">{ord.timeAgo}</span>
+                    <span className="font-mono text-meta font-semibold text-primary whitespace-nowrap">{ord.ref}</span>
+                    <span className="text-micro text-muted font-mono whitespace-nowrap">{ord.timeAgo}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-text-primary truncate max-w-[150px]">{ord.customer}</span>
-                    <span className="font-mono font-bold text-text-primary">{ord.value}</span>
+                  <div className="flex items-center justify-between text-meta">
+                    <span className="font-medium text-primary truncate max-w-[150px]">{ord.customer}</span>
+                    <span className="font-mono font-semibold text-primary whitespace-nowrap">{ord.value}</span>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-text-secondary pt-0.5">
+                  <div className="flex items-center justify-between text-micro text-muted pt-0.5">
                     <span>{ord.items}</span>
-                    <Badge variant={ord.slaVariant || 'info'} className="text-[9px] py-0 px-1 font-semibold">
+                    <Badge variant={ord.slaVariant || 'info'} className="text-micro py-0 px-1 font-semibold">
                       {ord.slaStatus}
                     </Badge>
                   </div>

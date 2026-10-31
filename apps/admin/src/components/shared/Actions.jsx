@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { cn } from '../../lib/utils';
 import { Button, Icon } from '../ui';
 
 /**
  * IconButton
- * Accessible, compact button designed specifically for iconography with title and active state.
+ * Icon-only action. `title` doubles as the accessible name, so it is required
+ * in practice: an unlabelled icon button is invisible to a screen reader.
  */
 export function IconButton({
   icon,
@@ -20,25 +21,25 @@ export function IconButton({
     <Button
       variant={variant}
       size={size}
-      className={cn("text-secondary hover:text-text-primary shrink-0", className)}
+      className={cn("shrink-0", className)}
       onClick={onClick}
       disabled={disabled}
       title={title}
       aria-label={title}
-      type="button"
       {...props}
     >
-      <Icon name={icon} className="material-symbols-outlined text-[18px]" />
+      <Icon name={icon} aria-hidden="true" className="material-symbols-outlined text-icon-md" />
     </Button>
   );
 }
 
 /**
  * Tooltip
- * Accessible lightweight tooltip.
+ * Opens on hover and on focus, so the hint is reachable from the keyboard.
  */
 export function Tooltip({ content, position = "top", children, className }) {
   const [visible, setVisible] = useState(false);
+  const id = useId();
 
   const posClasses = {
     top: "bottom-full left-1/2 -translate-x-1/2 mb-1.5",
@@ -48,98 +49,141 @@ export function Tooltip({ content, position = "top", children, className }) {
   }[position] || "bottom-full left-1/2 -translate-x-1/2 mb-1.5";
 
   return (
-    <div
+    <span
       className={cn("relative inline-flex items-center", className)}
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
       onFocus={() => setVisible(true)}
       onBlur={() => setVisible(false)}
+      aria-describedby={visible && content ? id : undefined}
     >
       {children}
       {visible && content && (
-        <div
+        <span
+          id={id}
           role="tooltip"
           className={cn(
-            "absolute z-50 px-2 py-1 rounded bg-black/90 text-white text-[11px] font-medium whitespace-nowrap shadow-md pointer-events-none animate-in fade-in-0 zoom-in-95",
+            "pointer-events-none absolute z-overlay animate-fade-in whitespace-nowrap rounded-md bg-inverse-surface px-2 py-1 text-micro text-inverse shadow-md",
             posClasses
           )}
         >
           {content}
-        </div>
+        </span>
       )}
-    </div>
+    </span>
   );
 }
 
 /**
  * DropdownMenu
- * Accessible action dropdown menu for table row actions, quick settings, and secondary actions.
+ * Row and toolbar action menu. Closes on Escape, on an outside click and
+ * after a choice; arrow keys walk the items.
  */
-export function DropdownMenu({
-  trigger,
-  align = "right",
-  items = [], // array of { label, icon, onClick, danger, disabled, divider }
-  className,
-}) {
+export function DropdownMenu({ trigger, align = "right", items = [], label = "Actions", className }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const menuRef = useRef(null);
+  const listRef = useRef(null);
+
+  const actionable = items.filter((item) => !item.divider);
 
   useEffect(() => {
-    const handleOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
+    if (!isOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setIsOpen(false);
+    };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
         setIsOpen(false);
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveIndex((i) => Math.min(actionable.length - 1, i + 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveIndex((i) => Math.max(0, i - 1));
       }
     };
-    if (isOpen) {
-      document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isOpen, actionable.length]);
+
+  useEffect(() => {
+    if (isOpen && activeIndex >= 0) {
+      listRef.current?.querySelectorAll('[role="menuitem"]')?.[activeIndex]?.focus();
     }
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [isOpen]);
+  }, [isOpen, activeIndex]);
+
+  let actionableIndex = -1;
 
   return (
-    <div ref={menuRef} className="relative inline-block text-left">
-      <div onClick={() => setIsOpen((prev) => !prev)}>
+    <div
+      ref={menuRef}
+      className="relative inline-block text-left"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span
+        onClick={() => {
+          setActiveIndex(-1);
+          setIsOpen((open) => !open);
+        }}
+      >
         {trigger || (
-          <Button variant="ghost" size="iconSm" type="button" title="Actions">
-            <Icon name="more_vert" className="material-symbols-outlined text-[18px]" />
+          <Button variant="ghost" size="iconSm" title={label} aria-label={label} aria-haspopup="menu" aria-expanded={isOpen}>
+            <Icon name="more_vert" aria-hidden="true" className="material-symbols-outlined text-icon-md" />
           </Button>
         )}
-      </div>
+      </span>
 
       {isOpen && (
         <div
+          ref={listRef}
+          role="menu"
+          aria-label={label}
           className={cn(
-            "absolute top-full mt-1 z-50 min-w-[160px] rounded-xl border border-border-subtle bg-surface-container-lowest p-1 shadow-xl animate-in fade-in-0 zoom-in-95",
+            "absolute top-full z-overlay mt-1 min-w-[11rem] animate-zoom-in rounded-xl border border-subtle bg-overlay p-1.5 shadow-lg",
             align === "right" ? "right-0" : "left-0",
             className
           )}
         >
           {items.map((item, idx) => {
             if (item.divider) {
-              return <div key={idx} className="my-1 border-t border-border-subtle/50" />;
+              return <div key={idx} className="my-1 border-t border-subtle" role="separator" />;
             }
+            actionableIndex += 1;
 
             return (
               <button
                 key={idx}
+                role="menuitem"
                 type="button"
                 disabled={item.disabled}
                 onClick={() => {
                   setIsOpen(false);
-                  item.onClick && item.onClick();
+                  item.onClick?.();
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors text-left",
+                  "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-meta font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   item.danger
-                    ? "text-status-danger hover:bg-status-danger-bg/50"
-                    : "text-text-primary hover:bg-surface-subtle",
-                  item.disabled && "opacity-50 cursor-not-allowed"
+                    ? "text-danger hover:bg-status-danger-bg"
+                    : "text-primary hover:bg-surface-subtle",
+                  item.disabled && "cursor-not-allowed opacity-50"
                 )}
               >
                 {item.icon && (
-                  <Icon name={item.icon} className="material-symbols-outlined text-[16px] shrink-0" />
+                  <Icon
+                    name={item.icon}
+                    aria-hidden="true"
+                    className="material-symbols-outlined shrink-0 text-icon"
+                  />
                 )}
-                <span>{item.label}</span>
+                <span className="truncate">{item.label}</span>
               </button>
             );
           })}

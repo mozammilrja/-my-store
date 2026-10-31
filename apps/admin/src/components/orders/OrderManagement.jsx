@@ -27,6 +27,8 @@ import { Icon,
   FilterDropdown,
   DataTable,
   StatusBadge,
+  ErrorState,
+  SkeletonPage,
 } from '../ui';
 
 export function OrderManagement({ 
@@ -49,7 +51,13 @@ export function OrderManagement({
   const [drawerOpen, setDrawerOpen] = useState(true);
 
   // TanStack Query: orders data fetching and mutations
-  const { data: apiData, isLoading: isOrdersLoading, refetch: refetchOrders } = useOrdersQuery({ limit: 50 });
+  const {
+    data: apiData,
+    isLoading: isOrdersLoading,
+    isError: isOrdersError,
+    error: ordersError,
+    refetch: refetchOrders,
+  } = useOrdersQuery({ limit: 50 });
   const cancelOrderMutation = useCancelOrderMutation();
   const updateStatusMutation = useUpdateOrderStatusMutation();
 
@@ -90,7 +98,7 @@ export function OrderManagement({
             phone: phone.replace(/(\d{5})\d+/, '$1•••••'),
             fullPhone: phone,
             tier: idx === 0 ? 'VIP COUTURE' : 'GOLD TIER',
-            tierBadgeClass: 'bg-primary-fixed text-on-primary-fixed font-bold',
+            tierBadgeClass: 'bg-primary-fixed text-on-primary-fixed font-semibold',
             address,
             cityRegion: `${city}, India`,
             deliveryInstructions: 'Fragile luxury garment packaging'
@@ -309,16 +317,16 @@ export function OrderManagement({
       cell: (order) => (
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5">
-            <span className="font-mono text-xs font-bold text-text-primary group-hover:text-primary">
+            <span className="font-mono text-meta font-semibold text-primary group-hover:text-accent whitespace-nowrap">
               {order.id}
             </span>
             {order.isExpress && (
-              <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-900 text-[9px] font-bold">
+              <span className="rounded border border-status-warning/25 bg-status-warning-bg px-1 py-px text-micro font-semibold text-warning">
                 24h
               </span>
             )}
           </div>
-          <span className="text-[11px] text-text-secondary font-mono mt-0.5">
+          <span className="text-micro text-muted font-mono mt-0.5 whitespace-nowrap">
             {order.timeAgo}
           </span>
         </div>
@@ -328,10 +336,10 @@ export function OrderManagement({
       header: 'Consignee (Customer)',
       cell: (order) => (
         <div className="flex flex-col">
-          <span className="font-medium text-xs text-text-primary">
+          <span className="font-medium text-meta text-primary">
             {order.customer.name}
           </span>
-          <span className="text-[11px] text-text-secondary truncate max-w-[130px]">
+          <span className="text-micro text-muted truncate max-w-[130px]">
             {order.customer.cityRegion}
           </span>
         </div>
@@ -341,10 +349,10 @@ export function OrderManagement({
       header: 'Hub & Channel',
       cell: (order) => (
         <div className="flex flex-col">
-          <Badge variant="outline" className="text-[10px] w-fit font-mono font-bold">
+          <Badge variant="outline" className="text-micro w-fit font-mono font-semibold whitespace-nowrap">
             {order.nodeFc}
           </Badge>
-          <span className="text-[10px] text-text-secondary mt-0.5 truncate max-w-[120px]">
+          <span className="text-micro text-muted mt-0.5 truncate max-w-[120px]">
             {order.channel}
           </span>
         </div>
@@ -354,10 +362,10 @@ export function OrderManagement({
       header: 'Items Ordered',
       cell: (order) => (
         <div className="flex flex-col">
-          <span className="text-xs font-semibold text-text-primary">
+          <span className="whitespace-nowrap text-meta font-semibold text-primary">
             {order.items?.length || 1} Style ({(order.items || []).reduce((acc, it) => acc + (it.qty || 1), 0)} pcs)
           </span>
-          <span className="text-[11px] text-text-secondary truncate max-w-[140px]">
+          <span className="text-micro text-muted truncate max-w-[140px]">
             {order.items?.[0]?.name || 'Apparel item'}
           </span>
         </div>
@@ -367,10 +375,10 @@ export function OrderManagement({
       header: 'Courier / AWB',
       cell: (order) => (
         <div className="flex flex-col">
-          <span className="text-xs font-medium text-text-primary">
+          <span className="text-meta font-medium text-primary">
             {order.courier?.partner || 'BlueDart Air'}
           </span>
-          <span className="text-[11px] font-mono text-primary truncate">
+          <span className="text-micro font-mono text-accent truncate">
             {order.courier?.awb || 'Pending AWB'}
           </span>
         </div>
@@ -380,7 +388,7 @@ export function OrderManagement({
       header: 'Value & Tax',
       cell: (order) => (
         <div className="flex flex-col">
-          <span className="font-mono text-xs font-bold text-text-primary">
+          <span className="font-mono text-meta font-semibold text-primary whitespace-nowrap">
             {order.payment.totalPaid}
           </span>
           <StatusBadge
@@ -399,8 +407,19 @@ export function OrderManagement({
     },
   ], []);
 
+  if (isOrdersLoading) {
+    return <SkeletonPage variant="split" columns={7} rows={8} label="Loading orders" />;
+  }
+
   return (
     <PageContainer>
+      {ordersError && (
+        <ErrorState
+          title="Orders could not be loaded"
+          message={ordersError?.message}
+          onRetry={() => refetchOrders()}
+        />
+      )}
       {/* Top Operations Header */}
       <PageHeader
         breadcrumb={['Everwear Admin', 'Fulfillment', 'Order Management']}
@@ -417,7 +436,7 @@ export function OrderManagement({
               className="gap-1.5 h-9"
               type="button"
             >
-              <Icon name="receipt_long" className="material-symbols-outlined text-[18px]" />
+              <Icon name="receipt_long" className="material-symbols-outlined text-icon-md" />
               <span>Export GST Register</span>
             </Button>
             <Button
@@ -427,7 +446,7 @@ export function OrderManagement({
               className="gap-1.5 h-9"
               type="button"
             >
-              <Icon name="print" className="material-symbols-outlined text-[18px]" />
+              <Icon name="print" className="material-symbols-outlined text-icon-md" />
               <span>Print Barcodes</span>
             </Button>
             <Button
@@ -437,7 +456,7 @@ export function OrderManagement({
               className="gap-1.5 h-9"
               type="button"
             >
-              <Icon name="inventory_2" className="material-symbols-outlined text-[18px]" />
+              <Icon name="inventory_2" className="material-symbols-outlined text-icon-md" />
               <span>Batch Manifest</span>
             </Button>
             <Button
@@ -447,7 +466,7 @@ export function OrderManagement({
               className="gap-1.5 h-9 shadow-sm"
               type="button"
             >
-              <Icon name="add_circle" className="material-symbols-outlined text-[18px]" />
+              <Icon name="add_circle" className="material-symbols-outlined text-icon-md" />
               <span>+ Create Manual Order</span>
             </Button>
           </>

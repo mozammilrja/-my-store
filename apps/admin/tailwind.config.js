@@ -1,4 +1,9 @@
 /** @type {import('tailwindcss').Config} */
+
+/* Every colour resolves through a CSS custom property so a theme switch
+   re-tints the whole UI without a reload and without any `dark:` pair. */
+const token = (name) => `rgb(var(--${name}) / <alpha-value>)`
+
 export default {
   content: [
     "./index.html",
@@ -8,88 +13,127 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Theme-reactive semantic surfaces
-        "surface-canvas": "rgb(var(--surface-canvas) / <alpha-value>)",
-        "surface-container-lowest": "rgb(var(--surface-container-lowest) / <alpha-value>)",
-        "surface-container-low": "rgb(var(--surface-container-low) / <alpha-value>)",
-        "surface-container": "rgb(var(--surface-container) / <alpha-value>)",
-        "surface-container-high": "rgb(var(--surface-container-high) / <alpha-value>)",
-        "surface-container-highest": "rgb(var(--surface-container-highest) / <alpha-value>)",
-        "surface-subtle": "rgb(var(--surface-subtle) / <alpha-value>)",
-        "surface": "rgb(var(--surface) / <alpha-value>)",
-        "surface-bright": "rgb(var(--surface-bright) / <alpha-value>)",
-        "surface-dim": "rgb(var(--surface-dim) / <alpha-value>)",
-        "surface-variant": "rgb(var(--surface-variant) / <alpha-value>)",
-        "background": "rgb(var(--background) / <alpha-value>)",
+        // Surfaces
+        "surface-canvas": token("surface-canvas"),
+        "surface-container-lowest": token("surface-container-lowest"),
+        "surface-container-low": token("surface-container-low"),
+        "surface-container": token("surface-container"),
+        "surface-container-high": token("surface-container-high"),
+        "surface-container-highest": token("surface-container-highest"),
+        "surface-subtle": token("surface-subtle"),
+        "surface": token("surface"),
+        "surface-bright": token("surface-bright"),
+        "surface-dim": token("surface-dim"),
+        "surface-variant": token("surface-variant"),
+        "background": token("background"),
+        "overlay": token("overlay"),
+        "scrim": token("scrim"),
 
-        // Theme-reactive borders
-        "border-subtle": "rgb(var(--border-subtle) / <alpha-value>)",
-        "border-strong": "rgb(var(--border-strong) / <alpha-value>)",
-        "border": "rgb(var(--border-subtle) / <alpha-value>)",
+        // Borders
+        "border-subtle": token("border-subtle"),
+        "border-strong": token("border-strong"),
+        "border-emphasis": token("border-emphasis"),
+        "border": token("border-subtle"),
+        "ring": token("ring"),
 
-        // Theme-reactive typography & icons
-        "text-primary": "rgb(var(--text-primary) / <alpha-value>)",
-        "text-secondary": "rgb(var(--text-secondary) / <alpha-value>)",
-        "on-surface": "rgb(var(--on-surface) / <alpha-value>)",
-        "on-surface-variant": "rgb(var(--on-surface-variant) / <alpha-value>)",
-        "on-background": "rgb(var(--on-background) / <alpha-value>)",
-        "secondary": "rgb(var(--secondary) / <alpha-value>)",
+        // Typography and icons
+        "text-primary": token("text-primary"),
+        "text-secondary": token("text-secondary"),
+        "text-faint": token("text-faint"),
+        "on-surface": token("on-surface"),
+        "on-surface-variant": token("on-surface-variant"),
+        "on-background": token("on-background"),
+        "secondary": token("secondary"),
 
-        // Theme-reactive secondary surfaces & outlines
-        "secondary-fixed": "rgb(var(--secondary-fixed) / <alpha-value>)",
-        "secondary-fixed-dim": "rgb(var(--secondary-fixed-dim) / <alpha-value>)",
-        "secondary-container": "rgb(var(--secondary-container) / <alpha-value>)",
-        "on-secondary": "rgb(var(--on-secondary) / <alpha-value>)",
-        "on-secondary-container": "rgb(var(--on-secondary-container) / <alpha-value>)",
-        "on-secondary-fixed": "rgb(var(--on-secondary-fixed) / <alpha-value>)",
-        "on-secondary-fixed-variant": "rgb(var(--on-secondary-fixed-variant) / <alpha-value>)",
-        "outline": "rgb(var(--outline) / <alpha-value>)",
-        "outline-variant": "rgb(var(--outline-variant) / <alpha-value>)",
+        // Neutral containers and outlines
+        "secondary-fixed": token("secondary-fixed"),
+        "secondary-fixed-dim": token("secondary-fixed-dim"),
+        "secondary-container": token("secondary-container"),
+        "on-secondary": token("on-secondary"),
+        "on-secondary-container": token("on-secondary-container"),
+        "on-secondary-fixed": token("on-secondary-fixed"),
+        "on-secondary-fixed-variant": token("on-secondary-fixed-variant"),
+        "outline": token("outline"),
+        "outline-variant": token("outline-variant"),
 
-        // Status pill backgrounds
-        "status-success-bg": "rgb(var(--status-success-bg) / <alpha-value>)",
-        "status-warning-bg": "rgb(var(--status-warning-bg) / <alpha-value>)",
-        "status-danger-bg": "rgb(var(--status-danger-bg) / <alpha-value>)",
-        "status-info-bg": "rgb(var(--status-info-bg) / <alpha-value>)",
+        // Brand accent: -primary tints text and icons, -primary-container fills
+        "accent": token("text-accent"),
+        "accent-hover": token("text-accent-hover"),
+        "on-accent": token("text-on-accent"),
+        "primary": token("primary"),
+        "primary-hover": token("primary-hover"),
+        "primary-container": token("primary-container"),
+        "primary-container-hover": token("primary-container-hover"),
+        "primary-fixed": token("primary-fixed"),
+        "primary-fixed-dim": token("primary-fixed-dim"),
+        "on-primary": token("on-primary"),
+        "on-primary-container": token("on-primary-container"),
+        "on-primary-fixed": token("on-primary-fixed"),
+        "on-primary-fixed-variant": token("on-primary-fixed-variant"),
+        "inverse-primary": token("inverse-primary"),
+        "inverse-surface": token("inverse-surface"),
+        "inverse-on-surface": token("inverse-on-surface"),
 
-        // Primary branding & accents
-        "primary": "rgb(var(--primary) / <alpha-value>)",
-        "primary-container": "rgb(var(--primary-container) / <alpha-value>)",
-        "primary-fixed": "rgb(var(--primary-fixed) / <alpha-value>)",
-        "primary-fixed-dim": "rgb(var(--primary-fixed-dim) / <alpha-value>)",
-        "on-primary": "rgb(var(--on-primary) / <alpha-value>)",
-        "on-primary-container": "rgb(var(--on-primary-container) / <alpha-value>)",
-        "on-primary-fixed": "rgb(var(--on-primary-fixed) / <alpha-value>)",
-        "on-primary-fixed-variant": "rgb(var(--on-primary-fixed-variant) / <alpha-value>)",
-        "inverse-primary": "rgb(var(--inverse-primary) / <alpha-value>)",
-        "inverse-surface": "rgb(var(--inverse-surface) / <alpha-value>)",
-        "inverse-on-surface": "rgb(var(--inverse-on-surface) / <alpha-value>)",
+        // Status: a readable foreground plus the tint it sits on
+        "status-success": token("status-success"),
+        "status-success-bg": token("status-success-bg"),
+        "status-warning": token("status-warning"),
+        "status-warning-bg": token("status-warning-bg"),
+        "status-danger": token("status-danger"),
+        "status-danger-bg": token("status-danger-bg"),
+        "status-info": token("status-info"),
+        "status-info-bg": token("status-info-bg"),
+        "status-success-solid": token("status-success-solid"),
+        "status-warning-solid": token("status-warning-solid"),
+        "status-danger-solid": token("status-danger-solid"),
+        "status-info-solid": token("status-info-solid"),
+        "on-status": token("on-status"),
+        "error": token("status-danger"),
+        "error-container": token("status-danger-bg"),
+        "on-error": token("on-status"),
+        "on-error-container": token("status-danger"),
 
-        // Semantic status forecolors
-        "status-danger": "#E11D48",
-        "status-info": "#2563EB",
-        "status-success": "#059669",
-        "status-warning": "#D97706",
-        "fashion-magenta": "#C026D3",
+        // Categorical identity, theme-paired so it stays readable in both
+        "fashion-magenta": token("chart-4"),
 
-        // Tertiary accents
-        "tertiary": "#5300b7",
-        "tertiary-container": "#6d24de",
-        "tertiary-fixed": "#eaddff",
-        "tertiary-fixed-dim": "#d2bbff",
-        "on-tertiary": "#ffffff",
-        "on-tertiary-container": "#dac6ff",
-        "on-tertiary-fixed": "#25005a",
-        "on-tertiary-fixed-variant": "#5a00c6",
-        "error": "#ba1a1a",
-        "error-container": "#ffdad6",
-        "on-error": "#ffffff",
-        "on-error-container": "#93000a",
-        "surface-tint": "#7331df"
+        // Data visualisation
+        "chart-1": token("chart-1"),
+        "chart-2": token("chart-2"),
+        "chart-3": token("chart-3"),
+        "chart-4": token("chart-4"),
+        "chart-5": token("chart-5"),
+        "chart-grid": token("chart-grid"),
+        "chart-baseline": token("chart-baseline"),
+      },
+      textColor: {
+        "primary": token("text-primary"),
+        "secondary": token("text-secondary"),
+        "muted": token("text-muted"),
+        "faint": token("text-faint"),
+        "disabled": token("text-disabled"),
+        "accent": token("text-accent"),
+        "accent-hover": token("text-accent-hover"),
+        "success": token("text-success"),
+        "warning": token("text-warning"),
+        "danger": token("text-danger"),
+        "info": token("text-info"),
+        "on-accent": token("text-on-accent"),
+        "inverse": token("text-inverse")
+      },
+      borderColor: {
+        "DEFAULT": token("border-subtle"),
+        "subtle": token("border-subtle"),
+        "emphasis": token("border-emphasis"),
+        "strong": token("border-strong"),
+        "accent": token("text-accent"),
+        "success": token("status-success"),
+        "warning": token("status-warning"),
+        "danger": token("status-danger"),
+        "info": token("status-info")
       },
       borderRadius: {
-        "DEFAULT": "0.25rem",
-        "sm": "0.125rem",
+        "DEFAULT": "0.375rem",
+        "sm": "0.25rem",
         "md": "0.375rem",
         "lg": "0.5rem",
         "xl": "0.75rem",
@@ -97,44 +141,112 @@ export default {
         "full": "9999px"
       },
       spacing: {
-        "gutter": "1rem",
-        "space-sm": "0.5rem",
+        // Named rungs the modules already use, kept pointing at the 4px ladder
         "space-xs": "0.25rem",
-        "margin-mobile": "1rem",
+        "space-sm": "0.5rem",
+        "space-md": "0.75rem",
+        "space-lg": "1rem",
+        "space-xl": "1.5rem",
+        "gutter": "1rem",
         "gutter-compact": "0.5rem",
         "margin": "1.5rem",
-        "space-xl": "1.5rem",
-        "space-md": "0.75rem",
-        "space-lg": "1rem"
+        "margin-mobile": "1rem",
+        // Control heights the toolbars align on
+        "8.5": "2.125rem",
+        "13": "3.25rem",
+        "30": "7.5rem",
+        // App shell
+        "header": "4rem",
+        "sidebar": "17rem",
+        "sidebar-collapsed": "4.5rem"
+      },
+      maxWidth: {
+        "content": "100rem"
       },
       fontFamily: {
-        "sans": ["Inter", "sans-serif"],
-        "metric-stat": ["Inter", "sans-serif"],
-        "body-md": ["Inter", "sans-serif"],
-        "label-xs-caps": ["Inter", "sans-serif"],
-        "display": ["Inter", "sans-serif"],
-        "body-sm": ["Inter", "sans-serif"],
-        "body-lg": ["Inter", "sans-serif"],
-        "label-sm": ["Inter", "sans-serif"],
-        "headline-md": ["Inter", "sans-serif"],
-        "headline-sm": ["Inter", "sans-serif"],
-        "label-md": ["Inter", "sans-serif"],
-        "table-cell-num": ["Inter", "sans-serif"],
-        "headline-lg": ["Inter", "sans-serif"]
+        // One UI family. `mono` is reserved for machine identifiers
+        // (SKU, AWB, IRN, hashes), never for prose or numbers.
+        "sans": ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        "mono": ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"]
       },
       fontSize: {
-        "metric-stat": ["28px", { lineHeight: "32px", letterSpacing: "-0.02em", fontWeight: "600" }],
-        "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
-        "label-xs-caps": ["11px", { lineHeight: "14px", letterSpacing: "0.06em", fontWeight: "600" }],
-        "display": ["32px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "600" }],
-        "body-sm": ["13px", { lineHeight: "18px", fontWeight: "400" }],
-        "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
-        "label-sm": ["12px", { lineHeight: "16px", fontWeight: "500" }],
-        "headline-md": ["20px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "600" }],
-        "headline-sm": ["16px", { lineHeight: "24px", letterSpacing: "-0.005em", fontWeight: "600" }],
-        "label-md": ["14px", { lineHeight: "20px", fontWeight: "500" }],
-        "table-cell-num": ["13px", { lineHeight: "18px", letterSpacing: "0em", fontWeight: "500" }],
-        "headline-lg": ["24px", { lineHeight: "32px", letterSpacing: "-0.015em", fontWeight: "600" }]
+        // role            px   line-height   weight
+        "display":   ["28px", { lineHeight: "34px", letterSpacing: "-0.02em", fontWeight: "600" }],
+        "title":     ["22px", { lineHeight: "28px", letterSpacing: "-0.015em", fontWeight: "600" }],
+        "kpi":       ["24px", { lineHeight: "30px", letterSpacing: "-0.02em", fontWeight: "600" }],
+        "kpi-sm":    ["20px", { lineHeight: "26px", letterSpacing: "-0.015em", fontWeight: "600" }],
+        "heading":   ["16px", { lineHeight: "22px", letterSpacing: "-0.01em", fontWeight: "600" }],
+        "subheading":["14px", { lineHeight: "20px", letterSpacing: "-0.005em", fontWeight: "600" }],
+        "body-lg":   ["14px", { lineHeight: "20px", fontWeight: "400" }],
+        "body":      ["13px", { lineHeight: "18px", fontWeight: "400" }],
+        "num":       ["13px", { lineHeight: "18px", fontWeight: "500" }],
+        "label-lg":  ["13px", { lineHeight: "18px", fontWeight: "500" }],
+        "meta":      ["12px", { lineHeight: "16px", fontWeight: "400" }],
+        "label":     ["12px", { lineHeight: "16px", fontWeight: "500" }],
+        "micro":     ["11px", { lineHeight: "14px", fontWeight: "500" }],
+        "caption":   ["11px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "600" }],
+        // Icon glyph sizes. Material Symbols are a font, so they size here.
+        "icon-sm":   ["14px", { lineHeight: "1" }],
+        "icon":      ["16px", { lineHeight: "1" }],
+        "icon-md":   ["18px", { lineHeight: "1" }],
+        "icon-lg":   ["20px", { lineHeight: "1" }],
+        "icon-xl":   ["24px", { lineHeight: "1" }],
+        "icon-2xl":  ["32px", { lineHeight: "1" }]
+      },
+      boxShadow: {
+        // One elevation family; the hue and strength come from the theme
+        "xs": "0 1px 2px 0 rgb(var(--shadow-color) / var(--shadow-weak))",
+        "sm": "0 1px 2px 0 rgb(var(--shadow-color) / var(--shadow-weak)), 0 1px 3px 0 rgb(var(--shadow-color) / var(--shadow-weak))",
+        "DEFAULT": "0 1px 2px 0 rgb(var(--shadow-color) / var(--shadow-weak)), 0 1px 3px 0 rgb(var(--shadow-color) / var(--shadow-weak))",
+        "md": "0 2px 4px -2px rgb(var(--shadow-color) / var(--shadow-weak)), 0 4px 8px -2px rgb(var(--shadow-color) / var(--shadow-mid))",
+        "lg": "0 4px 6px -4px rgb(var(--shadow-color) / var(--shadow-weak)), 0 10px 15px -3px rgb(var(--shadow-color) / var(--shadow-mid))",
+        "xl": "0 8px 10px -6px rgb(var(--shadow-color) / var(--shadow-mid)), 0 20px 25px -5px rgb(var(--shadow-color) / var(--shadow-mid))",
+        "2xl": "0 25px 50px -12px rgb(var(--shadow-color) / var(--shadow-strong))",
+        "none": "none"
+      },
+      backdropBlur: {
+        "xs": "2px"
+      },
+      keyframes: {
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" }
+        },
+        "fade-in-up": {
+          from: { opacity: "0", transform: "translateY(4px)" },
+          to: { opacity: "1", transform: "translateY(0)" }
+        },
+        "zoom-in": {
+          from: { opacity: "0", transform: "scale(0.96)" },
+          to: { opacity: "1", transform: "scale(1)" }
+        },
+        "slide-in-from-right": {
+          from: { transform: "translateX(100%)" },
+          to: { transform: "translateX(0)" }
+        },
+        "slide-in-from-bottom": {
+          from: { transform: "translateY(100%)" },
+          to: { transform: "translateY(0)" }
+        },
+        "shimmer": {
+          "100%": { transform: "translateX(100%)" }
+        }
+      },
+      animation: {
+        "fade-in": "fade-in 150ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "fade-in-up": "fade-in-up 200ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "zoom-in": "zoom-in 150ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "slide-in-from-right": "slide-in-from-right 220ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "slide-in-from-bottom": "slide-in-from-bottom 220ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "shimmer": "shimmer 1.6s infinite"
+      },
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(0.22, 1, 0.36, 1)"
+      },
+      zIndex: {
+        "sidebar": "50",
+        "header": "40",
+        "overlay": "60"
       }
     }
   },

@@ -36,6 +36,9 @@ import { Icon,
   FilterBar,
   SearchInput,
   FilterDropdown,
+  ErrorState,
+  SkeletonPage,
+  Thumbnail,
 } from '../ui';
 
 export function ReturnsAndExchanges({ onShowToast, currentHub }) {
@@ -49,7 +52,13 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
   const [manualReturnOpen, setManualReturnOpen] = useState(false);
 
   // TanStack Query for orders and return actions
-  const { data: ordersData, isLoading: isOrdersLoading } = useOrdersQuery({ limit: 50 });
+  const {
+    data: ordersData,
+    isLoading: isOrdersLoading,
+    isError: isOrdersError,
+    error: ordersError,
+    refetch: refetchReturns,
+  } = useOrdersQuery({ limit: 50 });
   const updateOrderStatusMutation = useUpdateOrderStatusMutation();
   const processReturnMutation = useProcessReturnMutation();
 
@@ -73,7 +82,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               phone: ord.shippingAddress?.phone || '+91 98800 12345',
               upiId: `${customerName.toLowerCase().replace(/\s+/g, '')}@okaxis`,
               tier: 'GOLD VIP',
-              tierBadgeClass: 'bg-amber-100 text-amber-800',
+              tierBadgeClass: 'border-status-warning/25 bg-status-warning-bg text-warning',
               address: ord.shippingAddress ? `${ord.shippingAddress.address1 || ''}, ${ord.shippingAddress.city || ''}` : 'Bengaluru',
             },
             product: {
@@ -102,7 +111,9 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
             returnType: 'Refund to Original Source',
           };
         });
-        setReturnsList(prev => [...mapped, ...prev]);
+        // Replace, never append: under StrictMode this effect runs twice and
+        // a plain prepend duplicated every live return (and its React key).
+        setReturnsList(prev => [...mapped, ...prev.filter(r => !mapped.some(m => m.id === r.id))]);
       }
     }
   }, [ordersData]);
@@ -301,8 +312,19 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
     });
   };
 
+  if (isOrdersLoading) {
+    return <SkeletonPage variant="table" stats={6} statsCols={6} columns={8} label="Loading returns" />;
+  }
+
   return (
     <PageContainer>
+      {ordersError && (
+        <ErrorState
+          title="Returns could not be loaded"
+          message={ordersError?.message}
+          onRetry={() => refetchReturns()}
+        />
+      )}
       {/* Editorial Header & Action Ribbon */}
       <PageHeader
         breadcrumb={['Everwear Admin', 'Fulfillment & Orders', 'Returns & Exchanges']}
@@ -317,7 +339,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               className="gap-1.5 h-9"
               type="button"
             >
-              <Icon name="verified" className="material-symbols-outlined text-[16px] text-status-success" />
+              <Icon name="verified" className="material-symbols-outlined text-icon text-success" />
               <span>Bulk QC Pass</span>
             </Button>
             <Button
@@ -327,7 +349,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               className="gap-1.5 h-9"
               type="button"
             >
-              <Icon name="file_download" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <Icon name="file_download" className="material-symbols-outlined text-icon text-muted" />
               <span>Export Reverse Manifest (CSV)</span>
             </Button>
             <Button
@@ -337,7 +359,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               className="gap-1.5 h-9"
               type="button"
             >
-              <Icon name="summarize" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <Icon name="summarize" className="material-symbols-outlined text-icon text-muted" />
               <span>RTO Summary</span>
             </Button>
             <Button
@@ -347,7 +369,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               className="gap-1.5 h-9 shadow-sm"
               type="button"
             >
-              <Icon name="add" className="material-symbols-outlined text-[16px]" />
+              <Icon name="add" className="material-symbols-outlined text-icon" />
               <span>Initiate Manual Return</span>
             </Button>
           </>
@@ -369,7 +391,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
           title="Awaiting Pickup"
           value="412"
           icon="schedule"
-          iconColor="text-status-warning"
+          iconColor="text-warning"
           badge="BlueDart SLA"
           badgeVariant="warning"
           trendLabel="Carrier dispatch active"
@@ -379,7 +401,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
           title="In-Transit to FC"
           value="328"
           icon="local_shipping"
-          iconColor="text-status-info"
+          iconColor="text-info"
           badge="Dock in 24-48h"
           badgeVariant="info"
         />
@@ -388,7 +410,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
           title="Inbound QC Dock"
           value="186"
           icon="rule"
-          iconColor="text-primary"
+          iconColor="text-accent"
           badge="Grading"
           badgeVariant="warning"
           trendLabel="Pending triage"
@@ -399,7 +421,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
           title="Refund Approval"
           value="94"
           icon="account_balance_wallet"
-          iconColor="text-status-danger"
+          iconColor="text-danger"
           badge="₹3.14L"
           badgeVariant="destructive"
           trendLabel="Pending approval"
@@ -409,7 +431,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
           title="Restocked (MTD)"
           value="864 pcs"
           icon="inventory_2"
-          iconColor="text-status-success"
+          iconColor="text-success"
           badge="61% Grade A"
           badgeVariant="success"
           trendLabel="Inventory recovered"
@@ -479,34 +501,34 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-start">
         {/* Left Pane: Inbound Queue & Triage (8 cols) */}
         <Card className="lg:col-span-7 xl:col-span-8 overflow-hidden flex flex-col">
-          <div className="p-space-md flex items-center justify-between border-b border-border-subtle bg-surface-container-lowest">
+          <div className="p-space-md flex items-center justify-between border-b border-subtle bg-surface-container-lowest">
             <div className="flex items-center gap-space-sm">
-              <span className="font-headline-sm text-headline-sm font-semibold text-text-primary">Inbound Queue & Triage</span>
-              <Badge variant="secondary" className="text-label-xs-caps">
+              <span className="text-subheading font-semibold text-primary">Inbound Queue & Triage</span>
+              <Badge variant="secondary" className="text-caption">
                 Showing {filteredReturns.length} of 186 pending
               </Badge>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-text-secondary hover:text-text-primary">
-                <Icon name="filter_list" className="material-symbols-outlined text-[18px]" />
+              <Button variant="ghost" size="iconSm" title="Filter queue" aria-label="Filter queue">
+                <Icon name="filter_list" className="material-symbols-outlined text-icon-md" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => onShowToast({ type: 'info', title: 'Queue Refreshed', message: 'Checked latest 3PL reverse manifests.' })} className="h-7 w-7 text-text-secondary hover:text-text-primary">
-                <Icon name="refresh" className="material-symbols-outlined text-[18px]" />
+              <Button variant="ghost" size="icon" onClick={() => onShowToast({ type: 'info', title: 'Queue Refreshed', message: 'Checked latest 3PL reverse manifests.' })} title="Refresh queue" aria-label="Refresh queue">
+                <Icon name="refresh" className="material-symbols-outlined text-icon-md" />
               </Button>
             </div>
           </div>
 
           <div className="overflow-x-auto scrollbar-thin">
             <Table className="min-w-[960px] w-full border-collapse">
-              <TableHeader className="bg-surface-canvas/90 border-b border-border-subtle sticky top-0 z-10 backdrop-blur-sm">
-                <TableRow className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider">
-                  <TableHead className="py-2.5 px-3 whitespace-nowrap">Return &amp; Order Ref</TableHead>
-                  <TableHead className="py-2.5 px-3 whitespace-nowrap">Garment &amp; Variant</TableHead>
-                  <TableHead className="py-2.5 px-3 whitespace-nowrap">Customer &amp; Location</TableHead>
-                  <TableHead className="py-2.5 px-3 whitespace-nowrap">Logistics AWB &amp; Dock</TableHead>
-                  <TableHead className="py-2.5 px-3 whitespace-nowrap">QC Status</TableHead>
-                  <TableHead className="py-2.5 px-3 text-right whitespace-nowrap">Refund / Value</TableHead>
-                  <TableHead className="py-2.5 px-3 text-center whitespace-nowrap">Action</TableHead>
+              <TableHeader sticky>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="whitespace-nowrap">Return &amp; Order Ref</TableHead>
+                  <TableHead className="whitespace-nowrap">Garment &amp; Variant</TableHead>
+                  <TableHead className="whitespace-nowrap">Customer &amp; Location</TableHead>
+                  <TableHead className="whitespace-nowrap">Logistics AWB &amp; Dock</TableHead>
+                  <TableHead className="whitespace-nowrap">QC Status</TableHead>
+                  <TableHead className="whitespace-nowrap text-right">Refund / Value</TableHead>
+                  <TableHead className="text-center whitespace-nowrap">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-border-subtle/50">
@@ -517,17 +539,17 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                       key={item.id}
                       onClick={() => setSelectedReturnId(item.id)}
                       className={`cursor-pointer transition-colors ${
-                        isSelected
-                          ? 'bg-surface-container-low border-l-4 border-l-primary'
-                          : 'hover:bg-surface-canvas'
-                      }`}
+ isSelected
+ ? 'bg-surface-container-low border-l-4 border-l-primary'
+ : 'hover:bg-surface-subtle'
+ }`}
                     >
                       <TableCell className="py-3 px-3">
                         <div className="flex flex-col">
-                          <span className="font-label-sm text-label-sm font-semibold text-primary">
+                          <span className="text-label font-semibold text-accent">
                             {item.id}
                           </span>
-                          <span className="font-label-xs-caps text-[11px] text-text-secondary font-mono">
+                          <span className="text-micro text-muted font-mono whitespace-nowrap">
                             {item.orderRef}
                           </span>
                         </div>
@@ -535,10 +557,10 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
 
                       <TableCell className="py-3 px-3">
                         <div className="flex flex-col">
-                          <span className="font-label-sm text-label-sm text-text-primary truncate max-w-[170px]" title={item.productTitle}>
+                          <span className="text-label text-primary truncate max-w-[170px]" title={item.productTitle}>
                             {item.productTitle}
                           </span>
-                          <span className="font-label-xs-caps text-[11px] text-text-secondary">
+                          <span className="text-micro text-muted">
                             {item.variant}
                           </span>
                         </div>
@@ -546,10 +568,10 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
 
                       <TableCell className="py-3 px-3">
                         <div className="flex flex-col">
-                          <span className="text-text-primary font-medium text-xs">
+                          <span className="text-primary font-medium text-meta">
                             {item.customer.name}
                           </span>
-                          <span className="font-label-xs-caps text-[11px] text-text-secondary">
+                          <span className="text-micro text-muted">
                             {item.customer.location}
                           </span>
                         </div>
@@ -557,10 +579,10 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
 
                       <TableCell className="py-3 px-3">
                         <div className="flex flex-col">
-                          <span className="font-table-cell-num text-table-cell-num text-text-primary text-xs font-mono">
+                          <span className="text-num text-primary text-meta font-mono whitespace-nowrap">
                             {item.courier.partner} #{item.courier.awb}
                           </span>
-                          <span className="font-label-xs-caps text-[11px] text-status-success font-medium">
+                          <span className="text-micro text-success">
                             {item.courier.dockStatus}
                           </span>
                         </div>
@@ -572,10 +594,10 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
 
                       <TableCell className="py-3 px-3 text-right">
                         <div className="flex flex-col items-end">
-                          <span className="font-table-cell-num text-table-cell-num font-semibold text-text-primary tabular-nums">
+                          <span className="text-num font-semibold text-primary tabular-nums">
                             ₹{item.refundValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </span>
-                          <span className="font-label-xs-caps text-[10px] text-text-secondary">
+                          <span className="text-micro text-muted">
                             {item.paymentMethod}
                           </span>
                         </div>
@@ -586,7 +608,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                           variant={isSelected ? "primary" : "outline"}
                           size="sm"
                           onClick={() => setSelectedReturnId(item.id)}
-                          className="h-7 text-xs py-0 px-2"
+                          className="h-7 text-meta py-0 px-2"
                         >
                           {isSelected ? 'Active QC' : 'Inspect'}
                         </Button>
@@ -598,19 +620,19 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
             </Table>
           </div>
 
-          <div className="p-space-md flex flex-wrap items-center justify-between gap-space-sm bg-surface-canvas text-text-secondary font-label-sm text-label-sm border-t border-border-subtle">
+          <div className="p-space-md flex flex-wrap items-center justify-between gap-space-sm bg-surface-canvas text-muted text-label border-t border-subtle">
             <div className="flex items-center gap-2">
               <span>Rows per page:</span>
-              <span className="font-semibold text-text-primary">10</span>
+              <span className="font-semibold text-primary">10</span>
               <span className="mx-2">|</span>
               <span>Showing 1-{filteredReturns.length} of 186 items</span>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled>Previous</Button>
-              <Button variant="primary" size="sm" className="h-7 w-7 p-0 text-xs">1</Button>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-xs">2</Button>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-xs">3</Button>
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">Next</Button>
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-meta" disabled>Previous</Button>
+              <Button variant="primary" size="sm" className="h-7 w-7 p-0 text-meta">1</Button>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-meta">2</Button>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-meta">3</Button>
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-meta">Next</Button>
             </div>
           </div>
         </Card>
@@ -619,46 +641,42 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
         <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-space-md">
           <Card className="shadow-md">
             <CardContent className="p-space-md flex flex-col gap-space-md">
-              <div className="flex items-start justify-between">
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="default" className="text-[10px] font-bold">
+              <div className="flex flex-wrap items-start justify-between gap-space-sm">
+                <div className="flex min-w-0 flex-col">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="default" className="text-micro font-semibold">
                       Dock Triage Station #04
                     </Badge>
-                    <Badge variant={activeReturn.qcStatus.includes('Passed') ? 'success' : 'warning'} className="text-[10px] font-semibold">
+                    <Badge variant={activeReturn.qcStatus.includes('Passed') ? 'success' : 'warning'} className="text-micro font-semibold">
                       {activeReturn.qcStatus.toUpperCase()}
                     </Badge>
                   </div>
-                  <h2 className="font-headline-sm text-headline-sm font-bold text-text-primary mt-1">
+                  <h2 className="text-subheading font-semibold text-primary mt-1">
                     {activeReturn.id}
                   </h2>
-                  <span className="font-body-sm text-body-sm text-text-secondary">
+                  <span className="truncate text-body text-secondary">
                     {activeReturn.productTitle} • {activeReturn.variant}
                   </span>
                 </div>
-                <div className="text-right">
-                  <span className="font-metric-stat text-[22px] leading-tight text-primary font-bold tabular-nums">
+                <div className="shrink-0 text-right">
+                  <span className="text-kpi-sm leading-tight text-accent tabular-nums">
                     ₹{activeReturn.refundValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
-                  <span className="block font-label-xs-caps text-[10px] text-text-secondary uppercase">REFUND VALUE</span>
+                  <span className="block text-caption text-muted uppercase">REFUND VALUE</span>
                 </div>
               </div>
 
               {/* Garment Image & Customer Note */}
-              <div className="bg-surface-canvas p-space-sm rounded-lg flex gap-space-sm items-center border border-border-subtle/50">
-                <img 
-                  className="w-16 h-20 rounded-md object-cover shrink-0 shadow-xs bg-surface-subtle" 
-                  alt={activeReturn.productTitle} 
-                  src={activeReturn.image} 
-                />
+              <div className="bg-surface-canvas p-space-sm rounded-lg flex gap-space-sm items-center border border-subtle/50">
+                <Thumbnail src={activeReturn.image} alt={activeReturn.productTitle} className="w-16 h-20 rounded-md shrink-0 shadow-xs" imgClassName="object-cover" />
                 <div className="flex flex-col min-w-0">
-                  <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                  <span className="text-caption text-muted uppercase font-semibold">
                     Customer Note & Reason
                   </span>
-                  <span className="font-label-sm text-label-sm font-bold text-text-primary mt-0.5">
+                  <span className="text-label font-semibold text-primary mt-0.5">
                     {activeReturn.returnReason}
                   </span>
-                  <p className="font-body-sm text-[12px] text-text-secondary italic mt-1 line-clamp-2">
+                  <p className="text-meta text-muted italic mt-1 line-clamp-2">
                     "{activeReturn.customerNote}"
                   </p>
                 </div>
@@ -666,45 +684,45 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
 
               {/* Garment Physical Checklist */}
               <div className="flex flex-col gap-space-xs">
-                <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold">
+                <span className="text-caption text-muted uppercase tracking-wider font-semibold">
                   Garment Physical Checklist
                 </span>
                 <div className="grid grid-cols-3 gap-2">
                   <label 
                     onClick={() => setChecklist(prev => ({ ...prev, tags: !prev.tags }))}
-                    className="flex flex-col p-2 rounded-lg bg-surface-subtle cursor-pointer hover:bg-surface-container transition-colors border border-border-subtle"
+                    className="flex flex-col p-2 rounded-lg bg-surface-subtle cursor-pointer hover:bg-surface-container transition-colors border border-subtle"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-label-xs-caps text-[11px] text-text-secondary">Brand Tags</span>
+                      <span className="text-micro text-muted">Brand Tags</span>
                       <Checkbox checked={checklist.tags} onChange={() => {}} />
                     </div>
-                    <span className="font-label-sm text-[12px] font-semibold text-status-success mt-1">
+                    <span className="text-meta font-semibold text-success mt-1">
                       {checklist.tags ? 'Intact' : 'Missing'}
                     </span>
                   </label>
 
                   <label 
                     onClick={() => setChecklist(prev => ({ ...prev, clean: !prev.clean }))}
-                    className="flex flex-col p-2 rounded-lg bg-surface-subtle cursor-pointer hover:bg-surface-container transition-colors border border-border-subtle"
+                    className="flex flex-col p-2 rounded-lg bg-surface-subtle cursor-pointer hover:bg-surface-container transition-colors border border-subtle"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-label-xs-caps text-[11px] text-text-secondary">Wear / Odor</span>
+                      <span className="text-micro text-muted">Wear / Odor</span>
                       <Checkbox checked={checklist.clean} onChange={() => {}} />
                     </div>
-                    <span className="font-label-sm text-[12px] font-semibold text-status-success mt-1">
+                    <span className="text-meta font-semibold text-success mt-1">
                       {checklist.clean ? 'Clean' : 'Soiled'}
                     </span>
                   </label>
 
                   <label 
                     onClick={() => setChecklist(prev => ({ ...prev, zeroDefect: !prev.zeroDefect }))}
-                    className="flex flex-col p-2 rounded-lg bg-surface-subtle cursor-pointer hover:bg-surface-container transition-colors border border-border-subtle"
+                    className="flex flex-col p-2 rounded-lg bg-surface-subtle cursor-pointer hover:bg-surface-container transition-colors border border-subtle"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-label-xs-caps text-[11px] text-text-secondary">Seam / Tear</span>
+                      <span className="text-micro text-muted">Seam / Tear</span>
                       <Checkbox checked={checklist.zeroDefect} onChange={() => {}} />
                     </div>
-                    <span className="font-label-sm text-[12px] font-semibold text-status-success mt-1">
+                    <span className="text-meta font-semibold text-success mt-1">
                       {checklist.zeroDefect ? 'Zero Defect' : 'Damaged'}
                     </span>
                   </label>
@@ -713,15 +731,15 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
 
               {/* Assigned Disposition Grade */}
               <div className="flex flex-col gap-space-xs">
-                <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold">
+                <span className="text-caption text-muted uppercase tracking-wider font-semibold">
                   Assigned Disposition Grade
                 </span>
                 <div className="space-y-1.5 mt-1">
                   <label 
                     onClick={() => setSelectedGrade('A')}
                     className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer border transition-colors ${
-                      selectedGrade === 'A' ? 'bg-status-success-bg border-status-success/30' : 'bg-surface-canvas border-border-subtle'
-                    }`}
+ selectedGrade === 'A' ? 'bg-status-success-bg border-status-success/30' : 'bg-surface-canvas border-subtle'
+ }`}
                   >
                     <input 
                       type="radio" 
@@ -732,10 +750,10 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                     />
                     <div className="flex flex-col">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-label-sm text-label-sm font-semibold text-text-primary">Grade A — Pristine Restock</span>
-                        <Badge variant="success" className="text-[10px] py-0 px-1.5">Recommended</Badge>
+                        <span className="text-label font-semibold text-primary">Grade A — Pristine Restock</span>
+                        <Badge variant="success" className="text-micro py-0 px-1.5">Recommended</Badge>
                       </div>
-                      <span className="font-body-sm text-[11px] text-text-secondary mt-0.5">
+                      <span className="text-micro text-muted mt-0.5">
                         Route instantly to {currentHub.id} Aisle C-12 / Bin 5 for inventory replenishment.
                       </span>
                     </div>
@@ -744,8 +762,8 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                   <label 
                     onClick={() => setSelectedGrade('B')}
                     className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer border transition-colors ${
-                      selectedGrade === 'B' ? 'bg-status-warning-bg border-status-warning/30' : 'bg-surface-canvas border-border-subtle'
-                    }`}
+ selectedGrade === 'B' ? 'bg-status-warning-bg border-status-warning/30' : 'bg-surface-canvas border-subtle'
+ }`}
                   >
                     <input 
                       type="radio" 
@@ -755,8 +773,8 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                       className="mt-1 accent-primary" 
                     />
                     <div className="flex flex-col">
-                      <span className="font-label-sm text-label-sm font-semibold text-text-primary">Grade B — Refurbish / Steam Required</span>
-                      <span className="font-body-sm text-[11px] text-text-secondary mt-0.5">
+                      <span className="text-label font-semibold text-primary">Grade B — Refurbish / Steam Required</span>
+                      <span className="text-micro text-muted mt-0.5">
                         Mild linting or packaging wrinkles. Route to Steam & Polybag Bay.
                       </span>
                     </div>
@@ -765,8 +783,8 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                   <label 
                     onClick={() => setSelectedGrade('C')}
                     className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer border transition-colors ${
-                      selectedGrade === 'C' ? 'bg-status-danger-bg border-status-danger/30' : 'bg-surface-canvas border-border-subtle'
-                    }`}
+ selectedGrade === 'C' ? 'bg-status-danger-bg border-status-danger/30' : 'bg-surface-canvas border-subtle'
+ }`}
                   >
                     <input 
                       type="radio" 
@@ -776,8 +794,8 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                       className="mt-1 accent-primary" 
                     />
                     <div className="flex flex-col">
-                      <span className="font-label-sm text-label-sm font-semibold text-text-primary">Grade C — Liquidation / Salvage Scrap</span>
-                      <span className="font-body-sm text-[11px] text-text-secondary mt-0.5">
+                      <span className="text-label font-semibold text-primary">Grade C — Liquidation / Salvage Scrap</span>
+                      <span className="text-micro text-muted mt-0.5">
                         Permanent stains or damaged fibers. Discard or scrap wholesale.
                       </span>
                     </div>
@@ -786,27 +804,27 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               </div>
 
               {/* Settlement Engine Summary */}
-              <div className="bg-surface-canvas p-space-sm rounded-lg flex flex-col gap-1.5 border border-border-subtle/50">
-                <div className="flex items-center justify-between text-label-xs-caps font-label-xs-caps text-text-secondary">
+              <div className="bg-surface-canvas p-space-sm rounded-lg flex flex-col gap-1.5 border border-subtle/50">
+                <div className="flex items-center justify-between text-caption text-muted">
                   <span>SETTLEMENT ENGINE</span>
                   <span>{activeReturn.settlementEngine.toUpperCase()}</span>
                 </div>
-                <div className="flex items-center justify-between font-body-sm text-body-sm">
-                  <span className="text-text-secondary">Original Transaction:</span>
-                  <span className="text-text-primary font-medium">₹{activeReturn.refundValue.toFixed(2)}</span>
+                <div className="flex items-center justify-between text-body">
+                  <span className="text-muted">Original Transaction:</span>
+                  <span className="text-primary font-medium">₹{activeReturn.refundValue.toFixed(2)}</span>
                 </div>
-                <div className="flex items-center justify-between font-body-sm text-body-sm">
-                  <span className="text-text-secondary">Return Deductions:</span>
-                  <span className="text-status-success font-medium">₹0.00 (Everwear Assurance)</span>
+                <div className="flex items-center justify-between text-body">
+                  <span className="text-muted">Return Deductions:</span>
+                  <span className="text-success font-medium">₹0.00 (Everwear Assurance)</span>
                 </div>
-                <div className="flex items-center justify-between font-body-sm text-body-sm">
-                  <span className="text-text-secondary">Customer UPI ID:</span>
-                  <span className="text-text-primary font-mono text-[12px]">{activeReturn.customer.upiId}</span>
+                <div className="flex items-center justify-between text-body">
+                  <span className="text-muted">Customer UPI ID:</span>
+                  <span className="text-primary font-mono text-meta whitespace-nowrap">{activeReturn.customer.upiId}</span>
                 </div>
                 <Separator className="my-0.5" />
-                <div className="flex items-center justify-between pt-0.5 font-headline-sm text-headline-sm text-text-primary">
-                  <span className="font-bold">Net Refund Amount:</span>
-                  <span className="text-status-success font-bold tabular-nums">₹{activeReturn.refundValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <div className="flex items-center justify-between pt-0.5 text-subheading text-primary">
+                  <span className="font-semibold">Net Refund Amount:</span>
+                  <span className="text-success font-semibold tabular-nums">₹{activeReturn.refundValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
@@ -818,25 +836,26 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                   onClick={handleApproveRefund}
                   className="w-full gap-2 shadow-md"
                 >
-                  <Icon name="verified_user" className="material-symbols-outlined text-[18px]" />
-                  <span>Approve QC & Disburse Instant UPI Refund (₹{activeReturn.refundValue})</span>
+                  <Icon name="verified_user" aria-hidden="true" className="material-symbols-outlined text-icon-md" />
+                  <span className="truncate">Approve &amp; refund ₹{activeReturn.refundValue}</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="default"
                   onClick={handleConvertToCredit}
-                  className="w-full gap-1.5 text-fashion-magenta hover:bg-fuchsia-50 dark:hover:bg-fuchsia-950/30"
+                  className="w-full gap-1.5"
+                  title={`Convert to store credit with a 10% bonus (₹${Math.round(activeReturn.refundValue * 1.1)})`}
                 >
-                  <Icon name="stars" className="material-symbols-outlined text-[16px]" />
-                  <span>Convert to Store Credit (+10% Bonus: ₹{Math.round(activeReturn.refundValue * 1.1)})</span>
+                  <Icon name="stars" aria-hidden="true" className="material-symbols-outlined text-icon" />
+                  <span className="truncate">Store credit +10% (₹{Math.round(activeReturn.refundValue * 1.1)})</span>
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleRejectReturn}
-                  className="w-full text-status-danger hover:bg-status-danger-bg hover:text-status-danger text-xs font-semibold"
+                  className="w-full text-danger hover:bg-status-danger-bg hover:text-danger text-meta font-semibold"
                 >
-                  Reject Return & Dispatch Back to Customer
+                  <span className="truncate">Reject &amp; return to customer</span>
                 </Button>
               </div>
             </CardContent>
@@ -846,15 +865,15 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
           <Card>
             <CardContent className="p-space-md flex flex-col gap-space-sm">
               <div className="flex items-center justify-between">
-                <span className="font-headline-sm text-headline-sm font-semibold text-text-primary">Audit Trail</span>
-                <Badge variant="secondary" className="text-[10px]">LIVE LOGS</Badge>
+                <span className="text-subheading font-semibold text-primary">Audit Trail</span>
+                <Badge variant="secondary" className="text-micro">LIVE LOGS</Badge>
               </div>
               <div className="relative pl-5 space-y-3 mt-1 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-border-subtle">
                 {activeReturn.timeline.map((step, idx) => (
                   <div key={idx} className="relative flex flex-col">
                     <div className={`absolute -left-5 top-1 w-2.5 h-2.5 rounded-full ${step.color} shadow-xs`}></div>
-                    <span className="font-label-sm text-label-sm font-semibold text-text-primary">{step.step}</span>
-                    <span className="font-body-sm text-[11px] text-text-secondary">{step.time} • {step.actor}</span>
+                    <span className="text-label font-semibold text-primary">{step.step}</span>
+                    <span className="text-micro text-muted">{step.time} • {step.actor}</span>
                   </div>
                 ))}
               </div>
@@ -866,12 +885,12 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
       {/* Manual Return Modal */}
       <Dialog open={manualReturnOpen} onOpenChange={setManualReturnOpen}>
         <DialogContent className="max-w-md p-0 overflow-hidden">
-          <DialogHeader className="p-4 border-b border-border-subtle bg-surface-subtle flex flex-row items-center justify-between">
+          <DialogHeader className="p-4 border-b border-subtle bg-surface-subtle flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
-              <Icon name="assignment_return" className="material-symbols-outlined text-primary text-[22px]" />
+              <Icon name="assignment_return" className="material-symbols-outlined text-accent text-icon-lg" />
               <div>
                 <DialogTitle>Initiate Manual Return</DialogTitle>
-                <DialogDescription className="text-xs">
+                <DialogDescription className="text-meta">
                   Create customer reverse pickup for {currentHub.id}
                 </DialogDescription>
               </div>
@@ -880,51 +899,51 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               variant="ghost"
               size="icon"
               onClick={() => setManualReturnOpen(false)}
-              className="h-8 w-8 text-secondary"
+              className="h-8 w-8 text-muted"
             >
-              <Icon name="close" className="material-symbols-outlined text-[18px]" />
+              <Icon name="close" className="material-symbols-outlined text-icon-md" />
             </Button>
           </DialogHeader>
 
           <form onSubmit={handleCreateReturn} className="p-space-lg space-y-3">
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">Original Order Ref *</label>
+              <label className="block text-meta font-medium text-muted mb-1">Original Order Ref *</label>
               <Input
                 required
                 type="text"
                 value={newOrderRef}
                 onChange={(e) => setNewOrderRef(e.target.value)}
                 placeholder="EVR-984210-BLR"
-                className="h-9 text-xs font-mono"
+                className="h-9 text-meta font-mono whitespace-nowrap"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">Customer Full Name *</label>
+              <label className="block text-meta font-medium text-muted mb-1">Customer Full Name *</label>
               <Input
                 required
                 type="text"
                 value={newCustomerName}
                 onChange={(e) => setNewCustomerName(e.target.value)}
                 placeholder="e.g. Deepa Sengupta"
-                className="h-9 text-xs"
+                className="h-9 text-meta"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">Garment Item</label>
+              <label className="block text-meta font-medium text-muted mb-1">Garment Item</label>
               <Input
                 type="text"
                 value={newProduct}
                 onChange={(e) => setNewProduct(e.target.value)}
-                className="h-9 text-xs"
+                className="h-9 text-meta"
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Return Reason</label>
+                <label className="block text-meta font-medium text-muted mb-1">Return Reason</label>
                 <Select
                   value={newReason}
                   onChange={(e) => setNewReason(e.target.value)}
-                  className="h-9 text-xs"
+                  className="h-9 text-meta"
                 >
                   <option>Size/Fit Issue</option>
                   <option>Fabric/Quality Defect</option>
@@ -934,23 +953,23 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Refund Amount (₹)</label>
+                <label className="block text-meta font-medium text-muted mb-1">Refund Amount (₹)</label>
                 <Input
                   type="number"
                   value={newRefundAmount}
                   onChange={(e) => setNewRefundAmount(e.target.value)}
-                  className="h-9 text-xs"
+                  className="h-9 text-meta"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">UPI ID for Refund Settlement</label>
+              <label className="block text-meta font-medium text-muted mb-1">UPI ID for Refund Settlement</label>
               <Input
                 type="text"
                 value={newUpiId}
                 onChange={(e) => setNewUpiId(e.target.value)}
                 placeholder="name@okaxis"
-                className="h-9 text-xs font-mono"
+                className="h-9 text-meta font-mono whitespace-nowrap"
               />
             </div>
 
@@ -960,7 +979,7 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                 variant="outline"
                 size="sm"
                 onClick={() => setManualReturnOpen(false)}
-                className="text-xs"
+                className="text-meta"
               >
                 Cancel
               </Button>
@@ -968,9 +987,9 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                 type="submit"
                 variant="primary"
                 size="sm"
-                className="gap-1.5 text-xs shadow-md"
+                className="gap-1.5 text-meta shadow-md"
               >
-                <Icon name="check" className="material-symbols-outlined text-[16px]" />
+                <Icon name="check" className="material-symbols-outlined text-icon" />
                 <span>Dispatch Pickup</span>
               </Button>
             </DialogFooter>

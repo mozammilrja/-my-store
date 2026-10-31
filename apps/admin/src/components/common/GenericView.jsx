@@ -179,34 +179,34 @@ export function GenericView({ path, onNavigate, onShowToast }) {
       {/* Breadcrumb & Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-space-md">
         <div>
-          <nav className="flex items-center gap-1.5 font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary mb-1">
+          <nav className="flex items-center gap-1.5 text-caption uppercase tracking-wider text-muted mb-1">
             <span>Everwear Admin</span>
-            <span className="text-secondary/40">/</span>
-            <span className="text-primary font-semibold">{data.title}</span>
+            <span className="text-muted/40">/</span>
+            <span className="text-accent font-semibold">{data.title}</span>
           </nav>
           <div className="flex items-center gap-2">
-            <Icon name={data.icon} className="material-symbols-outlined text-primary text-[28px]" />
-            <h1 className="font-headline-lg text-headline-lg font-bold text-text-primary tracking-tight">
+            <Icon name={data.icon} className="material-symbols-outlined text-accent text-icon-xl" />
+            <h1 className="text-title font-semibold text-primary tracking-tight">
               {data.title}
             </h1>
           </div>
-          <p className="font-body-sm text-body-sm text-text-secondary mt-1">{data.subtitle}</p>
+          <p className="text-body text-secondary mt-1">{data.subtitle}</p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => onNavigate('overview')}
-            className="px-3 h-9 rounded-xl bg-surface-subtle hover:bg-surface-container-high text-text-primary font-label-sm text-label-sm transition-colors border border-border-subtle"
+            className="px-3 h-9 rounded-xl bg-surface-subtle hover:bg-surface-container-high text-primary text-label transition-colors border border-subtle"
             type="button"
           >
             ← Back to Overview
           </button>
           <button
             onClick={() => onShowToast({ type: 'success', title: 'Data Refreshed', message: `Telemetry updated for ${data.title}.` })}
-            className="px-4 h-9 rounded-xl bg-primary-container text-on-primary hover:bg-primary font-label-sm text-label-sm shadow-sm transition-colors flex items-center gap-1.5"
+            className="px-4 h-9 rounded-xl bg-primary-container text-on-accent hover:bg-primary-container-hover text-label shadow-sm transition-colors flex items-center gap-1.5"
             type="button"
           >
-            <Icon name="sync" className="material-symbols-outlined text-[18px]" />
+            <Icon name="sync" className="material-symbols-outlined text-icon-md" />
             <span>Refresh Telemetry</span>
           </button>
         </div>
@@ -215,13 +215,13 @@ export function GenericView({ path, onNavigate, onShowToast }) {
       {/* 4 Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-space-md">
         {data.stats.map((s, idx) => (
-          <div key={idx} className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-border-subtle flex flex-col justify-between">
-            <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary font-semibold">
+          <div key={idx} className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm border border-subtle flex flex-col justify-between">
+            <span className="text-caption uppercase tracking-wider text-muted font-semibold">
               {s.label}
             </span>
             <div className="mt-2 flex items-baseline justify-between">
-              <span className="font-metric-stat text-metric-stat text-text-primary font-semibold tabular-nums">{s.val}</span>
-              <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-[10px] font-semibold border border-status-success/20">
+              <span className="text-kpi text-primary font-semibold tabular-nums">{s.val}</span>
+              <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold border border-status-success/20">
                 {s.change}
               </span>
             </div>
@@ -230,23 +230,23 @@ export function GenericView({ path, onNavigate, onShowToast }) {
       </div>
 
       {/* Main Ledger Table Card */}
-      <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle p-space-lg flex flex-col space-y-space-md">
-        <div className="flex items-center justify-between border-b border-border-subtle pb-space-sm">
+      <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-lg flex flex-col space-y-space-md">
+        <div className="flex items-center justify-between border-b border-subtle pb-space-sm">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-status-success animate-pulse"></span>
-            <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary">
+            <h3 className="text-subheading font-semibold text-primary">
               {data.tableTitle}
             </h3>
           </div>
-          <span className="font-label-xs-caps text-label-xs-caps text-text-secondary font-mono">
+          <span className="text-caption text-muted font-mono whitespace-nowrap">
             LIVE SYNC • 1,248 TPS
           </span>
         </div>
 
         <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full text-left font-body-sm text-body-sm min-w-[850px] border-collapse">
+          <table className="w-full text-left text-body min-w-[850px] border-collapse">
             <thead>
-              <tr className="bg-surface-canvas text-text-secondary font-label-xs-caps text-label-xs-caps border-b border-border-subtle uppercase tracking-wider sticky top-0 z-10 backdrop-blur-sm">
+              <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
                 <th className="py-2.5 px-3 whitespace-nowrap">RECORD REF</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">PRIMARY ENTITY</th>
                 <th className="py-2.5 px-3 whitespace-nowrap">NODE CLUSTER</th>
@@ -258,32 +258,32 @@ export function GenericView({ path, onNavigate, onShowToast }) {
             <tbody className="divide-y divide-border-subtle/50">
               {[1, 2, 3, 4, 5].map((i) => (
                 <tr key={i} className="hover:bg-surface-subtle transition-colors group">
-                  <td className="py-3 px-3 font-mono font-semibold text-primary">
+                  <td className="py-3 px-3 font-mono font-semibold text-accent whitespace-nowrap">
                     #EVR-{data.title.substring(0, 3).toUpperCase()}-904{i}
                   </td>
                   <td className="py-3 px-3">
-                    <div className="font-semibold text-text-primary">Batch Protocol {i} • Standard Dispatch</div>
-                    <span className="text-xs text-text-secondary">Updated 3 mins ago</span>
+                    <div className="font-semibold text-primary">Batch Protocol {i} • Standard Dispatch</div>
+                    <span className="text-meta text-muted">Updated 3 mins ago</span>
                   </td>
                   <td className="py-3 px-3">
-                    <span className="px-2 py-0.5 rounded bg-surface-subtle text-text-primary font-mono text-xs border border-border-subtle">
+                    <span className="px-2 py-0.5 rounded bg-surface-subtle text-primary font-mono text-meta border border-subtle whitespace-nowrap">
                       {['BLR-FC1', 'BOM-FC2', 'DEL-FC1', 'CCU-FC4'][i % 4]}
                     </span>
                   </td>
-                  <td className="py-3 px-3 text-right font-mono font-semibold text-text-primary tabular-nums">
+                  <td className="py-3 px-3 text-right font-mono font-semibold text-primary tabular-nums whitespace-nowrap">
                     ₹{(i * 14200 + 4900).toLocaleString('en-IN')}
                   </td>
                   <td className="py-3 px-3 text-right">
-                    <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-[10px] font-semibold border border-status-success/20">
+                    <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold border border-status-success/20">
                       Validated
                     </span>
                   </td>
                   <td className="py-3 px-3 text-right">
                     <button
                       onClick={() => onShowToast({ type: 'info', title: 'Record Inspected', message: `Audit ledger verified for protocol #${i}.` })}
-                      className="p-1 rounded hover:bg-surface-container text-secondary hover:text-text-primary"
+                      className="p-1 rounded hover:bg-surface-container text-muted hover:text-primary" title="More actions" aria-label="More actions"
                     >
-                      <Icon name="more_vert" className="material-symbols-outlined text-[18px]" />
+                      <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
                     </button>
                   </td>
                 </tr>

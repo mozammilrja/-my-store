@@ -7,6 +7,7 @@ import { Icon,
   Button,
   Badge,
   Separator,
+  Thumbnail,
 } from '../ui';
 
 export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }) {
@@ -16,10 +17,10 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
 
   if (!order) {
     return (
-      <Card className="xl:col-span-4 p-space-lg flex flex-col items-center justify-center text-center min-h-[400px]">
-        <Icon name="shopping_bag" className="material-symbols-outlined text-[48px] text-secondary/40" />
-        <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary mt-2">No Order Selected</h3>
-        <p className="font-body-sm text-body-sm text-text-secondary mt-1">Select an order from the list to view its complete fulfillment telemetry.</p>
+      <Card className="flex min-h-[400px] min-w-0 flex-col items-center justify-center p-space-lg text-center xl:col-span-4">
+        <Icon name="shopping_bag" className="material-symbols-outlined text-icon-2xl text-muted/40" />
+        <h3 className="text-subheading font-semibold text-primary mt-2">No Order Selected</h3>
+        <p className="text-body text-secondary mt-1">Select an order from the list to view its complete fulfillment telemetry.</p>
       </Card>
     );
   }
@@ -94,82 +95,82 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
   };
 
   return (
-    <Card className="xl:col-span-4 p-space-md flex flex-col space-y-space-md shadow-md">
+    <Card className="flex min-w-0 flex-col gap-space-md p-space-md shadow-md xl:col-span-4">
       {/* Drill-Down Header */}
-      <div className="flex flex-col gap-2 pb-space-sm bg-surface-subtle -m-space-md p-space-md rounded-t-xl border-b border-border-subtle">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-status-success animate-ping"></span>
-            <span className="font-headline-sm text-headline-sm font-bold text-text-primary">
+      <div className="flex flex-col gap-2 pb-space-sm bg-surface-subtle -m-space-md p-space-md rounded-t-xl border-b border-subtle">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-status-success" />
+            <span className="text-subheading font-semibold text-primary">
               {order.id}
             </span>
-            <Badge variant="default" className="text-[10px] font-bold">
+            <Badge variant="default" size="sm">
               {order.stageBadge || 'READY TO HANDOVER'}
             </Badge>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 flex-wrap items-center gap-1">
             <Button
               variant="outline"
-              size="icon"
+              size="iconSm"
               onClick={handlePrintLabel}
-              className="h-8 w-8 bg-surface-container-lowest"
+              className="bg-surface-container-lowest"
               title="Print Shipping Label"
             >
-              <Icon name="print" className="material-symbols-outlined text-[18px]" />
+              <Icon name="print" className="material-symbols-outlined text-icon-md" />
             </Button>
             <Button
               variant="outline"
-              size="icon"
+              size="iconSm"
               onClick={handleReassignCarrier}
-              className="h-8 w-8 bg-surface-container-lowest"
+              className="bg-surface-container-lowest"
               title="Re-assign Carrier"
             >
-              <Icon name="swap_horiz" className="material-symbols-outlined text-[18px]" />
+              <Icon name="swap_horiz" className="material-symbols-outlined text-icon-md" />
             </Button>
             <Button
               variant="outline"
-              size="icon"
+              size="iconSm"
               onClick={handleDownloadSlip}
-              className="h-8 w-8 bg-surface-container-lowest"
+              className="bg-surface-container-lowest"
               title="Download Packing Slip"
             >
-              <Icon name="download" className="material-symbols-outlined text-[18px]" />
+              <Icon name="download" className="material-symbols-outlined text-icon-md" />
             </Button>
             {onClose && (
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={onClose}
-                className="h-8 w-8 hover:bg-surface-subtle text-text-secondary hover:text-text-primary ml-1"
+                className="h-8 w-8 hover:bg-surface-subtle text-muted hover:text-primary ml-1"
                 title="Close Details (Expand Table)"
               >
-                <Icon name="close" className="material-symbols-outlined text-[18px]" />
+                <Icon name="close" className="material-symbols-outlined text-icon-md" />
               </Button>
             )}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-label-xs-caps text-label-xs-caps text-text-secondary">
-          <span>Placed: <strong className="text-text-primary font-medium">{order.orderDate}</strong></span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted">
+          <span>Placed: <strong className="text-primary font-medium">{order.orderDate}</strong></span>
           <span>•</span>
-          <span>Channel: <strong className="text-text-primary font-medium">{order.channel}</strong></span>
+          <span>Channel: <strong className="text-primary font-medium">{order.channel}</strong></span>
           <span>•</span>
-          <span>Warehouse: <strong className="text-primary font-semibold">{order.nodeFc}</strong></span>
+          <span>Warehouse: <strong className="text-accent font-semibold">{order.nodeFc}</strong></span>
         </div>
       </div>
 
       {/* Consignee Customer & Delivery Routing Strip */}
-      <div className="bg-surface-canvas p-space-sm rounded-lg flex items-start justify-between gap-space-sm border border-border-subtle/60">
+      <div className="bg-surface-canvas p-space-sm rounded-lg flex items-start justify-between gap-space-sm border border-subtle/60">
         <div className="flex items-start gap-2.5">
-          <Icon name="pin_drop" className="material-symbols-outlined text-primary text-[20px] mt-0.5" />
+          <Icon name="pin_drop" className="material-symbols-outlined text-accent text-icon-lg mt-0.5" />
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
-              <span className="font-label-md text-label-md font-bold text-text-primary">
+              <span className="text-label-lg font-semibold text-primary">
                 {order.customer.name}
               </span>
-              <Badge variant="success" className="text-[9px] py-0 px-1.5 font-bold">
+              <Badge variant="success" className="text-micro py-0 px-1.5 font-semibold">
                 PINCODE VERIFIED
               </Badge>
-              <span className={`px-1.5 py-0.2 rounded font-label-xs-caps text-[9px] font-bold ${order.customer.tierBadgeClass}`}>
+              <span className={`px-1.5 py-px rounded text-micro font-semibold ${order.customer.tierBadgeClass}`}>
                 {order.customer.tier}
               </span>
             </div>
@@ -177,7 +178,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
             {editingAddress ? (
               <div className="mt-2 space-y-2">
                 <textarea
-                  className="w-full text-xs p-2 rounded-lg border border-primary focus:outline-none bg-surface-container-lowest text-text-primary"
+                  className="w-full text-meta p-2 rounded-lg border border-primary focus:outline-none bg-surface-container-lowest text-primary"
                   rows="2"
                   value={addressInput}
                   onChange={(e) => setAddressInput(e.target.value)}
@@ -187,7 +188,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
                     size="sm"
                     variant="primary"
                     onClick={handleSaveAddress}
-                    className="h-7 text-xs"
+                    className="h-7 text-meta"
                   >
                     Save
                   </Button>
@@ -195,20 +196,20 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
                     size="sm"
                     variant="ghost"
                     onClick={() => setEditingAddress(false)}
-                    className="h-7 text-xs"
+                    className="h-7 text-meta"
                   >
                     Cancel
                   </Button>
                 </div>
               </div>
             ) : (
-              <p className="font-body-sm text-body-sm text-text-secondary mt-0.5">
+              <p className="text-body text-secondary mt-0.5">
                 {order.customer.address}
               </p>
             )}
 
-            <div className="flex flex-wrap items-center gap-3 mt-1.5 font-label-xs-caps text-label-xs-caps text-text-secondary">
-              <span className="font-mono">Phone: {order.customer.phone}</span>
+            <div className="flex flex-wrap items-center gap-3 mt-1.5 text-caption text-muted">
+              <span className="font-mono whitespace-nowrap">Phone: {order.customer.phone}</span>
               <span>•</span>
               <span>Delivery Instructions: "{order.customer.deliveryInstructions}"</span>
             </div>
@@ -222,7 +223,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
               setAddressInput(order.customer.address);
               setEditingAddress(true);
             }}
-            className="shrink-0 p-0 h-auto font-label-xs-caps text-label-xs-caps font-semibold"
+            className="shrink-0 p-0 h-auto text-caption font-semibold"
           >
             Edit
           </Button>
@@ -232,55 +233,51 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
       {/* Line Items Section (Fashion Catalog Presentation) */}
       <div className="space-y-space-xs">
         <div className="flex items-center justify-between">
-          <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider font-semibold text-text-secondary">
+          <span className="text-caption uppercase tracking-wider font-semibold text-muted">
             Ordered Apparel Items ({order.items.length} SKUs)
           </span>
-          <span className="font-label-xs-caps text-label-xs-caps text-text-secondary">
-            Total Weight: <strong className="text-text-primary">{order.totalWeight}</strong>
+          <span className="text-caption text-muted">
+            Total Weight: <strong className="text-primary">{order.totalWeight}</strong>
           </span>
         </div>
         <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
           {order.items.map((it) => (
             <div
               key={it.id}
-              className="p-2.5 bg-surface-canvas rounded-lg flex items-center justify-between gap-3 hover:bg-surface-subtle transition-colors border border-border-subtle/50"
+              className="flex items-center justify-between gap-3 rounded-lg border border-subtle bg-surface-subtle p-2.5 transition-colors hover:bg-surface-container"
             >
-              <div className="flex items-center gap-3">
-                <img
-                  className="w-12 h-14 object-cover rounded-md bg-surface-subtle shadow-xs shrink-0"
-                  alt={it.name}
-                  src={it.image}
-                />
-                <div className="flex flex-col">
-                  <span className="font-label-md text-label-md font-semibold text-text-primary line-clamp-1">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <Thumbnail src={it.image} alt={it.name} className="w-12 h-14 rounded-md shadow-xs shrink-0" imgClassName="object-cover" />
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate text-label-lg font-semibold text-primary">
                     {it.name}
                   </span>
-                  <span className="font-mono text-[11px] text-text-secondary">
+                  <span className="truncate font-mono text-micro text-muted">
                     SKU: {it.sku} • {it.hsn}
                   </span>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal">
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline" className="text-micro py-0 px-1.5 font-normal">
                       Size: <strong className="ml-1 font-semibold">{it.size}</strong>
                     </Badge>
-                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal">
+                    <Badge variant="outline" className="text-micro py-0 px-1.5 font-normal">
                       Color: <strong className="ml-1 font-semibold">{it.color}</strong>
                     </Badge>
-                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal">
+                    <Badge variant="outline" className="text-micro py-0 px-1.5 font-normal">
                       Qty: <strong className="ml-1 font-semibold">{it.qty}</strong>
                     </Badge>
                   </div>
                 </div>
               </div>
-              <div className="flex flex-col items-end shrink-0">
-                <span className="font-label-md text-label-md font-bold text-text-primary tabular-nums">
+              <div className="flex shrink-0 flex-col items-end whitespace-nowrap">
+                <span className="text-label-lg font-semibold text-primary tabular-nums">
                   ₹{it.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </span>
                 {it.mrp && (
-                  <span className="line-through text-text-secondary text-[11px] tabular-nums">
+                  <span className="line-through text-muted text-micro tabular-nums">
                     ₹{it.mrp.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 )}
-                <span className="font-label-xs-caps text-[10px] text-text-secondary mt-0.5">
+                <span className="text-micro text-muted mt-0.5">
                   GST {it.gstRate} (₹{it.gstAmount})
                 </span>
               </div>
@@ -290,37 +287,37 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
       </div>
 
       {/* Financial & Intra-State Tax Reconciliation Breakdown */}
-      <div className="bg-surface-canvas p-space-sm rounded-lg space-y-1.5 text-body-sm text-body-sm border border-border-subtle/50">
-        <div className="flex justify-between text-text-secondary">
+      <div className="bg-surface-canvas p-space-sm rounded-lg space-y-1.5 text-body text-body border border-subtle/50">
+        <div className="flex justify-between text-muted">
           <span>Subtotal (Taxable Value):</span>
-          <span className="font-mono font-medium text-text-primary tabular-nums">
+          <span className="font-mono font-medium text-primary tabular-nums whitespace-nowrap">
             ₹{order.payment.taxableValue.toFixed(2)}
           </span>
         </div>
-        <div className="flex justify-between text-text-secondary">
+        <div className="flex justify-between text-muted">
           <span>Intra-state CGST (6.0%):</span>
-          <span className="font-mono text-text-primary tabular-nums">
+          <span className="font-mono text-primary tabular-nums whitespace-nowrap">
             ₹{order.payment.cgst.toFixed(2)}
           </span>
         </div>
-        <div className="flex justify-between text-text-secondary">
+        <div className="flex justify-between text-muted">
           <span>Intra-state SGST (6.0%):</span>
-          <span className="font-mono text-text-primary tabular-nums">
+          <span className="font-mono text-primary tabular-nums whitespace-nowrap">
             ₹{order.payment.sgst.toFixed(2)}
           </span>
         </div>
-        <div className="flex justify-between text-text-secondary">
-          <span>Packaging & Express Shipping:</span>
-          <span className="text-status-success font-semibold uppercase text-[11px]">
+        <div className="flex justify-between text-muted">
+          <span>Packaging &amp; shipping</span>
+          <span className="text-success uppercase text-caption">
             FREE (Orders &gt; ₹1,499)
           </span>
         </div>
         <Separator className="my-1" />
-        <div className="flex justify-between items-center font-headline-sm text-headline-sm pt-0.5">
-          <span className="font-bold text-text-primary">
+        <div className="flex justify-between items-center text-subheading pt-0.5">
+          <span className="font-semibold text-primary">
             Total Paid ({order.payment.mode})
           </span>
-          <span className="font-bold text-primary tabular-nums">
+          <span className="font-semibold text-accent tabular-nums">
             ₹{order.payment.totalPaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </span>
         </div>
@@ -329,10 +326,10 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
       {/* Myntra-Style End-to-End Vertical Order Stepper Timeline */}
       <div className="space-y-space-xs">
         <div className="flex items-center justify-between">
-          <span className="font-label-xs-caps text-label-xs-caps uppercase tracking-wider font-semibold text-text-secondary">
-            Fulfillment Lifecycle & Live Audit Stepper
+          <span className="text-caption uppercase tracking-wider font-semibold text-muted">
+            Fulfillment lifecycle
           </span>
-          <span className="font-mono text-[10px] text-text-secondary">
+          <span className="font-mono text-micro text-muted whitespace-nowrap">
             {order.courier.partner} AWB #{order.courier.awb}
           </span>
         </div>
@@ -346,46 +343,46 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
                 key={step.step}
                 onClick={() => handleAdvanceStep(step.step)}
                 className={`relative flex items-start gap-3 cursor-pointer group ${
-                  !isDone && !isCurrent ? 'opacity-60' : ''
-                }`}
+ !isDone && !isCurrent ? 'opacity-60' : ''
+ }`}
                 title="Click to update order stage to this step"
               >
                 {/* Step Circle */}
                 {isCurrent ? (
-                  <span className="absolute -left-6 top-0.5 w-5 h-5 rounded-full bg-primary-container text-on-primary flex items-center justify-center text-[12px] shadow-xs ring-4 ring-primary-fixed">
-                    <Icon name="cached" className="material-symbols-outlined text-[14px]" />
+                  <span className="absolute -left-6 top-0.5 w-5 h-5 rounded-full bg-primary-container text-on-accent flex items-center justify-center text-meta shadow-xs ring-4 ring-primary-fixed">
+                    <Icon name="cached" className="material-symbols-outlined text-icon-sm" />
                   </span>
                 ) : isDone ? (
-                  <span className="absolute -left-6 top-0.5 w-5 h-5 rounded-full bg-status-success text-on-primary flex items-center justify-center text-[12px] shadow-xs">
-                    <Icon name="check" className="material-symbols-outlined text-[14px]" />
+                  <span className="absolute -left-6 top-0.5 w-5 h-5 rounded-full bg-status-success-solid text-on-accent flex items-center justify-center text-meta shadow-xs">
+                    <Icon name="check" className="material-symbols-outlined text-icon-sm" />
                   </span>
                 ) : (
-                  <span className="absolute -left-6 top-0.5 w-5 h-5 rounded-full bg-surface-subtle text-secondary flex items-center justify-center text-[12px] border border-border-subtle">
-                    <Icon name={step.step === 7 ? 'local_shipping' : step.step === 8 ? 'moped' : 'done_all'} className="material-symbols-outlined text-[14px]" />
+                  <span className="absolute -left-6 top-0.5 w-5 h-5 rounded-full bg-surface-subtle text-muted flex items-center justify-center text-meta border border-subtle">
+                    <Icon name={step.step === 7 ? 'local_shipping' : step.step === 8 ? 'moped' : 'done_all'} className="material-symbols-outlined text-icon-sm" />
                   </span>
                 )}
 
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
-                    <span className={`font-label-sm text-label-sm font-semibold ${
-                      isCurrent ? 'text-primary' : isDone ? 'text-text-primary' : 'text-text-secondary'
-                    }`}>
+                    <span className={`text-label font-semibold ${
+ isCurrent ? 'text-accent' : isDone ? 'text-primary' : 'text-muted'
+ }`}>
                       {step.title}
                     </span>
                     {isCurrent && (
-                      <Badge variant="default" className="text-[9px] py-0 px-1.5 font-bold">
+                      <Badge variant="default" className="text-micro py-0 px-1.5 font-semibold">
                         CURRENT STAGE
                       </Badge>
                     )}
-                    <span className="font-mono text-[10px] text-text-secondary">
+                    <span className="font-mono text-micro text-muted whitespace-nowrap">
                       {step.time}
                     </span>
                   </div>
-                  <span className="font-body-sm text-[12px] text-text-secondary mt-0.5">
+                  <span className="text-meta text-muted mt-0.5">
                     {step.desc}
                   </span>
                   {step.alert && (
-                    <span className="font-label-xs-caps text-label-xs-caps text-status-warning font-semibold mt-0.5">
+                    <span className="text-caption text-warning font-semibold mt-0.5">
                       {step.alert}
                     </span>
                   )}
@@ -397,17 +394,17 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
       </div>
 
       {/* Live Operations & Audit Trail Sticky Drawer Action Bar */}
-      <div className="bg-surface-canvas p-space-sm rounded-lg flex items-center justify-between border border-border-subtle/50">
-        <div className="flex items-center gap-2 text-text-secondary font-label-xs-caps text-label-xs-caps">
-          <Icon name="smart_toy" className="material-symbols-outlined text-[16px] text-primary" />
-          <span>Auto-assigned to batch #4409 by System Dispatcher Bot</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-subtle bg-surface-subtle p-space-sm">
+        <div className="flex min-w-0 items-center gap-2 text-caption text-muted">
+          <Icon name="smart_toy" aria-hidden="true" className="material-symbols-outlined shrink-0 text-icon text-accent" />
+          <span className="truncate">Auto-assigned to batch #4409</span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowActivityLog(!showActivityLog)}
-            className="h-8 text-xs font-semibold uppercase"
+            className="h-8 text-meta font-semibold uppercase"
           >
             Activity Log
           </Button>
@@ -415,7 +412,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
             variant="destructive"
             size="sm"
             onClick={handleHoldCancel}
-            className="h-8 text-xs font-bold uppercase"
+            className="h-8 text-meta font-semibold uppercase"
           >
             Hold / Cancel
           </Button>
@@ -424,12 +421,12 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose }
 
       {/* Activity Log Flyout */}
       {showActivityLog && (
-        <div className="p-3 bg-surface-subtle rounded-lg text-xs space-y-1.5 border border-border-subtle animate-fade-in">
-          <div className="font-semibold text-text-primary flex items-center justify-between">
+        <div className="p-3 bg-surface-subtle rounded-lg text-meta space-y-1.5 border border-subtle animate-fade-in">
+          <div className="font-semibold text-primary flex items-center justify-between">
             <span>Automated Audit Trail</span>
             <Button variant="ghost" size="icon" onClick={() => setShowActivityLog(false)} className="h-6 w-6">✕</Button>
           </div>
-          <div className="text-text-secondary space-y-1 font-mono text-[11px]">
+          <div className="text-muted space-y-1 font-mono text-micro whitespace-nowrap">
             <div>• 14:28:01 IST: Order ingested from Everwear iOS (Checkout Session #cs_live_994)</div>
             <div>• 14:28:15 IST: Razorpay UPI instant webhook received (Auth Code: 884102)</div>
             <div>• 14:31:00 IST: Multi-hub inventory routing matched BLR-FC1 as lowest SLA hub</div>

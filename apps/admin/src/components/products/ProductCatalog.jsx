@@ -23,6 +23,10 @@ import { Icon,
   ContentGrid,
   StatsCard,
   StatusBadge,
+  ErrorState,
+  SkeletonPage,
+  Thumbnail,
+  ColorSwatch,
 } from '../ui';
 
 export function ProductCatalog({ onShowToast, currentHub }) {
@@ -91,7 +95,13 @@ export function ProductCatalog({ onShowToast, currentHub }) {
   }, [product]);
 
   // TanStack Query: catalog products and mutations
-  const { data: catalogData, isLoading: isCatalogLoading } = useProductsQuery({ limit: 100 });
+  const {
+    data: catalogData,
+    isLoading: isCatalogLoading,
+    isError: isCatalogError,
+    error: catalogError,
+    refetch: refetchCatalog,
+  } = useProductsQuery({ limit: 100 });
   const updateProductMutation = useUpdateProductMutation();
 
   // Sync products when query cache updates
@@ -327,8 +337,19 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     { id: 7, label: '7. Storefront & SEO', icon: 'language' },
   ];
 
+  if (isCatalogLoading) {
+    return <SkeletonPage variant="cards" stats={6} statsCols={6} label="Loading product catalog" />;
+  }
+
   return (
     <PageContainer>
+      {catalogError && (
+        <ErrorState
+          title="Product catalog could not be loaded"
+          message={catalogError?.message}
+          onRetry={() => refetchCatalog()}
+        />
+      )}
       {/* Context Breadcrumb & Editorial Header */}
       <PageHeader
         breadcrumb={['Everwear Admin', 'Catalog', 'Products']}
@@ -343,7 +364,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               className="gap-1.5 h-9"
               type="button"
             >
-              <Icon name="upload_file" className="material-symbols-outlined text-[18px]" />
+              <Icon name="upload_file" className="material-symbols-outlined text-icon-md" />
               <span>Import Excel</span>
             </Button>
             <Button
@@ -353,7 +374,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               className="gap-1.5 h-9"
               type="button"
             >
-              <Icon name="file_download" className="material-symbols-outlined text-[18px]" />
+              <Icon name="file_download" className="material-symbols-outlined text-icon-md" />
               <span>Export CSV</span>
             </Button>
             <Button
@@ -363,7 +384,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               className="gap-1.5 h-9"
               type="button"
             >
-              <Icon name="sync_alt" className="material-symbols-outlined text-[18px]" />
+              <Icon name="sync_alt" className="material-symbols-outlined text-icon-md" />
               <span>Sync Storefront / POS</span>
             </Button>
             <Button
@@ -373,7 +394,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               className="gap-1.5 h-9 shadow-sm"
               type="button"
             >
-              <Icon name="add_circle" className="material-symbols-outlined text-[18px]" />
+              <Icon name="add_circle" className="material-symbols-outlined text-icon-md" />
               <span>Add New Style</span>
             </Button>
           </>
@@ -394,7 +415,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           title="Active Variants (SKUs)"
           value="24,190"
           icon="view_in_ar"
-          iconColor="text-primary"
+          iconColor="text-accent"
           badge="Live in 12 Hubs"
           badgeVariant="info"
         />
@@ -403,7 +424,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           title="Draft Catalog"
           value="38"
           icon="edit_note"
-          iconColor="text-text-secondary"
+          iconColor="text-muted"
           badge="Work in progress"
           badgeVariant="secondary"
         />
@@ -413,7 +434,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           title="Stock Depleted"
           value="86"
           icon="inventory_2"
-          iconColor="text-status-danger"
+          iconColor="text-danger"
           badge="Urgent Reorder"
           badgeVariant="destructive"
         />
@@ -423,7 +444,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           title="Pending Studio QC"
           value="14"
           icon="photo_camera"
-          iconColor="text-status-warning"
+          iconColor="text-warning"
           badge="Asset Review"
           badgeVariant="warning"
         />
@@ -445,11 +466,11 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 <button
                   key={cat.label}
                   onClick={() => setActiveCategory(cat.label)}
-                  className={`px-3 py-1.5 rounded-lg font-label-sm text-label-sm transition-all whitespace-nowrap ${
-                    isCatActive
-                      ? 'bg-primary-container text-on-primary font-semibold shadow-xs'
-                      : 'bg-surface-subtle hover:bg-surface-container text-on-surface-variant'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-label transition-all whitespace-nowrap ${
+ isCatActive
+ ? 'bg-primary-container text-on-accent font-semibold shadow-xs'
+ : 'bg-surface-subtle hover:bg-surface-container text-muted'
+ }`}
                   type="button"
                 >
                   {cat.label} ({cat.count})
@@ -460,20 +481,20 @@ export function ProductCatalog({ onShowToast, currentHub }) {
 
           {/* Product Switcher Dropdown */}
           <div className="flex items-center gap-2 pr-2">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+            <span className="text-caption text-muted uppercase font-semibold">
               Select Style:
             </span>
-            <select
+            <Select
               value={selectedProductId}
               onChange={(e) => setSelectedProductId(e.target.value)}
-              className="h-8 px-2.5 rounded-lg bg-surface-subtle border border-border-subtle font-label-sm text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary max-w-[220px] truncate"
-            >
-              {filteredProducts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.styleCode || p.id} — {p.title}
-                </option>
-              ))}
-            </select>
+              aria-label="Select style"
+              wrapperClassName="w-auto"
+              className="h-8 w-auto max-w-[14rem] text-meta"
+              options={filteredProducts.map((p) => ({
+                value: p.id,
+                label: `${p.styleCode || p.id} — ${p.title}`,
+              }))}
+            />
             <span className="inline-flex w-2 h-2 rounded-full bg-status-success animate-pulse shrink-0"></span>
           </div>
         </CardContent>
@@ -482,43 +503,39 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       {/* Editor Workspace Shell */}
       <Card className="overflow-hidden flex flex-col">
         {/* Studio Header / Top Utility Ribbon */}
-        <div className="p-space-lg bg-surface-container-low flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md border-b border-border-subtle">
+        <div className="p-space-lg bg-surface-container-low flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md border-b border-subtle">
           <div className="flex items-center gap-space-md">
-            <div className="w-12 h-16 rounded-lg overflow-hidden bg-surface-subtle shrink-0 shadow-xs border border-border-subtle">
-              <img
-                className="w-full h-full object-cover"
-                alt="Product Editorial Thumbnail"
-                src={product.thumbnail || (mediaAssets[0]?.url) || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6'}
-              />
+            <div className="w-12 h-16 rounded-lg overflow-hidden bg-surface-subtle shrink-0 shadow-xs border border-subtle">
+              <Thumbnail src={product.thumbnail || (mediaAssets[0]?.url) || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6'} alt="Product Editorial Thumbnail" className="w-full h-full" imgClassName="object-cover" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <Badge variant="default" className="text-[10px] font-bold">
+                <Badge variant="default" className="text-micro font-semibold">
                   {product.seasonTag || 'AUTUMN / ATELIER 24'}
                 </Badge>
-                <Badge variant="success" className="text-[10px] font-semibold">
+                <Badge variant="success" className="text-micro font-semibold">
                   GST RECONCILED
                 </Badge>
               </div>
-              <h2 className="font-headline-md text-headline-md font-semibold text-text-primary tracking-tight mt-0.5">
+              <h2 className="text-heading font-semibold text-primary tracking-tight mt-0.5">
                 {title}
               </h2>
-              <div className="flex flex-wrap items-center gap-3 font-body-sm text-body-sm text-text-secondary mt-0.5">
-                <span>Style Code: <strong className="text-text-primary font-mono text-label-sm">{styleCode}</strong></span>
+              <div className="flex flex-wrap items-center gap-3 text-body text-secondary mt-0.5">
+                <span>Style Code: <strong className="text-primary font-mono text-label whitespace-nowrap">{styleCode}</strong></span>
                 <span>•</span>
                 <span>Atelier Master Guild</span>
                 <span>•</span>
-                <span className="text-status-success font-medium">Variants Configured</span>
+                <span className="text-success font-medium">Variants Configured</span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2 self-end md:self-auto">
             <div className="flex flex-col text-right">
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+              <span className="text-caption text-muted uppercase font-semibold">
                 Gross Profit Margin
               </span>
-              <span className="font-metric-stat text-metric-stat text-status-success tabular-nums">
+              <span className="text-kpi text-success tabular-nums">
                 {grossMarginPercent}%
               </span>
             </div>
@@ -527,16 +544,14 @@ export function ProductCatalog({ onShowToast, currentHub }) {
 
         {/* Multi-Step Interactive Tabs Nav */}
         <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)}>
-          <TabsList className="bg-surface-subtle px-space-md pt-2 border-b border-border-subtle overflow-x-auto no-scrollbar">
+          <TabsList className="bg-surface-subtle px-space-md">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                isActive={activeTab === tab.id}
-                onSelect={() => setActiveTab(tab.id)}
-                className="gap-2 font-label-md text-label-md whitespace-nowrap"
+                className="gap-2 whitespace-nowrap"
               >
-                <Icon name={tab.icon} className="material-symbols-outlined text-[18px]" />
+                <Icon name={tab.icon} className="material-symbols-outlined text-icon-md" />
                 <span>{tab.label}</span>
               </TabsTrigger>
             ))}
@@ -548,20 +563,20 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           {/* Left Column: Rich Fashion Specification Form (7 Cols) */}
           <div className="xl:col-span-7 space-y-space-lg">
             {/* General Identity */}
-            <Card className="bg-surface-canvas border-border-subtle/50">
+            <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
-                <div className="flex items-center justify-between pb-2 border-b border-border-subtle/50">
-                  <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                    <Icon name="apparel" className="material-symbols-outlined text-primary text-[20px]" />
+                <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
+                  <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
+                    <Icon name="apparel" className="material-symbols-outlined text-accent text-icon-lg" />
                     <span>Garment Identification & Merchandising</span>
                   </h3>
-                  <span className="font-label-xs-caps text-label-xs-caps text-text-secondary font-semibold">
+                  <span className="text-caption text-muted font-semibold">
                     MANDATORY COMPLIANCE
                   </span>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                  <label className="block text-caption text-muted uppercase font-semibold">
                     Product Title (Customer Facing)
                   </label>
                   <Input
@@ -574,7 +589,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
                   <div className="space-y-1.5">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Brand Master Label
                     </label>
                     <Select
@@ -588,7 +603,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Sub-Brand / Collection
                     </label>
                     <Input
@@ -602,18 +617,18 @@ export function ProductCatalog({ onShowToast, currentHub }) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-md">
                   <div className="space-y-1.5">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Parent Style Code (SKU)
                     </label>
                     <Input
                       type="text"
                       value={styleCode}
                       onChange={(e) => setStyleCode(e.target.value)}
-                      className="h-10 font-mono text-label-sm font-semibold bg-surface-container-lowest"
+                      className="h-10 font-mono text-label font-semibold bg-surface-container-lowest whitespace-nowrap"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Department
                     </label>
                     <Select
@@ -627,7 +642,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Primary Category
                     </label>
                     <Select
@@ -647,16 +662,16 @@ export function ProductCatalog({ onShowToast, currentHub }) {
             </Card>
 
             {/* Material, Weave & Technical Specs */}
-            <Card className="bg-surface-canvas border-border-subtle/50">
+            <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
-                <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                  <Icon name="texture" className="material-symbols-outlined text-primary text-[20px]" />
+                <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
+                  <Icon name="texture" className="material-symbols-outlined text-accent text-icon-lg" />
                   <span>Material, Fit & Manufacturing Composition</span>
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-md">
                   <div className="space-y-1.5">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Fabric Composition
                     </label>
                     <Input
@@ -667,7 +682,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Garment Silhouette / Fit
                     </label>
                     <Input
@@ -678,7 +693,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Pattern & Surface Craft
                     </label>
                     <Input
@@ -692,7 +707,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
                   <div className="space-y-1.5">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Recommended Wash Care
                     </label>
                     <div className="relative">
@@ -702,11 +717,11 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                         onChange={(e) => setWashCare(e.target.value)}
                         className="h-10 bg-surface-container-lowest pr-9"
                       />
-                      <Icon name="local_laundry_service" className="material-symbols-outlined text-[18px] text-secondary absolute right-3 top-2.5" />
+                      <Icon name="local_laundry_service" className="material-symbols-outlined text-icon-md text-muted absolute right-3 top-2.5" />
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Country of Origin & Guild
                     </label>
                     <Input
@@ -721,15 +736,15 @@ export function ProductCatalog({ onShowToast, currentHub }) {
             </Card>
 
             {/* Studio Lookbook Media Assets (Strip of slots) */}
-            <Card className="bg-surface-canvas border-border-subtle/50">
+            <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                    <Icon name="perm_media" className="material-symbols-outlined text-primary text-[20px]" />
+                  <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
+                    <Icon name="perm_media" className="material-symbols-outlined text-accent text-icon-lg" />
                     <span>Studio 360° Photography & Swatch Assets</span>
                   </h3>
-                  <label className="font-label-sm text-label-sm text-primary font-medium cursor-pointer hover:underline inline-flex items-center gap-1">
-                    <Icon name="add_photo_alternate" className="material-symbols-outlined text-[16px]" />
+                  <label className="text-label text-accent font-medium cursor-pointer hover:underline inline-flex items-center gap-1">
+                    <Icon name="add_photo_alternate" className="material-symbols-outlined text-icon" />
                     <span>{isUploading ? 'Uploading...' : '+ Upload Photo'}</span>
                     <input 
                       type="file" 
@@ -746,19 +761,15 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                     <div
                       key={idx}
                       onClick={() => setActiveMediaSlot(asset)}
-                      className="group relative aspect-[3/4] rounded-lg overflow-hidden bg-surface-subtle border border-border-subtle hover:border-primary cursor-pointer transition-all shadow-xs"
+                      className="group relative aspect-[3/4] rounded-lg overflow-hidden bg-surface-subtle border border-subtle hover:border-primary cursor-pointer transition-all shadow-xs"
                     >
-                      <img
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        alt={asset.slot}
-                        src={asset.url}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex flex-col justify-end p-2 opacity-90 group-hover:opacity-100">
-                        <span className="text-white text-[10px] font-semibold truncate leading-tight">
+                      <Thumbnail src={asset.url} alt={asset.slot} className="w-full h-full" imgClassName="object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-scrim/70 via-transparent to-transparent flex flex-col justify-end p-2 opacity-90 group-hover:opacity-100">
+                        <span className="text-on-accent text-micro font-semibold truncate leading-tight">
                           {asset.slot}
                         </span>
                         {asset.isPrimary && (
-                          <span className="text-status-success-bg text-[9px] font-bold">
+                          <span className="mt-0.5 w-fit rounded-full bg-status-success-solid px-1.5 py-px text-micro font-semibold text-on-accent">
                             PRIMARY
                           </span>
                         )}
@@ -773,105 +784,105 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           {/* Right Column: Pricing Engine, Tax Setup & SKU Matrix (5 Cols) */}
           <div className="xl:col-span-5 space-y-space-lg">
             {/* Commercial Pricing Engine */}
-            <Card className="bg-surface-canvas border-border-subtle/50">
+            <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
-                <div className="flex items-center justify-between pb-2 border-b border-border-subtle/50">
-                  <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                    <Icon name="currency_rupee" className="material-symbols-outlined text-primary text-[20px]" />
+                <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
+                  <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
+                    <Icon name="currency_rupee" className="material-symbols-outlined text-accent text-icon-lg" />
                     <span>Commercial Pricing & Margins</span>
                   </h3>
-                  <Badge variant="success" className="text-label-xs-caps">
+                  <Badge variant="success" className="text-caption">
                     {grossMarginPercent}% MARGIN
                   </Badge>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-sm">
                   <div className="space-y-1">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Maximum Retail Price
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-secondary text-sm">₹</span>
+                      <span className="absolute left-3 top-2.5 text-secondary text-body">₹</span>
                       <Input
                         type="number"
                         value={mrp}
                         onChange={(e) => setMrp(Number(e.target.value))}
-                        className="h-10 pl-7 font-mono font-bold bg-surface-container-lowest"
+                        className="h-10 pl-7 font-mono font-semibold bg-surface-container-lowest whitespace-nowrap"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Selling Price (B2C)
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-primary text-sm font-bold">₹</span>
+                      <span className="absolute left-3 top-2.5 text-accent text-body font-semibold">₹</span>
                       <Input
                         type="number"
                         value={b2cPrice}
                         onChange={(e) => setB2cPrice(Number(e.target.value))}
-                        className="h-10 pl-7 font-mono font-bold text-primary bg-surface-container-lowest"
+                        className="h-10 pl-7 font-mono font-semibold text-accent bg-surface-container-lowest whitespace-nowrap"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       Procurement Cost
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-secondary text-sm">₹</span>
+                      <span className="absolute left-3 top-2.5 text-secondary text-body">₹</span>
                       <Input
                         type="number"
                         value={procurementCost}
                         onChange={(e) => setProcurementCost(Number(e.target.value))}
-                        className="h-10 pl-7 font-mono bg-surface-container-lowest"
+                        className="h-10 pl-7 font-mono bg-surface-container-lowest whitespace-nowrap"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="p-space-md rounded-xl bg-surface-container-lowest space-y-2 border border-border-subtle">
-                  <div className="flex justify-between text-body-sm text-text-secondary">
+                <div className="p-space-md rounded-xl bg-surface-container-lowest space-y-2 border border-subtle">
+                  <div className="flex justify-between text-body text-secondary">
                     <span>Discount from MRP:</span>
-                    <span className="font-semibold text-text-primary">{discountDepth}% Off</span>
+                    <span className="font-semibold text-primary">{discountDepth}% Off</span>
                   </div>
-                  <div className="flex justify-between text-body-sm text-text-secondary">
+                  <div className="flex justify-between text-body text-secondary">
                     <span>Net Gross Profit (per piece):</span>
-                    <span className="font-semibold text-status-success font-mono">₹{grossMargin.toFixed(2)}</span>
+                    <span className="font-semibold text-success font-mono whitespace-nowrap">₹{grossMargin.toFixed(2)}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* HSN & GST Statutory Compliance */}
-            <Card className="bg-surface-canvas border-border-subtle/50">
+            <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
-                <div className="flex items-center justify-between pb-2 border-b border-border-subtle/50">
-                  <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                    <Icon name="receipt_long" className="material-symbols-outlined text-primary text-[20px]" />
+                <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
+                  <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
+                    <Icon name="receipt_long" className="material-symbols-outlined text-accent text-icon-lg" />
                     <span>Statutory HSN & GST Split</span>
                   </h3>
-                  <span className="font-label-xs-caps text-label-xs-caps text-text-secondary font-semibold">
+                  <span className="text-caption text-muted font-semibold">
                     KA-GSTIN 29AAACE1284P1ZX
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
                   <div className="space-y-1">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       HSN Classification Code
                     </label>
                     <Input
                       type="text"
                       value={hsnCode}
                       onChange={(e) => setHsnCode(e.target.value)}
-                      className="h-10 font-mono bg-surface-container-lowest"
+                      className="h-10 font-mono bg-surface-container-lowest whitespace-nowrap"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="block font-label-xs-caps text-label-xs-caps text-text-secondary uppercase font-semibold">
+                    <label className="block text-caption text-muted uppercase font-semibold">
                       GST Rate Tier
                     </label>
                     <Select
@@ -886,42 +897,42 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                   </div>
                 </div>
 
-                <div className="p-space-md rounded-xl bg-surface-container-lowest space-y-1.5 border border-border-subtle text-body-sm">
-                  <div className="flex justify-between text-text-secondary">
+                <div className="p-space-md rounded-xl bg-surface-container-lowest space-y-1.5 border border-subtle text-body">
+                  <div className="flex justify-between text-muted">
                     <span>Taxable Base Value:</span>
-                    <span className="font-mono text-text-primary">₹{taxableValue.toFixed(2)}</span>
+                    <span className="font-mono text-primary whitespace-nowrap">₹{taxableValue.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-text-secondary">
+                  <div className="flex justify-between text-muted">
                     <span>CGST (Intra-state {gstRate / 2}%):</span>
-                    <span className="font-mono text-text-primary">₹{cgstAmount}</span>
+                    <span className="font-mono text-primary whitespace-nowrap">₹{cgstAmount}</span>
                   </div>
-                  <div className="flex justify-between text-text-secondary">
+                  <div className="flex justify-between text-muted">
                     <span>SGST (Intra-state {gstRate / 2}%):</span>
-                    <span className="font-mono text-text-primary">₹{sgstAmount}</span>
+                    <span className="font-mono text-primary whitespace-nowrap">₹{sgstAmount}</span>
                   </div>
-                  <div className="flex justify-between text-text-secondary border-t border-surface-subtle pt-1">
+                  <div className="flex justify-between text-muted border-t border-surface-subtle pt-1">
                     <span>IGST (Inter-state {gstRate}%):</span>
-                    <span className="font-mono text-primary font-semibold">₹{igstAmount}</span>
+                    <span className="font-mono text-accent font-semibold whitespace-nowrap">₹{igstAmount}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Active Variant Matrix */}
-            <Card className="bg-surface-canvas border-border-subtle/50">
+            <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-headline-sm text-headline-sm font-semibold text-text-primary flex items-center gap-2">
-                      <Icon name="layers" className="material-symbols-outlined text-primary text-[20px]" />
+                    <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
+                      <Icon name="layers" className="material-symbols-outlined text-accent text-icon-lg" />
                       <span>Active SKU Variant Matrix</span>
                     </h3>
-                    <p className="font-body-sm text-body-sm text-text-secondary">Emerald &amp; Wine Colorways • XS–XL</p>
+                    <p className="text-body text-secondary">Emerald &amp; Wine Colorways • XS–XL</p>
                   </div>
                   <Button 
                     variant="ghost" 
                     size="sm"
-                    className="text-primary hover:bg-surface-container text-xs h-7"
+                    className="text-accent hover:bg-surface-container text-meta h-7"
                     onClick={() => onShowToast({ type: 'info', title: 'New Colorway', message: 'Colorway palette generator opened.' })}
                     type="button"
                   >
@@ -930,14 +941,10 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
 
                 {/* Colorway 1: Emerald Green */}
-                <div className="bg-surface-container-lowest p-space-md rounded-xl space-y-space-sm shadow-xs border border-border-subtle">
+                <div className="bg-surface-container-lowest p-space-md rounded-xl space-y-space-sm shadow-xs border border-subtle">
                   <div className="flex items-center justify-between border-b border-surface-subtle pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="w-4 h-4 rounded-full bg-[#065F46] shadow-xs"></span>
-                      <span className="font-label-md text-label-md font-bold text-text-primary">Emerald Green</span>
-                      <span className="text-text-secondary text-label-xs-caps font-mono">#065F46</span>
-                    </div>
-                    <Badge variant="success" className="text-label-xs-caps font-semibold">
+                    <ColorSwatch hex="#065F46" name="Emerald Green" />
+                    <Badge variant="success" className="text-caption font-semibold">
                       5 SKUs Active
                     </Badge>
                   </div>
@@ -950,17 +957,17 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                       { size: 'L', sku: `${styleCode}-EMR-L`, ean: '8904321098454', stock: 18 },
                       { size: 'XL', sku: `${styleCode}-EMR-XL`, ean: '8904321098455', stock: 0 },
                     ].map((skuItem) => (
-                      <div key={skuItem.size} className="flex items-center justify-between text-body-sm py-1 border-b border-surface-subtle/50 last:border-none">
+                      <div key={skuItem.size} className="flex items-center justify-between text-body py-1 border-b border-surface-subtle/50 last:border-none">
                         <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded bg-surface-subtle flex items-center justify-center font-bold text-[11px] text-text-primary">
+                          <span className="w-6 h-6 rounded bg-surface-subtle flex items-center justify-center font-semibold text-micro text-primary">
                             {skuItem.size}
                           </span>
-                          <span className="font-mono text-label-xs-caps text-text-secondary">
+                          <span className="font-mono text-caption text-muted whitespace-nowrap">
                             {skuItem.sku}
                           </span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="font-mono text-[11px] text-text-secondary hidden sm:inline">
+                          <span className="font-mono text-micro text-muted hidden sm:inline whitespace-nowrap">
                             EAN: {skuItem.ean}
                           </span>
                           <Badge 
@@ -968,7 +975,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                               skuItem.stock === 0 ? 'destructive' :
                               skuItem.stock < 20 ? 'warning' : 'success'
                             }
-                            className="text-[10px] py-0 px-1.5 font-bold"
+                            className="text-micro py-0 px-1.5 font-semibold"
                           >
                             {skuItem.stock} {skuItem.stock === 0 ? 'Out' : skuItem.stock < 20 ? 'Low' : 'In Stock'}
                           </Badge>
@@ -979,20 +986,16 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
 
                 {/* Colorway 2: Wine Berry */}
-                <div className="bg-surface-container-lowest p-space-md rounded-xl space-y-space-sm shadow-xs border border-border-subtle">
+                <div className="bg-surface-container-lowest p-space-md rounded-xl space-y-space-sm shadow-xs border border-subtle">
                   <div className="flex items-center justify-between border-b border-surface-subtle pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="w-4 h-4 rounded-full bg-[#701A75] shadow-xs"></span>
-                      <span className="font-label-md text-label-md font-bold text-text-primary">Wine Berry</span>
-                      <span className="text-text-secondary text-label-xs-caps font-mono">#701A75</span>
-                    </div>
-                    <Badge variant="info" className="text-label-xs-caps font-semibold">
+                    <ColorSwatch hex="#701A75" name="Wine Berry" />
+                    <Badge variant="info" className="text-caption font-semibold">
                       5 SKUs Generated
                     </Badge>
                   </div>
-                  <div className="text-[12px] text-text-secondary flex items-center justify-between py-1">
+                  <div className="text-meta text-muted flex items-center justify-between py-1">
                     <span>Standard Logistics Spec:</span>
-                    <span className="font-mono text-text-primary">380g • 30×25×4 cm • Polybag Tier 1</span>
+                    <span className="font-mono text-primary whitespace-nowrap">380g • 30×25×4 cm • Polybag Tier 1</span>
                   </div>
                 </div>
               </CardContent>
@@ -1001,11 +1004,11 @@ export function ProductCatalog({ onShowToast, currentHub }) {
         </div>
 
         {/* Sticky Bottom Master Action Bar */}
-        <div className="p-space-md bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-space-md sticky bottom-0 z-30 shadow-lg border-t border-border-subtle">
+        <div className="p-space-md bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-space-md sticky bottom-0 z-30 shadow-lg border-t border-subtle">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-status-success animate-ping"></span>
-            <span className="font-label-sm text-label-sm font-semibold text-text-primary">Studio Changes Auto-Saved</span>
-            <span className="text-text-secondary font-label-xs-caps text-[11px]">(Live Sync)</span>
+            <span className="text-label font-semibold text-primary">Studio Changes Auto-Saved</span>
+            <span className="text-muted text-micro">(Live Sync)</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-space-xs w-full sm:w-auto justify-end">
@@ -1013,7 +1016,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               variant="outline"
               size="sm"
               onClick={() => onShowToast({ type: 'warning', title: 'Draft Discarded', message: 'Restored original production style values.' })}
-              className="text-status-danger hover:text-status-danger hover:bg-rose-50 dark:hover:bg-rose-950/30"
+              className="text-danger hover:bg-status-danger-bg hover:text-danger"
               type="button"
             >
               Discard Draft
@@ -1034,7 +1037,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               className="gap-1.5 shadow-xs"
               type="button"
             >
-              <Icon name="verified" className="material-symbols-outlined text-[18px]" />
+              <Icon name="verified" className="material-symbols-outlined text-icon-md" />
               <span>Run Compliance QC Check</span>
             </Button>
             <Button
@@ -1045,7 +1048,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               className="gap-1.5 shadow-md"
               type="button"
             >
-              <Icon name="rocket_launch" className="material-symbols-outlined text-[18px]" />
+              <Icon name="rocket_launch" className="material-symbols-outlined text-icon-md" />
               <span>{isSaving ? 'Publishing...' : 'Publish Product (Active)'}</span>
             </Button>
           </div>
@@ -1057,24 +1060,20 @@ export function ProductCatalog({ onShowToast, currentHub }) {
         <Dialog open={!!activeMediaSlot} onOpenChange={() => setActiveMediaSlot(null)}>
           <DialogContent className="max-w-2xl p-4 flex flex-col gap-3">
             <DialogHeader className="flex flex-row items-center justify-between pb-2">
-              <DialogTitle className="text-sm font-semibold">
+              <DialogTitle className="text-body font-semibold">
                 {title} - {activeMediaSlot.slot} Perspective
               </DialogTitle>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setActiveMediaSlot(null)}
-                className="h-7 w-7 text-secondary hover:text-text-primary"
+                className="h-7 w-7 text-muted hover:text-primary"
                 type="button"
               >
-                <Icon name="close" className="material-symbols-outlined text-[18px]" />
+                <Icon name="close" className="material-symbols-outlined text-icon-md" />
               </Button>
             </DialogHeader>
-            <img 
-              src={activeMediaSlot.url} 
-              alt={activeMediaSlot.slot}
-              className="max-h-[70vh] w-auto object-contain rounded-xl mx-auto"
-            />
+            <Thumbnail src={activeMediaSlot.url} alt={activeMediaSlot.slot} className="h-[70vh] w-auto rounded-xl" imgClassName="object-contain" />
           </DialogContent>
         </Dialog>
       )}

@@ -27,6 +27,8 @@ import {
   ContentGrid,
   StatsCard,
   StatusBadge,
+  ErrorState,
+  SkeletonPage,
 } from '../ui';
 import {
   INITIAL_GST_METRICS,
@@ -42,7 +44,13 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
   const [invoices, setInvoices] = useState(INITIAL_GST_INVOICES);
 
   // TanStack Query for GST invoices
-  const { data: invoicesData, isLoading: isInvoicesLoading } = useInvoicesQuery();
+  const {
+    data: invoicesData,
+    isLoading: isInvoicesLoading,
+    isError: isInvoicesError,
+    error: invoicesError,
+    refetch: refetchInvoices,
+  } = useInvoicesQuery();
 
   useEffect(() => {
     if (invoicesData?.invoices?.length) {
@@ -289,8 +297,19 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
     if (onShowToast) onShowToast(`${label} copied to clipboard!`);
   };
 
+  if (isInvoicesLoading) {
+    return <SkeletonPage variant="table" stats={6} statsCols={6} columns={8} label="Loading tax invoices" />;
+  }
+
   return (
     <PageContainer>
+      {invoicesError && (
+        <ErrorState
+          title="Tax invoices could not be loaded"
+          message={invoicesError?.message}
+          onRetry={() => refetchInvoices()}
+        />
+      )}
       {/* Breadcrumb Navigation & Top Action Bar */}
       <PageHeader
         breadcrumb={['Everwear Admin', 'Finance & Compliance', 'GST & Tax Invoices']}
@@ -306,7 +325,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
               title="Download compliant GSTR-1 payload JSON"
               type="button"
             >
-              <Icon name="data_object" className="material-symbols-outlined text-[16px] text-primary-container" />
+              <Icon name="data_object" className="material-symbols-outlined text-icon text-accent" />
               <span>GSTR-1 JSON</span>
             </Button>
             <Button
@@ -317,7 +336,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
               title="Export Ledger Records to CSV"
               type="button"
             >
-              <Icon name="table_view" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <Icon name="table_view" className="material-symbols-outlined text-icon text-muted" />
               <span>Export CSV</span>
             </Button>
             <Button
@@ -328,17 +347,17 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
               title="NIC Portal Integration"
               type="button"
             >
-              <Icon name="local_shipping" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <Icon name="local_shipping" className="material-symbols-outlined text-icon text-muted" />
               <span>E-Way Bill</span>
             </Button>
             <Button
               variant="default"
               size="sm"
               onClick={() => setIsManualInvoiceModalOpen(true)}
-              className="gap-1.5 bg-primary-container text-on-primary hover:bg-primary shadow-sm"
+              className="gap-1.5 bg-primary-container text-on-accent hover:bg-primary-container-hover shadow-sm"
               type="button"
             >
-              <Icon name="add" className="material-symbols-outlined text-[16px]" />
+              <Icon name="add" className="material-symbols-outlined text-icon" />
               <span>+ Create Tax Invoice</span>
             </Button>
           </>
@@ -359,7 +378,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
           title="Total GST Liability"
           value={INITIAL_GST_METRICS.totalGstLiability}
           icon="account_balance"
-          iconColor="text-primary"
+          iconColor="text-accent"
           trendLabel={`Avg Effective Rate: ${INITIAL_GST_METRICS.avgEffectiveRate}`}
         />
         <StatsCard
@@ -382,14 +401,14 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
           title="IGST (Inter 12%/5%)"
           value={INITIAL_GST_METRICS.igst}
           icon="flight_takeoff"
-          iconColor="text-status-info"
+          iconColor="text-info"
           trendLabel="Rest of India Dispatches"
         />
         <StatsCard
           title="Credit Reversals"
           value={INITIAL_GST_METRICS.creditReversals}
           icon="sync_alt"
-          iconColor="text-status-warning"
+          iconColor="text-warning"
           trendLabel={`ITC Reclaimed: ${INITIAL_GST_METRICS.itcReclaimed}`}
         />
       </ContentGrid>
@@ -398,78 +417,78 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* LEFT PANEL: Invoices Register & Sub-tabs */}
         <div className="lg:col-span-7 xl:col-span-8 flex flex-col space-y-4 min-w-0">
-          <Card className="border border-border-subtle bg-surface-container-lowest overflow-hidden">
+          <Card className="border border-subtle bg-surface-container-lowest overflow-hidden">
             {/* Navigation Sub-Tabs */}
-            <div className="px-4 pt-2 bg-surface-container-low/50 flex flex-wrap gap-1 border-b border-border-subtle">
+            <div className="px-4 pt-2 bg-surface-container-low/50 flex flex-wrap gap-1 border-b border-subtle">
               <button
                 type="button"
                 onClick={() => setActiveTab('invoices')}
-                className={`px-3 py-2 rounded-t-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  activeTab === 'invoices'
-                    ? 'bg-surface-container-lowest text-primary-container shadow-sm border-t-2 border-primary-container'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
+                className={`px-3 py-2 rounded-t-lg text-meta font-semibold flex items-center gap-1.5 transition-colors ${
+ activeTab === 'invoices'
+ ? 'bg-surface-container-lowest text-accent shadow-sm border-t-2 border-primary-container'
+ : 'text-muted hover:text-primary'
+ }`}
               >
-                <Icon name="receipt_long" className="material-symbols-outlined text-[16px]" />
+                <Icon name="receipt_long" className="material-symbols-outlined text-icon" />
                 <span>Tax Invoices (B2C &amp; B2B)</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-primary-fixed text-primary text-[10px]">
+                <span className="px-1.5 py-px rounded-full bg-primary-fixed text-on-primary-fixed text-micro">
                   {invoices.length}
                 </span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('hsn')}
-                className={`px-3 py-2 rounded-t-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  activeTab === 'hsn'
-                    ? 'bg-surface-container-lowest text-primary-container shadow-sm border-t-2 border-primary-container'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
+                className={`px-3 py-2 rounded-t-lg text-meta font-semibold flex items-center gap-1.5 transition-colors ${
+ activeTab === 'hsn'
+ ? 'bg-surface-container-lowest text-accent shadow-sm border-t-2 border-primary-container'
+ : 'text-muted hover:text-primary'
+ }`}
               >
-                <Icon name="sell" className="material-symbols-outlined text-[16px]" />
+                <Icon name="sell" className="material-symbols-outlined text-icon" />
                 <span>HSN Rate Master</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('credit-notes')}
-                className={`px-3 py-2 rounded-t-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  activeTab === 'credit-notes'
-                    ? 'bg-surface-container-lowest text-primary-container shadow-sm border-t-2 border-primary-container'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
+                className={`px-3 py-2 rounded-t-lg text-meta font-semibold flex items-center gap-1.5 transition-colors ${
+ activeTab === 'credit-notes'
+ ? 'bg-surface-container-lowest text-accent shadow-sm border-t-2 border-primary-container'
+ : 'text-muted hover:text-primary'
+ }`}
               >
-                <Icon name="assignment_return" className="material-symbols-outlined text-[16px]" />
+                <Icon name="assignment_return" className="material-symbols-outlined text-icon" />
                 <span>Credit Notes (Returns)</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-surface-subtle text-text-secondary text-[10px]">
+                <span className="px-1.5 py-px rounded-full bg-surface-subtle text-muted text-micro">
                   {INITIAL_CREDIT_NOTES.length}
                 </span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('eway-bills')}
-                className={`px-3 py-2 rounded-t-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  activeTab === 'eway-bills'
-                    ? 'bg-surface-container-lowest text-primary-container shadow-sm border-t-2 border-primary-container'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
+                className={`px-3 py-2 rounded-t-lg text-meta font-semibold flex items-center gap-1.5 transition-colors ${
+ activeTab === 'eway-bills'
+ ? 'bg-surface-container-lowest text-accent shadow-sm border-t-2 border-primary-container'
+ : 'text-muted hover:text-primary'
+ }`}
               >
-                <Icon name="local_shipping" className="material-symbols-outlined text-[16px]" />
+                <Icon name="local_shipping" className="material-symbols-outlined text-icon" />
                 <span>E-Way Bills</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-surface-subtle text-text-secondary text-[10px]">
+                <span className="px-1.5 py-px rounded-full bg-surface-subtle text-muted text-micro">
                   {INITIAL_EWAY_BILLS.length}
                 </span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('reconciliation')}
-                className={`px-3 py-2 rounded-t-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  activeTab === 'reconciliation'
-                    ? 'bg-surface-container-lowest text-primary-container shadow-sm border-t-2 border-primary-container'
-                    : 'text-text-secondary hover:text-text-primary'
-                }`}
+                className={`px-3 py-2 rounded-t-lg text-meta font-semibold flex items-center gap-1.5 transition-colors ${
+ activeTab === 'reconciliation'
+ ? 'bg-surface-container-lowest text-accent shadow-sm border-t-2 border-primary-container'
+ : 'text-muted hover:text-primary'
+ }`}
               >
-                <Icon name="fact_check" className="material-symbols-outlined text-[16px]" />
+                <Icon name="fact_check" className="material-symbols-outlined text-icon" />
                 <span>Reconciliation &amp; Mismatches</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-status-success-bg text-status-success text-[10px] font-bold">
+                <span className="px-1.5 py-px rounded-full bg-status-success-bg text-success text-micro font-semibold">
                   0
                 </span>
               </button>
@@ -477,13 +496,13 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
             {/* Filter & Search Matrix (Active when Invoices Tab is open) */}
             {activeTab === 'invoices' && (
-              <div className="p-4 bg-surface-container-lowest grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-center border-b border-border-subtle">
+              <div className="p-4 bg-surface-container-lowest grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-center border-b border-subtle">
                 <div>
-                  <label className="block text-[10px] font-semibold text-text-secondary uppercase mb-1">Financial Period</label>
+                  <label className="block text-caption text-muted uppercase mb-1">Financial Period</label>
                   <Select
                     value={selectedPeriod}
                     onChange={(e) => setSelectedPeriod(e.target.value)}
-                    className="h-8 text-xs font-medium"
+                    className="h-8 text-meta font-medium"
                   >
                     <option value="May 2024">May 2024 (Active)</option>
                     <option value="April 2024">April 2024 (Filed)</option>
@@ -491,11 +510,11 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-text-secondary uppercase mb-1">Place of Supply (State)</label>
+                  <label className="block text-caption text-muted uppercase mb-1">Place of Supply (State)</label>
                   <Select
                     value={selectedState}
                     onChange={(e) => setSelectedState(e.target.value)}
-                    className="h-8 text-xs font-medium"
+                    className="h-8 text-meta font-medium"
                   >
                     <option value="all">All Destination States</option>
                     <option value="Karnataka">Karnataka (29) - Intra</option>
@@ -505,11 +524,11 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-text-secondary uppercase mb-1">HSN Chapter</label>
+                  <label className="block text-caption text-muted uppercase mb-1">HSN Chapter</label>
                   <Select
                     value={selectedHsn}
                     onChange={(e) => setSelectedHsn(e.target.value)}
-                    className="h-8 text-xs font-medium"
+                    className="h-8 text-meta font-medium"
                   >
                     <option value="all">All Apparel HSN</option>
                     <option value="620442">HSN 6204 (Dresses &amp; Ensembles)</option>
@@ -518,18 +537,18 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-text-secondary uppercase mb-1">GST Tax Slab</label>
+                  <label className="block text-caption text-muted uppercase mb-1">GST Tax Slab</label>
                   <div className="flex items-center gap-1">
                     {['all', '5%', '12%', '18%'].map(slab => (
                       <button
                         key={slab}
                         type="button"
                         onClick={() => setSelectedSlab(slab)}
-                        className={`flex-1 py-1 text-center rounded-md text-[11px] font-semibold transition-all ${
-                          selectedSlab === slab
-                            ? 'bg-primary-fixed text-primary font-bold shadow-sm'
-                            : 'bg-surface-subtle text-text-secondary hover:text-text-primary'
-                        }`}
+                        className={`flex-1 py-1 text-center rounded-md text-micro font-semibold transition-all ${
+ selectedSlab === slab
+ ? 'bg-primary-fixed text-on-primary-fixed font-semibold shadow-sm'
+ : 'bg-surface-subtle text-muted hover:text-primary'
+ }`}
                       >
                         {slab === 'all' ? 'ALL' : slab}
                       </button>
@@ -543,18 +562,18 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
             {activeTab === 'invoices' && (
               <div className="overflow-x-auto scrollbar-thin">
                 <Table className="min-w-[1020px] w-full border-collapse">
-                  <TableHeader className="bg-surface-canvas/90 border-b border-border-subtle sticky top-0 z-10 backdrop-blur-sm">
-                    <TableRow className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider">
-                      <TableHead className="py-2.5 px-3 font-semibold text-xs whitespace-nowrap">Invoice Number</TableHead>
-                      <TableHead className="py-2.5 px-3 font-semibold text-xs whitespace-nowrap">Order Ref / Time</TableHead>
-                      <TableHead className="py-2.5 px-3 font-semibold text-xs whitespace-nowrap">Recipient &amp; PoS</TableHead>
-                      <TableHead className="py-2.5 px-3 font-semibold text-xs whitespace-nowrap">HSN Code</TableHead>
-                      <TableHead className="py-2.5 px-3 font-semibold text-xs text-right whitespace-nowrap">Taxable Val</TableHead>
-                      <TableHead className="py-2.5 px-3 font-semibold text-xs text-right whitespace-nowrap">CGST + SGST</TableHead>
-                      <TableHead className="py-2.5 px-3 font-semibold text-xs text-right whitespace-nowrap">IGST</TableHead>
-                      <TableHead className="py-2.5 px-3 font-semibold text-xs text-right whitespace-nowrap">Total (INR)</TableHead>
-                      <TableHead className="py-2.5 px-3 font-semibold text-xs text-center whitespace-nowrap">Status</TableHead>
-                      <TableHead className="py-2.5 px-3 font-semibold text-xs text-center whitespace-nowrap">Action</TableHead>
+                  <TableHeader sticky>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="whitespace-nowrap">Invoice Number</TableHead>
+                      <TableHead className="whitespace-nowrap">Order Ref / Time</TableHead>
+                      <TableHead className="whitespace-nowrap">Recipient &amp; PoS</TableHead>
+                      <TableHead className="whitespace-nowrap">HSN Code</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Taxable Val</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">CGST + SGST</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">IGST</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Total (INR)</TableHead>
+                      <TableHead className="text-center whitespace-nowrap">Status</TableHead>
+                      <TableHead className="text-center whitespace-nowrap">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-border-subtle">
@@ -565,57 +584,57 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                           key={inv.id}
                           onClick={() => setSelectedInvoiceId(inv.id)}
                           className={`cursor-pointer transition-colors ${
-                            isSelected
-                              ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30 border-l-4 border-l-primary-container'
-                              : 'hover:bg-surface-canvas'
-                          }`}
+ isSelected
+ ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30 border-l-4 border-l-primary-container'
+ : 'hover:bg-surface-subtle'
+ }`}
                         >
-                          <TableCell className="py-3 px-3 font-semibold text-primary-container">
+                          <TableCell className="py-3 px-3 font-semibold text-accent">
                             <div className="flex items-center gap-1.5">
                               {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-primary-container"></span>}
-                              <span className="font-mono text-xs">{inv.invoiceNumber}</span>
+                              <span className="font-mono text-meta whitespace-nowrap">{inv.invoiceNumber}</span>
                             </div>
-                            <span className="text-[10px] text-text-secondary block font-normal">{inv.type}</span>
+                            <span className="text-micro text-muted block font-normal">{inv.type}</span>
                           </TableCell>
                           <TableCell className="py-3 px-3">
-                            <div className="font-medium text-xs text-text-primary">{inv.orderRef}</div>
-                            <div className="text-[11px] text-text-secondary">{inv.dateTime}</div>
+                            <div className="font-medium text-meta text-primary">{inv.orderRef}</div>
+                            <div className="text-micro text-muted">{inv.dateTime}</div>
                           </TableCell>
                           <TableCell className="py-3 px-3">
-                            <div className="font-medium text-xs text-text-primary">{inv.customer.shortName}</div>
-                            <span className="px-1.5 py-0.2 rounded-md bg-surface-subtle text-[10px] text-text-secondary">
+                            <div className="font-medium text-meta text-primary">{inv.customer.shortName}</div>
+                            <span className="px-1.5 py-px rounded-md bg-surface-subtle text-micro text-muted">
                               {inv.posBadge}
                             </span>
                           </TableCell>
                           <TableCell className="py-3 px-3">
-                            <span className="font-mono text-xs font-semibold text-text-primary">{inv.hsnCode}</span>
-                            <span className="text-[10px] text-text-secondary block">{inv.slab} Slab</span>
+                            <span className="font-mono text-meta font-semibold text-primary whitespace-nowrap">{inv.hsnCode}</span>
+                            <span className="text-micro text-muted block">{inv.slab} Slab</span>
                           </TableCell>
-                          <TableCell className="py-3 px-3 text-right font-mono text-xs text-text-primary">
+                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-primary whitespace-nowrap">
                             ₹{inv.taxableVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </TableCell>
-                          <TableCell className="py-3 px-3 text-right font-mono text-xs text-text-primary">
+                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-primary whitespace-nowrap">
                             {inv.cgst > 0 ? (
                               <>
                                 <div>₹{inv.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                                <div className="text-[10px] text-text-secondary">+ ₹{inv.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                                <div className="text-micro text-muted">+ ₹{inv.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
                               </>
                             ) : (
-                              <span className="text-text-secondary">—</span>
+                              <span className="text-muted">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="py-3 px-3 text-right font-mono text-xs text-text-primary">
+                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-primary whitespace-nowrap">
                             {inv.igst > 0 ? (
                               `₹${inv.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
                             ) : (
-                              <span className="text-text-secondary">—</span>
+                              <span className="text-muted">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="py-3 px-3 text-right font-mono font-bold text-xs text-text-primary">
+                          <TableCell className="py-3 px-3 text-right font-mono font-semibold text-meta text-primary whitespace-nowrap">
                             ₹{inv.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </TableCell>
                           <TableCell className="py-3 px-3 text-center">
-                            <Badge variant={inv.status === 'Reconciled' ? 'success' : 'warning'} className="text-[10px]">
+                            <Badge variant={inv.status === 'Reconciled' ? 'success' : 'warning'} className="text-micro">
                               {inv.status}
                             </Badge>
                           </TableCell>
@@ -623,10 +642,10 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                             <button
                               type="button"
                               onClick={() => setSelectedInvoiceId(inv.id)}
-                              className="p-1 rounded-lg text-text-secondary hover:text-primary-container hover:bg-surface-subtle"
+                              className="p-1 rounded-lg text-muted hover:text-accent hover:bg-surface-subtle"
                               title="Inspect Full Invoice"
                             >
-                              <Icon name="visibility" className="material-symbols-outlined text-[18px]" />
+                              <Icon name="visibility" className="material-symbols-outlined text-icon-md" />
                             </button>
                           </TableCell>
                         </TableRow>
@@ -641,34 +660,34 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
             {activeTab === 'hsn' && (
               <div className="p-4 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-text-primary">Apparel GST Schedule (Notification No. 01/2017)</h3>
+                  <h3 className="text-body font-semibold text-primary">Apparel GST Schedule (Notification No. 01/2017)</h3>
                   <Badge variant="success">GSTN Schedule Active</Badge>
                 </div>
                 <div className="overflow-x-auto scrollbar-thin">
                   <Table className="min-w-[850px] w-full border-collapse">
-                    <TableHeader className="bg-surface-canvas/90 border-b border-border-subtle sticky top-0 z-10 backdrop-blur-sm">
-                      <TableRow className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider">
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">HSN Code</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Chapter / Garment Category</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Rate</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Threshold Rule</TableHead>
-                        <TableHead className="font-semibold text-xs text-right whitespace-nowrap">Active SKUs</TableHead>
-                        <TableHead className="font-semibold text-xs text-center whitespace-nowrap">Status</TableHead>
+                    <TableHeader sticky>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="whitespace-nowrap">HSN Code</TableHead>
+                        <TableHead className="whitespace-nowrap">Chapter / Garment Category</TableHead>
+                        <TableHead className="whitespace-nowrap">Rate</TableHead>
+                        <TableHead className="whitespace-nowrap">Threshold Rule</TableHead>
+                        <TableHead className="whitespace-nowrap text-right">Active SKUs</TableHead>
+                        <TableHead className="text-center whitespace-nowrap">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                   <TableBody className="divide-y divide-border-subtle">
                     {INITIAL_HSN_MASTER.map(hsn => (
-                      <TableRow key={hsn.code} className="hover:bg-surface-canvas">
-                        <TableCell className="font-mono font-bold text-xs text-primary-container">{hsn.code}</TableCell>
-                        <TableCell className="text-xs">
-                          <div className="font-medium text-text-primary">{hsn.chapter}</div>
-                          <div className="text-[11px] text-text-secondary">{hsn.description}</div>
+                      <TableRow key={hsn.code} className="hover:bg-surface-subtle">
+                        <TableCell className="font-mono font-semibold text-meta text-accent whitespace-nowrap">{hsn.code}</TableCell>
+                        <TableCell className="text-meta">
+                          <div className="line-clamp-2 font-medium text-primary">{hsn.chapter}</div>
+                          <div className="text-micro text-muted">{hsn.description}</div>
                         </TableCell>
-                        <TableCell className="font-bold text-xs text-text-primary">{hsn.rate}</TableCell>
-                        <TableCell className="text-xs text-text-secondary">{hsn.threshold}</TableCell>
-                        <TableCell className="text-xs text-right font-medium">{hsn.activeItems}</TableCell>
+                        <TableCell className="font-semibold text-meta text-primary">{hsn.rate}</TableCell>
+                        <TableCell className="text-meta text-muted">{hsn.threshold}</TableCell>
+                        <TableCell className="text-meta text-right font-medium">{hsn.activeItems}</TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="success" className="text-[10px]">{hsn.status}</Badge>
+                          <Badge variant="success" className="text-micro">{hsn.status}</Badge>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -682,36 +701,36 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
             {activeTab === 'credit-notes' && (
               <div className="p-4 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-text-primary">Returns &amp; Cancellations Credit Ledger</h3>
+                  <h3 className="text-body font-semibold text-primary">Returns &amp; Cancellations Credit Ledger</h3>
                   <Badge variant="secondary">{INITIAL_CREDIT_NOTES.length} Records</Badge>
                 </div>
                 <div className="overflow-x-auto scrollbar-thin">
                   <Table className="min-w-[850px] w-full border-collapse">
-                    <TableHeader className="bg-surface-canvas/90 border-b border-border-subtle sticky top-0 z-10 backdrop-blur-sm">
-                      <TableRow className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider">
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Credit Note No</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Invoice Ref</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Customer &amp; State</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Reason</TableHead>
-                        <TableHead className="font-semibold text-xs text-right whitespace-nowrap">Credit Value</TableHead>
-                        <TableHead className="font-semibold text-xs text-right whitespace-nowrap">Tax Reversal</TableHead>
-                        <TableHead className="font-semibold text-xs text-center whitespace-nowrap">Status</TableHead>
+                    <TableHeader sticky>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="whitespace-nowrap">Credit Note No</TableHead>
+                        <TableHead className="whitespace-nowrap">Invoice Ref</TableHead>
+                        <TableHead className="whitespace-nowrap">Customer &amp; State</TableHead>
+                        <TableHead className="whitespace-nowrap">Reason</TableHead>
+                        <TableHead className="whitespace-nowrap text-right">Credit Value</TableHead>
+                        <TableHead className="whitespace-nowrap text-right">Tax Reversal</TableHead>
+                        <TableHead className="text-center whitespace-nowrap">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                   <TableBody className="divide-y divide-border-subtle">
                     {INITIAL_CREDIT_NOTES.map(crn => (
-                      <TableRow key={crn.id} className="hover:bg-surface-canvas">
-                        <TableCell className="font-mono font-bold text-xs text-fashion-magenta">{crn.creditNoteNo}</TableCell>
-                        <TableCell className="font-mono text-xs">{crn.invoiceRef}</TableCell>
-                        <TableCell className="text-xs">
-                          <div className="font-medium text-text-primary">{crn.customer}</div>
-                          <div className="text-[10px] text-text-secondary">{crn.state}</div>
+                      <TableRow key={crn.id} className="hover:bg-surface-subtle">
+                        <TableCell className="font-mono font-semibold text-meta text-accent whitespace-nowrap">{crn.creditNoteNo}</TableCell>
+                        <TableCell className="font-mono text-meta whitespace-nowrap">{crn.invoiceRef}</TableCell>
+                        <TableCell className="text-meta">
+                          <div className="line-clamp-2 font-medium text-primary">{crn.customer}</div>
+                          <div className="text-micro text-muted">{crn.state}</div>
                         </TableCell>
-                        <TableCell className="text-xs text-text-secondary">{crn.reason}</TableCell>
-                        <TableCell className="font-mono text-xs text-right font-semibold">₹{crn.amount.toFixed(2)}</TableCell>
-                        <TableCell className="font-mono text-xs text-right text-status-success font-semibold">₹{crn.taxCredit.toFixed(2)}</TableCell>
+                        <TableCell className="text-meta text-muted">{crn.reason}</TableCell>
+                        <TableCell className="font-mono text-meta text-right font-semibold whitespace-nowrap">₹{crn.amount.toFixed(2)}</TableCell>
+                        <TableCell className="font-mono text-meta text-right text-success font-semibold whitespace-nowrap">₹{crn.taxCredit.toFixed(2)}</TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="outline" className="text-[10px]">{crn.status}</Badge>
+                          <Badge variant="outline" className="text-micro">{crn.status}</Badge>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -725,42 +744,42 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
             {activeTab === 'eway-bills' && (
               <div className="p-4 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-text-primary">Form GST EWB-01 Active Consignments</h3>
-                  <Button size="sm" onClick={() => setIsEwayModalOpen(true)} className="gap-1 bg-primary-container text-on-primary">
-                    <Icon name="add" className="material-symbols-outlined text-[16px]" />
+                  <h3 className="text-body font-semibold text-primary">Form GST EWB-01 Active Consignments</h3>
+                  <Button size="sm" onClick={() => setIsEwayModalOpen(true)} className="gap-1 bg-primary-container text-on-accent">
+                    <Icon name="add" className="material-symbols-outlined text-icon" />
                     New E-Way Bill
                   </Button>
                 </div>
                 <div className="overflow-x-auto scrollbar-thin">
                   <Table className="min-w-[850px] w-full border-collapse">
-                    <TableHeader className="bg-surface-canvas/90 border-b border-border-subtle sticky top-0 z-10 backdrop-blur-sm">
-                      <TableRow className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider">
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">E-Way Bill No</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Invoice Ref</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Transporter &amp; Vehicle</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">From / To Route</TableHead>
-                        <TableHead className="font-semibold text-xs text-right whitespace-nowrap">Distance</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Valid Until</TableHead>
-                        <TableHead className="font-semibold text-xs text-center whitespace-nowrap">Status</TableHead>
+                    <TableHeader sticky>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="whitespace-nowrap">E-Way Bill No</TableHead>
+                        <TableHead className="whitespace-nowrap">Invoice Ref</TableHead>
+                        <TableHead className="whitespace-nowrap">Transporter &amp; Vehicle</TableHead>
+                        <TableHead className="whitespace-nowrap">From / To Route</TableHead>
+                        <TableHead className="whitespace-nowrap text-right">Distance</TableHead>
+                        <TableHead className="whitespace-nowrap">Valid Until</TableHead>
+                        <TableHead className="text-center whitespace-nowrap">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                   <TableBody className="divide-y divide-border-subtle">
                     {INITIAL_EWAY_BILLS.map(ewb => (
-                      <TableRow key={ewb.id} className="hover:bg-surface-canvas">
-                        <TableCell className="font-mono font-bold text-xs text-primary-container">{ewb.ewayBillNo}</TableCell>
-                        <TableCell className="font-mono text-xs">{ewb.invoiceNo}</TableCell>
-                        <TableCell className="text-xs">
-                          <div className="font-medium text-text-primary">{ewb.transporter}</div>
-                          <div className="font-mono text-[10px] text-text-secondary">{ewb.vehicleNo}</div>
+                      <TableRow key={ewb.id} className="hover:bg-surface-subtle">
+                        <TableCell className="font-mono font-semibold text-meta text-accent whitespace-nowrap">{ewb.ewayBillNo}</TableCell>
+                        <TableCell className="font-mono text-meta whitespace-nowrap">{ewb.invoiceNo}</TableCell>
+                        <TableCell className="text-meta">
+                          <div className="line-clamp-2 font-medium text-primary">{ewb.transporter}</div>
+                          <div className="font-mono text-micro text-muted whitespace-nowrap">{ewb.vehicleNo}</div>
                         </TableCell>
-                        <TableCell className="text-xs">
-                          <div className="text-text-primary truncate max-w-[180px]">{ewb.fromGstin}</div>
-                          <div className="text-text-secondary truncate max-w-[180px]">➔ {ewb.toGstin}</div>
+                        <TableCell className="text-meta">
+                          <div className="text-primary truncate max-w-[180px]">{ewb.fromGstin}</div>
+                          <div className="text-muted truncate max-w-[180px]">➔ {ewb.toGstin}</div>
                         </TableCell>
-                        <TableCell className="font-mono text-xs text-right">{ewb.distance}</TableCell>
-                        <TableCell className="text-[11px] text-text-secondary">{ewb.validUntil}</TableCell>
+                        <TableCell className="font-mono text-meta text-right whitespace-nowrap">{ewb.distance}</TableCell>
+                        <TableCell className="text-micro text-muted">{ewb.validUntil}</TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="success" className="text-[10px]">{ewb.status}</Badge>
+                          <Badge variant="success" className="text-micro">{ewb.status}</Badge>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -775,10 +794,10 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
               <div className="p-6 space-y-4">
                 <Alert variant="success" className="p-4">
                   <div className="flex items-center gap-3">
-                    <Icon name="verified_user" className="material-symbols-outlined text-[24px] text-status-success" />
+                    <Icon name="verified_user" className="material-symbols-outlined text-icon-xl text-success" />
                     <div>
-                      <h4 className="text-sm font-bold text-status-success">GSTR-2B vs Purchase Register 100% Reconciled</h4>
-                      <p className="text-xs text-text-secondary mt-0.5">
+                      <h4 className="text-body font-semibold text-success">GSTR-2B vs Purchase Register 100% Reconciled</h4>
+                      <p className="text-meta text-muted mt-0.5">
                         Zero ITC discrepancies found for May 2024 filing cycle. All outward sales invoice IRNs matched against GSTN portal.
                       </p>
                     </div>
@@ -786,54 +805,54 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 </Alert>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                  <Card className="border border-border-subtle bg-surface-subtle p-4">
-                    <div className="text-xs font-semibold text-text-secondary uppercase">GSTR-1 Generated</div>
-                    <div className="text-xl font-bold text-text-primary mt-1">1,428 Invoices</div>
-                    <div className="text-[11px] text-status-success mt-1">₹4,12,84,900 Sales Value</div>
+                  <Card className="border border-subtle bg-surface-subtle p-4">
+                    <div className="text-meta font-semibold text-muted uppercase">GSTR-1 Generated</div>
+                    <div className="text-kpi-sm font-semibold text-primary mt-1">1,428 Invoices</div>
+                    <div className="text-micro text-success mt-1">₹4,12,84,900 Sales Value</div>
                   </Card>
-                  <Card className="border border-border-subtle bg-surface-subtle p-4">
-                    <div className="text-xs font-semibold text-text-secondary uppercase">E-Way Bills Matched</div>
-                    <div className="text-xl font-bold text-text-primary mt-1">84 Active Trips</div>
-                    <div className="text-[11px] text-status-success mt-1">Zero Transporter Slips</div>
+                  <Card className="border border-subtle bg-surface-subtle p-4">
+                    <div className="text-meta font-semibold text-muted uppercase">E-Way Bills Matched</div>
+                    <div className="text-kpi-sm font-semibold text-primary mt-1">84 Active Trips</div>
+                    <div className="text-micro text-success mt-1">Zero Transporter Slips</div>
                   </Card>
-                  <Card className="border border-border-subtle bg-surface-subtle p-4">
-                    <div className="text-xs font-semibold text-text-secondary uppercase">Credit Reversals Reclaimed</div>
-                    <div className="text-xl font-bold text-fashion-magenta mt-1">₹41,137 ITC</div>
-                    <div className="text-[11px] text-text-secondary mt-1">Auto-adjusted in Table 4B</div>
+                  <Card className="border border-subtle bg-surface-subtle p-4">
+                    <div className="text-meta font-semibold text-muted uppercase">Credit Reversals Reclaimed</div>
+                    <div className="text-kpi-sm font-semibold text-accent mt-1">₹41,137 ITC</div>
+                    <div className="text-micro text-muted mt-1">Auto-adjusted in Table 4B</div>
                   </Card>
                 </div>
               </div>
             )}
 
             {/* Pagination & Summary Footer */}
-            <div className="p-4 bg-surface-container-lowest border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-text-secondary">
+            <div className="p-4 bg-surface-container-lowest border-t border-subtle flex flex-col sm:flex-row items-center justify-between gap-3 text-meta text-muted">
               <div>
-                Showing <span className="font-semibold text-text-primary">1 to {filteredInvoices.length}</span> of <span className="font-semibold text-text-primary">{invoices.length}</span> entries
+                Showing <span className="font-semibold text-primary">1 to {filteredInvoices.length}</span> of <span className="font-semibold text-primary">{invoices.length}</span> entries
               </div>
               <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" className="h-7 text-xs">Prev</Button>
-                <Button variant="default" size="sm" className="h-7 w-7 p-0 text-xs bg-primary-container text-on-primary">1</Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs">Next</Button>
+                <Button variant="outline" size="sm" className="h-7 text-meta">Prev</Button>
+                <Button variant="default" size="sm" className="h-7 w-7 p-0 text-meta bg-primary-container text-on-accent">1</Button>
+                <Button variant="outline" size="sm" className="h-7 text-meta">Next</Button>
               </div>
             </div>
           </Card>
 
           {/* HSN Rate Summary Micro-Card */}
-          <Card className="border border-border-subtle bg-surface-container-lowest p-4">
+          <Card className="border border-subtle bg-surface-container-lowest p-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shrink-0">
-                  <Icon name="category" className="material-symbols-outlined text-[22px]" />
+                <div className="w-10 h-10 rounded-xl bg-primary-fixed flex items-center justify-center text-accent shrink-0">
+                  <Icon name="category" className="material-symbols-outlined text-icon-lg" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-semibold text-text-primary">Apparel GST Rate Master Schedule (Notification No. 01/2017)</h4>
-                  <p className="text-xs text-text-secondary">Fabric, silk and ready-made cotton garments valued &lt; ₹1,000 are taxed at 5%; garments &gt; ₹1,000 at 12% IGST.</p>
+                  <h4 className="text-body font-semibold text-primary">Apparel GST Rate Master Schedule (Notification No. 01/2017)</h4>
+                  <p className="text-meta text-muted">Fabric, silk and ready-made cotton garments valued &lt; ₹1,000 are taxed at 5%; garments &gt; ₹1,000 at 12% IGST.</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <div className="text-right">
-                  <div className="text-[10px] text-text-secondary uppercase">Portal Sync Status</div>
-                  <div className="text-xs font-semibold text-status-success">GSTN Active • Live E-Invoicing</div>
+                  <div className="text-caption text-muted uppercase">Portal Sync Status</div>
+                  <div className="text-meta font-semibold text-success">GSTN Active • Live E-Invoicing</div>
                 </div>
               </div>
             </div>
@@ -842,14 +861,14 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
         {/* RIGHT PANEL: E-Invoice IRN & Compliant Tax Invoice Interactive Preview */}
         <div className="lg:col-span-5 xl:col-span-4 flex flex-col space-y-4">
-          <Card className="border border-border-subtle bg-surface-container-lowest overflow-hidden shadow-sm">
+          <Card className="border border-subtle bg-surface-container-lowest overflow-hidden shadow-sm">
             {/* Document Action Ribbon */}
-            <div className="px-4 py-2 bg-surface-subtle flex items-center justify-between border-b border-border-subtle">
+            <div className="px-4 py-2 bg-surface-subtle flex items-center justify-between border-b border-subtle">
               <div className="flex items-center gap-2">
-                <Badge variant="success" className="text-[9px] uppercase tracking-wider font-bold">
+                <Badge variant="success" className="text-caption uppercase tracking-wider">
                   ORIGINAL FOR RECIPIENT
                 </Badge>
-                <span className="text-[11px] text-text-secondary font-medium">{selectedInvoice?.type}</span>
+                <span className="text-micro text-muted">{selectedInvoice?.type}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Button
@@ -859,15 +878,15 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   className="h-7 w-7 p-0"
                   title="Print Tax Invoice"
                 >
-                  <Icon name="print" className="material-symbols-outlined text-[16px]" />
+                  <Icon name="print" className="material-symbols-outlined text-icon" />
                 </Button>
                 <Button
                   variant="default"
                   size="sm"
                   onClick={() => onShowToast && onShowToast(`PDF downloaded for invoice ${selectedInvoice?.invoiceNumber}`)}
-                  className="h-7 text-xs gap-1 bg-primary-container text-on-primary hover:bg-primary"
+                  className="h-7 text-meta gap-1 bg-primary-container text-on-accent hover:bg-primary-container-hover"
                 >
-                  <Icon name="download" className="material-symbols-outlined text-[14px]" />
+                  <Icon name="download" className="material-symbols-outlined text-icon-sm" />
                   <span>PDF</span>
                 </Button>
               </div>
@@ -875,25 +894,25 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
             {/* Invoice Body Document */}
             {selectedInvoice && (
-              <div className="p-4 space-y-4 text-text-primary text-xs">
+              <div className="p-4 space-y-4 text-primary text-meta">
                 {/* Supplier Legal Identity Header */}
                 <div className="flex justify-between items-start gap-3">
                   <div className="space-y-1">
-                    <div className="font-bold text-sm tracking-tight text-text-primary">Everwear Retail Pvt. Ltd.</div>
-                    <div className="text-[11px] text-text-secondary leading-snug">
+                    <div className="font-semibold text-body tracking-tight text-primary">Everwear Retail Pvt. Ltd.</div>
+                    <div className="text-micro text-muted leading-snug">
                       FC-1 Warehouse, 4th Cross, Peenya Industrial Area Phase 2,<br />
                       Bengaluru, Karnataka - 560058, India
                     </div>
-                    <div className="pt-1 space-y-0.5 text-[11px]">
-                      <div><span className="text-text-secondary">GSTIN:</span> <span className="font-bold font-mono">29AAAAE1234F1Z5</span></div>
-                      <div><span className="text-text-secondary">State / Code:</span> <span className="font-medium">Karnataka (29)</span></div>
-                      <div><span className="text-text-secondary">CIN:</span> <span className="font-mono">U18101KA2021PTC148902</span></div>
+                    <div className="pt-1 space-y-0.5 text-micro">
+                      <div><span className="text-muted">GSTIN:</span> <span className="font-semibold font-mono whitespace-nowrap">29AAAAE1234F1Z5</span></div>
+                      <div><span className="text-muted">State / Code:</span> <span className="font-medium">Karnataka (29)</span></div>
+                      <div><span className="text-muted">CIN:</span> <span className="font-mono whitespace-nowrap">U18101KA2021PTC148902</span></div>
                     </div>
                   </div>
 
                   {/* Authentic QR Code Vector */}
                   <div className="flex flex-col items-center p-2 rounded-xl bg-surface-canvas shadow-sm shrink-0 text-center">
-                    <svg className="w-16 h-16 text-text-primary" fill="currentColor" viewBox="0 0 100 100">
+                    <svg className="w-16 h-16 text-primary" fill="currentColor" viewBox="0 0 100 100">
                       <path d="M10,10 h30 v30 h-30 z M15,15 v20 h20 v-20 z M22,22 h6 v6 h-6 z" />
                       <path d="M60,10 h30 v30 h-30 z M65,15 v20 h20 v-20 z M72,22 h6 v6 h-6 z" />
                       <path d="M10,60 h30 v30 h-30 z M15,65 v20 h20 v-20 z M22,72 h6 v6 h-6 z" />
@@ -908,71 +927,71 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                       <rect x="70" y="80" width="10" height="10" />
                       <rect x="85" y="85" width="5" height="5" />
                     </svg>
-                    <span className="text-[9px] text-text-secondary mt-1 font-bold tracking-wider">GSTN VERIFIED</span>
+                    <span className="text-micro text-muted mt-1 font-semibold tracking-wider">GSTN VERIFIED</span>
                   </div>
                 </div>
 
                 {/* IRN Hash Metadata Box */}
-                <div className="p-2.5 rounded-lg bg-surface-canvas space-y-1 font-mono text-[11px] text-text-secondary border border-border-subtle">
-                  <div className="flex justify-between items-center text-text-primary">
-                    <span className="text-[10px] font-semibold uppercase">IRN (Invoice Ref No.):</span>
+                <div className="p-2.5 rounded-lg bg-surface-canvas space-y-1 font-mono text-micro text-muted border border-subtle whitespace-nowrap">
+                  <div className="flex justify-between items-center text-primary">
+                    <span className="text-caption uppercase">IRN (Invoice Ref No.):</span>
                     <button
                       type="button"
                       onClick={() => copyToClipboard(selectedInvoice.irn, 'IRN')}
-                      className="text-text-secondary hover:text-text-primary"
+                      className="text-muted hover:text-primary" title="Copy" aria-label="Copy"
                     >
-                      <Icon name="content_copy" className="material-symbols-outlined text-[14px]" />
+                      <Icon name="content_copy" className="material-symbols-outlined text-icon-sm" />
                     </button>
                   </div>
-                  <div className="truncate text-[10px] text-primary-container font-medium">
+                  <div className="truncate text-micro text-accent">
                     {selectedInvoice.irn}
                   </div>
-                  <div className="flex justify-between text-[10px] pt-1 border-t border-border-subtle/50">
-                    <span>Ack No: <strong className="text-text-primary font-mono">{selectedInvoice.ackNo}</strong></span>
-                    <span>Ack Date: <strong className="text-text-primary">{selectedInvoice.ackDate}</strong></span>
+                  <div className="flex justify-between text-micro pt-1 border-t border-subtle/50">
+                    <span>Ack No: <strong className="text-primary font-mono whitespace-nowrap">{selectedInvoice.ackNo}</strong></span>
+                    <span>Ack Date: <strong className="text-primary">{selectedInvoice.ackDate}</strong></span>
                   </div>
                 </div>
 
                 {/* Document Identity Grid */}
                 <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-surface-subtle">
                   <div>
-                    <span className="text-[9px] text-text-secondary block uppercase font-semibold">Tax Invoice No</span>
-                    <span className="text-sm font-bold font-mono text-text-primary">{selectedInvoice.invoiceNumber}</span>
+                    <span className="text-caption text-muted block uppercase">Tax Invoice No</span>
+                    <span className="text-body font-semibold font-mono text-primary whitespace-nowrap">{selectedInvoice.invoiceNumber}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-text-secondary block uppercase font-semibold">Invoice Date &amp; Time</span>
-                    <span className="text-xs font-semibold text-text-primary">{selectedInvoice.dateTime}</span>
+                    <span className="text-caption text-muted block uppercase">Invoice Date &amp; Time</span>
+                    <span className="text-meta font-semibold text-primary">{selectedInvoice.dateTime}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-text-secondary block uppercase font-semibold">Channel Order ID</span>
-                    <span className="text-xs font-medium text-text-primary">{selectedInvoice.orderRef}</span>
+                    <span className="text-caption text-muted block uppercase">Channel Order ID</span>
+                    <span className="text-meta font-medium text-primary">{selectedInvoice.orderRef}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-text-secondary block uppercase font-semibold">Place of Supply</span>
-                    <span className="text-xs font-semibold text-text-primary">{selectedInvoice.shipping.posState}</span>
+                    <span className="text-caption text-muted block uppercase">Place of Supply</span>
+                    <span className="text-meta font-semibold text-primary">{selectedInvoice.shipping.posState}</span>
                   </div>
                 </div>
 
                 {/* Billing & Shipping Information */}
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="p-2 rounded-lg bg-surface-canvas space-y-1 border border-border-subtle">
-                    <span className="text-[9px] text-text-secondary uppercase font-semibold block">Billed To (Customer)</span>
-                    <div className="font-semibold text-text-primary">{selectedInvoice.customer.name}</div>
-                    <div className="text-text-secondary leading-snug">{selectedInvoice.customer.address}</div>
-                    <div className="text-text-secondary pt-0.5">GSTIN: {selectedInvoice.customer.gstin}</div>
+                <div className="grid grid-cols-2 gap-2 text-micro">
+                  <div className="p-2 rounded-lg bg-surface-canvas space-y-1 border border-subtle">
+                    <span className="text-caption text-muted uppercase block">Billed To (Customer)</span>
+                    <div className="font-semibold text-primary">{selectedInvoice.customer.name}</div>
+                    <div className="text-muted leading-snug">{selectedInvoice.customer.address}</div>
+                    <div className="text-muted pt-0.5">GSTIN: {selectedInvoice.customer.gstin}</div>
                   </div>
-                  <div className="p-2 rounded-lg bg-surface-canvas space-y-1 border border-border-subtle">
-                    <span className="text-[9px] text-text-secondary uppercase font-semibold block">Shipped To (Delivery Point)</span>
-                    <div className="font-semibold text-text-primary">{selectedInvoice.customer.name}</div>
-                    <div className="text-text-secondary leading-snug">{selectedInvoice.shipping.address}</div>
-                    <div className="text-text-secondary pt-0.5">State Code: {selectedInvoice.shipping.posCode}</div>
+                  <div className="p-2 rounded-lg bg-surface-canvas space-y-1 border border-subtle">
+                    <span className="text-caption text-muted uppercase block">Shipped To (Delivery Point)</span>
+                    <div className="font-semibold text-primary">{selectedInvoice.customer.name}</div>
+                    <div className="text-muted leading-snug">{selectedInvoice.shipping.address}</div>
+                    <div className="text-muted pt-0.5">State Code: {selectedInvoice.shipping.posCode}</div>
                   </div>
                 </div>
 
                 {/* Itemized Table */}
-                <div className="border border-border-subtle rounded-lg overflow-hidden">
-                  <table className="w-full text-left text-[11px] border-collapse">
-                    <thead className="bg-surface-subtle font-semibold text-text-secondary">
+                <div className="border border-subtle rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-micro border-collapse">
+                    <thead className="bg-surface-subtle font-semibold text-muted">
                       <tr>
                         <th className="p-1.5">Description &amp; HSN</th>
                         <th className="p-1.5 text-center">Qty</th>
@@ -985,15 +1004,15 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                       {selectedInvoice.items.map(item => (
                         <tr key={item.id}>
                           <td className="p-1.5">
-                            <div className="font-medium text-text-primary">{item.desc}</div>
-                            <div className="text-[10px] text-text-secondary font-mono">HSN: {item.hsn}</div>
+                            <div className="line-clamp-2 font-medium text-primary">{item.desc}</div>
+                            <div className="text-micro text-muted font-mono whitespace-nowrap">HSN: {item.hsn}</div>
                           </td>
-                          <td className="p-1.5 text-center font-mono">{item.qty}</td>
-                          <td className="p-1.5 text-right font-mono">₹{item.taxable.toFixed(2)}</td>
-                          <td className="p-1.5 text-right font-mono text-[10px]">
+                          <td className="p-1.5 text-center font-mono whitespace-nowrap">{item.qty}</td>
+                          <td className="p-1.5 text-right font-mono whitespace-nowrap">₹{item.taxable.toFixed(2)}</td>
+                          <td className="p-1.5 text-right font-mono text-micro whitespace-nowrap">
                             {item.rate} (₹{item.taxAmt.toFixed(2)})
                           </td>
-                          <td className="p-1.5 text-right font-mono font-semibold">₹{item.total.toFixed(2)}</td>
+                          <td className="p-1.5 text-right font-mono font-semibold whitespace-nowrap">₹{item.total.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1001,45 +1020,45 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 </div>
 
                 {/* Tax Breakdown & Computation Box */}
-                <div className="p-3 rounded-lg bg-surface-canvas space-y-1.5 border border-border-subtle text-xs">
+                <div className="p-3 rounded-lg bg-surface-canvas space-y-1.5 border border-subtle text-meta">
                   <div className="flex justify-between">
-                    <span className="text-text-secondary">Total Taxable Value:</span>
-                    <span className="font-mono font-medium">₹{selectedInvoice.taxableVal.toFixed(2)}</span>
+                    <span className="text-muted">Total Taxable Value:</span>
+                    <span className="font-mono font-medium whitespace-nowrap">₹{selectedInvoice.taxableVal.toFixed(2)}</span>
                   </div>
                   {selectedInvoice.isIntra ? (
                     <>
-                      <div className="flex justify-between text-text-secondary">
+                      <div className="flex justify-between text-muted">
                         <span>Central GST (CGST 6%):</span>
-                        <span className="font-mono">₹{selectedInvoice.cgst.toFixed(2)}</span>
+                        <span className="font-mono whitespace-nowrap">₹{selectedInvoice.cgst.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between text-text-secondary">
+                      <div className="flex justify-between text-muted">
                         <span>State GST (SGST 6%):</span>
-                        <span className="font-mono">₹{selectedInvoice.sgst.toFixed(2)}</span>
+                        <span className="font-mono whitespace-nowrap">₹{selectedInvoice.sgst.toFixed(2)}</span>
                       </div>
                     </>
                   ) : (
-                    <div className="flex justify-between text-text-secondary">
+                    <div className="flex justify-between text-muted">
                       <span>Integrated GST (IGST {selectedInvoice.slab}):</span>
-                      <span className="font-mono">₹{selectedInvoice.igst.toFixed(2)}</span>
+                      <span className="font-mono whitespace-nowrap">₹{selectedInvoice.igst.toFixed(2)}</span>
                     </div>
                   )}
-                  <div className="pt-1.5 border-t border-border-subtle flex justify-between items-center text-sm font-bold text-text-primary">
+                  <div className="pt-1.5 border-t border-subtle flex justify-between items-center text-body font-semibold text-primary">
                     <span>Invoice Total (INR):</span>
-                    <span className="font-mono text-base text-primary-container">
+                    <span className="font-mono text-heading text-accent whitespace-nowrap">
                       ₹{selectedInvoice.total.toFixed(2)}
                     </span>
                   </div>
                 </div>
 
                 {/* Signatory & Verification Footer */}
-                <div className="pt-2 flex justify-between items-end border-t border-border-subtle text-[11px] text-text-secondary">
+                <div className="pt-2 flex justify-between items-end border-t border-subtle text-micro text-muted">
                   <div>
                     <div>Computer Generated Invoice</div>
-                    <div className="text-[10px]">Tax is payable under Reverse Charge: No</div>
+                    <div className="text-micro">Tax is payable under Reverse Charge: No</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-text-primary">For Everwear Retail Pvt. Ltd.</div>
-                    <div className="text-[10px] text-status-success font-semibold mt-1">
+                    <div className="font-semibold text-primary">For Everwear Retail Pvt. Ltd.</div>
+                    <div className="text-micro text-success font-semibold mt-1">
                       ✓ Digitally Signed By Authorized Signatory
                     </div>
                   </div>
@@ -1054,7 +1073,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       <Dialog open={isManualInvoiceModalOpen} onClose={() => setIsManualInvoiceModalOpen(false)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Icon name="receipt_long" className="material-symbols-outlined text-primary-container" />
+            <Icon name="receipt_long" className="material-symbols-outlined text-accent" />
             <span>Create Manual Tax Invoice</span>
           </DialogTitle>
         </DialogHeader>
@@ -1062,7 +1081,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
           <form onSubmit={handleCreateManualInvoice} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Recipient / Customer Name</label>
+                <label className="text-meta font-medium text-muted">Recipient / Customer Name</label>
                 <Input
                   required
                   value={manualForm.customerName}
@@ -1070,7 +1089,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Phone Number</label>
+                <label className="text-meta font-medium text-muted">Phone Number</label>
                 <Input
                   required
                   value={manualForm.customerPhone}
@@ -1080,7 +1099,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-text-secondary">Delivery / Billing Address</label>
+              <label className="text-meta font-medium text-muted">Delivery / Billing Address</label>
               <Input
                 required
                 value={manualForm.customerAddress}
@@ -1090,7 +1109,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Destination State &amp; Code</label>
+                <label className="text-meta font-medium text-muted">Destination State &amp; Code</label>
                 <Select
                   value={manualForm.stateCode}
                   onChange={(e) => {
@@ -1111,7 +1130,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Applicable GST Slab</label>
+                <label className="text-meta font-medium text-muted">Applicable GST Slab</label>
                 <Select
                   value={manualForm.slab}
                   onChange={(e) => setManualForm(prev => ({ ...prev, slab: e.target.value }))}
@@ -1125,7 +1144,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Garment / Item Description</label>
+                <label className="text-meta font-medium text-muted">Garment / Item Description</label>
                 <Input
                   required
                   value={manualForm.itemDesc}
@@ -1133,7 +1152,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">HSN Code</label>
+                <label className="text-meta font-medium text-muted">HSN Code</label>
                 <Select
                   value={manualForm.hsnCode}
                   onChange={(e) => setManualForm(prev => ({ ...prev, hsnCode: e.target.value }))}
@@ -1148,7 +1167,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Quantity (Pcs)</label>
+                <label className="text-meta font-medium text-muted">Quantity (Pcs)</label>
                 <Input
                   type="number"
                   min="1"
@@ -1157,7 +1176,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Taxable Value (INR)</label>
+                <label className="text-meta font-medium text-muted">Taxable Value (INR)</label>
                 <Input
                   type="number"
                   min="100"
@@ -1172,7 +1191,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
               <Button type="button" variant="outline" onClick={() => setIsManualInvoiceModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="default" className="bg-primary-container text-on-primary hover:bg-primary">
+              <Button type="submit" variant="default" className="bg-primary-container text-on-accent hover:bg-primary-container-hover">
                 Issue Tax Invoice
               </Button>
             </DialogFooter>
@@ -1184,14 +1203,14 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       <Dialog open={isEwayModalOpen} onClose={() => setIsEwayModalOpen(false)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Icon name="local_shipping" className="material-symbols-outlined text-primary-container" />
+            <Icon name="local_shipping" className="material-symbols-outlined text-accent" />
             <span>Generate E-Way Bill (NIC Portal Integration)</span>
           </DialogTitle>
         </DialogHeader>
         <DialogContent>
           <form onSubmit={handleGenerateEwayBill} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-text-secondary">Source Tax Invoice</label>
+              <label className="text-meta font-medium text-muted">Source Tax Invoice</label>
               <Select
                 value={ewayForm.invoiceNumber}
                 onChange={(e) => setEwayForm(prev => ({ ...prev, invoiceNumber: e.target.value }))}
@@ -1206,14 +1225,14 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Transporter Partner</label>
+                <label className="text-meta font-medium text-muted">Transporter Partner</label>
                 <Input
                   value={ewayForm.transporter}
                   onChange={(e) => setEwayForm(prev => ({ ...prev, transporter: e.target.value }))}
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Vehicle Number</label>
+                <label className="text-meta font-medium text-muted">Vehicle Number</label>
                 <Input
                   value={ewayForm.vehicleNo}
                   onChange={(e) => setEwayForm(prev => ({ ...prev, vehicleNo: e.target.value }))}
@@ -1223,7 +1242,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Approximate Distance (km)</label>
+                <label className="text-meta font-medium text-muted">Approximate Distance (km)</label>
                 <Input
                   type="number"
                   value={ewayForm.distanceKm}
@@ -1231,7 +1250,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Destination State</label>
+                <label className="text-meta font-medium text-muted">Destination State</label>
                 <Input
                   value={ewayForm.toState}
                   onChange={(e) => setEwayForm(prev => ({ ...prev, toState: e.target.value }))}
@@ -1239,7 +1258,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
               </div>
             </div>
 
-            <Alert variant="info" className="text-xs">
+            <Alert variant="info" className="text-meta">
               Part-A and Part-B will be synchronized directly to the NIC e-Way Bill System under Everwear Retail GSTIN 29AAAAE1234F1Z5.
             </Alert>
 
@@ -1247,7 +1266,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
               <Button type="button" variant="outline" onClick={() => setIsEwayModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="default" className="bg-primary-container text-on-primary hover:bg-primary">
+              <Button type="submit" variant="default" className="bg-primary-container text-on-accent hover:bg-primary-container-hover">
                 Transmit &amp; Print EWB-01
               </Button>
             </DialogFooter>

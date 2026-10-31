@@ -1,188 +1,217 @@
-import React, { useState } from 'react';
-import { Icon, Badge, Button, Input, Avatar, AvatarImage, AvatarFallback } from '../ui';
+import React, { useEffect, useRef, useState } from 'react';
+import { Icon, Badge, Button, Avatar, AvatarImage, AvatarFallback } from '../ui';
 import { clearToken } from '../../lib/api';
 import { useTheme } from '../../lib/theme';
+import { cn } from '../../lib/utils';
 
-export function Header({ 
-  isCollapsed, 
-  onOpenCommandPalette, 
-  onOpenNotifications, 
+const THEME_LABEL = { light: 'Light', dark: 'Dark', system: 'System' };
+
+export function Header({
+  isCollapsed,
+  onOpenCommandPalette,
+  onOpenNotifications,
   currentHub,
   searchQuery,
-  onSearchChange,
   unreadCount = 3,
-  onToggleMobileMenu
+  onToggleMobileMenu,
 }) {
   const { theme, toggleTheme, isDark } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
+
+  useEffect(() => {
+    if (!profileOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
+    };
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setProfileOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [profileOpen]);
 
   const todayStr = new Intl.DateTimeFormat('en-IN', {
     month: 'short',
     day: 'numeric',
-    year: 'numeric'
+    year: 'numeric',
   }).format(new Date());
 
   return (
-    <header 
-      className={`fixed top-0 right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md border-b border-border-subtle z-40 px-4 md:px-space-lg flex items-center justify-between transition-all duration-300 left-0 ${
-        isCollapsed ? 'lg:left-[72px]' : 'lg:left-[260px]'
-      }`}
+    <header
+      className={cn(
+        'fixed right-0 top-0 left-0 z-header flex h-header items-center justify-between gap-space-md border-b border-subtle bg-surface-container-lowest/90 px-4 backdrop-blur-md transition-[left] duration-300 ease-out-expo md:px-space-xl',
+        isCollapsed ? 'lg:left-sidebar-collapsed' : 'lg:left-sidebar'
+      )}
     >
-      {/* Left: Mobile Hamburger & Search Input Bar */}
-      <div className="flex items-center gap-2 md:gap-space-md w-full max-w-md">
-        {/* Mobile Hamburger Menu Toggle */}
+      {/* Left: mobile menu and global search */}
+      <div className="flex w-full min-w-0 max-w-md items-center gap-2 md:gap-space-md">
         <button
           onClick={onToggleMobileMenu}
-          className="lg:hidden p-2 rounded-xl text-secondary hover:text-text-primary hover:bg-surface-subtle transition-colors shrink-0"
-          title="Open Navigation Menu"
+          className="shrink-0 rounded-lg p-2 text-muted transition-colors hover:bg-surface-subtle hover:text-primary lg:hidden"
+          title="Open navigation"
+          aria-label="Open navigation"
           type="button"
         >
-          <Icon name="menu" className="material-symbols-outlined text-[22px]" />
+          <Icon name="menu" className="material-symbols-outlined text-icon-lg" />
         </button>
 
-        {/* Global Search Bar */}
-        <div 
+        <button
+          type="button"
           onClick={onOpenCommandPalette}
-          className="relative w-full flex items-center cursor-pointer group"
+          className="group relative flex h-9 w-full min-w-0 items-center gap-2 rounded-lg border border-subtle bg-surface-canvas pl-9 pr-3 text-left text-body text-faint transition-colors hover:border-strong hover:bg-surface-subtle"
+          aria-label="Open command palette"
         >
-          <Icon name="search" className="material-symbols-outlined absolute left-3 text-secondary text-[18px] pointer-events-none group-hover:text-primary transition-colors" />
-          <Input 
-            readOnly
-            value={searchQuery || ''}
-            className="pl-9 pr-14 h-9 bg-surface-canvas cursor-pointer group-hover:border-primary/50 text-xs sm:text-sm" 
-            placeholder="Search SKU, Order ID, Customer, HSN... (⌘K)" 
-            type="text"
+          <Icon
+            name="search"
+            className="material-symbols-outlined pointer-events-none absolute left-2.5 text-icon-md text-faint transition-colors group-hover:text-accent"
           />
-          <div className="absolute right-2.5 hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-surface-subtle border border-border-subtle text-text-secondary font-label-xs-caps text-[10px]">
+          <span className="min-w-0 flex-1 truncate">
+            {searchQuery || 'Search SKU, order ID, customer, HSN'}
+          </span>
+          <kbd className="hidden shrink-0 items-center gap-0.5 rounded border border-subtle bg-surface-subtle px-1.5 py-0.5 text-micro text-muted sm:flex">
             <span>⌘</span>
             <span>K</span>
-          </div>
-        </div>
+          </kbd>
+        </button>
       </div>
 
-      {/* Right Controls & Operational Telemetry */}
-      <div className="flex items-center gap-2 sm:gap-space-md">
-        {/* Live Sync Status Pill */}
-        <div className="hidden xl:flex items-center">
+      {/* Right: telemetry, utilities and profile */}
+      <div className="flex shrink-0 items-center gap-2 sm:gap-space-md">
+        <div className="hidden items-center xl:flex">
           <Badge variant="success" className="gap-2 font-medium">
-            <span className="w-2 h-2 rounded-full bg-status-success animate-pulse"></span>
-            Sync: Live • 1,248 TPS
+            <span className="h-2 w-2 shrink-0 rounded-full bg-status-success" />
+            Sync live
           </Badge>
         </div>
 
-        {/* Date Display */}
-        <div className="hidden md:flex items-center gap-1.5 px-space-sm py-1 rounded-xl bg-surface-subtle border border-border-subtle text-text-primary font-label-sm text-label-sm font-medium">
-          <Icon name="calendar_today" className="material-symbols-outlined text-[16px] text-secondary" />
-          <span>Today: {todayStr}</span>
+        <div className="hidden items-center gap-1.5 rounded-lg border border-subtle bg-surface-subtle px-space-sm py-1.5 text-label font-medium text-primary md:flex">
+          <Icon name="calendar_today" className="material-symbols-outlined text-icon text-faint" />
+          <span className="tabular-nums">{todayStr}</span>
         </div>
 
-        {/* Utility Icon Buttons */}
-        <div className="flex items-center gap-1 border-l border-border-subtle pl-2 sm:pl-space-md">
-          {/* Notifications */}
-          <Button 
+        <div className="flex items-center gap-1 border-l border-subtle pl-2 sm:pl-space-md">
+          <Button
             variant="ghost"
             size="icon"
             onClick={onOpenNotifications}
-            className="relative h-9 w-9 text-secondary hover:text-text-primary" 
-            title="Operational Alerts" 
+            className="relative h-9 w-9"
+            title="Operational alerts"
+            aria-label={`Operational alerts${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
             type="button"
           >
-            <Icon name="notifications" className="material-symbols-outlined text-[20px]" />
+            <Icon name="notifications" className="material-symbols-outlined text-icon-lg" />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-status-danger text-on-error font-label-xs-caps text-[10px] flex items-center justify-center font-bold">
+              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-danger-solid px-1 text-micro font-semibold tabular-nums text-on-accent">
                 {unreadCount}
               </span>
             )}
           </Button>
 
-          {/* Help & Documentation */}
-          <Button 
+          <Button
             variant="ghost"
             size="icon"
             onClick={onOpenCommandPalette}
-            className="h-9 w-9 text-secondary hover:text-text-primary hidden sm:inline-flex" 
-            title="Help & Shortcuts" 
+            className="hidden h-9 w-9 sm:inline-flex"
+            title="Help and shortcuts"
+            aria-label="Help and shortcuts"
             type="button"
           >
-            <Icon name="help_outline" className="material-symbols-outlined text-[20px]" />
+            <Icon name="help_outline" className="material-symbols-outlined text-icon-lg" />
           </Button>
 
-          {/* Theme Toggle (Dark / Light / System) */}
-          <Button 
+          <Button
             variant="ghost"
             size="icon"
             onClick={toggleTheme}
-            className="h-9 w-9 text-secondary hover:text-text-primary" 
-            title={`Current theme: ${theme.toUpperCase()} (Click to toggle)`} 
+            className="h-9 w-9"
+            title={`Theme: ${THEME_LABEL[theme] || theme}`}
+            aria-label={`Theme: ${THEME_LABEL[theme] || theme}. Activate to change.`}
             type="button"
           >
-            <Icon name={theme === 'system' ? 'brightness_auto' : isDark ? 'dark_mode' : 'light_mode'} className="material-symbols-outlined text-[20px]" />
+            <Icon
+              name={theme === 'system' ? 'brightness_auto' : isDark ? 'dark_mode' : 'light_mode'}
+              className="material-symbols-outlined text-icon-lg"
+            />
           </Button>
         </div>
 
-        {/* User Profile */}
-        <div className="relative">
-          <div 
-            onClick={() => setProfileOpen(!profileOpen)}
-            className="flex items-center gap-space-sm pl-2 sm:pl-space-md border-l border-border-subtle cursor-pointer select-none"
+        <div className="relative" ref={profileRef}>
+          <button
+            type="button"
+            onClick={() => setProfileOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={profileOpen}
+            className="flex select-none items-center gap-space-sm rounded-lg border-l border-subtle py-1 pl-2 pr-1 transition-colors hover:bg-surface-subtle sm:pl-space-md"
           >
-            <Avatar className="h-8 w-8 ring-1 ring-border-subtle">
-              <AvatarImage 
-                alt="Ananya Sharma Profile" 
+            <Avatar className="h-8 w-8">
+              <AvatarImage
+                alt=""
                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuBY9Tgm6nn9TMViDB2K0jV_IgnR1CTQzPSh4UF1qP0xioyqkpMq3i7rxekw2L-XzIqJ7t0oI4QqiK1ZfohmEgXR501aua43kgyya37eW_Pnzg1T4YVEcL0PZnC5nDOlZkUy2t-rC3JITisM8eYFYMI4d6TLZtJcydeuJ8KukkLzD8BdJmW5hA7Jm3FflcjpsXIW5n5FvIgEXboyVtaKgQdoBRB4-htL-mHupOCj5v7x"
               />
               <AvatarFallback>AS</AvatarFallback>
             </Avatar>
-            <div className="hidden lg:flex flex-col text-left">
-              <span className="font-label-sm text-label-sm font-semibold text-text-primary leading-tight">
+            <span className="hidden flex-col text-left lg:flex">
+              <span className="text-label font-semibold leading-tight text-primary">
                 Ananya Sharma
               </span>
-              <span className="font-label-xs-caps text-[10px] text-text-secondary leading-tight">
-                VP Operations | {currentHub.id}
+              <span className="text-micro leading-tight text-muted">
+                VP Operations · {currentHub.id}
               </span>
-            </div>
-            <Icon name="expand_more" className="material-symbols-outlined text-[16px] text-secondary" />
-          </div>
+            </span>
+            <Icon name="expand_more" className="material-symbols-outlined text-icon text-faint" />
+          </button>
 
-          {/* User Profile Dropdown Menu */}
           {profileOpen && (
-            <div className="absolute right-0 top-full mt-2 w-56 bg-surface-container-lowest rounded-xl shadow-2xl border border-border-subtle p-2 space-y-1 z-50 animate-fade-in">
-              <div className="p-2 border-b border-border-subtle">
-                <div className="font-semibold text-xs text-text-primary">Ananya Sharma</div>
-                <div className="text-[11px] text-text-secondary truncate">admin@everwear.test</div>
-                <div className="mt-1 flex items-center gap-1.5 text-[10px] text-status-success font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-status-success"></span>
-                  Active Node: {currentHub.name}
+            <div
+              role="menu"
+              className="absolute right-0 top-full z-overlay mt-2 w-60 animate-zoom-in rounded-xl border border-subtle bg-overlay p-1.5 shadow-lg"
+            >
+              <div className="border-b border-subtle p-2 pb-2.5">
+                <div className="text-meta font-semibold text-primary">Ananya Sharma</div>
+                <div className="truncate text-micro text-muted">admin@everwear.test</div>
+                <div className="mt-1.5 flex items-center gap-1.5 text-micro text-success">
+                  <span className="h-1.5 w-1.5 rounded-full bg-status-success" />
+                  Active node: {currentHub.name}
                 </div>
               </div>
-              <button 
-                onClick={() => setProfileOpen(false)}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-surface-subtle text-text-primary flex items-center gap-2"
-                type="button"
-              >
-                <Icon name="person" className="material-symbols-outlined text-[16px]" />
-                <span>User Account Settings</span>
-              </button>
-              <button 
-                onClick={() => setProfileOpen(false)}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-surface-subtle text-text-primary flex items-center gap-2"
-                type="button"
-              >
-                <Icon name="security" className="material-symbols-outlined text-[16px]" />
-                <span>Role & API Keys</span>
-              </button>
-              <button 
-                onClick={() => {
-                  clearToken();
-                  setProfileOpen(false);
-                  window.location.reload();
-                }}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-surface-subtle text-status-danger flex items-center gap-2"
-                type="button"
-              >
-                <Icon name="logout" className="material-symbols-outlined text-[16px]" />
-                <span>Sign Out</span>
-              </button>
+              <div className="pt-1.5">
+                <button
+                  role="menuitem"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-meta text-primary transition-colors hover:bg-surface-subtle"
+                  type="button"
+                >
+                  <Icon name="person" className="material-symbols-outlined text-icon" />
+                  <span>Account settings</span>
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-meta text-primary transition-colors hover:bg-surface-subtle"
+                  type="button"
+                >
+                  <Icon name="security" className="material-symbols-outlined text-icon" />
+                  <span>Role & API keys</span>
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    clearToken();
+                    setProfileOpen(false);
+                    window.location.reload();
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-meta text-danger transition-colors hover:bg-status-danger-bg"
+                  type="button"
+                >
+                  <Icon name="logout" className="material-symbols-outlined text-icon" />
+                  <span>Sign out</span>
+                </button>
+              </div>
             </div>
           )}
         </div>

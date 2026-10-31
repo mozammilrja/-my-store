@@ -9,6 +9,9 @@ import {
   ContentGrid,
   StatsCard,
   StatusBadge,
+  ErrorState,
+  SkeletonPage,
+  SearchInput,
 } from '../ui';
 import { shipmentList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
@@ -27,7 +30,13 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
   const [shipmentsData, setShipmentsData] = useState(shipmentList);
 
   // TanStack Query for shipments
-  const { data: shipmentsApiData, isLoading: isShipmentsLoading } = useShipmentsQuery();
+  const {
+    data: shipmentsApiData,
+    isLoading: isShipmentsLoading,
+    isError: isShipmentsError,
+    error: shipmentsError,
+    refetch: refetchShipments,
+  } = useShipmentsQuery();
   const [scannedLogs, setScannedLogs] = useState([
     {
       id: 'AWB #8492019481',
@@ -127,8 +136,19 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
     }
   };
 
+  if (isShipmentsLoading) {
+    return <SkeletonPage variant="table" stats={6} statsCols={6} columns={7} label="Loading shipments" />;
+  }
+
   return (
     <PageContainer>
+      {shipmentsError && (
+        <ErrorState
+          title="Shipments could not be loaded"
+          message={shipmentsError?.message}
+          onRetry={() => refetchShipments()}
+        />
+      )}
       {/* Top Context Header & Actions */}
       <PageHeader
         breadcrumb={['Everwear Admin', 'Fulfillment & Orders', 'Shipments & Dispatch']}
@@ -146,7 +166,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
               title="Generate Manifest Documentation"
               type="button"
             >
-              <Icon name="picture_as_pdf" className="material-symbols-outlined text-[16px] text-secondary" />
+              <Icon name="picture_as_pdf" className="material-symbols-outlined text-icon text-muted" />
               <span>Bulk Manifest (PDF)</span>
             </Button>
             <Button
@@ -160,7 +180,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
               id="toggle-scanner-mode"
               type="button"
             >
-              <Icon name="barcode_scanner" className="material-symbols-outlined text-[16px]" />
+              <Icon name="barcode_scanner" className="material-symbols-outlined text-icon" />
               <span>Dispatch Scan Mode</span>
             </Button>
             <Button
@@ -170,17 +190,17 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
               className="gap-1.5 shadow-sm"
               type="button"
             >
-              <Icon name="add_circle" className="material-symbols-outlined text-[16px] text-secondary" />
+              <Icon name="add_circle" className="material-symbols-outlined text-icon text-muted" />
               <span>Manual Consignment</span>
             </Button>
             <Button
               variant="default"
               size="sm"
               onClick={() => onShowToast && onShowToast('AI Carrier SLA re-allocation run complete across 892 packages.')}
-              className="gap-1.5 bg-primary-container text-on-primary hover:bg-primary shadow-sm"
+              className="gap-1.5 bg-primary-container text-on-accent hover:bg-primary-container-hover shadow-sm"
               type="button"
             >
-              <Icon name="autorenew" className="material-symbols-outlined text-[16px]" />
+              <Icon name="autorenew" className="material-symbols-outlined text-icon" />
               <span>Carrier Re-Allocation</span>
             </Button>
           </>
@@ -201,7 +221,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
           title="In-Transit Live"
           value="12,400 active"
           icon="local_shipping"
-          iconColor="text-status-info"
+          iconColor="text-info"
           badge="SLA 99.2%"
           badgeVariant="success"
           trendLabel="On-time transit"
@@ -210,14 +230,14 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
           title="Out for Delivery"
           value="3,840 units"
           icon="electric_moped"
-          iconColor="text-fashion-magenta"
+          iconColor="text-accent"
           trendLabel="Same-Day / Next-Day Target"
         />
         <StatsCard
           title="3PL Carrier NDR"
           value="142 NDR"
           icon="report_problem"
-          iconColor="text-status-danger"
+          iconColor="text-danger"
           badge="1.1% Rate"
           badgeVariant="destructive"
           trendLabel="Needs Triage"
@@ -235,52 +255,52 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
         {/* Central Operational Column (8 cols) */}
         <div className="xl:col-span-8 space-y-4 min-w-0">
           {/* Tabs and Filters Container */}
-          <div className="p-4 rounded-xl bg-surface-container-lowest shadow-sm space-y-3 border border-border-subtle">
+          <div className="p-4 rounded-xl bg-surface-container-lowest shadow-sm space-y-3 border border-subtle">
             {/* Segmented Tab Bar */}
-            <div className="flex items-center justify-between overflow-x-auto pb-1 gap-2 border-b border-border-subtle">
+            <div className="flex items-center justify-between overflow-x-auto pb-1 gap-2 border-b border-subtle">
               <div className="flex items-center gap-1 bg-surface-subtle p-1 rounded-xl shrink-0">
                 <button
                   onClick={() => setActiveTab('queue')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-                    activeTab === 'queue'
-                      ? 'bg-surface-container-lowest text-text-primary shadow-xs'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-meta font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+ activeTab === 'queue'
+ ? 'bg-surface-container-lowest text-primary shadow-xs'
+ : 'text-muted hover:text-primary'
+ }`}
                   type="button"
                 >
-                  <Icon name="outbox" className="material-symbols-outlined text-[16px] text-primary-container" />
+                  <Icon name="outbox" className="material-symbols-outlined text-icon text-accent" />
                   <span>Manifest Queue</span>
-                  <span className="px-1.5 py-0.2 rounded-full bg-primary-fixed text-on-primary-fixed text-[10px] font-bold">
+                  <span className="px-1.5 py-px rounded-full bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
                     892
                   </span>
                 </button>
                 <button
                   onClick={() => setActiveTab('radar')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-                    activeTab === 'radar'
-                      ? 'bg-surface-container-lowest text-text-primary shadow-xs'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-meta font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+ activeTab === 'radar'
+ ? 'bg-surface-container-lowest text-primary shadow-xs'
+ : 'text-muted hover:text-primary'
+ }`}
                   type="button"
                 >
-                  <Icon name="radar" className="material-symbols-outlined text-[16px] text-status-info" />
+                  <Icon name="radar" className="material-symbols-outlined text-icon text-info" />
                   <span>In-Transit Radar</span>
-                  <span className="px-1.5 py-0.2 rounded-full bg-surface-subtle text-text-secondary text-[10px] font-bold">
+                  <span className="px-1.5 py-px rounded-full bg-surface-subtle text-muted text-micro font-semibold">
                     12.4k
                   </span>
                 </button>
                 <button
                   onClick={() => setActiveTab('ndr')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-                    activeTab === 'ndr'
-                      ? 'bg-status-danger-bg text-status-danger shadow-xs'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-meta font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+ activeTab === 'ndr'
+ ? 'bg-status-danger-bg text-danger shadow-xs'
+ : 'text-muted hover:text-primary'
+ }`}
                   type="button"
                 >
-                  <Icon name="sync_problem" className="material-symbols-outlined text-[16px] text-status-danger" />
+                  <Icon name="sync_problem" className="material-symbols-outlined text-icon text-danger" />
                   <span>NDR &amp; Exceptions</span>
-                  <span className="px-1.5 py-0.2 rounded-full bg-status-danger-bg text-status-danger text-[10px] font-bold">
+                  <span className="px-1.5 py-px rounded-full bg-status-danger-bg text-danger text-micro font-semibold">
                     142
                   </span>
                 </button>
@@ -289,39 +309,37 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => onShowToast && onShowToast('Carrier dock telemetry synced.')}
-                  className="p-1.5 text-secondary hover:text-text-primary rounded-lg bg-surface-subtle cursor-pointer"
+                  className="p-1.5 text-muted hover:text-primary rounded-lg bg-surface-subtle cursor-pointer"
                   title="Refresh Feed"
                   type="button"
                 >
-                  <Icon name="sync" className="material-symbols-outlined text-[18px]" />
+                  <Icon name="sync" className="material-symbols-outlined text-icon-md" />
                 </button>
                 <button
                   onClick={() => onShowToast && onShowToast('Column layout editor opened.')}
-                  className="p-1.5 text-secondary hover:text-text-primary rounded-lg bg-surface-subtle cursor-pointer"
+                  className="p-1.5 text-muted hover:text-primary rounded-lg bg-surface-subtle cursor-pointer"
                   title="Column Layout"
                   type="button"
                 >
-                  <Icon name="view_column" className="material-symbols-outlined text-[18px]" />
+                  <Icon name="view_column" className="material-symbols-outlined text-icon-md" />
                 </button>
               </div>
             </div>
 
             {/* Filter Sub-Toolbar */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-space-sm pt-space-xs">
+            <div className="flex flex-wrap items-center gap-space-sm pt-space-xs">
               {/* AWB Search Input */}
-              <div className="md:col-span-5 relative">
-                <Icon name="search" className="material-symbols-outlined absolute left-3 top-2.5 text-secondary text-[16px]" />
-                <input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pl-9 pr-3 rounded-lg bg-surface-canvas font-body-sm text-body-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:bg-surface-container-lowest shadow-sm transition-colors border border-border-subtle"
-                  placeholder="Filter by AWB, Order ID, PIN code or Bag #..."
-                  type="text"
-                />
-              </div>
+              <SearchInput
+                value={searchQuery}
+                onChange={(value) => setSearchQuery(value)}
+                onClear={() => setSearchQuery('')}
+                placeholder="Filter by AWB, order ID, PIN or bag"
+                label="Filter shipments"
+                className="min-w-[16rem] flex-1"
+              />
 
               {/* FC Node Select */}
-              <div className="md:col-span-2">
+              <div className="min-w-[10rem]">
                 <Select
                   value={nodeFilter}
                   onChange={(e) => setNodeFilter(e.target.value)}
@@ -335,7 +353,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
               </div>
 
               {/* 3PL Partner Filter */}
-              <div className="md:col-span-3">
+              <div className="min-w-[13rem]">
                 <Select
                   value={carrierFilter}
                   onChange={(e) => setCarrierFilter(e.target.value)}
@@ -350,7 +368,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
               </div>
 
               {/* Service SLA Filter */}
-              <div className="md:col-span-2">
+              <div className="min-w-[11rem]">
                 <Select
                   value={speedFilter}
                   onChange={(e) => setSpeedFilter(e.target.value)}
@@ -365,45 +383,45 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
             </div>
 
             {/* Quick Batch Actions Row */}
-            <div className="flex flex-wrap items-center justify-between text-text-secondary pt-1 font-body-sm text-body-sm gap-2">
+            <div className="flex flex-wrap items-center justify-between text-secondary pt-1 text-body gap-2">
               <div className="flex items-center gap-3">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={selectedParcels.length === shipmentList.length}
                     onChange={handleSelectAll}
-                    className="w-4 h-4 rounded text-primary-container focus:ring-0 accent-primary-container"
+                    className="w-4 h-4 rounded text-accent focus:ring-0 accent-primary-container"
                   />
-                  <span className="font-label-sm text-label-sm text-text-primary">Select All Pending (892)</span>
+                  <span className="text-label text-primary">Select All Pending (892)</span>
                 </label>
-                <span className="text-xs text-text-secondary">•</span>
-                <span className="text-xs text-text-secondary">
-                  Selected: <strong className="text-text-primary font-medium">{selectedParcels.length} Parcels</strong> (Total Weight: {(selectedParcels.length * 0.62).toFixed(1)} kg)
+                <span className="text-meta text-muted">•</span>
+                <span className="text-meta text-muted">
+                  Selected: <strong className="text-primary font-medium">{selectedParcels.length} Parcels</strong> (Total Weight: {(selectedParcels.length * 0.62).toFixed(1)} kg)
                 </span>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => onShowToast && onShowToast(`Printing shipping labels for ${selectedParcels.length} parcels...`)}
-                  className="px-2.5 py-1 rounded-lg bg-surface-subtle hover:bg-surface-container-high text-text-primary font-label-xs-caps text-label-xs-caps tracking-wide transition-colors flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-surface-subtle hover:bg-surface-container-high text-primary text-caption tracking-wide transition-colors flex items-center gap-1 cursor-pointer"
                   type="button"
                 >
-                  <Icon name="local_printshop" className="material-symbols-outlined text-[14px]" />
+                  <Icon name="local_printshop" className="material-symbols-outlined text-icon-sm" />
                   <span>Print Shipping Labels</span>
                 </button>
                 <button
                   onClick={() => onShowToast && onShowToast(`Batch assigning Bay for ${selectedParcels.length} parcels...`)}
-                  className="px-2.5 py-1 rounded-lg bg-surface-subtle hover:bg-surface-container-high text-text-primary font-label-xs-caps text-label-xs-caps tracking-wide transition-colors flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-surface-subtle hover:bg-surface-container-high text-primary text-caption tracking-wide transition-colors flex items-center gap-1 cursor-pointer"
                   type="button"
                 >
-                  <Icon name="assignment_turned_in" className="material-symbols-outlined text-[14px]" />
+                  <Icon name="assignment_turned_in" className="material-symbols-outlined text-icon-sm" />
                   <span>Batch Assign Bay</span>
                 </button>
                 <button
                   onClick={() => onShowToast && onShowToast('Fast handover sequence initiated for selected batch.')}
-                  className="px-2.5 py-1 rounded-lg bg-primary-container text-on-primary font-label-xs-caps text-label-xs-caps tracking-wide transition-colors flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-primary-container text-on-accent text-caption tracking-wide transition-colors flex items-center gap-1 cursor-pointer"
                   type="button"
                 >
-                  <Icon name="forklift" className="material-symbols-outlined text-[14px]" />
+                  <Icon name="forklift" className="material-symbols-outlined text-icon-sm" />
                   <span>Fast Handover</span>
                 </button>
               </div>
@@ -411,17 +429,17 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
           </div>
 
           {/* Core Logistics Manifest & Dispatch Table */}
-          <div className="rounded-xl bg-surface-container-lowest shadow-sm overflow-hidden border border-border-subtle">
+          <div className="rounded-xl bg-surface-container-lowest shadow-sm overflow-hidden border border-subtle">
             <div className="overflow-x-auto scrollbar-thin">
               <table className="w-full text-left border-collapse min-w-[1020px]">
                 <thead>
-                  <tr className="bg-surface-subtle font-label-xs-caps text-label-xs-caps text-text-secondary uppercase select-none border-b border-border-subtle sticky top-0 z-10 backdrop-blur-sm">
+                  <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
                     <th className="py-2.5 px-3 w-10 text-center whitespace-nowrap">
                       <input
                         type="checkbox"
                         checked={selectedParcels.length === shipmentList.length}
                         onChange={handleSelectAll}
-                        className="w-3.5 h-3.5 rounded text-primary-container focus:ring-0 accent-primary-container cursor-pointer"
+                        className="w-3.5 h-3.5 rounded text-accent focus:ring-0 accent-primary-container cursor-pointer"
                       />
                     </th>
                     <th className="py-2.5 px-3 whitespace-nowrap">AWB &amp; Carrier</th>
@@ -433,7 +451,7 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                     <th className="py-2.5 px-3 text-right whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="font-body-sm text-body-sm divide-y divide-surface-subtle">
+                <tbody className="text-body divide-y divide-border-subtle">
                   {filteredShipments.map(item => {
                     const isSelected = selectedAwb === item.awb;
                     const isChecked = selectedParcels.includes(item.awb);
@@ -443,32 +461,32 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                         key={item.awb}
                         onClick={() => setSelectedAwb(item.awb)}
                         className={`transition-colors group cursor-pointer ${
-                          isSelected ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30' : 'bg-surface-container-lowest hover:bg-surface-subtle'
-                        }`}
+ isSelected ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30' : 'bg-surface-container-lowest hover:bg-surface-subtle'
+ }`}
                       >
                         <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => handleSelectParcel(item.awb)}
-                            className="w-3.5 h-3.5 rounded text-primary-container focus:ring-0 accent-primary-container cursor-pointer"
+                            className="w-3.5 h-3.5 rounded text-accent focus:ring-0 accent-primary-container cursor-pointer"
                           />
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-start gap-2.5">
                             <div className={`w-8 h-8 rounded-lg ${item.carrierBg} ${item.carrierColor} flex items-center justify-center shrink-0`}>
-                              <Icon name={item.carrierIcon} className="material-symbols-outlined text-[18px]" />
+                              <Icon name={item.carrierIcon} className="material-symbols-outlined text-icon-md" />
                             </div>
                             <div className="flex flex-col">
-                              <span className="font-label-sm text-label-sm font-semibold text-text-primary tracking-tight">
+                              <span className="text-label font-semibold text-primary tracking-tight">
                                 #{item.awb}
                               </span>
                               <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className={`font-label-xs-caps text-[10px] font-semibold ${item.carrierTextClass}`}>
+                                <span className={`text-micro font-semibold ${item.carrierTextClass}`}>
                                   {item.carrier}
                                 </span>
-                                <span className="text-xs text-text-secondary">•</span>
-                                <span className="font-label-xs-caps text-[10px] text-text-secondary uppercase">
+                                <span className="text-meta text-muted">•</span>
+                                <span className="text-caption text-muted uppercase">
                                   {item.carrierType}
                                 </span>
                               </div>
@@ -477,37 +495,37 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex flex-col">
-                            <span className="font-label-sm text-label-sm font-medium text-text-primary">
+                            <span className="text-label font-medium text-primary">
                               {item.orderId}
                             </span>
-                            <span className="text-text-secondary text-xs flex items-center gap-1 mt-0.5">
-                              <Icon name="location_on" className="material-symbols-outlined text-[13px] text-secondary" />
+                            <span className="text-muted text-meta flex items-center gap-1 mt-0.5">
+                              <Icon name="location_on" className="material-symbols-outlined text-icon-sm text-muted" />
                               {item.destination}
                             </span>
                           </div>
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex flex-col">
-                            <span className="font-table-cell-num text-table-cell-num font-semibold text-text-primary">
+                            <span className="text-num font-semibold text-primary">
                               {item.garments}
                             </span>
-                            <span className="text-xs text-text-secondary font-table-cell-num">
+                            <span className="text-meta text-muted">
                               {item.weight}
                             </span>
                           </div>
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-1.5">
-                            <Icon name={item.slaUrgent ? 'timer' : 'schedule'} className={`material-symbols-outlined text-[16px] ${
-                              item.slaUrgent ? 'text-status-danger animate-pulse' : 'text-status-warning'
-                            }`} />
+                            <Icon name={item.slaUrgent ? 'timer' : 'schedule'} className={`material-symbols-outlined text-icon ${
+ item.slaUrgent ? 'text-danger animate-pulse' : 'text-warning'
+ }`} />
                             <div className="flex flex-col">
-                              <span className={`font-label-sm text-label-sm font-bold ${
-                                item.slaUrgent ? 'text-status-danger' : 'text-status-warning'
-                              }`}>
+                              <span className={`text-label font-semibold ${
+ item.slaUrgent ? 'text-danger' : 'text-warning'
+ }`}>
                                 {item.slaCountdown}
                               </span>
-                              <span className="font-label-xs-caps text-[10px] text-text-secondary">
+                              <span className="text-micro text-muted">
                                 {item.slaDeadline}
                               </span>
                             </div>
@@ -515,15 +533,15 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex flex-col gap-1">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-xs-caps text-label-xs-caps font-semibold w-max ${item.dockStatusColor}`}>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-semibold w-max ${item.dockStatusColor}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${item.dockDotColor}`}></span>
                               {item.dockStatus}
                             </span>
-                            <span className="text-[11px] text-text-secondary">{item.bagNo}</span>
+                            <span className="text-micro text-muted">{item.bagNo}</span>
                           </div>
                         </td>
                         <td className="py-3 px-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-label-xs-caps text-[10px] font-medium ${item.handoverBadgeClass}`}>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-micro ${item.handoverBadgeClass}`}>
                             {item.handoverState}
                           </span>
                         </td>
@@ -534,10 +552,10 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                               setSelectedAwb(item.awb);
                               if (onShowToast) onShowToast(`Dock scan focused for AWB #${item.awb}`);
                             }}
-                            className="h-8 px-2.5 rounded-lg bg-surface-subtle text-text-primary hover:bg-surface-container-high font-label-xs-caps text-label-xs-caps tracking-wider transition-colors inline-flex items-center gap-1 cursor-pointer"
+                            className="h-8 px-2.5 rounded-lg bg-surface-subtle text-primary hover:bg-surface-container-high text-caption tracking-wider transition-colors inline-flex items-center gap-1 cursor-pointer"
                             type="button"
                           >
-                            <Icon name="barcode_scanner" className="material-symbols-outlined text-[14px]" />
+                            <Icon name="barcode_scanner" className="material-symbols-outlined text-icon-sm" />
                             <span>Scan Handover</span>
                           </button>
                         </td>
@@ -549,32 +567,32 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
             </div>
 
             {/* Table Pagination Footer */}
-            <div className="p-space-sm bg-surface-canvas flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-border-subtle">
-              <div className="font-body-sm text-body-sm text-text-secondary">
-                Showing <span className="font-medium text-text-primary">1–5</span> of <span className="font-medium text-text-primary">892</span> packages awaiting carrier departure
+            <div className="p-space-sm bg-surface-canvas flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-subtle">
+              <div className="text-body text-secondary">
+                Showing <span className="font-medium text-primary">1–5</span> of <span className="font-medium text-primary">892</span> packages awaiting carrier departure
               </div>
               <div className="flex items-center gap-1">
                 <button
-                  className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-text-secondary hover:text-text-primary font-label-sm text-label-sm shadow-sm disabled:opacity-50 cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-muted hover:text-primary text-label shadow-sm disabled:opacity-50 cursor-pointer"
                   disabled
                   type="button"
                 >
                   Previous
                 </button>
-                <button className="px-2.5 py-1 rounded-lg bg-primary-container text-on-primary font-label-sm text-label-sm font-medium cursor-pointer" type="button">
+                <button className="px-2.5 py-1 rounded-lg bg-primary-container text-on-accent text-label font-medium cursor-pointer" type="button">
                   1
                 </button>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-text-primary hover:bg-surface-subtle font-label-sm text-label-sm shadow-sm cursor-pointer" type="button">
+                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-primary hover:bg-surface-subtle text-label shadow-sm cursor-pointer" type="button">
                   2
                 </button>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-text-primary hover:bg-surface-subtle font-label-sm text-label-sm shadow-sm cursor-pointer" type="button">
+                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-primary hover:bg-surface-subtle text-label shadow-sm cursor-pointer" type="button">
                   3
                 </button>
-                <span className="text-text-secondary px-1">...</span>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-text-primary hover:bg-surface-subtle font-label-sm text-label-sm shadow-sm cursor-pointer" type="button">
+                <span className="text-muted px-1">...</span>
+                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-primary hover:bg-surface-subtle text-label shadow-sm cursor-pointer" type="button">
                   178
                 </button>
-                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-text-secondary hover:text-text-primary font-label-sm text-label-sm shadow-sm cursor-pointer" type="button">
+                <button className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-muted hover:text-primary text-label shadow-sm cursor-pointer" type="button">
                   Next
                 </button>
               </div>
@@ -585,25 +603,25 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
         {/* Right Inspector / Detail Drawer (4 cols) */}
         <div className="xl:col-span-4 space-y-space-md min-w-0">
           {/* Active Dock Manifest & Gate Pass Container */}
-          <div className="rounded-xl bg-surface-container-lowest shadow-sm p-space-md space-y-space-md border border-border-subtle">
+          <div className="rounded-xl bg-surface-container-lowest shadow-sm p-space-md space-y-space-md border border-subtle">
             {/* Manifest Header & Status */}
             <div className="flex items-start justify-between">
               <div className="space-y-0.5">
-                <span className="font-label-xs-caps text-label-xs-caps text-primary-container uppercase font-bold tracking-wider">
+                <span className="text-caption text-accent uppercase font-semibold tracking-wider">
                   LIVE DOCK DISPATCH
                 </span>
-                <h2 className="font-headline-sm text-headline-sm text-text-primary font-semibold">
+                <h2 className="text-subheading text-primary font-semibold">
                   Manifest #MNF-2024-BLR-0482
                 </h2>
-                <p className="font-body-sm text-body-sm text-text-secondary">
+                <p className="text-body text-secondary">
                   BlueDart Express Air • Priority Runway 04
                 </p>
               </div>
-              <span className={`px-2 py-0.5 rounded-full font-label-xs-caps text-label-xs-caps font-semibold ${
-                isHandoverCompleted
-                  ? 'bg-status-success-bg text-status-success'
-                  : 'bg-status-warning-bg text-status-warning'
-              }`}>
+              <span className={`px-2 py-0.5 rounded-full text-caption font-semibold ${
+ isHandoverCompleted
+ ? 'bg-status-success-bg text-success'
+ : 'bg-status-warning-bg text-warning'
+ }`}>
                 {isHandoverCompleted ? 'GATE PASS ISSUED' : 'IN SCANNING'}
               </span>
             </div>
@@ -611,23 +629,23 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
             {/* Vehicle & Driver Verification Module */}
             <div className="p-space-sm rounded-xl bg-surface-subtle space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">
+                <span className="text-caption text-muted uppercase">
                   Carrier Gate Security Verification
                 </span>
-                <span className="flex items-center gap-1 font-label-xs-caps text-[10px] text-status-success font-semibold">
-                  <Icon name="verified_user" className="material-symbols-outlined text-[14px]" /> OTP VERIFIED
+                <span className="flex items-center gap-1 text-micro text-success font-semibold">
+                  <Icon name="verified_user" className="material-symbols-outlined text-icon-sm" /> OTP VERIFIED
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-text-primary">
+              <div className="grid grid-cols-2 gap-2 text-primary">
                 <div className="p-2 rounded-lg bg-surface-container-lowest shadow-sm">
-                  <span className="text-xs text-text-secondary block">Vehicle Reg</span>
-                  <span className="font-label-sm text-label-sm font-bold tracking-tight">KA-01-MJ-8821</span>
-                  <span className="text-[10px] text-status-info block">E-Way Bill Linked</span>
+                  <span className="text-meta text-muted block">Vehicle Reg</span>
+                  <span className="text-label font-semibold tracking-tight">KA-01-MJ-8821</span>
+                  <span className="text-micro text-info block">E-Way Bill Linked</span>
                 </div>
                 <div className="p-2 rounded-lg bg-surface-container-lowest shadow-sm">
-                  <span className="text-xs text-text-secondary block">Assigned Driver</span>
-                  <span className="font-label-sm text-label-sm font-semibold truncate block">Ramesh Kumar</span>
-                  <span className="text-[10px] text-text-secondary block">DL: KA01-2018-9941</span>
+                  <span className="text-meta text-muted block">Assigned Driver</span>
+                  <span className="text-label font-semibold truncate block">Ramesh Kumar</span>
+                  <span className="text-micro text-muted block">DL: KA01-2018-9941</span>
                 </div>
               </div>
             </div>
@@ -635,50 +653,50 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
             {/* Consignment Load Metrics */}
             <div className="grid grid-cols-2 gap-2 text-center">
               <div className="p-2.5 rounded-xl bg-surface-canvas shadow-sm">
-                <span className="font-label-xs-caps text-[10px] text-text-secondary block uppercase">Bag Seal Tally</span>
-                <span className="font-metric-stat text-headline-lg font-bold text-text-primary">
-                  14 <span className="font-body-sm text-body-sm text-text-secondary font-normal">Bags</span>
+                <span className="text-caption text-muted block uppercase">Bag Seal Tally</span>
+                <span className="text-title font-semibold text-primary">
+                  14 <span className="text-body text-secondary font-normal">Bags</span>
                 </span>
-                <span className="text-[11px] text-status-success font-medium block">All Tamper-Evident</span>
+                <span className="text-micro text-success block">All Tamper-Evident</span>
               </div>
               <div className="p-2.5 rounded-xl bg-surface-canvas shadow-sm">
-                <span className="font-label-xs-caps text-[10px] text-text-secondary block uppercase">Gross Load Weight</span>
-                <span className="font-metric-stat text-headline-lg font-bold text-text-primary">
-                  218.4 <span className="font-body-sm text-body-sm text-text-secondary font-normal">kg</span>
+                <span className="text-caption text-muted block uppercase">Gross Load Weight</span>
+                <span className="text-title font-semibold text-primary">
+                  218.4 <span className="text-body text-secondary font-normal">kg</span>
                 </span>
-                <span className="text-[11px] text-text-secondary block">Dock Scale #2 Match</span>
+                <span className="text-micro text-muted block">Dock Scale #2 Match</span>
               </div>
             </div>
 
             {/* Interactive Handover Dock Barcode Scanner Interface */}
-            <div className="p-space-sm rounded-xl bg-surface-subtle space-y-space-sm border border-border-subtle">
+            <div className="p-space-sm rounded-xl bg-surface-subtle space-y-space-sm border border-subtle">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <Icon name="qr_code_scanner" className="material-symbols-outlined text-[18px] text-primary-container" />
-                  <span className="font-label-sm text-label-sm font-semibold text-text-primary">
+                  <Icon name="qr_code_scanner" className="material-symbols-outlined text-icon-md text-accent" />
+                  <span className="text-label font-semibold text-primary">
                     Dock Handover Barcode Reader
                   </span>
                 </div>
-                <span className={`font-label-xs-caps text-[11px] font-semibold ${
-                  scanProgress >= 100 ? 'text-status-success' : 'text-status-warning'
-                }`}>
+                <span className={`text-micro font-semibold ${
+ scanProgress >= 100 ? 'text-success' : 'text-warning'
+ }`}>
                   {scanProgress >= 100 ? '0 Pending' : '1 Pending'}
                 </span>
               </div>
 
               {/* Live Scan Counter Progress */}
               <div>
-                <div className="flex items-center justify-between text-xs text-text-secondary mb-1">
+                <div className="flex items-center justify-between text-meta text-muted mb-1">
                   <span>Manifest Scan Completion</span>
-                  <span className="font-medium text-text-primary">
+                  <span className="font-medium text-primary">
                     {scanProgress >= 100 ? '14 / 14 Bags' : '13 / 14 Bags'} ({scanProgress.toFixed(1)}%)
                   </span>
                 </div>
                 <div className="w-full bg-surface-container-highest h-2 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-300 ${
-                      scanProgress >= 100 ? 'bg-status-success' : 'bg-primary-container'
-                    }`}
+ scanProgress >= 100 ? 'bg-status-success' : 'bg-primary-container'
+ }`}
                     style={{ width: `${scanProgress}%` }}
                   ></div>
                 </div>
@@ -687,19 +705,19 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
               {/* Barcode Input Simulator */}
               <div className="flex items-center gap-1.5">
                 <div className="relative flex-1">
-                  <Icon name="barcode" className="material-symbols-outlined absolute left-2.5 top-2 text-text-secondary text-[16px]" />
+                  <Icon name="barcode" className="material-symbols-outlined absolute left-2.5 top-2 text-muted text-icon" />
                   <input
                     value={barcodeInputValue}
                     onChange={(e) => setBarcodeInputValue(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSimulateScan()}
                     placeholder={scanProgress >= 100 ? 'All bags verified ✓' : `Scan AWB #${selectedAwb}...`}
-                    className="w-full h-8 pl-8 pr-2 rounded-lg bg-surface-container-lowest text-xs text-text-primary placeholder:text-text-secondary focus:outline-none shadow-xs border border-border-subtle"
+                    className="w-full h-8 pl-8 pr-2 rounded-lg bg-surface-container-lowest text-meta text-primary placeholder:text-muted focus:outline-none shadow-xs border border-subtle"
                     type="text"
                   />
                 </div>
                 <button
                   onClick={handleSimulateScan}
-                  className="h-8 px-2.5 rounded-lg bg-primary-container text-on-primary font-label-xs-caps text-label-xs-caps font-semibold hover:bg-primary transition-all shrink-0 cursor-pointer"
+                  className="h-8 px-2.5 rounded-lg bg-primary-container text-on-accent text-caption font-semibold hover:bg-primary-container-hover transition-all shrink-0 cursor-pointer"
                   type="button"
                 >
                   Scan
@@ -707,32 +725,32 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
               </div>
 
               {/* Verified Bags Feed */}
-              <div className="space-y-1 text-xs text-text-secondary">
+              <div className="space-y-1 text-meta text-muted">
                 {scannedLogs.map((log, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-surface-container-lowest text-status-success">
+                  <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-surface-container-lowest text-success">
                     <div className="flex items-center gap-1 truncate">
-                      <Icon name="check_circle" className="material-symbols-outlined text-[14px]" />
+                      <Icon name="check_circle" className="material-symbols-outlined text-icon-sm" />
                       <span className="truncate">Verified: {log.id} ({log.tote})</span>
                     </div>
-                    <span className="text-[10px] font-mono shrink-0 text-text-secondary">{log.time}</span>
+                    <span className="text-micro font-mono shrink-0 text-muted whitespace-nowrap">{log.time}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Carrier Handoff Digital Gate Pass With QR */}
-            <div className="p-space-sm rounded-xl bg-surface-canvas shadow-sm flex items-center justify-between gap-space-sm border border-border-subtle">
+            <div className="p-space-sm rounded-xl bg-surface-canvas shadow-sm flex items-center justify-between gap-space-sm border border-subtle">
               <div className="space-y-1">
-                <span className="font-label-xs-caps text-[10px] text-text-secondary uppercase">FC Gate Pass Token</span>
-                <div className="font-mono text-xs font-semibold text-text-primary">GP-BLR1-2405-9921</div>
-                <p className="text-[11px] text-text-secondary leading-tight">
+                <span className="text-caption text-muted uppercase">FC Gate Pass Token</span>
+                <div className="font-mono text-meta font-semibold text-primary whitespace-nowrap">GP-BLR1-2405-9921</div>
+                <p className="text-micro text-muted leading-tight">
                   Digital security validation code for FC perimeter boom barrier clearance.
                 </p>
-                <span className="font-label-xs-caps text-[10px] text-text-secondary">Sign-off: 24-MAY 16:40:02 IST</span>
+                <span className="text-micro text-muted">Sign-off: 24-MAY 16:40:02 IST</span>
               </div>
               {/* Real QR Code SVG Vector from code.html */}
-              <div className="p-1.5 bg-surface-container-lowest rounded-lg shadow-sm shrink-0 border border-border-subtle">
-                <svg className="w-16 h-16 text-text-primary" fill="currentColor" viewBox="0 0 100 100">
+              <div className="p-1.5 bg-surface-container-lowest rounded-lg shadow-sm shrink-0 border border-subtle">
+                <svg className="w-16 h-16 text-primary" fill="currentColor" viewBox="0 0 100 100">
                   <rect fill="currentColor" height="28" width="28" x="10" y="10"></rect>
                   <rect fill="white" height="16" width="16" x="16" y="16"></rect>
                   <rect fill="currentColor" height="8" width="8" x="20" y="20"></rect>
@@ -762,40 +780,40 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
             <div className="space-y-2 pt-1">
               <button
                 onClick={handleCompleteHandover}
-                className={`w-full h-10 px-4 rounded-xl font-label-sm text-label-sm font-semibold shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  isHandoverCompleted
-                    ? 'bg-status-success text-white'
-                    : 'bg-primary-container hover:bg-tertiary-container text-on-primary'
-                }`}
+                className={`w-full h-10 px-4 rounded-xl text-label font-semibold shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
+ isHandoverCompleted
+ ? 'bg-status-success-solid text-on-accent'
+ : 'bg-primary-container hover:bg-tertiary-container text-on-accent'
+ }`}
                 type="button"
               >
-                <Icon name={isHandoverCompleted ? 'done_all' : 'verified'} className="material-symbols-outlined text-[18px]" />
+                <Icon name={isHandoverCompleted ? 'done_all' : 'verified'} className="material-symbols-outlined text-icon-md" />
                 <span>
                   {isHandoverCompleted ? 'Manifest Verified — Gate Pass Issued' : 'Complete Carrier Handover & Issue Gate Pass'}
                 </span>
               </button>
               <button
                 onClick={() => onShowToast && onShowToast('Manifest MNF-2024-BLR-0482 downloaded.')}
-                className="w-full h-9 px-4 rounded-xl bg-surface-subtle hover:bg-surface-container-high text-text-primary font-label-sm text-label-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full h-9 px-4 rounded-xl bg-surface-subtle hover:bg-surface-container-high text-primary text-label transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 type="button"
               >
-                <Icon name="download" className="material-symbols-outlined text-[17px] text-secondary" />
+                <Icon name="download" className="material-symbols-outlined text-icon text-muted" />
                 <span>Download Consignment Manifest (CSV/PDF)</span>
               </button>
             </div>
           </div>
 
           {/* Quick Dispatch Node Health Card */}
-          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm space-y-space-sm border border-border-subtle">
+          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm space-y-space-sm border border-subtle">
             <div className="flex items-center justify-between">
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">
+              <span className="text-caption text-muted uppercase">
                 FC Dock Dispatch Throughput
               </span>
-              <span className="font-label-xs-caps text-[10px] text-status-success font-semibold">1,240 pkgs/hr</span>
+              <span className="text-micro text-success font-semibold">1,240 pkgs/hr</span>
             </div>
             {/* Live Sparkline Graphic (SVG) */}
             <div className="h-12 w-full pt-1">
-              <svg className="w-full h-full text-primary-container" fill="none" viewBox="0 0 300 48">
+              <svg className="w-full h-full text-accent" fill="none" viewBox="0 0 300 48">
                 <path
                   d="M0,35 Q30,12 60,25 T120,8 T180,28 T240,14 T300,6"
                   fill="none"
@@ -811,33 +829,33 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
                 <circle cx="300" cy="6" fill="currentColor" r="3.5"></circle>
               </svg>
             </div>
-            <div className="flex items-center justify-between text-xs text-text-secondary pt-1">
+            <div className="flex items-center justify-between text-meta text-muted pt-1">
               <span>08:00 AM Shift</span>
               <span>Peak 14:00 (1,480 pkgs)</span>
-              <span className="font-medium text-text-primary">Now (16:45)</span>
+              <span className="font-medium text-primary">Now (16:45)</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Bottom Carrier Allocation Matrix (High Density Multi-Metric Bento Strip) */}
-      <div className="rounded-xl bg-surface-container-lowest shadow-sm p-space-md space-y-space-md border border-border-subtle">
+      <div className="rounded-xl bg-surface-container-lowest shadow-sm p-space-md space-y-space-md border border-subtle">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="font-headline-sm text-headline-sm text-text-primary font-semibold">
+            <h3 className="text-subheading text-primary font-semibold">
               Carrier Performance Benchmarks &amp; Volume Allocation Matrix
             </h3>
-            <p className="font-body-sm text-body-sm text-text-secondary">
+            <p className="text-body text-secondary">
               Dynamic route-weighting algorithm allocates parcels based on delivery SLA adherence, RTO rates, and contract pricing.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary">
-              Auto-Routing: <strong className="text-status-success">ACTIVE (AI V4.2)</strong>
+            <span className="text-caption text-muted">
+              Auto-Routing: <strong className="text-success">ACTIVE (AI V4.2)</strong>
             </span>
             <button
               onClick={() => onShowToast && onShowToast('Route-weighting rules editor opened.')}
-              className="px-2.5 py-1 rounded-lg bg-surface-subtle text-text-primary text-xs hover:bg-surface-container-high transition-colors cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-surface-subtle text-primary text-meta hover:bg-surface-container-high transition-colors cursor-pointer"
               type="button"
             >
               Configure Rules
@@ -848,30 +866,30 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
         {/* 4 Carrier Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-space-sm">
           {/* Carrier 1: BlueDart */}
-          <div className="p-space-sm rounded-xl bg-surface-canvas shadow-sm space-y-space-sm group hover:bg-surface-subtle transition-colors border border-border-subtle">
+          <div className="p-space-sm rounded-xl bg-surface-canvas shadow-sm space-y-space-sm group hover:bg-surface-subtle transition-colors border border-subtle">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-status-info"></span>
-                <span className="font-label-sm text-label-sm font-bold text-text-primary">BlueDart Express Air</span>
+                <span className="text-label font-semibold text-primary">BlueDart Express Air</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-status-info font-label-xs-caps text-[10px] font-bold">
+              <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-info text-micro font-semibold">
                 42% ALLOCATED
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-text-primary pt-1">
+            <div className="grid grid-cols-2 gap-2 text-primary pt-1">
               <div>
-                <span className="text-[11px] text-text-secondary block">On-Time SLA</span>
-                <span className="font-label-sm text-label-sm font-semibold text-status-success">99.4%</span>
+                <span className="text-micro text-muted block">On-Time SLA</span>
+                <span className="text-label font-semibold text-success">99.4%</span>
               </div>
               <div>
-                <span className="text-[11px] text-text-secondary block">Avg Freight</span>
-                <span className="font-label-sm text-label-sm font-semibold text-text-primary">₹84 / kg</span>
+                <span className="text-micro text-muted block">Avg Freight</span>
+                <span className="text-label font-semibold text-primary">₹84 / kg</span>
               </div>
             </div>
             <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-text-secondary">
+              <div className="flex justify-between text-micro text-muted">
                 <span>Daily Volume Target</span>
-                <span className="font-medium text-text-primary">5,208 / 6,000</span>
+                <span className="font-medium text-primary">5,208 / 6,000</span>
               </div>
               <div className="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
                 <div className="bg-status-info h-full rounded-full" style={{ width: '86%' }}></div>
@@ -880,30 +898,30 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
           </div>
 
           {/* Carrier 2: Delhivery Direct */}
-          <div className="p-space-sm rounded-xl bg-surface-canvas shadow-sm space-y-space-sm group hover:bg-surface-subtle transition-colors border border-border-subtle">
+          <div className="p-space-sm rounded-xl bg-surface-canvas shadow-sm space-y-space-sm group hover:bg-surface-subtle transition-colors border border-subtle">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-primary-container"></span>
-                <span className="font-label-sm text-label-sm font-bold text-text-primary">Delhivery Surface</span>
+                <span className="text-label font-semibold text-primary">Delhivery Surface</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed font-label-xs-caps text-[10px] font-bold">
+              <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
                 34% ALLOCATED
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-text-primary pt-1">
+            <div className="grid grid-cols-2 gap-2 text-primary pt-1">
               <div>
-                <span className="text-[11px] text-text-secondary block">On-Time SLA</span>
-                <span className="font-label-sm text-label-sm font-semibold text-text-primary">98.6%</span>
+                <span className="text-micro text-muted block">On-Time SLA</span>
+                <span className="text-label font-semibold text-primary">98.6%</span>
               </div>
               <div>
-                <span className="text-[11px] text-text-secondary block">Avg Freight</span>
-                <span className="font-label-sm text-label-sm font-semibold text-text-primary">₹62 / kg</span>
+                <span className="text-micro text-muted block">Avg Freight</span>
+                <span className="text-label font-semibold text-primary">₹62 / kg</span>
               </div>
             </div>
             <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-text-secondary">
+              <div className="flex justify-between text-micro text-muted">
                 <span>Daily Volume Target</span>
-                <span className="font-medium text-text-primary">4,216 / 4,500</span>
+                <span className="font-medium text-primary">4,216 / 4,500</span>
               </div>
               <div className="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
                 <div className="bg-primary-container h-full rounded-full" style={{ width: '93%' }}></div>
@@ -912,30 +930,30 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
           </div>
 
           {/* Carrier 3: Shadowfax Local */}
-          <div className="p-space-sm rounded-xl bg-surface-canvas shadow-sm space-y-space-sm group hover:bg-surface-subtle transition-colors border border-border-subtle">
+          <div className="p-space-sm rounded-xl bg-surface-canvas shadow-sm space-y-space-sm group hover:bg-surface-subtle transition-colors border border-subtle">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-fashion-magenta"></span>
-                <span className="font-label-sm text-label-sm font-bold text-text-primary">Shadowfax Hyperlocal</span>
+                <span className="text-label font-semibold text-primary">Shadowfax Hyperlocal</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-fashion-magenta/10 text-fashion-magenta font-label-xs-caps text-[10px] font-bold">
+              <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
                 14% ALLOCATED
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-text-primary pt-1">
+            <div className="grid grid-cols-2 gap-2 text-primary pt-1">
               <div>
-                <span className="text-[11px] text-text-secondary block">On-Time SLA</span>
-                <span className="font-label-sm text-label-sm font-semibold text-status-success">99.1%</span>
+                <span className="text-micro text-muted block">On-Time SLA</span>
+                <span className="text-label font-semibold text-success">99.1%</span>
               </div>
               <div>
-                <span className="text-[11px] text-text-secondary block">Avg Freight</span>
-                <span className="font-label-sm text-label-sm font-semibold text-text-primary">₹48 / drop</span>
+                <span className="text-micro text-muted block">Avg Freight</span>
+                <span className="text-label font-semibold text-primary">₹48 / drop</span>
               </div>
             </div>
             <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-text-secondary">
+              <div className="flex justify-between text-micro text-muted">
                 <span>Hyperlocal 2h Route</span>
-                <span className="font-medium text-text-primary">1,736 / 2,000</span>
+                <span className="font-medium text-primary">1,736 / 2,000</span>
               </div>
               <div className="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
                 <div className="bg-fashion-magenta h-full rounded-full" style={{ width: '86%' }}></div>
@@ -944,30 +962,30 @@ export function ShipmentsAndDispatch({ onNavigate, onShowToast }) {
           </div>
 
           {/* Carrier 4: XpressBees */}
-          <div className="p-space-sm rounded-xl bg-surface-canvas shadow-sm space-y-space-sm group hover:bg-surface-subtle transition-colors border border-border-subtle">
+          <div className="p-space-sm rounded-xl bg-surface-canvas shadow-sm space-y-space-sm group hover:bg-surface-subtle transition-colors border border-subtle">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-status-warning"></span>
-                <span className="font-label-sm text-label-sm font-bold text-text-primary">XpressBees Surface</span>
+                <span className="text-label font-semibold text-primary">XpressBees Surface</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-status-warning-bg text-status-warning font-label-xs-caps text-[10px] font-bold">
+              <span className="px-2 py-0.5 rounded-full bg-status-warning-bg text-warning text-micro font-semibold">
                 10% ALLOCATED
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-text-primary pt-1">
+            <div className="grid grid-cols-2 gap-2 text-primary pt-1">
               <div>
-                <span className="text-[11px] text-text-secondary block">On-Time SLA</span>
-                <span className="font-label-sm text-label-sm font-semibold text-status-warning">97.8%</span>
+                <span className="text-micro text-muted block">On-Time SLA</span>
+                <span className="text-label font-semibold text-warning">97.8%</span>
               </div>
               <div>
-                <span className="text-[11px] text-text-secondary block">Avg Freight</span>
-                <span className="font-label-sm text-label-sm font-semibold text-text-primary">₹58 / kg</span>
+                <span className="text-micro text-muted block">Avg Freight</span>
+                <span className="text-label font-semibold text-primary">₹58 / kg</span>
               </div>
             </div>
             <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-text-secondary">
+              <div className="flex justify-between text-micro text-muted">
                 <span>Daily Volume Target</span>
-                <span className="font-medium text-text-primary">1,240 / 1,500</span>
+                <span className="font-medium text-primary">1,240 / 1,500</span>
               </div>
               <div className="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
                 <div className="bg-status-warning h-full rounded-full" style={{ width: '82%' }}></div>

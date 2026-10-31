@@ -38,19 +38,19 @@ export function NotificationsModal({ isOpen, onClose, onAction }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end p-4 pt-16 bg-black/30 backdrop-blur-xs animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-end p-4 pt-16 bg-scrim/30 backdrop-blur-xs animate-fade-in" onClick={onClose}>
       <div 
-        className="w-full max-w-sm bg-surface-container-lowest rounded-2xl shadow-2xl border border-border-subtle overflow-hidden flex flex-col"
+        className="w-full max-w-sm bg-surface-container-lowest rounded-2xl shadow-2xl border border-subtle overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-4 border-b border-border-subtle flex items-center justify-between">
+        <div className="p-4 border-b border-subtle flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Icon name="notifications_active" className="material-symbols-outlined text-primary text-[20px]" />
-            <span className="font-headline-sm text-sm font-bold text-text-primary">Ops Notifications</span>
-            <Badge variant="destructive" className="text-[10px] py-0 px-1.5 font-bold">3</Badge>
+            <Icon name="notifications_active" className="material-symbols-outlined text-accent text-icon-lg" />
+            <span className="text-body font-semibold text-primary">Ops Notifications</span>
+            <Badge variant="destructive" className="text-micro py-0 px-1.5 font-semibold">3</Badge>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7 text-secondary hover:text-text-primary">
-            <Icon name="close" className="material-symbols-outlined text-[18px]" />
+          <Button variant="ghost" size="iconSm" onClick={onClose} title="Close" aria-label="Close notifications">
+            <Icon name="close" className="material-symbols-outlined text-icon-md" />
           </Button>
         </div>
 
@@ -60,20 +60,20 @@ export function NotificationsModal({ isOpen, onClose, onAction }) {
               <div className="flex items-start justify-between gap-2">
                 <Badge 
                   variant={n.type === 'danger' ? 'destructive' : n.type === 'warning' ? 'warning' : 'info'}
-                  className="text-[10px] font-bold tracking-wider uppercase py-0"
+                  className="text-caption tracking-wider uppercase py-0"
                 >
                   {n.badge}
                 </Badge>
-                <span className="text-[11px] text-text-secondary">{n.time}</span>
+                <span className="text-micro text-muted">{n.time}</span>
               </div>
-              <h4 className="font-semibold text-xs text-text-primary flex items-center gap-1.5">
-                <Icon name={n.icon} className={`material-symbols-outlined text-[16px] ${
-                  n.type === 'danger' ? 'text-status-danger' :
-                  n.type === 'warning' ? 'text-status-warning' : 'text-status-info'
-                }`} />
+              <h4 className="font-semibold text-meta text-primary flex items-center gap-1.5">
+                <Icon name={n.icon} className={`material-symbols-outlined text-icon ${
+ n.type === 'danger' ? 'text-danger' :
+ n.type === 'warning' ? 'text-warning' : 'text-info'
+ }`} />
                 {n.title}
               </h4>
-              <p className="text-xs text-text-secondary leading-relaxed">{n.desc}</p>
+              <p className="text-meta text-muted leading-relaxed">{n.desc}</p>
               <Button
                 variant="link"
                 size="sm"
@@ -81,15 +81,15 @@ export function NotificationsModal({ isOpen, onClose, onAction }) {
                   onAction(n.action);
                   onClose();
                 }}
-                className="p-0 h-auto justify-start text-xs font-semibold text-primary"
+                className="p-0 h-auto justify-start text-meta font-semibold text-accent"
               >
-                {n.action} <Icon name="arrow_forward" className="material-symbols-outlined text-[14px] ml-1" />
+                {n.action} <Icon name="arrow_forward" className="material-symbols-outlined text-icon-sm ml-1" />
               </Button>
             </div>
           ))}
         </div>
 
-        <div className="p-3 bg-surface-subtle border-t border-border-subtle text-center">
+        <div className="p-3 bg-surface-subtle border-t border-subtle text-center">
           <Button 
             variant="ghost"
             size="sm"
@@ -97,7 +97,7 @@ export function NotificationsModal({ isOpen, onClose, onAction }) {
               onAction('mark-all-read');
               onClose();
             }}
-            className="text-xs font-semibold text-text-secondary hover:text-text-primary h-auto py-1"
+            className="text-meta font-semibold text-muted hover:text-primary h-auto py-1"
           >
             Mark all 3 alerts as acknowledged
           </Button>

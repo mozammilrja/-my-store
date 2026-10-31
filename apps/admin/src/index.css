@@ -32,332 +32,330 @@
 }
 
 /* ========================================================
-   Design Tokens - CSS Custom Properties (Light / Dark)
+   Design tokens
+
+   One semantic scale, two themes. Every token is a bare
+   "R G B" triplet so Tailwind can apply an alpha modifier
+   to it; nothing below this block hardcodes a colour.
+
+   Surfaces step gently (1.07:1 between neighbours) and lean
+   on borders and elevation for separation rather than tint.
+   Text, accent and status pairs are all >= 4.5:1 on the
+   surfaces they are used on, in both themes.
    ======================================================== */
 :root {
   color-scheme: light;
 
-  /* Surfaces */
-  --surface-canvas: 250 250 250;
+  /* Surfaces: canvas sits under cards, cards sit above it */
+  --surface-canvas: 246 247 250;
   --surface-container-lowest: 255 255 255;
-  --surface-container-low: 244 242 253;
-  --surface-container: 238 237 247;
-  --surface-container-high: 232 231 241;
-  --surface-container-highest: 227 225 236;
-  --surface-subtle: 244 244 245;
-  --surface: 251 248 255;
-  --surface-bright: 251 248 255;
-  --surface-dim: 218 217 227;
-  --surface-variant: 227 225 236;
-  --background: 251 248 255;
+  --surface-container-low: 250 251 253;
+  --surface-container: 240 242 246;
+  --surface-container-high: 232 235 241;
+  --surface-container-highest: 223 227 235;
+  --surface-subtle: 244 246 249;
+  --surface: 255 255 255;
+  --surface-bright: 255 255 255;
+  --surface-dim: 232 235 241;
+  --surface-variant: 240 242 246;
+  --background: 246 247 250;
+  --overlay: 255 255 255;
+  --scrim: 15 23 42;
 
-  /* Borders & Dividers */
-  --border-subtle: 228 228 231;
-  --border-strong: 212 212 216;
+  /* Borders. --border-subtle divides; --border-strong draws the boundary of
+     an interactive control and clears WCAG 2.2 AA 1.4.11 (>= 3:1) on every
+     surface it is used on. */
+  --border-subtle: 226 230 237;
+  --border-strong: 128 139 160;
+  --border-emphasis: 165 174 190;
 
-  /* Text & Typography */
-  --text-primary: 9 9 11;
-  --text-secondary: 113 113 122;
-  --on-surface: 26 27 34;
-  --on-surface-variant: 74 68 85;
-  --on-background: 26 27 34;
-  --secondary: 95 94 96;
+  /* Text: five steps, each a defined role. Everything but --text-disabled
+     clears 4.5:1 on canvas, card, subtle and raised. */
+  --text-primary: 15 23 42;
+  --text-secondary: 51 65 85;
+  --text-muted: 83 94 114;
+  --text-faint: 98 110 132;
+  --text-disabled: 148 158 176;
+  --text-accent: 79 70 229;
+  --text-accent-hover: 67 56 202;
+  --text-success: 4 120 87;
+  --text-warning: 170 78 8;
+  --text-danger: 190 18 60;
+  --text-info: 29 78 216;
+  --text-on-accent: 255 255 255;
+  --text-inverse: 241 243 247;
 
-  /* Secondary Surfaces & Outlines */
-  --secondary-fixed: 229 225 228;
-  --secondary-fixed-dim: 200 198 200;
-  --secondary-container: 229 225 228;
+  /* Legacy aliases kept so installed primitives keep resolving */
+  --on-surface: 15 23 42;
+  --on-surface-variant: 83 94 114;
+  --on-background: 15 23 42;
+  --secondary: 83 94 114;
+
+  /* Neutral containers and outlines */
+  --secondary-fixed: 236 238 243;
+  --secondary-fixed-dim: 205 211 222;
+  --secondary-container: 240 242 246;
   --on-secondary: 255 255 255;
-  --on-secondary-container: 101 100 102;
-  --on-secondary-fixed: 28 27 29;
-  --on-secondary-fixed-variant: 71 70 73;
+  --on-secondary-container: 51 61 79;
+  --on-secondary-fixed: 15 23 42;
+  --on-secondary-fixed-variant: 83 94 114;
+  --outline: 140 150 168;
+  --outline-variant: 214 219 228;
 
-  --outline: 123 116 134;
-  --outline-variant: 204 195 215;
+  /* Brand accent.
+     --primary is the accent for text, icons, borders and the focus ring.
+     --primary-container is the solid fill that carries --on-primary. */
+  --primary: 79 70 229;
+  --primary-hover: 67 56 202;
+  --primary-container: 79 70 229;
+  --primary-container-hover: 67 56 202;
+  --on-primary: 255 255 255;
+  --primary-fixed: 224 231 255;
+  --primary-fixed-dim: 199 210 254;
+  --on-primary-fixed: 49 46 129;
+  --on-primary-fixed-variant: 55 48 163;
+  --on-primary-container: 224 231 255;
+  --inverse-primary: 165 180 252;
+  --inverse-surface: 24 28 38;
+  --inverse-on-surface: 241 243 247;
+  --ring: 79 70 229;
 
-  /* Status Pill Backgrounds */
+  /* Status: a readable foreground plus the tint it sits on */
+  --status-success: 4 120 87;
   --status-success-bg: 236 253 245;
+  --status-warning: 170 78 8;
   --status-warning-bg: 255 251 235;
+  --status-danger: 190 18 60;
   --status-danger-bg: 255 241 242;
+  --status-info: 29 78 216;
   --status-info-bg: 239 246 255;
 
-  /* Primary Branding & Accents */
-  --primary: 83 0 183;
-  --primary-container: 109 40 217;
-  --primary-fixed: 235 221 255;
-  --primary-fixed-dim: 211 187 255;
-  --on-primary: 255 255 255;
-  --on-primary-container: 218 197 255;
-  --on-primary-fixed: 37 0 89;
-  --on-primary-fixed-variant: 91 0 197;
-  --inverse-primary: 211 187 255;
-  --inverse-surface: 47 48 56;
-  --inverse-on-surface: 241 239 250;
+  /* Solid status fills always carry white text, in either theme */
+  --status-success-solid: 4 120 87;
+  --status-warning-solid: 180 83 9;
+  --status-danger-solid: 190 18 60;
+  --status-info-solid: 29 78 216;
+  --on-status: 255 255 255;
+
+  /* Data visualisation */
+  --chart-1: 79 70 229;
+  --chart-2: 13 148 136;
+  --chart-3: 217 119 6;
+  --chart-4: 219 39 119;
+  --chart-5: 2 132 199;
+  --chart-grid: 226 230 237;
+  --chart-baseline: 205 211 222;
+
+  /* Elevation: one hue, two intensities, so cards read as one family */
+  --shadow-color: 15 23 42;
+  --shadow-weak: 0.04;
+  --shadow-mid: 0.07;
+  --shadow-strong: 0.1;
 }
 
 .dark {
   color-scheme: dark;
 
-  /* Surfaces - Layered Enterprise Dark Palette */
-  --surface-canvas: 13 14 18;
-  --surface-container-lowest: 19 21 27;
-  --surface-container-low: 24 26 34;
-  --surface-container: 30 32 42;
-  --surface-container-high: 37 40 54;
-  --surface-container-highest: 45 49 66;
-  --surface-subtle: 26 28 38;
-  --surface: 19 21 27;
-  --surface-bright: 37 40 54;
-  --surface-dim: 15 16 21;
-  --surface-variant: 30 32 42;
-  --background: 13 14 18;
+  --surface-canvas: 9 11 16;
+  --surface-container-lowest: 17 20 27;
+  --surface-container-low: 21 25 33;
+  --surface-container: 28 33 43;
+  --surface-container-high: 37 43 56;
+  --surface-container-highest: 48 55 70;
+  --surface-subtle: 23 27 36;
+  --surface: 17 20 27;
+  --surface-bright: 37 43 56;
+  --surface-dim: 13 16 22;
+  --surface-variant: 28 33 43;
+  --background: 9 11 16;
+  --overlay: 21 25 33;
+  --scrim: 0 0 0;
 
-  /* Borders & Dividers */
-  --border-subtle: 38 41 56;
-  --border-strong: 54 58 78;
+  --border-subtle: 34 40 52;
+  --border-strong: 104 116 138;
+  --border-emphasis: 72 81 99;
 
-  /* Text & Typography */
-  --text-primary: 243 244 246;
-  --text-secondary: 156 163 175;
-  --on-surface: 243 244 246;
-  --on-surface-variant: 156 163 175;
-  --on-background: 243 244 246;
-  --secondary: 156 163 175;
+  --text-primary: 237 240 245;
+  --text-secondary: 203 211 224;
+  --text-muted: 152 162 179;
+  --text-faint: 134 146 166;
+  --text-disabled: 92 102 121;
+  --text-accent: 129 140 248;
+  --text-accent-hover: 165 180 252;
+  --text-success: 52 211 153;
+  --text-warning: 251 191 36;
+  --text-danger: 251 113 133;
+  --text-info: 96 165 250;
+  --text-on-accent: 255 255 255;
+  --text-inverse: 17 20 27;
 
-  /* Secondary Surfaces & Outlines */
-  --secondary-fixed: 37 40 54;
-  --secondary-fixed-dim: 30 32 42;
-  --secondary-container: 30 32 42;
-  --on-secondary: 243 244 246;
-  --on-secondary-container: 209 213 219;
-  --on-secondary-fixed: 243 244 246;
-  --on-secondary-fixed-variant: 156 163 175;
+  --on-surface: 237 240 245;
+  --on-surface-variant: 152 162 179;
+  --on-background: 237 240 245;
+  --secondary: 152 162 179;
 
-  --outline: 74 78 99;
-  --outline-variant: 45 49 66;
+  --secondary-fixed: 37 43 56;
+  --secondary-fixed-dim: 55 63 79;
+  --secondary-container: 28 33 43;
+  --on-secondary: 237 240 245;
+  --on-secondary-container: 202 210 223;
+  --on-secondary-fixed: 237 240 245;
+  --on-secondary-fixed-variant: 152 162 179;
+  --outline: 107 117 134;
+  --outline-variant: 48 55 70;
 
-  /* Status Pill Backgrounds - High Contrast Dark Accents */
-  --status-success-bg: 16 48 38;
-  --status-warning-bg: 50 32 12;
-  --status-danger-bg: 52 18 26;
-  --status-info-bg: 18 36 64;
-
-  /* Primary Branding & Accents */
-  --primary: 139 92 246;
-  --primary-container: 109 40 217;
-  --primary-fixed: 54 30 92;
-  --primary-fixed-dim: 76 40 128;
+  --primary: 129 140 248;
+  --primary-hover: 165 180 252;
+  --primary-container: 79 70 229;
+  --primary-container-hover: 91 84 236;
   --on-primary: 255 255 255;
-  --on-primary-container: 237 233 254;
-  --on-primary-fixed: 221 214 254;
-  --on-primary-fixed-variant: 196 181 253;
-  --inverse-primary: 109 40 217;
-  --inverse-surface: 243 244 246;
-  --inverse-on-surface: 19 21 27;
+  --primary-fixed: 45 46 95;
+  --primary-fixed-dim: 60 62 122;
+  --on-primary-fixed: 199 210 254;
+  --on-primary-fixed-variant: 165 180 252;
+  --on-primary-container: 224 231 255;
+  --inverse-primary: 79 70 229;
+  --inverse-surface: 237 240 245;
+  --inverse-on-surface: 17 20 27;
+  --ring: 129 140 248;
+
+  --status-success: 52 211 153;
+  --status-success-bg: 6 42 33;
+  --status-warning: 251 191 36;
+  --status-warning-bg: 48 29 6;
+  --status-danger: 251 113 133;
+  --status-danger-bg: 48 13 23;
+  --status-info: 96 165 250;
+  --status-info-bg: 12 29 56;
+
+  --status-success-solid: 4 120 87;
+  --status-warning-solid: 180 83 9;
+  --status-danger-solid: 190 18 60;
+  --status-info-solid: 29 78 216;
+  --on-status: 255 255 255;
+
+  --chart-1: 129 140 248;
+  --chart-2: 45 212 191;
+  --chart-3: 251 191 36;
+  --chart-4: 244 114 182;
+  --chart-5: 56 189 248;
+  --chart-grid: 34 40 52;
+  --chart-baseline: 55 63 79;
+
+  --shadow-color: 0 0 0;
+  --shadow-weak: 0.3;
+  --shadow-mid: 0.45;
+  --shadow-strong: 0.6;
 }
 
 @layer base {
   * {
     @apply border-border-subtle;
   }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     @apply bg-surface-canvas text-text-primary;
     font-feature-settings: "rlig" 1, "calt" 1;
-    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  /* One visible focus treatment for everything that takes focus */
+  :focus-visible {
+    outline: 2px solid rgb(var(--ring));
+    outline-offset: 2px;
+    border-radius: 0.375rem;
+  }
+
+  /* Native controls follow the theme instead of the OS default */
+  input,
+  textarea,
+  select {
+    color-scheme: inherit;
+  }
+
+  ::placeholder {
+    color: rgb(var(--text-faint));
+    opacity: 1;
+  }
+
+  ::selection {
+    background-color: rgb(var(--primary-fixed));
+    color: rgb(var(--on-primary-fixed));
+  }
+
+  kbd {
+    background-color: rgb(var(--surface-subtle));
+    color: rgb(var(--text-muted));
+    border-color: rgb(var(--border-subtle));
+  }
+
+  /* The UA sheet puts <th>, <strong> and <b> at 700. The scale tops out at
+     600, so inline emphasis joins it instead of introducing a fourth weight. */
+  th {
+    font-weight: inherit;
+  }
+
+  strong,
+  b {
+    font-weight: 600;
+  }
+
+  /* Numbers that sit in columns line up by default. */
+  table {
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/* ========================================================
-   Direct Utility Overrides for Dev Server & PostCSS Hot Sync
-   Ensures 100% Consistent Dark Mode In Every Environment
-   ======================================================== */
+@layer components {
+  /* Scrollbars track the theme in both modes, not just dark */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--border-strong)) transparent;
+  }
 
-/* Dark Mode Surfaces & Canvas */
-.dark body,
-.dark .bg-surface-canvas {
-  background-color: rgb(var(--surface-canvas)) !important;
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--border-strong));
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--outline));
+    background-clip: content-box;
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
-.dark .bg-surface-container-lowest {
-  background-color: rgb(var(--surface-container-lowest)) !important;
-}
-
-/* Opacity variants used in Header, Modals, Overlays */
-.dark .bg-surface-container-lowest\/90 {
-  background-color: rgba(19, 21, 27, 0.9) !important;
-}
-
-.dark .bg-surface-container-lowest\/80 {
-  background-color: rgba(19, 21, 27, 0.8) !important;
-}
-
-.dark .bg-surface-container-low {
-  background-color: rgb(var(--surface-container-low)) !important;
-}
-
-.dark .bg-surface-container {
-  background-color: rgb(var(--surface-container)) !important;
-}
-
-.dark .bg-surface-container-high {
-  background-color: rgb(var(--surface-container-high)) !important;
-}
-
-.dark .bg-surface-container-highest {
-  background-color: rgb(var(--surface-container-highest)) !important;
-}
-
-.dark .bg-surface-subtle {
-  background-color: rgb(var(--surface-subtle)) !important;
-}
-
-/* Dark Mode Borders & Dividing Lines */
-.dark .border-border-subtle {
-  border-color: rgb(var(--border-subtle)) !important;
-}
-
-.dark .border-border-subtle\/50 {
-  border-color: rgba(38, 41, 56, 0.5) !important;
-}
-
-.dark .divide-border-subtle > :not([hidden]) ~ :not([hidden]) {
-  border-color: rgb(var(--border-subtle)) !important;
-}
-
-.dark .divide-border-subtle\/50 > :not([hidden]) ~ :not([hidden]) {
-  border-color: rgba(38, 41, 56, 0.5) !important;
-}
-
-.dark .border-border-strong {
-  border-color: rgb(var(--border-strong)) !important;
-}
-
-/* Dark Mode Text & Typography */
-.dark .text-text-primary,
-.dark .text-on-surface {
-  color: rgb(var(--text-primary)) !important;
-}
-
-.dark .text-text-secondary,
-.dark .text-secondary,
-.dark .text-on-surface-variant {
-  color: rgb(var(--text-secondary)) !important;
-}
-
-/* Dark Mode Interactive States & Hover */
-.dark .hover\:bg-surface-subtle:hover {
-  background-color: rgb(var(--surface-subtle)) !important;
-}
-
-.dark .hover\:bg-surface-container:hover {
-  background-color: rgb(var(--surface-container)) !important;
-}
-
-.dark .hover\:bg-surface-container-high:hover {
-  background-color: rgb(var(--surface-container-high)) !important;
-}
-
-.dark .hover\:bg-surface-container-low:hover {
-  background-color: rgb(var(--surface-container-low)) !important;
-}
-
-/* Form Controls & Inputs */
-.dark input,
-.dark textarea,
-.dark select {
-  background-color: rgb(var(--surface-container-lowest));
-  color: rgb(var(--text-primary));
-  border-color: rgb(var(--border-subtle));
-  color-scheme: dark;
-}
-
-.dark input::placeholder,
-.dark textarea::placeholder {
-  color: rgb(var(--text-secondary));
-}
-
-.dark input:focus,
-.dark textarea:focus,
-.dark select:focus {
-  border-color: rgb(var(--primary-container));
-  outline-color: rgb(var(--primary-container));
-}
-
-/* Fallback for hardcoded light classes */
-.dark .bg-white {
-  background-color: rgb(var(--surface-container-lowest)) !important;
-}
-
-.dark .text-black,
-.dark .text-zinc-900,
-.dark .text-gray-900,
-.dark .text-slate-900 {
-  color: rgb(var(--text-primary)) !important;
-}
-
-.dark .text-zinc-500,
-.dark .text-zinc-600,
-.dark .text-gray-500,
-.dark .text-gray-600 {
-  color: rgb(var(--text-secondary)) !important;
-}
-
-.dark .border-zinc-200,
-.dark .border-gray-200 {
-  border-color: rgb(var(--border-subtle)) !important;
-}
-
-.dark .border-zinc-300,
-.dark .border-gray-300 {
-  border-color: rgb(var(--border-strong)) !important;
-}
-
-/* Dialogs, Drawers & Popovers */
-.dark [role="dialog"],
-.dark [role="listbox"],
-.dark [data-state="open"] {
-  background-color: rgb(var(--surface-container-lowest));
-  border-color: rgb(var(--border-subtle));
-}
-
-/* Shadows in Dark Mode */
-.dark .shadow-xs,
-.dark .shadow-sm,
-.dark .shadow-md,
-.dark .shadow-lg,
-.dark .shadow-xl,
-.dark .shadow-2xl {
-  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.65) !important;
-}
-
-/* Scrollbars in Dark Mode */
-.dark ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.dark ::-webkit-scrollbar-track {
-  background: rgb(var(--surface-canvas));
-}
-
-.dark ::-webkit-scrollbar-thumb {
-  background: rgb(var(--surface-container-high));
-  border-radius: 9999px;
-}
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--surface-container-highest));
-}
-
-/* Kbd Elements */
-.dark kbd {
-  background-color: rgb(var(--surface-subtle));
-  color: rgb(var(--text-secondary));
-  border-color: rgb(var(--border-subtle));
-}
-
-/* Dark Mode SVGs, Guidelines & Vector Rings */
-.dark svg line[stroke="#F4F4F5"],
-.dark svg circle[stroke="#F4F4F5"] {
-  stroke: rgb(var(--border-subtle)) !important;
+/* Honour the viewer's motion preference everywhere, including the
+   skeleton shimmer and every component entrance. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

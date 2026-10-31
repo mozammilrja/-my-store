@@ -1,54 +1,46 @@
 import React from "react";
 import { cn } from "../../lib/utils";
 
+const TabsContext = React.createContext({ value: undefined, onValueChange: undefined });
+
 export const Tabs = ({ className, value, onValueChange, children, ...props }) => {
+  const ctx = React.useMemo(() => ({ value, onValueChange }), [value, onValueChange]);
   return (
-    <div className={cn("w-full flex flex-col", className)} {...props}>
-      {React.Children.map(children, (child) => {
-        if (!React.isValidElement(child)) return child;
-        return React.cloneElement(child, { activeValue: value, onValueChange });
-      })}
-    </div>
+    <TabsContext.Provider value={ctx}>
+      <div className={cn("flex w-full flex-col", className)} {...props}>
+        {children}
+      </div>
+    </TabsContext.Provider>
   );
 };
 
-export const TabsList = ({ className, activeValue, onValueChange, children, ...props }) => {
-  return (
-    <div
-      className={cn(
-        "inline-flex items-center gap-1 overflow-x-auto border-b border-border-subtle bg-surface-subtle p-1",
-        className
-      )}
-      {...props}
-    >
-      {React.Children.map(children, (child) => {
-        if (!React.isValidElement(child)) return child;
-        return React.cloneElement(child, {
-          isActive: child.props.value === activeValue,
-          onSelect: () => onValueChange && onValueChange(child.props.value),
-        });
-      })}
-    </div>
-  );
-};
+export const TabsList = ({ className, children, ...props }) => (
+  <div
+    role="tablist"
+    className={cn(
+      "scrollbar-thin flex items-center gap-1 overflow-x-auto border-b border-subtle",
+      className
+    )}
+    {...props}
+  >
+    {children}
+  </div>
+);
 
-export const TabsTrigger = ({
-  className,
-  value,
-  isActive,
-  onSelect,
-  children,
-  ...props
-}) => {
+export const TabsTrigger = ({ className, value, children, ...props }) => {
+  const { value: active, onValueChange } = React.useContext(TabsContext);
+  const isActive = value === active;
   return (
     <button
       type="button"
-      onClick={onSelect}
+      role="tab"
+      aria-selected={isActive}
+      onClick={() => onValueChange?.(value)}
       className={cn(
-        "inline-flex items-center justify-center whitespace-nowrap rounded-t-lg px-4 py-2.5 text-sm font-medium transition-all focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+        "-mb-px inline-flex h-9 items-center justify-center whitespace-nowrap border-b-2 px-3 text-label-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
         isActive
-          ? "bg-surface-container-lowest font-semibold text-primary shadow-xs border-t-2 border-primary"
-          : "text-text-secondary hover:text-text-primary hover:bg-surface-container",
+          ? "border-primary font-semibold text-accent"
+          : "border-transparent text-muted hover:border-strong hover:text-primary",
         className
       )}
       {...props}
@@ -58,10 +50,11 @@ export const TabsTrigger = ({
   );
 };
 
-export const TabsContent = ({ className, value, activeValue, children, ...props }) => {
-  if (value !== activeValue) return null;
+export const TabsContent = ({ className, value, children, ...props }) => {
+  const { value: active } = React.useContext(TabsContext);
+  if (value !== active) return null;
   return (
-    <div className={cn("mt-2 ring-offset-background focus-visible:outline-none", className)} {...props}>
+    <div role="tabpanel" className={cn("mt-space-md focus-visible:outline-none", className)} {...props}>
       {children}
     </div>
   );

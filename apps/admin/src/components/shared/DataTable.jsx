@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { cn } from '../../lib/utils';
 import {
   Table,
@@ -13,28 +13,30 @@ import {
   Card,
   Select,
 } from '../ui';
+import { Skeleton } from './Skeleton';
 
 /**
  * TableEmptyState
- * Default clean empty state displayed when no rows match criteria.
+ * Shown inside the table body when a query returns nothing, so the header and
+ * toolbar stay put and the viewer keeps their filters.
  */
 export function TableEmptyState({
   icon = "search_off",
   title = "No results found",
-  message = "No records match your active search, filter or hub criteria.",
+  message = "No records match your search, filter or hub selection.",
   action,
   colSpan = 8,
 }) {
   return (
-    <TableRow>
-      <TableCell colSpan={colSpan} className="text-center py-16">
-        <div className="flex flex-col items-center justify-center max-w-sm mx-auto space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-surface-subtle border border-border-subtle flex items-center justify-center text-text-secondary">
-            <Icon name={icon} className="material-symbols-outlined text-[24px]" />
-          </div>
-          <div className="space-y-1">
-            <h4 className="font-semibold text-sm text-text-primary">{title}</h4>
-            <p className="text-xs text-text-secondary leading-relaxed">{message}</p>
+    <TableRow className="hover:bg-transparent">
+      <TableCell colSpan={colSpan} className="py-14 text-center">
+        <div className="mx-auto flex max-w-sm flex-col items-center justify-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-subtle bg-surface-subtle text-faint">
+            <Icon name={icon} className="material-symbols-outlined text-icon-lg" />
+          </span>
+          <div className="flex flex-col gap-1">
+            <h4 className="text-body font-semibold text-primary">{title}</h4>
+            <p className="text-meta leading-relaxed text-muted">{message}</p>
           </div>
           {action && <div className="pt-1">{action}</div>}
         </div>
@@ -44,22 +46,57 @@ export function TableEmptyState({
 }
 
 /**
- * TableLoadingState
- * Shimmer skeleton rows displayed while data is fetching.
+ * TableErrorState
+ * A failed fetch never leaves skeletons on screen: the body swaps to this,
+ * with the reason and a retry.
  */
-export function TableLoadingState({ colSpan = 8, rows = 5 }) {
+export function TableErrorState({
+  title = "Could not load these records",
+  message = "The Everwear API did not answer. Check the connection and try again.",
+  onRetry,
+  colSpan = 8,
+}) {
+  return (
+    <TableRow className="hover:bg-transparent">
+      <TableCell colSpan={colSpan} className="py-14 text-center">
+        <div className="mx-auto flex max-w-sm flex-col items-center justify-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-status-danger/25 bg-status-danger-bg text-danger">
+            <Icon name="error" className="material-symbols-outlined text-icon-lg" />
+          </span>
+          <div className="flex flex-col gap-1">
+            <h4 className="text-body font-semibold text-primary">{title}</h4>
+            <p className="text-meta leading-relaxed text-muted">{message}</p>
+          </div>
+          {onRetry && (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              <Icon name="refresh" className="material-symbols-outlined text-icon" />
+              <span>Retry</span>
+            </Button>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/**
+ * TableLoadingState
+ * Placeholder rows at the same height as real ones, with widths on a fixed
+ * cycle so nothing shifts when the data arrives.
+ */
+export function TableLoadingState({ colSpan = 8, rows = 5, selectable = false }) {
+  const cycle = ["70%", "45%", "60%", "35%", "55%", "40%", "65%"];
   return (
     <>
       {Array.from({ length: rows }).map((_, rIdx) => (
-        <TableRow key={`skeleton-${rIdx}`} className="animate-pulse border-b border-border-subtle/40">
+        <TableRow key={`skeleton-${rIdx}`} className="hover:bg-transparent">
           {Array.from({ length: colSpan }).map((_, cIdx) => (
             <TableCell key={`cell-${rIdx}-${cIdx}`} className="py-3">
-              <div
-                className="h-4 bg-surface-container-high rounded-md"
-                style={{
-                  width: cIdx === 0 ? "24px" : `${Math.floor(40 + ((rIdx + cIdx) % 5) * 12)}%`,
-                }}
-              />
+              {selectable && cIdx === 0 ? (
+                <Skeleton rounded="sm" className="h-4 w-4" />
+              ) : (
+                <Skeleton className="h-3.5" style={{ width: cycle[(rIdx + cIdx) % cycle.length] }} />
+              )}
             </TableCell>
           ))}
         </TableRow>
@@ -70,7 +107,7 @@ export function TableLoadingState({ colSpan = 8, rows = 5 }) {
 
 /**
  * TablePagination
- * Standard pagination controls with record range, page stepper and rows per page.
+ * Record range and rows-per-page on the left, the stepper on the right.
  */
 export function TablePagination({
   currentPage = 1,
@@ -82,38 +119,35 @@ export function TablePagination({
   className,
 }) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, totalItems);
+  const page = Math.min(Math.max(1, currentPage), totalPages);
+  const startItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min(page * pageSize, totalItems);
 
   return (
     <div
       className={cn(
-        "p-space-sm bg-surface-subtle border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between gap-space-sm text-xs text-text-secondary",
+        "flex flex-col items-center justify-between gap-space-sm border-t border-subtle bg-surface-subtle px-space-md py-space-sm text-meta text-muted sm:flex-row",
         className
       )}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <span>
-          Showing <span className="font-semibold text-text-primary">{startItem}</span>–
-          <span className="font-semibold text-text-primary">{endItem}</span> of{" "}
-          <span className="font-semibold text-text-primary">{totalItems}</span> records
+          Showing <span className="font-semibold tabular-nums text-primary">{startItem}</span>–
+          <span className="font-semibold tabular-nums text-primary">{endItem}</span> of{" "}
+          <span className="font-semibold tabular-nums text-primary">{totalItems}</span>
         </span>
 
         {onPageSizeChange && (
-          <div className="hidden md:flex items-center gap-1.5 ml-4 pl-4 border-l border-border-subtle">
-            <span className="text-[11px] text-text-secondary">Rows:</span>
-            <select
-              value={pageSize}
+          <label className="hidden items-center gap-1.5 md:flex">
+            <span className="text-micro">Rows</span>
+            <Select
+              className="h-8 w-[4.5rem] px-2 text-meta"
+              aria-label="Rows per page"
+              value={String(pageSize)}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="h-6 px-1.5 py-0 text-xs rounded bg-surface-canvas border border-border-subtle text-text-primary"
-            >
-              {pageSizeOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
+              options={pageSizeOptions.map((opt) => ({ value: String(opt), label: String(opt) }))}
+            />
+          </label>
         )}
       </div>
 
@@ -121,29 +155,25 @@ export function TablePagination({
         <Button
           variant="outline"
           size="sm"
-          className="h-7 px-2 text-xs"
-          disabled={currentPage <= 1}
-          onClick={() => onPageChange && onPageChange(currentPage - 1)}
-          type="button"
+          disabled={page <= 1}
+          onClick={() => onPageChange && onPageChange(page - 1)}
         >
-          <Icon name="chevron_left" className="material-symbols-outlined text-[16px] mr-1" />
-          Previous
+          <Icon name="chevron_left" className="material-symbols-outlined text-icon" />
+          <span className="hidden sm:inline">Previous</span>
         </Button>
 
-        <span className="font-mono text-text-primary px-2">
-          Page {currentPage} of {totalPages}
+        <span className="px-1 tabular-nums text-primary">
+          Page {page} of {totalPages}
         </span>
 
         <Button
           variant="outline"
           size="sm"
-          className="h-7 px-2 text-xs"
-          disabled={currentPage >= totalPages}
-          onClick={() => onPageChange && onPageChange(currentPage + 1)}
-          type="button"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange && onPageChange(page + 1)}
         >
-          Next
-          <Icon name="chevron_right" className="material-symbols-outlined text-[16px] ml-1" />
+          <span className="hidden sm:inline">Next</span>
+          <Icon name="chevron_right" className="material-symbols-outlined text-icon" />
         </Button>
       </div>
     </div>
@@ -152,31 +182,24 @@ export function TablePagination({
 
 /**
  * TableToolbar
- * Container for search, status pills, filter dropdowns and export buttons above tables.
+ * Search, status pills, filters and exports above a table. Wraps onto extra
+ * rows rather than letting a control slide out of reach.
  */
-export function TableToolbar({
-  left,
-  right,
-  children,
-  className,
-  ...props
-}) {
+export function TableToolbar({ left, right, children, className, ...props }) {
   return (
     <div
       className={cn(
-        "p-space-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-space-sm border-b border-border-subtle/50",
+        "flex flex-col items-stretch justify-between gap-space-sm border-b border-subtle p-space-sm lg:flex-row lg:items-center",
         className
       )}
       {...props}
     >
-      <div className="flex flex-wrap items-center gap-space-xs flex-1">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-space-xs">
         {left}
         {children}
       </div>
       {right && (
-        <div className="flex flex-wrap items-center gap-space-xs shrink-0">
-          {right}
-        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-space-xs">{right}</div>
       )}
     </div>
   );
@@ -184,49 +207,39 @@ export function TableToolbar({
 
 /**
  * TableActions
- * Bulk action floating or inline bar displayed when rows are selected.
+ * The bulk-action bar that appears once rows are selected.
  */
-export function TableActions({
-  selectedCount = 0,
-  onClearSelection,
-  children,
-  className,
-}) {
+export function TableActions({ selectedCount = 0, onClearSelection, children, className }) {
   if (selectedCount === 0) return null;
 
   return (
     <div
       className={cn(
-        "px-space-md py-2 bg-primary-fixed/30 border border-primary/30 rounded-xl flex items-center justify-between gap-space-md animate-fade-in",
+        "flex animate-fade-in flex-wrap items-center justify-between gap-space-md rounded-xl border border-primary/30 bg-primary-fixed/50 px-space-md py-2",
         className
       )}
     >
-      <div className="flex items-center gap-2 text-xs font-semibold text-primary">
-        <Icon name="check_box" className="material-symbols-outlined text-[18px]" />
-        <span>{selectedCount} item{selectedCount > 1 ? 's' : ''} selected</span>
+      <div className="flex items-center gap-2 text-meta font-semibold text-on-primary-fixed">
+        <Icon name="check_box" className="material-symbols-outlined text-icon-md" />
+        <span className="tabular-nums">
+          {selectedCount} item{selectedCount > 1 ? "s" : ""} selected
+        </span>
         {onClearSelection && (
-          <button
-            onClick={onClearSelection}
-            className="text-[11px] underline text-text-secondary hover:text-text-primary ml-2"
-            type="button"
-          >
+          <Button variant="link" className="ml-2 text-micro" onClick={onClearSelection}>
             Clear
-          </button>
+          </Button>
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        {children}
-      </div>
+      <div className="flex items-center gap-2">{children}</div>
     </div>
   );
 }
 
 /**
  * DataTable
- * Universal, high-performance data table component.
- * Supports column definitions, row actions, row selection, active selection drawer,
- * loading state, empty state, client & server pagination.
+ * Column definitions, optional selection, row click-through, and the four
+ * states every data region owes its viewer: loading, error, empty, loaded.
  */
 export function DataTable({
   columns = [],
@@ -239,14 +252,20 @@ export function DataTable({
   activeRowId,
   onRowClick,
   isLoading = false,
+  isError = false,
+  errorTitle,
+  errorMessage,
+  onRetry,
   loadingRows = 5,
   emptyTitle,
   emptyMessage,
   emptyIcon,
   emptyAction,
-  pagination, // boolean or object { page, pageSize, totalItems, onPageChange, onPageSizeChange }
+  pagination,
   clientPagination = false,
   toolbar,
+  caption,
+  stickyHeader = true,
   containerClassName,
   className,
   ...props
@@ -255,8 +274,6 @@ export function DataTable({
   const [internalPageSize, setInternalPageSize] = useState(25);
 
   const totalCols = columns.length + (selectable ? 1 : 0);
-
-  // Handle client-side pagination slicing
   const activePage = pagination?.page ?? internalPage;
   const activePageSize = pagination?.pageSize ?? internalPageSize;
 
@@ -266,122 +283,127 @@ export function DataTable({
     return data.slice(start, start + activePageSize);
   }, [data, clientPagination, activePage, activePageSize]);
 
-  const allSelected =
-    data.length > 0 && selectedIds.length === data.length;
-
-  const handleToggleSelectAll = (checked) => {
-    if (onSelectAll) {
-      onSelectAll(checked);
-    }
-  };
-
-  const handleRowCheckbox = (id, e) => {
-    e.stopPropagation();
-    if (onSelectRow) {
-      onSelectRow(id, !selectedIds.includes(id));
-    }
-  };
+  const allSelected = data.length > 0 && selectedIds.length === data.length;
+  const someSelected = selectedIds.length > 0 && !allSelected;
 
   return (
-    <Card className={cn("overflow-hidden shadow-xs border-border-subtle", containerClassName)}>
+    <Card className={cn("flex min-w-0 flex-col overflow-hidden", containerClassName)}>
       {toolbar}
 
-      <div className="overflow-x-auto w-full">
-        <Table className={className} {...props}>
-          <TableHeader className="bg-surface-subtle">
-            <TableRow className="border-b border-border-subtle">
-              {selectable && (
-                <TableHead className="w-10 text-center">
-                  <Checkbox
-                    checked={allSelected}
-                    onChange={(e) => handleToggleSelectAll(e.target.checked)}
-                  />
-                </TableHead>
-              )}
-              {columns.map((col, idx) => (
-                <TableHead
-                  key={col.key || idx}
+      <Table
+        className={className}
+        containerClassName={cn("max-h-[70vh]", stickyHeader && "overflow-y-auto")}
+        {...props}
+      >
+        {caption && <caption className="sr-only">{caption}</caption>}
+        <TableHeader sticky={stickyHeader}>
+          <TableRow className="hover:bg-transparent">
+            {selectable && (
+              <TableHead className="w-10 text-center">
+                <Checkbox
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someSelected;
+                  }}
+                  onChange={(e) => onSelectAll && onSelectAll(e.target.checked)}
+                  aria-label={allSelected ? "Clear selection" : "Select all rows"}
+                />
+              </TableHead>
+            )}
+            {columns.map((col, idx) => (
+              <TableHead
+                key={col.key || idx}
+                className={cn(
+                  col.align === "center" && "text-center",
+                  col.align === "right" && "text-right",
+                  col.headerClassName
+                )}
+                style={{ width: col.width }}
+              >
+                {col.header}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+
+        <TableBody>
+          {isError ? (
+            <TableErrorState
+              colSpan={totalCols}
+              title={errorTitle}
+              message={errorMessage}
+              onRetry={onRetry}
+            />
+          ) : isLoading ? (
+            <TableLoadingState colSpan={totalCols} rows={loadingRows} selectable={selectable} />
+          ) : displayData.length === 0 ? (
+            <TableEmptyState
+              colSpan={totalCols}
+              icon={emptyIcon}
+              title={emptyTitle}
+              message={emptyMessage}
+              action={emptyAction}
+            />
+          ) : (
+            displayData.map((row, rIdx) => {
+              const rowKey = row[keyField] ?? rIdx;
+              const isSelected = selectedIds.includes(rowKey);
+              const isActive = activeRowId === rowKey;
+              const isClickable = Boolean(onRowClick);
+
+              return (
+                <TableRow
+                  key={rowKey}
+                  onClick={() => onRowClick && onRowClick(row)}
+                  data-state={isSelected ? "selected" : undefined}
+                  aria-current={isActive ? "true" : undefined}
                   className={cn(
-                    "font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-text-secondary whitespace-nowrap",
-                    col.align === "center" && "text-center",
-                    col.align === "right" && "text-right",
-                    col.headerClassName
+                    isClickable && "cursor-pointer",
+                    isActive && "bg-primary-fixed/50 hover:bg-primary-fixed/60"
                   )}
-                  style={{ width: col.width }}
                 >
-                  {col.header}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
+                  {selectable && (
+                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          onSelectRow && onSelectRow(rowKey, !isSelected);
+                        }}
+                        aria-label={`Select row ${rIdx + 1}`}
+                      />
+                    </TableCell>
+                  )}
 
-          <TableBody>
-            {isLoading ? (
-              <TableLoadingState colSpan={totalCols} rows={loadingRows} />
-            ) : displayData.length === 0 ? (
-              <TableEmptyState
-                colSpan={totalCols}
-                icon={emptyIcon}
-                title={emptyTitle}
-                message={emptyMessage}
-                action={emptyAction}
-              />
-            ) : (
-              displayData.map((row, rIdx) => {
-                const rowKey = row[keyField] ?? rIdx;
-                const isSelected = selectedIds.includes(rowKey);
-                const isActive = activeRowId === rowKey;
-                const isClickable = Boolean(onRowClick);
-
-                return (
-                  <TableRow
-                    key={rowKey}
-                    onClick={() => onRowClick && onRowClick(row)}
-                    className={cn(
-                      "border-b border-border-subtle/50 transition-colors",
-                      isClickable && "cursor-pointer hover:bg-surface-subtle/70",
-                      isActive && "bg-primary-fixed/20 border-l-4 border-l-primary-container",
-                      isSelected && "bg-surface-container-high/40"
-                    )}
-                  >
-                    {selectable && (
-                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={isSelected}
-                          onChange={(e) => handleRowCheckbox(rowKey, e)}
-                        />
-                      </TableCell>
-                    )}
-
-                    {columns.map((col, cIdx) => {
-                      const cellValue = typeof col.accessor === "function"
+                  {columns.map((col, cIdx) => {
+                    const cellValue =
+                      typeof col.accessor === "function"
                         ? col.accessor(row)
                         : col.accessor
                         ? row[col.accessor]
                         : null;
 
-                      return (
-                        <TableCell
-                          key={col.key || cIdx}
-                          className={cn(
-                            col.align === "center" && "text-center",
-                            col.align === "right" && "text-right",
-                            col.className
-                          )}
-                        >
-                          {col.cell ? col.cell(row, rIdx) : cellValue}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                    return (
+                      <TableCell
+                        key={col.key || cIdx}
+                        className={cn(
+                          col.align === "center" && "text-center",
+                          col.align === "right" && "text-right tabular-nums",
+                          col.className
+                        )}
+                      >
+                        {col.cell ? col.cell(row, rIdx) : cellValue}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
 
-      {pagination && (
+      {pagination && !isError && (
         <TablePagination
           currentPage={pagination.page ?? internalPage}
           pageSize={pagination.pageSize ?? internalPageSize}

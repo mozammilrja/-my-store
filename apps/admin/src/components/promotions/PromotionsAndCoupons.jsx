@@ -9,6 +9,9 @@ import {
   ContentGrid,
   StatsCard,
   StatusBadge,
+  ErrorState,
+  SkeletonPage,
+  SearchInput,
 } from '../ui';
 import { campaigns } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
@@ -28,7 +31,13 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
   const [selectedRows, setSelectedRows] = useState({ 'FESTIVE20': true });
 
   // TanStack Query for promotions
-  const { data: promotionsData, isLoading: isPromotionsLoading } = usePromotionsQuery();
+  const {
+    data: promotionsData,
+    isLoading: isPromotionsLoading,
+    isError: isPromotionsError,
+    error: promotionsError,
+    refetch: refetchPromotions,
+  } = usePromotionsQuery();
   const createPromotionMutation = useCreatePromotionMutation();
   const togglePromotionMutation = useTogglePromotionMutation();
   const deletePromotionMutation = useDeletePromotionMutation();
@@ -136,11 +145,11 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       progressColor: 'bg-primary-container',
       gmvImpact: '₹4.2L',
       marginHealth: 'Safe (48%)',
-      marginHealthColor: 'bg-status-success-bg text-status-success',
+      marginHealthColor: 'bg-status-success-bg text-success',
       status: p.active ? 'Live' : 'Paused',
-      statusColor: p.active ? 'bg-status-success-bg text-status-success' : 'bg-surface-subtle text-text-secondary',
+      statusColor: p.active ? 'bg-status-success-bg text-success' : 'bg-surface-subtle text-muted',
       icon: 'local_offer',
-      iconColor: 'bg-primary-container text-white',
+      iconColor: 'bg-primary-container text-on-accent',
       isAuto: false,
       active: p.active,
     }));
@@ -167,14 +176,25 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     }));
   };
 
+  if (isPromotionsLoading) {
+    return <SkeletonPage variant="cards" stats={6} statsCols={6} label="Loading promotions" />;
+  }
+
   return (
     <PageContainer>
+      {promotionsError && (
+        <ErrorState
+          title="Promotions could not be loaded"
+          message={promotionsError?.message}
+          onRetry={() => refetchPromotions()}
+        />
+      )}
       <PageHeader
         breadcrumb="Everwear Admin / Settings & Admin / Promotions & Coupons"
         title="Promotions, Discount Engines & Coupon Campaign Orchestration"
         description="Manage cart-level discounts, VIP influencer codes, flash vouchers, margin-guarded threshold rules, and omnichannel promo attribution across all e-store nodes."
         actions={
-          <div className="flex items-center gap-space-sm shrink-0 flex-wrap">
+          <div className="flex min-w-0 flex-wrap items-center gap-space-sm lg:shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -248,46 +268,46 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       </ContentGrid>
 
       {/* Filters & Segmentation Toolbar */}
-      <div className="p-space-sm bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-space-sm">
+      <div className="p-space-sm bg-surface-container-lowest rounded-xl shadow-sm border border-subtle flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-space-sm">
         {/* Segment Tabs */}
         <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0">
           <button
             onClick={() => setActiveTab('all')}
-            className={`px-3 py-1.5 rounded-lg font-label-sm text-label-sm font-semibold whitespace-nowrap shadow-sm transition-all ${
-              activeTab === 'all'
-                ? 'bg-primary-container text-on-primary'
-                : 'text-text-secondary hover:bg-surface-subtle hover:text-text-primary'
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-label font-semibold whitespace-nowrap shadow-sm transition-all ${
+ activeTab === 'all'
+ ? 'bg-primary-container text-on-accent'
+ : 'text-muted hover:bg-surface-subtle hover:text-primary'
+ }`}
           >
             All Campaigns (24)
           </button>
           <button
             onClick={() => setActiveTab('live')}
-            className={`px-3 py-1.5 rounded-lg font-label-sm text-label-sm font-semibold whitespace-nowrap transition-all ${
-              activeTab === 'live'
-                ? 'bg-primary-container text-on-primary shadow-sm'
-                : 'text-text-secondary hover:bg-surface-subtle hover:text-text-primary'
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-label font-semibold whitespace-nowrap transition-all ${
+ activeTab === 'live'
+ ? 'bg-primary-container text-on-accent shadow-sm'
+ : 'text-muted hover:bg-surface-subtle hover:text-primary'
+ }`}
           >
             Live & Scheduled (18)
           </button>
           <button
             onClick={() => setActiveTab('vip')}
-            className={`px-3 py-1.5 rounded-lg font-label-sm text-label-sm font-semibold whitespace-nowrap transition-all ${
-              activeTab === 'vip'
-                ? 'bg-primary-container text-on-primary shadow-sm'
-                : 'text-text-secondary hover:bg-surface-subtle hover:text-text-primary'
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-label font-semibold whitespace-nowrap transition-all ${
+ activeTab === 'vip'
+ ? 'bg-primary-container text-on-accent shadow-sm'
+ : 'text-muted hover:bg-surface-subtle hover:text-primary'
+ }`}
           >
             Influencer & VIP (6)
           </button>
           <button
             onClick={() => setActiveTab('expired')}
-            className={`px-3 py-1.5 rounded-lg font-label-sm text-label-sm font-semibold whitespace-nowrap transition-all ${
-              activeTab === 'expired'
-                ? 'bg-primary-container text-on-primary shadow-sm'
-                : 'text-text-secondary hover:bg-surface-subtle hover:text-text-primary'
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-label font-semibold whitespace-nowrap transition-all ${
+ activeTab === 'expired'
+ ? 'bg-primary-container text-on-accent shadow-sm'
+ : 'text-muted hover:bg-surface-subtle hover:text-primary'
+ }`}
           >
             Expired / Paused (14)
           </button>
@@ -295,16 +315,14 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
 
         {/* Search & Facets */}
         <div className="flex items-center gap-space-xs flex-wrap sm:flex-nowrap">
-          <div className="relative w-full sm:w-64">
-            <Icon name="search" className="material-symbols-outlined absolute left-2.5 top-2 text-[18px] text-text-secondary pointer-events-none" />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-8 pl-8 pr-3 bg-surface-canvas border border-border-subtle rounded-lg font-body-sm text-body-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-1 focus:ring-primary-container shadow-sm"
-              placeholder="Filter code or trigger..."
-              type="text"
-            />
-          </div>
+          <SearchInput
+            value={searchQuery}
+            onChange={(value) => setSearchQuery(value)}
+            onClear={() => setSearchQuery('')}
+            placeholder="Filter code or trigger"
+            label="Filter campaigns"
+            className="w-full sm:w-64 sm:flex-initial"
+          />
           <Select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
@@ -326,11 +344,11 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
           </Select>
           <button
             onClick={() => onShowToast?.('Adjusted campaign ledger column views')}
-            className="h-8 w-8 rounded-lg bg-surface-subtle border border-border-subtle hover:bg-surface-container-high text-text-secondary hover:text-text-primary flex items-center justify-center transition-colors"
+            className="h-8 w-8 rounded-lg bg-surface-subtle border border-subtle hover:bg-surface-container-high text-muted hover:text-primary flex items-center justify-center transition-colors"
             title="Column Layout View"
             type="button"
           >
-            <Icon name="view_column" className="material-symbols-outlined text-[18px]" />
+            <Icon name="view_column" className="material-symbols-outlined text-icon-md" />
           </button>
         </div>
       </div>
@@ -339,21 +357,21 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-start">
         {/* Left Data Table Column (8 Cols ~ 66.6%) */}
         <div className="lg:col-span-8 flex flex-col space-y-space-md">
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle overflow-hidden flex flex-col">
+          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden flex flex-col">
             {/* Table Header Bar */}
-            <div className="px-space-md py-3 bg-surface-canvas border-b border-border-subtle flex items-center justify-between">
+            <div className="px-space-md py-3 bg-surface-canvas border-b border-subtle flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="font-headline-sm text-headline-sm text-text-primary font-semibold">Active Engine Rules</span>
-                <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-text-secondary font-label-xs-caps text-label-xs-caps border border-border-subtle font-semibold">
+                <span className="text-subheading text-primary font-semibold">Active Engine Rules</span>
+                <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
                   {filteredCampaigns.length} Rules
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => onShowToast?.('Bulk actions menu opened')}
-                  className="px-2 py-1 rounded bg-surface-subtle border border-border-subtle text-text-secondary hover:text-text-primary font-label-xs-caps text-label-xs-caps uppercase flex items-center gap-1 transition-colors"
+                  className="px-2 py-1 rounded bg-surface-subtle border border-subtle text-muted hover:text-primary text-caption uppercase flex items-center gap-1 transition-colors"
                 >
-                  <Icon name="tune" className="material-symbols-outlined text-[14px]" />
+                  <Icon name="tune" className="material-symbols-outlined text-icon-sm" />
                   <span>Bulk Actions</span>
                 </button>
               </div>
@@ -363,9 +381,9 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             <div className="overflow-x-auto scrollbar-thin">
               <table className="w-full text-left border-collapse min-w-[980px]">
                 <thead>
-                  <tr className="bg-surface-canvas font-label-xs-caps text-label-xs-caps text-text-secondary uppercase select-none border-b border-border-subtle sticky top-0 z-10 backdrop-blur-sm">
+                  <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
                     <th className="py-2.5 px-3 w-8 whitespace-nowrap">
-                      <input className="rounded bg-surface-canvas text-primary focus:ring-0 cursor-pointer" type="checkbox" />
+                      <input className="rounded bg-surface-canvas text-accent focus:ring-0 cursor-pointer" type="checkbox" />
                     </th>
                     <th className="py-2.5 px-3 whitespace-nowrap">Campaign &amp; Coupon Code</th>
                     <th className="py-2.5 px-3 whitespace-nowrap">Type</th>
@@ -377,7 +395,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                     <th className="py-2.5 px-2 text-center w-10 whitespace-nowrap"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border-subtle font-body-sm text-body-sm">
+                <tbody className="divide-y divide-border-subtle text-body">
                   {filteredCampaigns.map((camp) => {
                     const isSelected = selectedCode === camp.code;
                     return (
@@ -385,8 +403,8 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                         key={camp.code}
                         onClick={() => setSelectedCode(camp.code)}
                         className={`cursor-pointer transition-colors relative ${
-                          isSelected ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30' : 'bg-surface-container-lowest hover:bg-surface-canvas'
-                        }`}
+ isSelected ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30' : 'bg-surface-container-lowest hover:bg-surface-subtle'
+ }`}
                       >
                         <td className="py-3 px-3">
                           <input
@@ -395,27 +413,27 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                               e.stopPropagation();
                               toggleSelectRow(camp.code);
                             }}
-                            className="rounded bg-surface-canvas text-primary focus:ring-0 cursor-pointer"
+                            className="rounded bg-surface-canvas text-accent focus:ring-0 cursor-pointer"
                             type="checkbox"
                           />
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2">
                             <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${camp.iconColor}`}>
-                              <Icon name={camp.icon} className="material-symbols-outlined text-[16px]" />
+                              <Icon name={camp.icon} className="material-symbols-outlined text-icon" />
                             </div>
                             <div className="flex flex-col min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className="font-headline-sm text-body-md font-semibold text-text-primary tracking-tight">
+                                <span className="text-body-lg font-semibold text-primary tracking-tight">
                                   {camp.code}
                                 </span>
                                 {camp.isAuto && (
-                                  <span className="px-1.5 py-0.2 rounded bg-primary-fixed text-primary-container font-label-xs-caps text-[9px] font-semibold">
+                                  <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
                                     AUTO
                                   </span>
                                 )}
                                 <button
-                                  className="text-text-secondary hover:text-text-primary"
+                                  className="text-muted hover:text-primary"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     navigator.clipboard.writeText(camp.code);
@@ -423,49 +441,49 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                                   }}
                                   title="Copy Code"
                                 >
-                                  <Icon name="content_copy" className="material-symbols-outlined text-[14px]" />
+                                  <Icon name="content_copy" className="material-symbols-outlined text-icon-sm" />
                                 </button>
                               </div>
-                              <span className="font-label-xs-caps text-[11px] text-text-secondary truncate">{camp.name}</span>
+                              <span className="text-micro text-muted truncate">{camp.name}</span>
                             </div>
                           </div>
                         </td>
                         <td className="py-3 px-3">
-                          <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-text-primary font-label-xs-caps text-label-xs-caps font-semibold border border-border-subtle">
+                          <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-primary text-caption font-semibold border border-subtle">
                             {camp.type}
                           </span>
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex flex-col">
-                            <span className="font-label-sm text-label-sm text-text-primary font-medium">{camp.applicability}</span>
-                            <span className={`font-label-xs-caps text-[10px] truncate ${
-                              camp.isUrgent ? 'text-status-danger font-semibold' : 'text-status-warning'
-                            }`}>
+                            <span className="text-label text-primary font-medium">{camp.applicability}</span>
+                            <span className={`text-micro truncate ${
+ camp.isUrgent ? 'text-danger font-semibold' : 'text-warning'
+ }`}>
                               {camp.excluded}
                             </span>
                           </div>
                         </td>
                         <td className="py-3 px-3 text-right">
                           <div className="flex flex-col items-end">
-                            <span className="font-table-cell-num text-table-cell-num font-semibold text-text-primary">
+                            <span className="text-num font-semibold text-primary">
                               {camp.redemptions}
                             </span>
-                            <div className="w-16 bg-surface-subtle h-1 rounded-full overflow-hidden mt-1 border border-border-subtle">
+                            <div className="w-16 bg-surface-subtle h-1 rounded-full overflow-hidden mt-1 border border-subtle">
                               <div className={`${camp.progressColor} h-full`} style={{ width: `${camp.progress}%` }}></div>
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-right font-table-cell-num text-table-cell-num font-semibold text-text-primary">
+                        <td className="py-3 px-3 text-right text-num font-semibold text-primary">
                           {camp.gmvImpact}
                         </td>
                         <td className="py-3 px-3 text-center">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-medium">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-success-bg text-success text-caption font-medium">
                             <span className="w-1.5 h-1.5 rounded-full bg-status-success"></span>
                             <span>{camp.marginHealth}</span>
                           </span>
                         </td>
                         <td className="py-3 px-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-full font-label-xs-caps text-label-xs-caps font-medium ${camp.statusColor}`}>
+                          <span className={`px-2 py-0.5 rounded-full text-caption font-medium ${camp.statusColor}`}>
                             {camp.status}
                           </span>
                         </td>
@@ -474,35 +492,35 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                             {camp.isDbPromo ? (
                               <>
                                 <button
-                                  className={`p-1 rounded hover:bg-surface-subtle cursor-pointer ${camp.active ? 'text-status-success' : 'text-text-secondary'}`}
+                                  className={`p-1 rounded hover:bg-surface-subtle cursor-pointer ${camp.active ? 'text-success' : 'text-muted'}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleToggleActive(camp.id, camp.active, camp.code);
                                   }}
                                   title={camp.active ? "Pause Promotion" : "Activate Promotion"}
                                 >
-                                  <Icon name={camp.active ? 'toggle_on' : 'toggle_off'} className="material-symbols-outlined text-[18px]" />
+                                  <Icon name={camp.active ? 'toggle_on' : 'toggle_off'} className="material-symbols-outlined text-icon-md" />
                                 </button>
                                 <button
-                                  className="p-1 rounded hover:bg-status-danger-bg text-text-secondary hover:text-status-danger cursor-pointer"
+                                  className="p-1 rounded hover:bg-status-danger-bg text-muted hover:text-danger cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleDeletePromo(camp.id, camp.code);
                                   }}
                                   title="Delete Promo"
                                 >
-                                  <Icon name="delete" className="material-symbols-outlined text-[16px]" />
+                                  <Icon name="delete" className="material-symbols-outlined text-icon" />
                                 </button>
                               </>
                             ) : (
                               <button
-                                className="p-1 rounded hover:bg-surface-subtle text-text-secondary hover:text-text-primary"
+                                className="p-1 rounded hover:bg-surface-subtle text-muted hover:text-primary"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   onShowToast?.(`Options for promo ${camp.code}`);
-                                }}
+                                }} title="More actions" aria-label="More actions"
                               >
-                                <Icon name="more_vert" className="material-symbols-outlined text-[18px]" />
+                                <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
                               </button>
                             )}
                           </div>
@@ -515,20 +533,20 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             </div>
 
             {/* Table Pagination Footer */}
-            <div className="px-space-md py-2.5 bg-surface-canvas border-t border-border-subtle flex items-center justify-between font-body-sm text-[12px] text-text-secondary">
+            <div className="px-space-md py-2.5 bg-surface-canvas border-t border-subtle flex items-center justify-between text-meta text-muted">
               <div className="flex items-center gap-1">
-                <span>Showing <strong className="text-text-primary">1-5</strong> of 24 promo engines</span>
+                <span>Showing <strong className="text-primary">1-5</strong> of 24 promo engines</span>
               </div>
               <div className="flex items-center gap-2">
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest shadow-sm text-text-secondary hover:text-text-primary font-medium border border-border-subtle" disabled>
+                <button className="px-2.5 py-1 rounded bg-surface-container-lowest shadow-sm text-muted hover:text-primary font-medium border border-subtle" disabled>
                   Prev
                 </button>
                 <div className="flex items-center gap-1">
-                  <button className="w-6 h-6 rounded bg-primary-container text-on-primary font-semibold text-center leading-6">1</button>
-                  <button className="w-6 h-6 rounded hover:bg-surface-subtle text-text-secondary text-center leading-6">2</button>
-                  <button className="w-6 h-6 rounded hover:bg-surface-subtle text-text-secondary text-center leading-6">3</button>
+                  <button className="w-6 h-6 rounded bg-primary-container text-on-accent font-semibold text-center leading-6">1</button>
+                  <button className="w-6 h-6 rounded hover:bg-surface-subtle text-muted text-center leading-6">2</button>
+                  <button className="w-6 h-6 rounded hover:bg-surface-subtle text-muted text-center leading-6">3</button>
                 </div>
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest shadow-sm text-text-secondary hover:text-text-primary font-medium border border-border-subtle">
+                <button className="px-2.5 py-1 rounded bg-surface-container-lowest shadow-sm text-muted hover:text-primary font-medium border border-subtle">
                   Next
                 </button>
               </div>
@@ -536,29 +554,29 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
           </div>
 
           {/* Real-Time Rule Simulation Log Module */}
-          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-border-subtle flex flex-col space-y-space-sm">
+          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Icon name="bolt" className="material-symbols-outlined text-primary-container text-[18px]" />
-                <span className="font-headline-sm text-headline-sm text-text-primary font-semibold">Simulated Stack Resolution Engine</span>
+                <Icon name="bolt" className="material-symbols-outlined text-accent text-icon-md" />
+                <span className="text-subheading text-primary font-semibold">Simulated Stack Resolution Engine</span>
               </div>
-              <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Deterministic Stacking: ON</span>
+              <span className="text-caption text-muted uppercase">Deterministic Stacking: ON</span>
             </div>
-            <p className="font-body-sm text-body-sm text-text-secondary">
+            <p className="text-body text-secondary">
               Rule engine evaluates hierarchically: <strong>Product-Level Markdown &gt; Cart-Level Auto Promos &gt; Coupon Code &gt; Payment Tender Bank Offers</strong>. Auto-exclusion triggered when combined discount pushes product net GMV below target cost margin.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-space-sm pt-1">
-              <div className="p-space-sm bg-surface-canvas rounded-lg border border-border-subtle">
-                <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase block">Primary Conflict Mode</span>
-                <span className="font-label-sm text-label-sm font-semibold text-text-primary">Greedy High-Value Wins</span>
+              <div className="p-space-sm bg-surface-canvas rounded-lg border border-subtle">
+                <span className="text-caption text-muted uppercase block">Primary Conflict Mode</span>
+                <span className="text-label font-semibold text-primary">Greedy High-Value Wins</span>
               </div>
-              <div className="p-space-sm bg-surface-canvas rounded-lg border border-border-subtle">
-                <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase block">Bank Offer Stack</span>
-                <span className="font-label-sm text-label-sm font-semibold text-status-success">Allowed (HDFC/ICICI 10%)</span>
+              <div className="p-space-sm bg-surface-canvas rounded-lg border border-subtle">
+                <span className="text-caption text-muted uppercase block">Bank Offer Stack</span>
+                <span className="text-label font-semibold text-success">Allowed (HDFC/ICICI 10%)</span>
               </div>
-              <div className="p-space-sm bg-surface-canvas rounded-lg border border-border-subtle">
-                <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase block">Max Combined Concession</span>
-                <span className="font-label-sm text-label-sm font-semibold text-text-primary">Cap 32.5% of Cart MRP</span>
+              <div className="p-space-sm bg-surface-canvas rounded-lg border border-subtle">
+                <span className="text-caption text-muted uppercase block">Max Combined Concession</span>
+                <span className="text-label font-semibold text-primary">Cap 32.5% of Cart MRP</span>
               </div>
             </div>
           </div>
@@ -566,41 +584,41 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
 
         {/* Right Column: Campaign Inspector (4 Cols ~ 33.3%) */}
         <div className="lg:col-span-4 flex flex-col space-y-space-md">
-          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-border-subtle flex flex-col space-y-space-md">
+          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-md">
             {/* Inspector Header */}
             <div className="flex items-start justify-between">
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-label-xs-caps text-label-xs-caps text-primary-container uppercase font-bold tracking-wider">
+                  <span className="text-caption text-accent uppercase font-semibold tracking-wider">
                     Live Campaign Inspector
                   </span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-[10px] font-semibold">
+                  <span className="px-1.5 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
                     ACTIVE
                   </span>
                 </div>
-                <h2 className="font-headline-md text-headline-md text-text-primary font-semibold mt-0.5 flex items-center gap-1.5">
+                <h2 className="text-heading text-primary font-semibold mt-0.5 flex items-center gap-1.5">
                   {selectedCampaign.code}
                 </h2>
-                <span className="font-body-sm text-[12px] text-text-secondary">{selectedCampaign.subTitle}</span>
+                <span className="text-meta text-muted">{selectedCampaign.subTitle}</span>
               </div>
               <button
                 onClick={() => onShowToast?.(`Refreshed telemetry for ${selectedCampaign.code}`)}
-                className="p-1.5 rounded-lg bg-surface-canvas border border-border-subtle hover:bg-surface-subtle text-text-secondary hover:text-text-primary transition-colors"
+                className="p-1.5 rounded-lg bg-surface-canvas border border-subtle hover:bg-surface-subtle text-muted hover:text-primary transition-colors"
                 title="Refresh Telemetry"
               >
-                <Icon name="sync" className="material-symbols-outlined text-[18px]" />
+                <Icon name="sync" className="material-symbols-outlined text-icon-md" />
               </button>
             </div>
 
             {/* Telemetry Metrics & Sparkline Graphic */}
-            <div className="p-space-sm rounded-xl bg-surface-canvas border border-border-subtle flex flex-col space-y-space-sm">
+            <div className="p-space-sm rounded-xl bg-surface-canvas border border-subtle flex flex-col space-y-space-sm">
               <div className="flex items-center justify-between">
-                <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Redemption Velocity (Last 6 Hours)</span>
-                <span className="font-label-xs-caps text-[11px] font-semibold text-status-success">{selectedCampaign.velocity}</span>
+                <span className="text-caption text-muted uppercase">Redemption Velocity (Last 6 Hours)</span>
+                <span className="text-micro font-semibold text-success">{selectedCampaign.velocity}</span>
               </div>
               {/* Inline SVG Sparkline */}
               <div className="w-full h-14 relative flex items-end">
-                <svg className="w-full h-full text-primary-container" preserveAspectRatio="none" viewBox="0 0 100 35">
+                <svg className="w-full h-full text-accent" preserveAspectRatio="none" viewBox="0 0 100 35">
                   <defs>
                     <linearGradient id="promoGrad" x1="0" x2="0" y1="0" y2="1">
                       <stop offset="0%" stopColor="currentColor" stopOpacity="0.3"></stop>
@@ -612,15 +630,15 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                 </svg>
               </div>
               <div className="grid grid-cols-2 gap-space-xs pt-1">
-                <div className="bg-surface-container-lowest p-2 rounded-lg border border-border-subtle">
-                  <span className="font-label-xs-caps text-[10px] text-text-secondary uppercase block">AOV Uplift</span>
-                  <span className="font-headline-sm text-body-lg font-semibold text-text-primary">{selectedCampaign.aovUplift}</span>
-                  <span className="font-label-xs-caps text-[10px] text-status-success block">{selectedCampaign.aovUpliftSub}</span>
+                <div className="bg-surface-container-lowest p-2 rounded-lg border border-subtle">
+                  <span className="text-caption text-muted uppercase block">AOV Uplift</span>
+                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.aovUplift}</span>
+                  <span className="text-micro text-success block">{selectedCampaign.aovUpliftSub}</span>
                 </div>
-                <div className="bg-surface-container-lowest p-2 rounded-lg border border-border-subtle">
-                  <span className="font-label-xs-caps text-[10px] text-text-secondary uppercase block">Net Margin Post-Promo</span>
-                  <span className="font-headline-sm text-body-lg font-semibold text-text-primary">{selectedCampaign.netMargin}</span>
-                  <span className="font-label-xs-caps text-[10px] text-status-success block">{selectedCampaign.netMarginSub}</span>
+                <div className="bg-surface-container-lowest p-2 rounded-lg border border-subtle">
+                  <span className="text-caption text-muted uppercase block">Net Margin Post-Promo</span>
+                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.netMargin}</span>
+                  <span className="text-micro text-success block">{selectedCampaign.netMarginSub}</span>
                 </div>
               </div>
             </div>
@@ -628,10 +646,10 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             {/* Margin Guardrails Warning/Status Card */}
             <div className="p-space-sm rounded-xl bg-status-success-bg/60 border border-status-success/20 flex flex-col space-y-1">
               <div className="flex items-center gap-2">
-                <Icon name="verified_user" className="material-symbols-outlined text-[18px] text-status-success" />
-                <span className="font-label-sm text-label-sm font-semibold text-status-success">Margin Threshold Guard Enforced</span>
+                <Icon name="verified_user" className="material-symbols-outlined text-icon-md text-success" />
+                <span className="text-label font-semibold text-success">Margin Threshold Guard Enforced</span>
               </div>
-              <p className="font-body-sm text-[12px] text-text-secondary leading-relaxed">
+              <p className="text-meta text-muted leading-relaxed">
                 System enforces automatic coupon suppression if post-discount contribution margin drops below <strong>45.0%</strong> on SKU basket.
               </p>
             </div>
@@ -639,33 +657,33 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             {/* Eligible Category & Exclusion Tree */}
             <div className="flex flex-col space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Product Scope & Exclusions</span>
+                <span className="text-caption text-muted uppercase">Product Scope & Exclusions</span>
                 <button
                   onClick={() => onShowToast?.(`Editing SKU scope for ${selectedCampaign.code}`)}
-                  className="font-label-xs-caps text-primary-container hover:underline text-[11px] font-semibold"
+                  className="text-accent hover:underline text-micro font-semibold"
                 >
                   Modify SKU Scope
                 </button>
               </div>
-              <div className="p-space-sm bg-surface-canvas rounded-xl border border-border-subtle flex flex-col space-y-2">
+              <div className="p-space-sm bg-surface-canvas rounded-xl border border-subtle flex flex-col space-y-2">
                 {/* Included */}
                 <div className="flex items-start gap-2">
-                  <Icon name="check_circle" className="material-symbols-outlined text-[16px] text-status-success shrink-0 mt-0.5" />
+                  <Icon name="check_circle" className="material-symbols-outlined text-icon text-success shrink-0 mt-0.5" />
                   <div className="flex flex-col min-w-0">
-                    <span className="font-label-sm text-label-sm font-semibold text-text-primary">
+                    <span className="text-label font-semibold text-primary">
                       Category: {selectedCampaign.categoryScope}
                     </span>
-                    <span className="font-body-sm text-[11px] text-text-secondary">{selectedCampaign.scopeSkus}</span>
+                    <span className="text-micro text-muted">{selectedCampaign.scopeSkus}</span>
                   </div>
                 </div>
                 {/* Excluded SKU Badges */}
                 <div className="flex items-start gap-2 pt-1">
-                  <Icon name="do_not_disturb_on" className="material-symbols-outlined text-[16px] text-status-danger shrink-0 mt-0.5" />
+                  <Icon name="do_not_disturb_on" className="material-symbols-outlined text-icon text-danger shrink-0 mt-0.5" />
                   <div className="flex flex-col min-w-0 space-y-1">
-                    <span className="font-label-sm text-label-sm font-semibold text-text-primary">Target Exclusions</span>
+                    <span className="text-label font-semibold text-primary">Target Exclusions</span>
                     <div className="flex flex-wrap gap-1">
                       {selectedCampaign.exclusions.map((ex, idx) => (
-                        <span key={idx} className="px-2 py-0.5 rounded-full bg-status-danger-bg text-status-danger font-label-xs-caps text-[10px] font-medium">
+                        <span key={idx} className="px-2 py-0.5 rounded-full bg-status-danger-bg text-danger text-micro">
                           {ex}
                         </span>
                       ))}
@@ -678,23 +696,23 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             {/* Fraud & Checkout Abuse Shield */}
             <div className="flex flex-col space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase">Abuse Mitigation Rules</span>
-                <span className="px-1.5 py-0.5 rounded bg-surface-subtle text-text-secondary font-label-xs-caps text-[10px] border border-border-subtle">
+                <span className="text-caption text-muted uppercase">Abuse Mitigation Rules</span>
+                <span className="px-1.5 py-0.5 rounded bg-surface-subtle text-muted text-micro border border-subtle">
                   L3 STRICT
                 </span>
               </div>
-              <div className="p-space-sm bg-surface-canvas rounded-xl border border-border-subtle space-y-2">
-                <div className="flex items-center justify-between text-[12px] font-body-sm">
-                  <span className="text-text-secondary">Device Fingerprint Cap</span>
-                  <span className="font-semibold text-text-primary">{selectedCampaign.fraudDevice}</span>
+              <div className="p-space-sm bg-surface-canvas rounded-xl border border-subtle space-y-2">
+                <div className="flex items-center justify-between text-meta">
+                  <span className="text-muted">Device Fingerprint Cap</span>
+                  <span className="font-semibold text-primary">{selectedCampaign.fraudDevice}</span>
                 </div>
-                <div className="flex items-center justify-between text-[12px] font-body-sm">
-                  <span className="text-text-secondary">Customer Identity</span>
-                  <span className="font-semibold text-text-primary">{selectedCampaign.fraudAuth}</span>
+                <div className="flex items-center justify-between text-meta">
+                  <span className="text-muted">Customer Identity</span>
+                  <span className="font-semibold text-primary">{selectedCampaign.fraudAuth}</span>
                 </div>
-                <div className="flex items-center justify-between text-[12px] font-body-sm">
-                  <span className="text-text-secondary">Min Cart Qualifying Value</span>
-                  <span className="font-semibold text-text-primary">{selectedCampaign.fraudMinCart}</span>
+                <div className="flex items-center justify-between text-meta">
+                  <span className="text-muted">Min Cart Qualifying Value</span>
+                  <span className="font-semibold text-primary">{selectedCampaign.fraudMinCart}</span>
                 </div>
               </div>
             </div>
@@ -704,64 +722,64 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
               <div className="grid grid-cols-2 gap-space-xs">
                 <button
                   onClick={() => onShowToast?.(`Editing usage quota cap for ${selectedCampaign.code}`)}
-                  className="h-9 px-3 rounded-lg bg-surface-subtle border border-border-subtle hover:bg-surface-container-high text-text-primary font-label-sm text-label-sm font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                  className="h-9 px-3 rounded-lg bg-surface-subtle border border-subtle hover:bg-surface-container-high text-primary text-label font-semibold flex items-center justify-center gap-1.5 transition-colors"
                   type="button"
                 >
-                  <Icon name="edit" className="material-symbols-outlined text-[16px]" />
+                  <Icon name="edit" className="material-symbols-outlined text-icon" />
                   <span>Edit Cap</span>
                 </button>
                 <button
                   onClick={() => onShowToast?.(`Generated affiliate deep link for ${selectedCampaign.code}`)}
-                  className="h-9 px-3 rounded-lg bg-surface-subtle border border-border-subtle hover:bg-surface-container-high text-text-primary font-label-sm text-label-sm font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                  className="h-9 px-3 rounded-lg bg-surface-subtle border border-subtle hover:bg-surface-container-high text-primary text-label font-semibold flex items-center justify-center gap-1.5 transition-colors"
                   type="button"
                 >
-                  <Icon name="link" className="material-symbols-outlined text-[16px]" />
+                  <Icon name="link" className="material-symbols-outlined text-icon" />
                   <span>Affiliate Link</span>
                 </button>
               </div>
               <button
                 onClick={() => onShowToast?.(`Paused coupon ${selectedCampaign.code} across all edge nodes.`)}
-                className="h-9 px-3 rounded-lg bg-status-danger-bg hover:bg-status-danger text-status-danger hover:text-white font-label-sm text-label-sm font-semibold flex items-center justify-center gap-1.5 transition-colors active:scale-[0.99] border border-status-danger/20"
+                className="h-9 px-3 rounded-lg bg-status-danger-bg hover:bg-status-danger text-danger hover:text-on-accent text-label font-semibold flex items-center justify-center gap-1.5 transition-colors active:scale-[0.99] border border-status-danger/20"
                 type="button"
               >
-                <Icon name="pause_circle" className="material-symbols-outlined text-[18px]" />
+                <Icon name="pause_circle" className="material-symbols-outlined text-icon-md" />
                 <span>Pause {selectedCampaign.code} Instantly</span>
               </button>
             </div>
           </div>
 
           {/* Omnichannel Attribution Preview Card */}
-          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-border-subtle flex flex-col space-y-space-sm">
+          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-sm">
             <div className="flex items-center justify-between">
-              <span className="font-headline-sm text-headline-sm text-text-primary font-semibold">Channel Attribution Split</span>
-              <span className="font-label-xs-caps text-[10px] text-text-secondary">30-Day Aggregation</span>
+              <span className="text-subheading text-primary font-semibold">Channel Attribution Split</span>
+              <span className="text-micro text-muted">30-Day Aggregation</span>
             </div>
             {/* Simple Horizontal Bar Chart */}
-            <div className="space-y-2 pt-1 font-body-sm text-[12px]">
+            <div className="space-y-2 pt-1 text-meta">
               <div>
                 <div className="flex justify-between mb-1">
-                  <span className="text-text-secondary font-medium">iOS & Android Apps</span>
-                  <span className="font-semibold text-text-primary">62.4% (₹1.21 Cr)</span>
+                  <span className="text-muted font-medium">iOS & Android Apps</span>
+                  <span className="font-semibold text-primary">62.4% (₹1.21 Cr)</span>
                 </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-border-subtle">
+                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-subtle">
                   <div className="bg-primary-container h-full rounded-full" style={{ width: '62.4%' }}></div>
                 </div>
               </div>
               <div>
                 <div className="flex justify-between mb-1">
-                  <span className="text-text-secondary font-medium">Responsive Web (Mobile + Desktop)</span>
-                  <span className="font-semibold text-text-primary">31.2% (₹60.5 L)</span>
+                  <span className="text-muted font-medium">Responsive Web (Mobile + Desktop)</span>
+                  <span className="font-semibold text-primary">31.2% (₹60.5 L)</span>
                 </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-border-subtle">
+                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-subtle">
                   <div className="bg-fashion-magenta h-full rounded-full" style={{ width: '31.2%' }}></div>
                 </div>
               </div>
               <div>
                 <div className="flex justify-between mb-1">
-                  <span className="text-text-secondary font-medium">POS / In-Store Endless Aisle</span>
-                  <span className="font-semibold text-text-primary">6.4% (₹12.4 L)</span>
+                  <span className="text-muted font-medium">POS / In-Store Endless Aisle</span>
+                  <span className="font-semibold text-primary">6.4% (₹12.4 L)</span>
                 </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-border-subtle">
+                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-subtle">
                   <div className="bg-status-info h-full rounded-full" style={{ width: '6.4%' }}></div>
                 </div>
               </div>
@@ -772,52 +790,53 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
 
       {/* Create Promo Campaign Modal */}
       {isCreatePromoOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-border-subtle max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-space-lg border-b border-border-subtle flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-scrim/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-subtle max-w-md w-full overflow-hidden animate-fade-in fade-in duration-150">
+            <div className="p-space-lg border-b border-subtle flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Icon name="local_offer" className="p-2 rounded-xl bg-primary-container text-white material-symbols-outlined text-[20px]" />
+                <Icon name="local_offer" className="p-2 rounded-xl bg-primary-container text-on-accent material-symbols-outlined text-icon-lg" />
                 <div>
-                  <h3 className="font-headline-sm font-semibold text-text-primary">Create Promo Campaign</h3>
-                  <p className="text-xs text-text-secondary">Configure cart discount rules and voucher codes</p>
+                  <h3 className="font-semibold text-primary">Create Promo Campaign</h3>
+                  <p className="text-meta text-muted">Configure cart discount rules and voucher codes</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsCreatePromoOpen(false)}
-                className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-text-secondary"
+                className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-muted" title="Close" aria-label="Close"
               >
-                <Icon name="close" className="material-symbols-outlined text-[18px]" />
+                <Icon name="close" className="material-symbols-outlined text-icon-md" />
               </button>
             </div>
 
             <form onSubmit={handleCreatePromo} className="p-space-lg space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Coupon Code *</label>
+                <label className="block text-meta font-semibold text-muted mb-1">Coupon Code *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. DIWALI30"
                   value={promoForm.code}
                   onChange={(e) => setPromoForm({ ...promoForm, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })}
-                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-mono font-bold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container uppercase"
+                  className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-mono font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container uppercase whitespace-nowrap"
                 />
-                <p className="text-[10px] text-text-secondary mt-1">3 to 32 letters, numbers, or dashes.</p>
+                <p className="text-micro text-muted mt-1">3 to 32 letters, numbers, or dashes.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Discount Type</label>
-                  <select
+                  <label className="block text-meta font-semibold text-muted mb-1">Discount Type</label>
+                  <Select
                     value={promoForm.type}
                     onChange={(e) => setPromoForm({ ...promoForm, type: e.target.value })}
-                    className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
-                  >
-                    <option value="percentage">Percentage Off (%)</option>
-                    <option value="fixed">Fixed Amount (₹ / €)</option>
-                  </select>
+                    aria-label="Discount type"
+                    options={[
+                      { value: 'percentage', label: 'Percentage off (%)' },
+                      { value: 'fixed', label: 'Fixed amount (₹ / €)' },
+                    ]}
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">
+                  <label className="block text-meta font-semibold text-muted mb-1">
                     {promoForm.type === 'percentage' ? 'Percentage Value (1-100)' : 'Amount (Major Currency)'}
                   </label>
                   <input
@@ -827,27 +846,28 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                     max={promoForm.type === 'percentage' ? 100 : 100000}
                     value={promoForm.value}
                     onChange={(e) => setPromoForm({ ...promoForm, value: e.target.value })}
-                    className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                    className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
                   />
                 </div>
               </div>
 
               {promoForm.type === 'fixed' && (
                 <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Currency</label>
-                  <select
+                  <label className="block text-meta font-semibold text-muted mb-1">Currency</label>
+                  <Select
                     value={promoForm.currency}
                     onChange={(e) => setPromoForm({ ...promoForm, currency: e.target.value })}
-                    className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
-                  >
-                    <option value="inr">INR (Indian Rupee - ₹)</option>
-                    <option value="eur">EUR (Euro - €)</option>
-                  </select>
+                    aria-label="Currency"
+                    options={[
+                      { value: 'inr', label: 'INR (Indian rupee, ₹)' },
+                      { value: 'eur', label: 'EUR (euro, €)' },
+                    ]}
+                  />
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Max Redemptions (Optional)</label>
+                <label className="block text-meta font-semibold text-muted mb-1">Max Redemptions (Optional)</label>
                 <input
                   type="number"
                   placeholder="Leave empty for unlimited uses"
@@ -855,7 +875,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                   max={100000}
                   value={promoForm.usageLimit}
                   onChange={(e) => setPromoForm({ ...promoForm, usageLimit: e.target.value })}
-                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                  className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
                 />
               </div>
 
@@ -867,25 +887,25 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                   onChange={(e) => setPromoForm({ ...promoForm, active: e.target.checked })}
                   className="w-4 h-4 accent-primary-container rounded cursor-pointer"
                 />
-                <label htmlFor="promo-active-chk" className="text-xs font-semibold text-text-primary cursor-pointer">
+                <label htmlFor="promo-active-chk" className="text-meta font-semibold text-primary cursor-pointer">
                   Activate campaign immediately upon creation
                 </label>
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-border-subtle">
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-subtle">
                 <button
                   type="button"
                   onClick={() => setIsCreatePromoOpen(false)}
-                  className="h-9 px-4 rounded-xl border border-border-subtle bg-surface-container-lowest text-text-primary text-xs font-semibold hover:bg-surface-subtle transition-colors cursor-pointer"
+                  className="h-9 px-4 rounded-xl border border-subtle bg-surface-container-lowest text-primary text-meta font-semibold hover:bg-surface-subtle transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary-container-hover text-on-accent text-meta font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <Icon name={isSubmitting ? 'hourglass_top' : 'check'} className="material-symbols-outlined text-[16px]" />
+                  <Icon name={isSubmitting ? 'hourglass_top' : 'check'} className="material-symbols-outlined text-icon" />
                   <span>{isSubmitting ? 'Creating...' : 'Launch Campaign'}</span>
                 </button>
               </div>

@@ -1,23 +1,70 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Badge, Progress, Icon } from '../ui';
+import { Card, CardTitle, CardDescription, Badge, Progress, Icon } from '../ui';
 
 /**
  * PageContainer
- * Standard wrapper for all admin page modules ensuring consistent spacing, layout, and theme harmony.
+ * The single vertical rhythm every module sits on. The page padding and the
+ * header offset belong to the app shell, not here.
  */
 export function PageContainer({ className, children, ...props }) {
   return (
-    <div className={cn("flex flex-col w-full space-y-space-xl pb-12", className)} {...props}>
+    <div className={cn("flex w-full min-w-0 flex-col gap-space-lg pb-8", className)} {...props}>
       {children}
     </div>
   );
 }
 
 /**
+ * Breadcrumb
+ * Separators are rendered, not typed, so a screen reader hears the trail
+ * rather than a run of slashes.
+ */
+export function Breadcrumb({ items = [], className }) {
+  const trail = Array.isArray(items)
+    ? items
+    : String(items ?? '')
+        .split(/\s*[/\u2022\u203a>]\s*/)
+        .filter(Boolean);
+  return (
+    <nav aria-label="Breadcrumb" className={cn("flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5", className)}>
+      {trail.map((rawItem, idx) => {
+        const isLast = idx === trail.length - 1;
+        const item = typeof rawItem === "object" && rawItem !== null ? rawItem : { label: rawItem };
+        return (
+          <span key={idx} className="flex min-w-0 items-center gap-1.5">
+            {idx > 0 && (
+              <span aria-hidden="true" className="h-1 w-1 shrink-0 rounded-full bg-text-faint" />
+            )}
+            {item.href && !isLast ? (
+              <a
+                href={item.href}
+                className="min-w-0 text-caption uppercase tracking-wider text-faint hover:text-primary transition-colors [overflow-wrap:anywhere]"
+              >
+                {item.label}
+              </a>
+            ) : (
+              <span
+                aria-current={isLast ? "page" : undefined}
+                className={cn(
+                  "min-w-0 text-caption uppercase tracking-wider [overflow-wrap:anywhere]",
+                  isLast ? "font-semibold text-accent" : "text-faint"
+                )}
+              >
+                {item.label}
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
+
+/**
  * PageHeader
- * Unified, responsive header component for all 16 admin modules.
- * Standardizes kicker, breadcrumb, title, subtitle, status pills, and action toolbar.
+ * Title and one-clause description on the left, actions on the right.
+ * Actions wrap onto their own row below `lg` so nothing is pushed off screen.
  */
 export function PageHeader({
   title,
@@ -32,59 +79,46 @@ export function PageHeader({
   ...props
 }) {
   return (
-    <div className={cn("flex flex-col lg:flex-row lg:items-end justify-between gap-space-md", className)} {...props}>
-      <div className="space-y-1 max-w-3xl">
-        {/* Kicker or Breadcrumb */}
-        {(kicker || breadcrumb) && (
-          <div className="flex items-center gap-2 font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider">
+    <div
+      className={cn(
+        "flex flex-col justify-between gap-space-md lg:flex-row lg:items-end",
+        className
+      )}
+      {...props}
+    >
+      <div className="flex min-w-0 max-w-3xl flex-col gap-1">
+        {(kicker || breadcrumb || badge) && (
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {breadcrumb ? (
-              Array.isArray(breadcrumb) ? (
-                breadcrumb.map((item, idx) => (
-                  <React.Fragment key={idx}>
-                    {idx > 0 && <span className="text-secondary/40">/</span>}
-                    <span className={idx === breadcrumb.length - 1 ? "text-primary font-semibold" : ""}>
-                      {item}
-                    </span>
-                  </React.Fragment>
-                ))
-              ) : (
-                <span>{breadcrumb}</span>
-              )
+              <Breadcrumb items={breadcrumb} />
             ) : (
               kicker && (
-                <span className="text-primary uppercase font-bold tracking-widest">
+                <span className="truncate text-caption uppercase tracking-wider text-faint">
                   {kicker}
                 </span>
               )
             )}
             {badge && (
-              <Badge variant={badgeVariant} className="ml-1 text-[10px] py-0 px-1.5 font-bold">
+              <Badge variant={badgeVariant} size="sm">
                 {badge}
               </Badge>
             )}
           </div>
         )}
 
-        {/* Title */}
-        <h1 className="font-headline-lg text-headline-lg font-bold text-text-primary tracking-tight">
+        <h1 className="text-title font-semibold tracking-tight text-primary">
           {title}
         </h1>
 
-        {/* Description / Subtitle */}
         {description && (
-          <p className="font-body-sm text-body-sm text-text-secondary">
-            {description}
-          </p>
+          <p className="text-body text-secondary">{description}</p>
         )}
 
         {children}
       </div>
 
-      {/* Action Toolbar on the Right */}
       {actions && (
-        <div className="flex flex-wrap items-center gap-space-xs shrink-0">
-          {actions}
-        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2 lg:shrink-0">{actions}</div>
       )}
     </div>
   );
@@ -92,30 +126,21 @@ export function PageHeader({
 
 /**
  * PageSection
- * Section container with optional title, description, and section-level actions.
+ * Section heading plus optional action, sitting above its own content.
  */
-export function PageSection({
-  title,
-  description,
-  action,
-  className,
-  children,
-  ...props
-}) {
+export function PageSection({ title, description, action, className, children, ...props }) {
   return (
-    <section className={cn("space-y-space-md", className)} {...props}>
+    <section className={cn("flex min-w-0 flex-col gap-space-md", className)} {...props}>
       {(title || description || action) && (
-        <div className="flex items-center justify-between gap-space-sm pb-1">
-          <div>
+        <div className="flex items-end justify-between gap-space-sm">
+          <div className="flex min-w-0 flex-col gap-0.5">
             {title && (
-              <h2 className="font-headline-sm text-headline-sm font-semibold text-text-primary tracking-tight">
+              <h2 className="text-subheading font-semibold tracking-tight text-primary">
                 {title}
               </h2>
             )}
             {description && (
-              <p className="font-body-sm text-body-sm text-text-secondary">
-                {description}
-              </p>
+              <p className="text-body text-secondary">{description}</p>
             )}
           </div>
           {action && <div className="shrink-0">{action}</div>}
@@ -128,15 +153,11 @@ export function PageSection({
 
 /**
  * ContentGrid
- * Responsive grid container supporting standard bento, columns, and custom configurations.
+ * Column counts above four only split that far on very wide screens; below
+ * that they fall back to three, so a KPI label never has to be truncated.
  */
-export function ContentGrid({
-  cols = 4,
-  gap = "md",
-  className,
-  children,
-  ...props
-}) {
+export function ContentGrid({ cols, columns, gap = "md", className, children, ...props }) {
+  const count = Number(columns || cols || 4);
   const gapClasses = {
     xs: "gap-space-xs",
     sm: "gap-space-sm",
@@ -149,32 +170,52 @@ export function ContentGrid({
     1: "grid-cols-1",
     2: "grid-cols-1 sm:grid-cols-2",
     3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-    4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
+    4: "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4",
     5: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5",
-    6: "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6",
-    7: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7",
+    6: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6",
+    7: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6",
     12: "grid-cols-1 md:grid-cols-12",
-  }[cols] || "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4";
+  }[count] || "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4";
 
   return (
-    <div className={cn("grid", colClasses, gapClasses, className)} {...props}>
+    <div className={cn("grid min-w-0", colClasses, gapClasses, className)} {...props}>
       {children}
     </div>
   );
 }
 
+const TREND_ALIASES = {
+  positive: "up",
+  increase: "up",
+  up: "up",
+  negative: "down",
+  decrease: "down",
+  down: "down",
+  neutral: "neutral",
+  warning: "warning",
+};
+
 /**
  * StatsCard
- * Standard KPI card across executive, sales, inventory, and finance modules.
+ * One KPI: label, value, an optional delta, then a footer line. Every card in
+ * a row keeps the same minimum height so the grid never looks ragged, and the
+ * label wraps to two lines rather than being cut mid-word.
  */
 export function StatsCard({
+  // `title`/`trend`/`subtext` are the canonical names; `label`/`change`/
+  // `subtitle`/`changeType` are the aliases several modules were already
+  // written against, whose values used to be dropped on the floor.
   title,
+  label,
   value,
   trend,
-  trendType = "up", // 'up' | 'down' | 'neutral'
+  change,
+  trendType = "up",
+  changeType,
   trendLabel,
+  subtitle,
   icon,
-  iconColor = "text-primary",
+  iconColor = "text-accent",
   progress,
   progressLabel,
   targetText,
@@ -186,82 +227,115 @@ export function StatsCard({
   ...props
 }) {
   const isClickable = Boolean(onClick);
+  const heading = title ?? label;
+  const delta = trend ?? change;
+  const footnote = subtext ?? subtitle;
+  const direction = TREND_ALIASES[changeType] || TREND_ALIASES[trendType] || "neutral";
+  const trendVariant =
+    direction === "up"
+      ? "success"
+      : direction === "down"
+      ? "destructive"
+      : direction === "warning"
+      ? "warning"
+      : "secondary";
+  const hasFooter = progress !== undefined || Boolean(footnote) || Boolean(targetText);
 
-  return (
-    <Card
-      className={cn(
-        "p-space-md flex flex-col justify-between group transition-all",
-        isClickable && "cursor-pointer hover:shadow-md hover:border-border-strong",
-        className
-      )}
-      onClick={onClick}
-      {...props}
-    >
-      <div>
+  const content = (
+    <>
+      <div className="flex min-w-0 flex-col gap-1.5">
         <div className="flex items-start justify-between gap-2">
-          <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold truncate">
-            {title}
+          <span className="min-w-0 text-caption uppercase tracking-wider text-muted [overflow-wrap:anywhere]">
+            {heading}
           </span>
           {icon && (
-            <div className={cn("p-1.5 rounded-lg bg-surface-subtle", iconColor)}>
-              <Icon name={icon} className="material-symbols-outlined text-[18px]" />
-            </div>
+            <span className={cn("shrink-0 rounded-lg bg-surface-subtle p-1.5", iconColor)}>
+              <Icon name={icon} className="material-symbols-outlined text-icon-md" />
+            </span>
           )}
         </div>
 
-        <div className="flex items-baseline justify-between gap-2 mt-1.5">
-          <span className="font-metric-stat text-metric-stat text-text-primary font-semibold tabular-nums">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="text-kpi tabular-nums text-primary">
             {value}
           </span>
-          {trend && (
-            <Badge
-              variant={trendType === "up" ? "success" : trendType === "down" ? "destructive" : "secondary"}
-              className="gap-0.5 text-[10px] py-0 shrink-0 font-medium"
-            >
-              {trendType === "up" && <Icon name="trending_up" className="material-symbols-outlined text-[13px]" />}
-              {trendType === "down" && <Icon name="trending_down" className="material-symbols-outlined text-[13px]" />}
-              <span>{trend}</span>
+          {delta && (
+            <Badge variant={trendVariant} size="sm" className="shrink-0">
+              {direction === "up" && (
+                <Icon name="trending_up" className="material-symbols-outlined text-icon-sm" />
+              )}
+              {direction === "down" && (
+                <Icon name="trending_down" className="material-symbols-outlined text-icon-sm" />
+              )}
+              <span className="tabular-nums">{delta}</span>
             </Badge>
           )}
-          {badge && !trend && (
-            <Badge variant={badgeVariant} className="text-[10px] py-0 shrink-0 font-medium">
+          {badge && !delta && (
+            <Badge variant={badgeVariant} size="sm" className="shrink-0">
               {badge}
             </Badge>
           )}
         </div>
 
         {trendLabel && (
-          <p className="text-[11px] text-text-secondary mt-0.5 truncate">
-            {trendLabel}
-          </p>
+          <p className="truncate text-micro text-muted">{trendLabel}</p>
         )}
       </div>
 
-      {(progress !== undefined || subtext || targetText) && (
-        <div className="mt-space-sm pt-2 border-t border-border-subtle/50">
+      {hasFooter && (
+        <div className="mt-space-sm flex flex-col gap-1 border-t border-subtle pt-2">
           {progress !== undefined && (
-            <div className="space-y-1 mb-1">
-              <div className="flex justify-between font-label-xs-caps text-[10px] text-text-secondary">
-                <span>{progressLabel || "Progress"}</span>
-                <span className="font-semibold text-text-primary">{targetText || `${progress}%`}</span>
+            <>
+              <div className="flex items-center justify-between gap-2 text-micro text-muted">
+                <span className="truncate">{progressLabel || "Progress"}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-primary">
+                  {targetText || `${progress}%`}
+                </span>
               </div>
-              <Progress value={progress} className="h-1.5 bg-surface-subtle" />
-            </div>
+              <Progress value={progress} label={progressLabel || "Progress"} />
+            </>
           )}
-          {subtext && (
-            <span className="text-[11px] text-text-secondary block truncate">
-              {subtext}
-            </span>
+          {footnote && (
+            <span className="block text-micro leading-snug text-muted">{footnote}</span>
           )}
         </div>
       )}
+    </>
+  );
+
+  const shell = cn(
+    "flex min-h-[7.5rem] min-w-0 flex-col justify-between p-space-md transition-colors",
+    isClickable &&
+      "cursor-pointer text-left hover:border-strong hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface-canvas",
+    className
+  );
+
+  if (isClickable) {
+    return (
+      <Card className={shell} onClick={onClick} role="button" tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick(e);
+          }
+        }}
+        {...props}
+      >
+        {content}
+      </Card>
+    );
+  }
+
+  return (
+    <Card className={shell} {...props}>
+      {content}
     </Card>
   );
 }
 
 /**
  * SectionCard
- * Standard container card with optional header, title, description, actions, and footer.
+ * A bordered panel: optional header row, body, optional footer strip.
  */
 export function SectionCard({
   title,
@@ -274,24 +348,71 @@ export function SectionCard({
   ...props
 }) {
   return (
-    <Card className={cn("overflow-hidden shadow-xs", className)} {...props}>
+    <Card className={cn("flex min-w-0 flex-col overflow-hidden", className)} {...props}>
       {(title || description || action) && (
-        <CardHeader className="flex flex-row items-center justify-between p-space-md border-b border-border-subtle/50">
-          <div>
-            {title && <CardTitle className="text-sm font-semibold">{title}</CardTitle>}
-            {description && <CardDescription className="text-xs text-text-secondary mt-0.5">{description}</CardDescription>}
+        <div className="flex items-start justify-between gap-space-md border-b border-subtle p-space-md">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            {title && <CardTitle>{title}</CardTitle>}
+            {description && <CardDescription>{description}</CardDescription>}
           </div>
           {action && <div className="shrink-0">{action}</div>}
-        </CardHeader>
+        </div>
       )}
-      <CardContent className={cn("p-space-md", contentClassName)}>
-        {children}
-      </CardContent>
+      <div className={cn("min-w-0 flex-1 p-space-md", contentClassName)}>{children}</div>
       {footer && (
-        <CardFooter className="p-space-sm bg-surface-subtle border-t border-border-subtle/50">
-          {footer}
-        </CardFooter>
+        <div className="border-t border-subtle bg-surface-subtle p-space-sm">{footer}</div>
       )}
     </Card>
+  );
+}
+
+/**
+ * Thumbnail
+ * Product imagery comes from several sources and some rows have none. A
+ * failed load falls back to a neutral tile rather than a broken-image glyph.
+ */
+export function Thumbnail({ src, alt = "", icon = "checkroom", className, imgClassName, ...props }) {
+  const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => setFailed(false), [src]);
+
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-subtle bg-surface-subtle text-faint",
+        className
+      )}
+      {...props}
+    >
+      {src && !failed ? (
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          onError={() => setFailed(true)}
+          className={cn("h-full w-full object-cover", imgClassName)}
+        />
+      ) : (
+        <Icon name={icon} aria-hidden="true" className="material-symbols-outlined text-icon-md" />
+      )}
+    </span>
+  );
+}
+
+/**
+ * ColorSwatch
+ * A product colourway: the dot is painted from the record's own hex, which is
+ * data rather than a theme token, and the code is shown beside it.
+ */
+export function ColorSwatch({ hex, name, className }) {
+  return (
+    <span className={cn("flex min-w-0 items-center gap-2", className)}>
+      <span
+        aria-hidden="true"
+        className="h-4 w-4 shrink-0 rounded-full border border-subtle shadow-xs"
+        style={{ backgroundColor: hex }}
+      />
+      {name && <span className="truncate text-label-lg text-primary">{name}</span>}
+      <span className="shrink-0 font-mono text-caption uppercase text-muted whitespace-nowrap">{hex}</span>
+    </span>
   );
 }

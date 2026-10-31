@@ -30,6 +30,10 @@ import {
   FilterBar,
   SearchInput,
   FilterDropdown,
+  TablePagination,
+  ErrorState,
+  SkeletonPage,
+  Thumbnail,
 } from '../ui';
 import { INITIAL_INVENTORY, INITIAL_INVENTORY_METRICS, HUBS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
@@ -43,7 +47,13 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
   const [searchQuery, setSearchQuery] = useState('');
 
   // TanStack Query for direct inventory telemetry and adjustment mutation
-  const { data: inventoryData, isLoading: isInventoryLoading } = useInventoryQuery();
+  const {
+    data: inventoryData,
+    isLoading: isInventoryLoading,
+    isError: isInventoryError,
+    error: inventoryError,
+    refetch: refetchInventory,
+  } = useInventoryQuery();
   const { data: productsData, isLoading: isProductsLoading } = useProductsQuery({ limit: 50 });
   const adjustInventoryMutation = useAdjustInventoryMutation();
 
@@ -142,6 +152,9 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
   }, [inventoryList, selectedItemId]);
 
   // Filtered Inventory
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   const filteredInventory = useMemo(() => {
     return inventoryList.filter(item => {
       // Hub filter
@@ -236,6 +249,15 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
     }
   };
 
+  useEffect(() => {
+    setPage(1);
+  }, [filteredInventory.length]);
+
+  const pagedInventory = useMemo(
+    () => filteredInventory.slice((page - 1) * pageSize, page * pageSize),
+    [filteredInventory, page, pageSize]
+  );
+
   const handleExportCsv = () => {
     const headers = ['SKU', 'Garment Name', 'Variant', 'Category', 'Hub', 'Bin', 'On-Hand', 'Reserved', 'ATS', 'Incoming', 'Velocity', 'Status'];
     const rows = filteredInventory.map(item => [
@@ -269,8 +291,19 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
 
   const newPhysicalCalculated = selectedItem ? Math.max(0, selectedItem.onHand + adjustmentDelta) : 0;
 
+  if (isInventoryLoading || isProductsLoading) {
+    return <SkeletonPage variant="table" stats={6} statsCols={6} columns={8} label="Loading inventory" />;
+  }
+
   return (
     <PageContainer>
+      {inventoryError && (
+        <ErrorState
+          title="Inventory could not be loaded"
+          message={inventoryError?.message}
+          onRetry={() => refetchInventory()}
+        />
+      )}
       {/* Top Breadcrumb & Title Section */}
       <PageHeader
         breadcrumb={['Everwear Admin', 'Catalog & Inventory', 'Inventory & Warehouses']}
@@ -286,7 +319,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
               onClick={() => setIsTransferModalOpen(true)}
               className="gap-1.5"
             >
-              <Icon name="sync_alt" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <Icon name="sync_alt" className="material-symbols-outlined text-icon text-muted" />
               <span>Stock Transfer</span>
             </Button>
             <Button
@@ -295,7 +328,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
               onClick={() => onShowToast && onShowToast('Cycle count audit scheduled for BLR-FC1 aisle C-12.')}
               className="gap-1.5"
             >
-              <Icon name="fact_check" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <Icon name="fact_check" className="material-symbols-outlined text-icon text-muted" />
               <span>Reconcile Count</span>
             </Button>
             <Button
@@ -304,16 +337,16 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
               onClick={() => setIsGrnModalOpen(true)}
               className="gap-1.5"
             >
-              <Icon name="download" className="material-symbols-outlined text-[16px] text-text-secondary" />
+              <Icon name="download" className="material-symbols-outlined text-icon text-muted" />
               <span>Receive Goods (GRN)</span>
             </Button>
             <Button
               variant="default"
               size="sm"
               onClick={() => setIsDrawerOpen(prev => !prev)}
-              className="gap-1.5 bg-primary-container text-on-primary hover:bg-primary shadow-sm"
+              className="gap-1.5 bg-primary-container text-on-accent hover:bg-primary-container-hover shadow-sm"
             >
-              <Icon name="add_circle" className="material-symbols-outlined text-[18px]" />
+              <Icon name="add_circle" className="material-symbols-outlined text-icon-md" />
               <span>{isDrawerOpen ? 'Close Adjustment' : '+ Stock Adjustment'}</span>
             </Button>
           </>
@@ -339,21 +372,21 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
           title="Available-to-Sell"
           value={`${INITIAL_INVENTORY_METRICS.ats.split(' ')[0]} pcs`}
           icon="storefront"
-          iconColor="text-status-success"
+          iconColor="text-success"
           trendLabel={INITIAL_INVENTORY_METRICS.atsNote}
         />
         <StatsCard
           title="Reserved / Staged"
           value={`${INITIAL_INVENTORY_METRICS.reserved.split(' ')[0]} pcs`}
           icon="lock_clock"
-          iconColor="text-status-info"
+          iconColor="text-info"
           trendLabel={INITIAL_INVENTORY_METRICS.reservedNote}
         />
         <StatsCard
           title="Critical Low-Stock"
           value={INITIAL_INVENTORY_METRICS.criticalLow}
           icon="warning"
-          iconColor="text-status-danger"
+          iconColor="text-danger"
           badge="Critical"
           badgeVariant="destructive"
           trendLabel={INITIAL_INVENTORY_METRICS.criticalNote}
@@ -362,7 +395,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
           title="Cycle Accuracy"
           value={INITIAL_INVENTORY_METRICS.cycleAccuracy}
           icon="verified"
-          iconColor="text-status-success"
+          iconColor="text-success"
           trendLabel={INITIAL_INVENTORY_METRICS.accuracyNote}
         />
       </ContentGrid>
@@ -422,7 +455,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
             title="Export CSV"
             type="button"
           >
-            <Icon name="file_download" className="material-symbols-outlined text-[16px]" />
+            <Icon name="file_download" className="material-symbols-outlined text-icon" />
             <span className="hidden sm:inline">Export</span>
           </Button>
         }
@@ -432,50 +465,50 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         {/* Main Inventory Data Table */}
         <div className={`${isDrawerOpen ? 'xl:col-span-8' : 'xl:col-span-12'} flex flex-col transition-all duration-300`}>
-          <Card className="border border-border-subtle bg-surface-container-lowest overflow-hidden">
-            <CardHeader className="p-4 bg-surface-subtle/50 border-b border-border-subtle flex flex-row items-center justify-between">
+          <Card className="border border-subtle bg-surface-container-lowest overflow-hidden">
+            <CardHeader className="p-4 bg-surface-subtle/50 border-b border-subtle flex flex-row items-center justify-between">
               <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-semibold text-text-primary">Live Inventory Ledger</CardTitle>
-                <Badge variant="secondary" className="text-[10px]">
+                <CardTitle className="text-body font-semibold text-primary">Live Inventory Ledger</CardTitle>
+                <Badge variant="secondary" className="text-micro">
                   {filteredInventory.length} SKUs Listed
                 </Badge>
               </div>
-              <div className="flex items-center gap-2 text-xs text-text-secondary">
-                <span>Sorted by: <strong className="text-text-primary">Stock Health (Ascending)</strong></span>
+              <div className="flex items-center gap-2 text-meta text-muted">
+                <span>Sorted by: <strong className="text-primary">Stock Health (Ascending)</strong></span>
               </div>
             </CardHeader>
             <div className="overflow-x-auto scrollbar-thin">
               <Table className="min-w-[1020px] w-full border-collapse">
-                <TableHeader className="bg-surface-canvas/90 border-b border-border-subtle sticky top-0 z-10 backdrop-blur-sm">
+                <TableHeader sticky>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="py-3 px-3 font-semibold text-xs text-text-secondary uppercase tracking-wider w-[260px] whitespace-nowrap">
+                    <TableHead className="w-[260px] whitespace-nowrap">
                       SKU &amp; Garment Variant
                     </TableHead>
-                    <TableHead className="py-3 px-3 font-semibold text-xs text-text-secondary uppercase tracking-wider w-[120px] whitespace-nowrap">
+                    <TableHead className="w-[120px] whitespace-nowrap">
                       Category
                     </TableHead>
-                    <TableHead className="py-3 px-3 font-semibold text-xs text-text-secondary uppercase tracking-wider w-[140px] whitespace-nowrap">
+                    <TableHead className="w-[140px] whitespace-nowrap">
                       Hub &amp; Bin
                     </TableHead>
-                    <TableHead className="py-3 px-3 text-right font-semibold text-xs text-text-secondary uppercase tracking-wider w-[90px] whitespace-nowrap">
+                    <TableHead className="text-right w-[90px] whitespace-nowrap">
                       On-Hand
                     </TableHead>
-                    <TableHead className="py-3 px-3 text-right font-semibold text-xs text-text-secondary uppercase tracking-wider w-[90px] whitespace-nowrap">
+                    <TableHead className="text-right w-[90px] whitespace-nowrap">
                       Reserved
                     </TableHead>
-                    <TableHead className="py-3 px-3 text-right font-semibold text-xs text-text-secondary uppercase tracking-wider w-[110px] whitespace-nowrap">
+                    <TableHead className="text-right w-[110px] whitespace-nowrap">
                       ATS (Avail)
                     </TableHead>
-                    <TableHead className="py-3 px-3 text-right font-semibold text-xs text-text-secondary uppercase tracking-wider w-[90px] whitespace-nowrap">
+                    <TableHead className="text-right w-[90px] whitespace-nowrap">
                       Incoming
                     </TableHead>
-                    <TableHead className="py-3 px-3 text-right font-semibold text-xs text-text-secondary uppercase tracking-wider w-[95px] whitespace-nowrap">
+                    <TableHead className="text-right w-[95px] whitespace-nowrap">
                       Velocity
                     </TableHead>
-                    <TableHead className="py-3 px-3 text-center font-semibold text-xs text-text-secondary uppercase tracking-wider w-[130px] whitespace-nowrap">
+                    <TableHead className="text-center w-[130px] whitespace-nowrap">
                       Status
                     </TableHead>
-                    <TableHead className="py-3 px-3 text-right font-semibold text-xs text-text-secondary uppercase tracking-wider w-[85px] whitespace-nowrap">
+                    <TableHead className="text-right w-[85px] whitespace-nowrap">
                       Actions
                     </TableHead>
                   </TableRow>
@@ -483,9 +516,9 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                 <TableBody className="divide-y divide-border-subtle/60">
                   {filteredInventory.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="py-12 text-center text-sm text-text-secondary">
+                      <TableCell colSpan={10} className="py-12 text-center text-body text-secondary">
                         <div className="flex flex-col items-center justify-center gap-2">
-                          <Icon name="inventory_2" className="material-symbols-outlined text-[32px] text-text-secondary/50" />
+                          <Icon name="inventory_2" className="material-symbols-outlined text-icon-2xl text-muted/50" />
                           <span>No inventory items matching your selected criteria.</span>
                           <button
                             type="button"
@@ -495,7 +528,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                               setStockHealthFilter('all');
                               setSearchQuery('');
                             }}
-                            className="text-xs text-primary-container font-semibold hover:underline mt-1"
+                            className="text-meta text-accent font-semibold hover:underline mt-1"
                           >
                             Reset filters
                           </button>
@@ -503,7 +536,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredInventory.map(item => {
+                    pagedInventory.map(item => {
                       const isSelected = selectedItem?.id === item.id;
                       return (
                         <TableRow
@@ -516,26 +549,22 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                             setAdjustmentDelta(-2);
                           }}
                           className={`cursor-pointer transition-colors ${
-                            isSelected
-                              ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30 border-l-4 border-l-primary-container'
-                              : 'hover:bg-surface-subtle'
-                          }`}
+ isSelected
+ ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30 border-l-4 border-l-primary-container'
+ : 'hover:bg-surface-subtle'
+ }`}
                         >
                           {/* SKU & Garment Variant */}
                           <TableCell className="py-3 px-3">
                             <div className="flex items-center gap-3">
                               <div className="w-11 h-11 rounded-lg overflow-hidden shrink-0 shadow-xs bg-surface-container ring-1 ring-border-subtle">
-                                <img
-                                  src={item.image}
-                                  alt={item.name}
-                                  className="w-full h-full object-cover"
-                                />
+                                <Thumbnail src={item.image} alt={item.name} className="w-full h-full" imgClassName="object-cover" />
                               </div>
                               <div className="flex flex-col min-w-0">
-                                <span className="text-xs font-semibold text-text-primary truncate max-w-[190px]">
+                                <span className="text-meta font-semibold text-primary truncate max-w-[190px]">
                                   {item.name}
                                 </span>
-                                <span className="font-mono text-[11px] text-text-secondary mt-0.5">
+                                <span className="font-mono text-micro text-muted mt-0.5 whitespace-nowrap">
                                   {item.sku} • {item.variant}
                                 </span>
                               </div>
@@ -544,7 +573,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
 
                           {/* Category */}
                           <TableCell className="py-3 px-3 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-surface-subtle text-text-primary text-[11px] font-medium border border-border-subtle">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-surface-subtle text-primary text-micro border border-subtle">
                               {item.category}
                             </span>
                           </TableCell>
@@ -552,47 +581,47 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                           {/* Hub & Bin */}
                           <TableCell className="py-3 px-3 whitespace-nowrap">
                             <div className="flex flex-col min-w-0">
-                              <span className="text-xs font-semibold text-text-primary flex items-center gap-1">
-                                <Icon name="location_on" className="material-symbols-outlined text-[13px] text-primary-container" />
+                              <span className="text-meta font-semibold text-primary flex items-center gap-1">
+                                <Icon name="location_on" className="material-symbols-outlined text-icon-sm text-accent" />
                                 {item.hub}
                               </span>
-                              <span className="text-[11px] text-text-secondary flex items-center gap-1 mt-0.5">
-                                <Icon name="inventory_2" className="material-symbols-outlined text-[13px] text-text-secondary" />
+                              <span className="text-micro text-muted flex items-center gap-1 mt-0.5">
+                                <Icon name="inventory_2" className="material-symbols-outlined text-icon-sm text-muted" />
                                 {item.bin}
                               </span>
                             </div>
                           </TableCell>
 
                           {/* On-Hand */}
-                          <TableCell className="py-3 px-3 text-right font-mono font-semibold text-xs text-text-primary whitespace-nowrap">
+                          <TableCell className="py-3 px-3 text-right font-mono font-semibold text-meta text-primary whitespace-nowrap">
                             {item.onHand}
                           </TableCell>
 
                           {/* Reserved */}
-                          <TableCell className="py-3 px-3 text-right font-mono text-xs text-text-secondary whitespace-nowrap">
+                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-muted whitespace-nowrap">
                             {item.reserved}
                           </TableCell>
 
                           {/* ATS (Avail) */}
                           <TableCell className="py-3 px-3 text-right whitespace-nowrap">
                             <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-mono font-bold text-xs ${
-                                item.ats <= 10
-                                  ? 'bg-status-danger-bg text-status-danger ring-1 ring-status-danger/30'
-                                  : 'bg-status-success-bg text-status-success ring-1 ring-status-success/30'
-                              }`}
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-mono font-semibold text-meta ${
+ item.ats <= 10
+ ? 'bg-status-danger-bg text-danger ring-1 ring-status-danger/30'
+ : 'bg-status-success-bg text-success ring-1 ring-status-success/30'
+ }`}
                             >
                               {item.ats}
                             </span>
                           </TableCell>
 
                           {/* Incoming */}
-                          <TableCell className="py-3 px-3 text-right font-mono text-xs text-status-info font-semibold whitespace-nowrap">
+                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-info font-semibold whitespace-nowrap">
                             +{item.incoming}
                           </TableCell>
 
                           {/* Velocity */}
-                          <TableCell className="py-3 px-3 text-right font-mono text-xs text-text-primary whitespace-nowrap">
+                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-primary whitespace-nowrap">
                             {item.velocity}
                           </TableCell>
 
@@ -612,10 +641,10 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                                   setTargetHub(item.hub);
                                   setTargetBin(item.bin);
                                 }}
-                                className="p-1.5 rounded-lg text-text-secondary hover:text-primary-container hover:bg-surface-subtle transition-all cursor-pointer"
+                                className="p-1.5 rounded-lg text-muted hover:text-accent hover:bg-surface-subtle transition-all cursor-pointer"
                                 title="Quick Adjust"
                               >
-                                <Icon name="tune" className="material-symbols-outlined text-[17px]" />
+                                <Icon name="tune" className="material-symbols-outlined text-icon" />
                               </button>
                               <button
                                 type="button"
@@ -623,10 +652,10 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                                   setTransferData(prev => ({ ...prev, sku: item.sku, fromHub: item.hub }));
                                   setIsTransferModalOpen(true);
                                 }}
-                                className="p-1.5 rounded-lg text-text-secondary hover:text-primary-container hover:bg-surface-subtle transition-all cursor-pointer"
+                                className="p-1.5 rounded-lg text-muted hover:text-accent hover:bg-surface-subtle transition-all cursor-pointer"
                                 title="Transfer SKU"
                               >
-                                <Icon name="sync_alt" className="material-symbols-outlined text-[17px]" />
+                                <Icon name="sync_alt" className="material-symbols-outlined text-icon" />
                               </button>
                             </div>
                           </TableCell>
@@ -638,20 +667,31 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
               </Table>
             </div>
 
+            <TablePagination
+              currentPage={page}
+              pageSize={pageSize}
+              totalItems={filteredInventory.length}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+            />
+
             {/* Ledger Summary Bar & Footer */}
-            <div className="p-4 bg-surface-subtle/30 border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-text-secondary">
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-subtle bg-surface-subtle px-space-md py-space-sm text-meta text-muted sm:flex-row">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-status-success"></span>
-                <span>Ledger Synced: <strong className="text-text-primary">Live Active</strong></span>
-                <span>•</span>
-                <span>Showing {filteredInventory.length} of {inventoryList.length} SKUs</span>
+                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-status-success" />
+                <span>Ledger synced: <strong className="text-primary">live</strong></span>
+                <span aria-hidden="true" className="h-1 w-1 rounded-full bg-text-faint" />
+                <span className="tabular-nums">
+                  {filteredInventory.length} of {inventoryList.length} SKUs match
+                </span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Button variant="outline" size="sm" onClick={handleExportCsv} className="gap-1 h-7 text-xs">
-                  <Icon name="file_download" className="material-symbols-outlined text-[14px]" />
-                  Export Ledger CSV
-                </Button>
-              </div>
+              <Button variant="outline" size="sm" onClick={handleExportCsv}>
+                <Icon name="file_download" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                Export ledger CSV
+              </Button>
             </div>
           </Card>
         </div>
@@ -659,23 +699,23 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
         {/* Right Side Drawer: Quick Stock Adjustment & Bin Audit */}
         {isDrawerOpen && selectedItem && (
           <div className="xl:col-span-4 flex flex-col space-y-4">
-            <Card className="border border-border-subtle bg-surface-container-lowest shadow-sm">
-              <CardHeader className="p-4 pb-2 border-b border-border-subtle flex flex-row items-start justify-between">
+            <Card className="border border-subtle bg-surface-container-lowest shadow-sm">
+              <CardHeader className="p-4 pb-2 border-b border-subtle flex flex-row items-start justify-between">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
-                    <Icon name="tune" className="p-1 rounded-md bg-primary-fixed text-primary material-symbols-outlined text-[16px]" />
-                    <CardTitle className="text-base font-semibold text-text-primary">Stock Adjustment &amp; Audit</CardTitle>
+                    <Icon name="tune" className="p-1 rounded-md bg-primary-fixed text-on-primary-fixed material-symbols-outlined text-icon" />
+                    <CardTitle className="text-heading font-semibold text-primary">Stock Adjustment &amp; Audit</CardTitle>
                   </div>
-                  <p className="text-[10px] text-text-secondary uppercase font-semibold">SKU: {selectedItem.sku} ({selectedItem.variant})</p>
+                  <p className="text-caption text-muted uppercase">SKU: {selectedItem.sku} ({selectedItem.variant})</p>
                 </div>
                 <div className="flex items-center gap-1">
                   {getStatusBadge(selectedItem.status)}
                   <button
                     type="button"
                     onClick={() => setIsDrawerOpen(false)}
-                    className="p-1 text-text-secondary hover:text-text-primary rounded-lg transition-colors"
+                    className="p-1 text-muted hover:text-primary rounded-lg transition-colors" title="Close" aria-label="Close"
                   >
-                    <Icon name="close" className="material-symbols-outlined text-[18px]" />
+                    <Icon name="close" className="material-symbols-outlined text-icon-md" />
                   </button>
                 </div>
               </CardHeader>
@@ -684,19 +724,15 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                 {/* Item Preview Snippet */}
                 <div className="p-3 rounded-xl bg-surface-subtle flex items-center gap-3">
                   <div className="w-12 h-14 rounded-lg bg-surface-container overflow-hidden shrink-0 shadow-sm">
-                    <img
-                      src={selectedItem.image}
-                      alt={selectedItem.name}
-                      className="w-full h-full object-cover"
-                    />
+                    <Thumbnail src={selectedItem.image} alt={selectedItem.name} className="w-full h-full" imgClassName="object-cover" />
                   </div>
                   <div className="flex flex-col min-w-0 flex-1">
-                    <div className="text-xs font-semibold text-text-primary truncate">{selectedItem.name}</div>
-                    <div className="text-[11px] text-text-secondary font-mono">EAN: {selectedItem.ean}</div>
+                    <div className="text-meta font-semibold text-primary truncate">{selectedItem.name}</div>
+                    <div className="text-micro text-muted font-mono whitespace-nowrap">EAN: {selectedItem.ean}</div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[11px] text-text-secondary">On-Hand: <strong className="text-text-primary">{selectedItem.onHand}</strong></span>
-                      <span className="text-border-strong">•</span>
-                      <span className="text-[11px] text-text-secondary">ATS: <strong className={selectedItem.ats <= 10 ? 'text-status-danger' : 'text-status-success'}>{selectedItem.ats}</strong></span>
+                      <span className="text-micro text-muted">On-Hand: <strong className="text-primary">{selectedItem.onHand}</strong></span>
+                      <span className="text-faint">•</span>
+                      <span className="text-micro text-muted">ATS: <strong className={selectedItem.ats <= 10 ? 'text-danger' : 'text-success'}>{selectedItem.ats}</strong></span>
                     </div>
                   </div>
                 </div>
@@ -705,12 +741,12 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                 <div className="space-y-3">
                   {/* Hub & Storage Location Target */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-text-secondary uppercase">Target Hub &amp; Storage Bin</label>
+                    <label className="text-caption text-muted uppercase">Target Hub &amp; Storage Bin</label>
                     <div className="grid grid-cols-2 gap-2">
                       <Select
                         value={targetHub}
                         onChange={(e) => setTargetHub(e.target.value)}
-                        className="h-9 text-xs"
+                        className="h-9 text-meta"
                       >
                         <option value="BLR-FC1">BLR-FC1 (Primary)</option>
                         <option value="BOM-FC2">BOM-FC2 (Mumbai)</option>
@@ -720,7 +756,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                       <Input
                         value={targetBin}
                         onChange={(e) => setTargetBin(e.target.value)}
-                        className="h-9 text-xs"
+                        className="h-9 text-meta"
                         placeholder="Bin Location"
                       />
                     </div>
@@ -728,11 +764,11 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
 
                   {/* Reason Code Selector */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-text-secondary uppercase">Variance Reason Code</label>
+                    <label className="text-caption text-muted uppercase">Variance Reason Code</label>
                     <Select
                       value={adjustmentReason}
                       onChange={(e) => setAdjustmentReason(e.target.value)}
-                      className="h-9 text-xs"
+                      className="h-9 text-meta"
                     >
                       <option value="damage">Damaged in QC Inspection (-)</option>
                       <option value="cycle">Cycle Count Physical Variance (+/-)</option>
@@ -744,7 +780,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
 
                   {/* Quantity Stepper & Direct Delta */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-text-secondary uppercase">Adjustment Quantity (Pcs)</label>
+                    <label className="text-caption text-muted uppercase">Adjustment Quantity (Pcs)</label>
                     <div className="flex items-center gap-2">
                       <div className="flex items-center bg-surface-subtle rounded-xl p-1 flex-1 justify-between">
                         <Button
@@ -752,13 +788,13 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                           size="sm"
                           type="button"
                           onClick={() => handleAdjustCount(-1)}
-                          className="w-8 h-8 font-bold text-base bg-surface-container-lowest hover:bg-surface-subtle"
+                          className="w-8 h-8 font-semibold text-heading bg-surface-container-lowest hover:bg-surface-subtle"
                         >
                           -
                         </Button>
-                        <span className={`font-mono font-semibold text-sm ${
-                          adjustmentDelta > 0 ? 'text-status-success' : adjustmentDelta < 0 ? 'text-status-danger' : 'text-text-primary'
-                        }`}>
+                        <span className={`font-mono font-semibold text-body ${
+ adjustmentDelta > 0 ? 'text-success' : adjustmentDelta < 0 ? 'text-danger' : 'text-primary'
+ }`}>
                           {adjustmentDelta > 0 ? `+${adjustmentDelta}` : adjustmentDelta} pcs
                         </span>
                         <Button
@@ -766,25 +802,25 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                           size="sm"
                           type="button"
                           onClick={() => handleAdjustCount(1)}
-                          className="w-8 h-8 font-bold text-base bg-surface-container-lowest hover:bg-surface-subtle"
+                          className="w-8 h-8 font-semibold text-heading bg-surface-container-lowest hover:bg-surface-subtle"
                         >
                           +
                         </Button>
                       </div>
                       <div className="text-right px-2">
-                        <span className="text-[10px] text-text-secondary block">New Physical:</span>
-                        <span className="text-xs font-bold text-text-primary">{newPhysicalCalculated} pcs</span>
+                        <span className="text-micro text-muted block">New Physical:</span>
+                        <span className="text-meta font-semibold text-primary">{newPhysicalCalculated} pcs</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Auditor Memo */}
                   <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-text-secondary uppercase">Auditor Memo / Barcode Tag</label>
+                    <label className="text-caption text-muted uppercase">Auditor Memo / Barcode Tag</label>
                     <textarea
                       value={auditorMemo}
                       onChange={(e) => setAuditorMemo(e.target.value)}
-                      className="w-full p-2.5 bg-surface-subtle rounded-xl text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-1 focus:ring-primary-container resize-none"
+                      className="w-full p-2.5 bg-surface-subtle rounded-xl text-meta text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-primary-container resize-none"
                       rows={2}
                       placeholder="Enter verification notes..."
                     />
@@ -792,10 +828,10 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
 
                   {/* SLA Alert Banner */}
                   {newPhysicalCalculated < 10 && (
-                    <Alert variant="warning" className="p-2.5 text-xs">
+                    <Alert variant="warning" className="p-2.5 text-meta">
                       <div className="flex items-start gap-2">
-                        <Icon name="info" className="material-symbols-outlined text-[16px] text-status-warning shrink-0 mt-0.5" />
-                        <p className="text-[11px] text-status-warning leading-relaxed">
+                        <Icon name="info" className="material-symbols-outlined text-icon text-warning shrink-0 mt-0.5" />
+                        <p className="text-micro text-warning leading-relaxed">
                           Stock level ({newPhysicalCalculated} pcs) triggers reorder threshold for {selectedItem.hub}.
                         </p>
                       </div>
@@ -807,16 +843,16 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                     <Button
                       type="button"
                       onClick={handleApplyAdjustment}
-                      className="flex-1 bg-primary-container text-on-primary hover:bg-primary text-xs font-semibold h-10 gap-1.5"
+                      className="flex-1 bg-primary-container text-on-accent hover:bg-primary-container-hover text-meta font-semibold h-10 gap-1.5"
                     >
-                      <Icon name="check_circle" className="material-symbols-outlined text-[16px]" />
+                      <Icon name="check_circle" className="material-symbols-outlined text-icon" />
                       Confirm Stock Movement
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => setIsDrawerOpen(false)}
-                      className="text-xs h-10"
+                      className="text-meta h-10"
                     >
                       Cancel
                     </Button>
@@ -824,19 +860,19 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                 </div>
 
                 {/* Mini Audit Trail */}
-                <div className="pt-2 border-t border-border-subtle space-y-2">
-                  <div className="flex items-center justify-between text-[10px] font-semibold text-text-secondary uppercase">
+                <div className="pt-2 border-t border-subtle space-y-2">
+                  <div className="flex items-center justify-between text-caption text-muted uppercase">
                     <span>Recent Ledger Activity</span>
-                    <span className="text-primary-container cursor-pointer hover:underline">View Full Trail</span>
+                    <span className="text-accent cursor-pointer hover:underline">View Full Trail</span>
                   </div>
-                  <div className="space-y-1.5 text-xs text-text-secondary">
-                    <div className="flex items-center justify-between py-1 border-b border-border-subtle/50">
+                  <div className="space-y-1.5 text-meta text-muted">
+                    <div className="flex items-center justify-between py-1 border-b border-subtle/50">
                       <span>PO-9912 Arrival (+50 pcs)</span>
-                      <span className="font-mono text-[11px]">Yesterday, 18:20</span>
+                      <span className="font-mono text-micro whitespace-nowrap">Yesterday, 18:20</span>
                     </div>
                     <div className="flex items-center justify-between py-1">
                       <span>Cycle Audit Variance (-2 pcs)</span>
-                      <span className="font-mono text-[11px]">May 21, 11:04</span>
+                      <span className="font-mono text-micro whitespace-nowrap">May 21, 11:04</span>
                     </div>
                   </div>
                 </div>
@@ -850,7 +886,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
       <Dialog open={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Icon name="sync_alt" className="material-symbols-outlined text-primary-container" />
+            <Icon name="sync_alt" className="material-symbols-outlined text-accent" />
             <span>Inter-Hub Stock Transfer Manifest</span>
           </DialogTitle>
         </DialogHeader>
@@ -858,7 +894,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
           <form onSubmit={handleConfirmTransfer} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Source Origin Hub</label>
+                <label className="text-meta font-medium text-muted">Source Origin Hub</label>
                 <Select
                   value={transferData.fromHub}
                   onChange={(e) => setTransferData(prev => ({ ...prev, fromHub: e.target.value }))}
@@ -870,7 +906,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Destination Target Hub</label>
+                <label className="text-meta font-medium text-muted">Destination Target Hub</label>
                 <Select
                   value={transferData.toHub}
                   onChange={(e) => setTransferData(prev => ({ ...prev, toHub: e.target.value }))}
@@ -884,7 +920,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-text-secondary">Garment SKU</label>
+              <label className="text-meta font-medium text-muted">Garment SKU</label>
               <Select
                 value={transferData.sku}
                 onChange={(e) => setTransferData(prev => ({ ...prev, sku: e.target.value }))}
@@ -899,7 +935,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Transfer Quantity (Units)</label>
+                <label className="text-meta font-medium text-muted">Transfer Quantity (Units)</label>
                 <Input
                   type="number"
                   min="1"
@@ -909,7 +945,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Logistics Carrier Mode</label>
+                <label className="text-meta font-medium text-muted">Logistics Carrier Mode</label>
                 <Input
                   value={transferData.vehicleNote}
                   onChange={(e) => setTransferData(prev => ({ ...prev, vehicleNote: e.target.value }))}
@@ -918,7 +954,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
               </div>
             </div>
 
-            <Alert variant="info" className="text-xs">
+            <Alert variant="info" className="text-meta">
               E-Way Bill requirement: Inter-state transfers exceeding ₹50,000 threshold will trigger auto-generation of Form GST EWB-01.
             </Alert>
 
@@ -926,7 +962,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
               <Button type="button" variant="outline" onClick={() => setIsTransferModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="default" className="bg-primary-container text-on-primary hover:bg-primary">
+              <Button type="submit" variant="default" className="bg-primary-container text-on-accent hover:bg-primary-container-hover">
                 Dispatch Transfer Manifest
               </Button>
             </DialogFooter>
@@ -938,7 +974,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
       <Dialog open={isGrnModalOpen} onClose={() => setIsGrnModalOpen(false)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Icon name="download" className="material-symbols-outlined text-primary-container" />
+            <Icon name="download" className="material-symbols-outlined text-accent" />
             <span>Goods Receipt Note (GRN) Inbound Entry</span>
           </DialogTitle>
         </DialogHeader>
@@ -946,14 +982,14 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
           <form onSubmit={handleConfirmGrn} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">PO Reference Number</label>
+                <label className="text-meta font-medium text-muted">PO Reference Number</label>
                 <Input
                   value={grnData.poRef}
                   onChange={(e) => setGrnData(prev => ({ ...prev, poRef: e.target.value }))}
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Supplier Name</label>
+                <label className="text-meta font-medium text-muted">Supplier Name</label>
                 <Input
                   value={grnData.supplier}
                   onChange={(e) => setGrnData(prev => ({ ...prev, supplier: e.target.value }))}
@@ -963,7 +999,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Target Receiving Hub</label>
+                <label className="text-meta font-medium text-muted">Target Receiving Hub</label>
                 <Select
                   value={grnData.hub}
                   onChange={(e) => setGrnData(prev => ({ ...prev, hub: e.target.value }))}
@@ -975,7 +1011,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Staging Bin</label>
+                <label className="text-meta font-medium text-muted">Staging Bin</label>
                 <Input
                   value={grnData.binLocation}
                   onChange={(e) => setGrnData(prev => ({ ...prev, binLocation: e.target.value }))}
@@ -985,7 +1021,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Target SKU</label>
+                <label className="text-meta font-medium text-muted">Target SKU</label>
                 <Select
                   value={grnData.sku}
                   onChange={(e) => setGrnData(prev => ({ ...prev, sku: e.target.value }))}
@@ -998,7 +1034,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Units Verified &amp; Received</label>
+                <label className="text-meta font-medium text-muted">Units Verified &amp; Received</label>
                 <Input
                   type="number"
                   min="1"
@@ -1012,7 +1048,7 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
               <Button type="button" variant="outline" onClick={() => setIsGrnModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="default" className="bg-primary-container text-on-primary hover:bg-primary">
+              <Button type="submit" variant="default" className="bg-primary-container text-on-accent hover:bg-primary-container-hover">
                 Book to Active Inventory
               </Button>
             </DialogFooter>

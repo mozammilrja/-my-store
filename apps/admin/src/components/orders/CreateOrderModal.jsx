@@ -52,7 +52,7 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
         phone: phone || '+91 98800•••••',
         fullPhone: phone || '+91 98800 12345',
         tier: 'VIP COUTURE',
-        tierBadgeClass: 'bg-primary-fixed text-on-primary-fixed font-bold',
+        tierBadgeClass: 'bg-primary-fixed text-on-primary-fixed font-semibold',
         address,
         cityRegion: `${address.split(',')[0]}, India`,
         deliveryInstructions: 'Call before delivery'
@@ -116,74 +116,75 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-4 border-b border-border-subtle flex flex-row items-center justify-between bg-surface-subtle">
+        <DialogHeader className="p-4 border-b border-subtle flex flex-row items-center justify-between bg-surface-subtle">
           <div className="flex items-center gap-2">
-            <Icon name="add_shopping_cart" className="material-symbols-outlined text-primary text-[22px]" />
+            <Icon name="add_shopping_cart" className="material-symbols-outlined text-accent text-icon-lg" />
             <div>
               <DialogTitle>Create Manual Order</DialogTitle>
-              <DialogDescription className="text-xs">
+              <DialogDescription className="text-meta">
                 Concierge expedited order routing for {currentHub.id}
               </DialogDescription>
             </div>
           </div>
           <Button
             variant="ghost"
-            size="icon"
+            size="iconSm"
             onClick={onClose}
-            className="h-8 w-8 text-secondary hover:text-text-primary"
+            title="Close"
+            aria-label="Close dialog"
           >
-            <Icon name="close" className="material-symbols-outlined text-[18px]" />
+            <Icon name="close" className="material-symbols-outlined text-icon-md" />
           </Button>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="p-space-lg space-y-4 overflow-y-auto">
           {/* Customer Information */}
           <div className="space-y-2">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold">
+            <span className="text-caption text-muted uppercase tracking-wider font-semibold">
               Consignee Details
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Customer Full Name *</label>
+                <label className="block text-meta font-medium text-muted mb-1">Customer Full Name *</label>
                 <Input 
                   required
                   type="text" 
                   value={name} 
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Shalini Roy"
-                  className="h-9 text-xs"
+                  className="h-9 text-meta"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Mobile Contact Phone *</label>
+                <label className="block text-meta font-medium text-muted mb-1">Mobile Contact Phone *</label>
                 <Input 
                   type="text" 
                   value={phone} 
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+91 98800 12345"
-                  className="h-9 text-xs"
+                  className="h-9 text-meta"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">Email Address</label>
+              <label className="block text-meta font-medium text-muted mb-1">Email Address</label>
               <Input 
                 type="email" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="shalini.roy@example.com"
-                className="h-9 text-xs"
+                className="h-9 text-meta"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">Delivery Shipping Address *</label>
+              <label className="block text-meta font-medium text-muted mb-1">Delivery Shipping Address *</label>
               <textarea 
                 required
                 rows="2"
                 value={address} 
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Apartment, Street name, City, State, PINCODE"
-                className="w-full p-2.5 rounded-lg border border-border-subtle bg-surface-canvas text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                className="w-full p-2.5 rounded-lg border border-subtle bg-surface-canvas text-meta focus:ring-1 focus:ring-primary focus:outline-none"
               />
             </div>
           </div>
@@ -192,16 +193,16 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
 
           {/* Garment Item Selection */}
           <div className="space-y-2">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold">
+            <span className="text-caption text-muted uppercase tracking-wider font-semibold">
               Apparel Merchandising Item
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-text-secondary mb-1">Garment Style</label>
+                <label className="block text-meta font-medium text-muted mb-1">Garment Style</label>
                 <Select 
                   value={productType}
                   onChange={(e) => setProductType(e.target.value)}
-                  className="h-9 text-xs"
+                  className="h-9 text-meta"
                 >
                   <option>Everwear Artisan Silk Maxi Dress</option>
                   <option>High-Rise Relaxed Tencel Pant</option>
@@ -212,11 +213,11 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Size</label>
+                <label className="block text-meta font-medium text-muted mb-1">Size</label>
                 <Select 
                   value={size}
                   onChange={(e) => setSize(e.target.value)}
-                  className="h-9 text-xs"
+                  className="h-9 text-meta"
                 >
                   <option>XS</option>
                   <option>S</option>
@@ -228,21 +229,21 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Colorway</label>
+                <label className="block text-meta font-medium text-muted mb-1">Colorway</label>
                 <Input 
                   type="text" 
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
-                  className="h-9 text-xs"
+                  className="h-9 text-meta"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Order Price (₹ INR)</label>
+                <label className="block text-meta font-medium text-muted mb-1">Order Price (₹ INR)</label>
                 <Input 
                   type="number" 
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  className="h-9 text-xs"
+                  className="h-9 text-meta"
                 />
               </div>
             </div>
@@ -252,16 +253,16 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
 
           {/* Fulfillment & Courier Allocation */}
           <div className="space-y-2">
-            <span className="font-label-xs-caps text-label-xs-caps text-text-secondary uppercase tracking-wider font-semibold">
+            <span className="text-caption text-muted uppercase tracking-wider font-semibold">
               Logistics & Payment
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Payment Method</label>
+                <label className="block text-meta font-medium text-muted mb-1">Payment Method</label>
                 <Select 
                   value={paymentMode}
                   onChange={(e) => setPaymentMode(e.target.value)}
-                  className="h-9 text-xs"
+                  className="h-9 text-meta"
                 >
                   <option>Paid (Prepaid UPI)</option>
                   <option>Paid (Credit Card)</option>
@@ -269,11 +270,11 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
                 </Select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">3PL Courier Partner</label>
+                <label className="block text-meta font-medium text-muted mb-1">3PL Courier Partner</label>
                 <Select 
                   value={courier}
                   onChange={(e) => setCourier(e.target.value)}
-                  className="h-9 text-xs"
+                  className="h-9 text-meta"
                 >
                   <option>BlueDart Express</option>
                   <option>Delhivery Direct</option>
@@ -288,7 +289,7 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
                 checked={isExpress}
                 onChange={(e) => setIsExpress(e.target.checked)}
               />
-              <label htmlFor="isExpressCheck" className="text-xs font-semibold text-text-primary cursor-pointer">
+              <label htmlFor="isExpressCheck" className="text-meta font-semibold text-primary cursor-pointer">
                 ⚡ Prioritize 24h Express Dispatch from {currentHub.id}
               </label>
             </div>
@@ -300,7 +301,7 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="text-xs"
+              className="text-meta"
             >
               Cancel
             </Button>
@@ -308,9 +309,9 @@ export function CreateOrderModal({ isOpen, onClose, onCreateOrder, currentHub })
               type="submit"
               variant="primary"
               size="sm"
-              className="gap-1.5 text-xs shadow-md"
+              className="gap-1.5 text-meta shadow-md"
             >
-              <Icon name="check" className="material-symbols-outlined text-[16px]" />
+              <Icon name="check" className="material-symbols-outlined text-icon" />
               <span>Create & Dispatch Order</span>
             </Button>
           </DialogFooter>

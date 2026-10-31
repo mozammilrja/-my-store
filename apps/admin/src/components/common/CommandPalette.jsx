@@ -48,27 +48,27 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onAction }) {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-scrim/50 backdrop-blur-sm animate-fade-in" onClick={onClose}>
       <div 
-        className="w-full max-w-2xl bg-surface-container-lowest rounded-2xl shadow-2xl border border-border-subtle overflow-hidden flex flex-col"
+        className="w-full max-w-2xl bg-surface-container-lowest rounded-2xl shadow-2xl border border-subtle overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center px-4 py-3 border-b border-border-subtle gap-3">
-          <Icon name="search" className="material-symbols-outlined text-secondary text-[22px]" />
+        <div className="flex items-center px-4 py-3 border-b border-subtle gap-3">
+          <Icon name="search" className="material-symbols-outlined text-muted text-icon-lg" />
           <input
             autoFocus
             type="text"
-            className="flex-1 bg-transparent text-text-primary text-base placeholder:text-text-secondary focus:outline-none"
+            className="flex-1 bg-transparent text-primary text-heading placeholder:text-muted focus:outline-none"
             placeholder="Type a command, SKU, Order ID, customer name or action..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <kbd className="px-2 py-0.5 rounded bg-surface-subtle text-text-secondary text-xs border border-border-subtle">ESC</kbd>
+          <kbd className="px-2 py-0.5 rounded bg-surface-subtle text-muted text-meta border border-subtle">ESC</kbd>
         </div>
 
         <div className="max-h-96 overflow-y-auto p-2 space-y-1">
           {filtered.length === 0 ? (
-            <div className="p-8 text-center text-text-secondary text-sm">
+            <div className="p-8 text-center text-secondary text-body">
               No matching commands or resources found for "{query}".
             </div>
           ) : (
@@ -86,29 +86,29 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onAction }) {
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-surface-subtle group-hover:bg-primary-container group-hover:text-on-primary flex items-center justify-center text-primary transition-colors">
-                    <Icon name={item.icon} className="material-symbols-outlined text-[18px]" />
+                  <div className="w-8 h-8 rounded-lg bg-surface-subtle group-hover:bg-primary-container group-hover:text-on-accent flex items-center justify-center text-accent transition-colors">
+                    <Icon name={item.icon} className="material-symbols-outlined text-icon-md" />
                   </div>
                   <div>
-                    <div className="font-semibold text-sm text-text-primary group-hover:text-primary transition-colors">{item.title}</div>
-                    <div className="text-xs text-text-secondary">{item.subtitle}</div>
+                    <div className="font-semibold text-body text-primary group-hover:text-accent transition-colors">{item.title}</div>
+                    <div className="text-meta text-muted">{item.subtitle}</div>
                   </div>
                 </div>
-                <span className="text-xs text-secondary/60 group-hover:text-primary font-mono flex items-center gap-1">
-                  Select <Icon name="arrow_forward" className="material-symbols-outlined text-[14px]" />
+                <span className="text-meta text-muted/60 group-hover:text-accent font-mono flex items-center gap-1 whitespace-nowrap">
+                  Select <Icon name="arrow_forward" className="material-symbols-outlined text-icon-sm" />
                 </span>
               </button>
             ))
           )}
         </div>
 
-        <div className="px-4 py-2.5 bg-surface-subtle border-t border-border-subtle flex items-center justify-between text-xs text-text-secondary">
+        <div className="px-4 py-2.5 bg-surface-subtle border-t border-subtle flex items-center justify-between text-meta text-muted">
           <div className="flex items-center gap-4">
             <span>↑↓ to navigate</span>
             <span>↵ to select</span>
             <span>ESC to close</span>
           </div>
-          <span className="font-semibold text-primary">Everwear Omnichannel Engine</span>
+          <span className="font-semibold text-accent">Everwear Omnichannel Engine</span>
         </div>
       </div>
     </div>

@@ -8,6 +8,11 @@ import {
   ContentGrid,
   StatsCard,
   StatusBadge,
+  SearchInput,
+  ErrorState,
+  SkeletonPage,
+  Thumbnail,
+  Select,
 } from '../ui';
 import { usersList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
@@ -19,7 +24,13 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   const [filterText, setFilterText] = useState('');
   
   // TanStack Query for users
-  const { data: usersData, isLoading: isUsersLoading } = useUsersQuery();
+  const {
+    data: usersData,
+    isLoading: isUsersLoading,
+    isError: isUsersError,
+    error: usersError,
+    refetch: refetchUsers,
+  } = useUsersQuery();
   const createUserMutation = useCreateUserMutation();
   const deleteUserMutation = useDeleteUserMutation();
 
@@ -103,13 +114,13 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       name: u.name || u.email.split('@')[0],
       email: u.email,
       role: u.role === 'owner' ? 'Store Owner' : 'Operations Staff',
-      roleBadge: u.role === 'owner' ? 'bg-primary-container text-white' : 'bg-surface-subtle text-text-primary',
+      roleBadge: u.role === 'owner' ? 'bg-primary-container text-on-accent' : 'bg-surface-subtle text-primary',
       hub: 'Central HQ / All Hubs',
       hubIcon: 'corporate_fare',
       scopeTitle: u.role === 'owner' ? 'Full Superadmin' : 'Operational Access',
       scopeDesc: u.role === 'owner' ? 'Full RBAC & financial sign-off authority' : 'Order, shipment & catalog management',
       securityState: 'Zero-Trust Active',
-      securityBadge: 'bg-status-success-bg text-status-success',
+      securityBadge: 'bg-status-success-bg text-success',
       securityIcon: 'verified_user',
       lastActive: 'Just now',
       device: 'Everwear Secure Auth',
@@ -132,20 +143,31 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
     return true;
   });
 
+  if (isUsersLoading) {
+    return <SkeletonPage variant="table" stats={6} statsCols={6} columns={6} label="Loading users and roles" />;
+  }
+
   return (
     <PageContainer>
+      {usersError && (
+        <ErrorState
+          title="Users could not be loaded"
+          message={usersError?.message}
+          onRetry={() => refetchUsers()}
+        />
+      )}
       <PageHeader
         breadcrumb="Everwear Admin / Settings & Admin / Users & Role Access"
         title="Enterprise User Management & Granular Role-Based Access Control (RBAC)"
         badge={
-          <span className="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-status-success-bg text-status-success font-label-xs-caps text-label-xs-caps font-semibold">
+          <span className="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-status-success-bg text-success text-caption font-semibold">
             <span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse"></span>
             Zero Trust SSO Enforced
           </span>
         }
         description="Manage operator permissions across fulfillment nodes, catalog merchandising controls, financial sign-off limits, and security audit logs."
         actions={
-          <div className="flex items-center gap-space-sm shrink-0 flex-wrap">
+          <div className="flex min-w-0 flex-wrap items-center gap-space-sm lg:shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -219,52 +241,52 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       </ContentGrid>
 
       {/* Segmented Primary Navigation Tabs */}
-      <div className="flex items-center justify-between gap-space-md bg-surface-container-lowest px-space-md py-space-xs rounded-xl shadow-sm border border-border-subtle mb-space-md flex-wrap">
+      <div className="flex items-center justify-between gap-space-md bg-surface-container-lowest px-space-md py-space-xs rounded-xl shadow-sm border border-subtle mb-space-md flex-wrap">
         <div className="flex items-center gap-space-xs flex-wrap">
           <button
             onClick={() => setActiveTab('directory')}
-            className={`px-space-md py-2 rounded-lg font-label-md text-label-md font-semibold transition-all flex items-center gap-2 ${
-              activeTab === 'directory' ? 'bg-primary-container text-on-primary shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-subtle'
-            }`}
+            className={`px-space-md py-2 rounded-lg text-label-lg font-semibold transition-all flex items-center gap-2 ${
+ activeTab === 'directory' ? 'bg-primary-container text-on-accent shadow-sm' : 'text-muted hover:text-primary hover:bg-surface-subtle'
+ }`}
           >
             <span>Team Directory</span>
-            <span className={`px-1.5 py-0.5 rounded-full font-label-xs-caps text-label-xs-caps ${
-              activeTab === 'directory' ? 'bg-white/20 text-white' : 'bg-surface-subtle text-text-secondary'
-            }`}>
+            <span className={`px-1.5 py-0.5 rounded-full text-caption ${
+ activeTab === 'directory' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
+ }`}>
               148
             </span>
           </button>
           <button
             onClick={() => setActiveTab('matrix')}
-            className={`px-space-md py-2 rounded-lg font-label-md text-label-md font-semibold transition-all flex items-center gap-2 ${
-              activeTab === 'matrix' ? 'bg-primary-container text-on-primary shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-subtle'
-            }`}
+            className={`px-space-md py-2 rounded-lg text-label-lg font-semibold transition-all flex items-center gap-2 ${
+ activeTab === 'matrix' ? 'bg-primary-container text-on-accent shadow-sm' : 'text-muted hover:text-primary hover:bg-surface-subtle'
+ }`}
           >
             <span>Roles & Permission Matrix</span>
-            <span className={`px-1.5 py-0.5 rounded-full font-label-xs-caps text-label-xs-caps ${
-              activeTab === 'matrix' ? 'bg-white/20 text-white' : 'bg-surface-subtle text-text-secondary'
-            }`}>
+            <span className={`px-1.5 py-0.5 rounded-full text-caption ${
+ activeTab === 'matrix' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
+ }`}>
               12
             </span>
           </button>
           <button
             onClick={() => setActiveTab('nodes')}
-            className={`px-space-md py-2 rounded-lg font-label-md text-label-md font-semibold transition-all flex items-center gap-2 ${
-              activeTab === 'nodes' ? 'bg-primary-container text-on-primary shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-subtle'
-            }`}
+            className={`px-space-md py-2 rounded-lg text-label-lg font-semibold transition-all flex items-center gap-2 ${
+ activeTab === 'nodes' ? 'bg-primary-container text-on-accent shadow-sm' : 'text-muted hover:text-primary hover:bg-surface-subtle'
+ }`}
           >
             <span>FC Node Assignments</span>
-            <span className={`px-1.5 py-0.5 rounded-full font-label-xs-caps text-label-xs-caps ${
-              activeTab === 'nodes' ? 'bg-white/20 text-white' : 'bg-surface-subtle text-text-secondary'
-            }`}>
+            <span className={`px-1.5 py-0.5 rounded-full text-caption ${
+ activeTab === 'nodes' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
+ }`}>
               4 Hubs
             </span>
           </button>
           <button
             onClick={() => setActiveTab('audit')}
-            className={`px-space-md py-2 rounded-lg font-label-md text-label-md font-semibold transition-all flex items-center gap-2 ${
-              activeTab === 'audit' ? 'bg-primary-container text-on-primary shadow-sm' : 'text-text-secondary hover:text-text-primary hover:bg-surface-subtle'
-            }`}
+            className={`px-space-md py-2 rounded-lg text-label-lg font-semibold transition-all flex items-center gap-2 ${
+ activeTab === 'audit' ? 'bg-primary-container text-on-accent shadow-sm' : 'text-muted hover:text-primary hover:bg-surface-subtle'
+ }`}
           >
             <span>Security & Audit Logs</span>
             <span className="w-2 h-2 rounded-full bg-status-success animate-pulse"></span>
@@ -272,25 +294,24 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         </div>
 
         {/* Quick Filter & Search Bar in Tabs Line */}
-        <div className="flex items-center gap-space-sm">
-          <div className="relative w-64">
-            <Icon name="filter_list" className="material-symbols-outlined absolute left-2.5 top-2 text-text-secondary text-[16px]" />
-            <input
-              value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
-              className="w-full h-8 pl-8 pr-3 bg-surface-subtle border border-border-subtle rounded-lg font-body-sm text-body-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:bg-surface-container-lowest transition-all"
-              placeholder="Filter by name, role, node..."
-              type="text"
-            />
-          </div>
-          <div className="h-6 w-px bg-surface-container-high"></div>
-          <button
+        <div className="flex min-w-0 flex-wrap items-center gap-space-sm">
+          <SearchInput
+            value={filterText}
+            onChange={(value) => setFilterText(value)}
+            onClear={() => setFilterText('')}
+            placeholder="Filter by name, role, node"
+            label="Filter users"
+            className="w-full min-w-0 sm:w-64 sm:flex-initial"
+          />
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => onShowToast?.('Filtering scopes')}
-            className="h-8 px-2.5 rounded-lg bg-surface-subtle hover:bg-surface-container-high border border-border-subtle text-text-primary font-label-xs-caps text-label-xs-caps uppercase flex items-center gap-1 transition-colors"
+            className="shrink-0"
           >
-            <Icon name="tune" className="material-symbols-outlined text-[16px] text-text-secondary" />
+            <Icon name="tune" aria-hidden="true" className="material-symbols-outlined text-icon text-muted" />
             <span>All Scopes</span>
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -298,28 +319,28 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
         {/* LEFT PANEL: 65% Main User Directory */}
         <div className="lg:col-span-8 space-y-space-md">
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle overflow-hidden">
+          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden">
             {/* Directory Header Controls */}
-            <div className="p-space-md flex flex-wrap items-center justify-between gap-space-md bg-surface-container-lowest border-b border-border-subtle">
+            <div className="p-space-md flex flex-wrap items-center justify-between gap-space-md bg-surface-container-lowest border-b border-subtle">
               <div className="flex items-center gap-space-sm">
-                <span className="font-headline-sm text-headline-sm text-text-primary font-semibold">Node Operators & Executives</span>
-                <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-text-secondary font-label-xs-caps text-label-xs-caps border border-border-subtle font-semibold">
+                <span className="text-subheading text-primary font-semibold">Node Operators & Executives</span>
+                <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
                   Showing {filteredUsers.length} of 148
                 </span>
               </div>
               <div className="flex items-center gap-space-sm">
                 <button
                   onClick={() => onShowToast?.('Exporting team directory CSV...')}
-                  className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-border-subtle text-text-secondary hover:text-text-primary font-label-sm text-label-sm flex items-center gap-1 transition-colors"
+                  className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
                 >
-                  <Icon name="download" className="material-symbols-outlined text-[16px]" />
+                  <Icon name="download" className="material-symbols-outlined text-icon" />
                   <span>CSV</span>
                 </button>
                 <button
                   onClick={() => onShowToast?.('Synchronized employee profiles with Workday HRIS.')}
-                  className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-border-subtle text-text-secondary hover:text-text-primary font-label-sm text-label-sm flex items-center gap-1 transition-colors"
+                  className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
                 >
-                  <Icon name="refresh" className="material-symbols-outlined text-[16px]" />
+                  <Icon name="refresh" className="material-symbols-outlined text-icon" />
                   <span>Sync</span>
                 </button>
               </div>
@@ -329,7 +350,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
             <div className="overflow-x-auto scrollbar-thin">
               <table className="w-full text-left border-collapse min-w-[960px]">
                 <thead>
-                  <tr className="bg-surface-subtle text-text-secondary font-label-xs-caps text-label-xs-caps uppercase tracking-wider border-b border-border-subtle select-none sticky top-0 z-10 backdrop-blur-sm">
+                  <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
                     <th className="py-2.5 px-space-md whitespace-nowrap">Operator Identity</th>
                     <th className="py-2.5 px-space-sm whitespace-nowrap">Primary Role</th>
                     <th className="py-2.5 px-space-sm whitespace-nowrap">Hub / Node</th>
@@ -339,7 +360,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                     <th className="py-2.5 px-space-md text-right whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border-subtle font-body-sm text-body-sm text-text-primary">
+                <tbody className="divide-y divide-border-subtle text-body text-primary">
                   {filteredUsers.map((user) => {
                     const isSelected = selectedUserKey === user.key;
                     return (
@@ -347,70 +368,64 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                         key={user.key}
                         onClick={() => setSelectedUserKey(user.key)}
                         className={`transition-colors group cursor-pointer ${
-                          user.isSuspended ? 'opacity-75' : ''
-                        } ${isSelected ? 'bg-primary-fixed/30 hover:bg-primary-fixed/40' : 'hover:bg-surface-subtle/60'}`}
+ user.isSuspended ? 'opacity-75' : ''
+ } ${isSelected ? 'bg-primary-fixed/30 hover:bg-primary-fixed/40' : 'hover:bg-surface-subtle/60'}`}
                       >
                         <td className="py-3 px-space-md">
                           <div className="flex items-center gap-3">
                             {user.avatar ? (
-                              <img
-                                className={`w-9 h-9 rounded-full object-cover shadow-sm ${
-                                  isSelected ? 'ring-2 ring-primary-container' : ''
-                                }`}
-                                src={user.avatar}
-                                alt={user.name}
-                              />
+                              <Thumbnail src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full shadow-sm" imgClassName="object-cover" />
                             ) : (
-                              <div className="w-9 h-9 rounded-full bg-surface-subtle flex items-center justify-center font-headline-sm text-headline-sm text-text-secondary font-semibold">
+                              <div className="w-9 h-9 rounded-full bg-surface-subtle flex items-center justify-center text-subheading text-muted font-semibold">
                                 FQ
                               </div>
                             )}
                             <div>
-                              <div className={`font-label-md text-label-md font-semibold text-text-primary flex items-center gap-1.5 ${
-                                user.isSuspended ? 'line-through' : ''
-                              }`}>
+                              <div className={`text-label-lg font-semibold text-primary flex items-center gap-1.5 ${
+ user.isSuspended ? 'line-through' : ''
+ }`}>
                                 <span>{user.name}</span>
                                 {user.isOnline && (
                                   <span className="w-2 h-2 rounded-full bg-status-success" title="Session Online"></span>
                                 )}
                                 {user.isExec && (
-                                  <span className="px-1.5 py-0.2 rounded bg-fashion-magenta/10 text-fashion-magenta font-label-xs-caps text-[10px] font-semibold">
+                                  <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
                                     EXEC
                                   </span>
                                 )}
                               </div>
-                              <div className="font-body-sm text-body-sm text-text-secondary text-[12px]">{user.email}</div>
+                              <div className="text-body text-secondary text-meta">{user.email}</div>
                             </div>
                           </div>
                         </td>
                         <td className="py-3 px-space-sm">
-                          <span className={`font-label-sm text-label-sm font-medium px-2 py-0.5 rounded-md ${user.roleBadge}`}>
+                          <span className={`inline-block max-w-[11rem] truncate rounded-md px-2 py-0.5 text-label font-medium ${user.roleBadge}`} title={user.role}>
                             {user.role}
                           </span>
                         </td>
                         <td className="py-3 px-space-sm">
-                          <span className="inline-flex items-center gap-1 font-label-sm text-label-sm text-text-primary">
-                            <Icon name={user.hubIcon} className="material-symbols-outlined text-[14px] text-text-secondary" />
-                            {user.hub}
+                          <span className="flex min-w-0 items-center gap-1 text-label text-primary" title={user.hub}>
+                            <Icon name={user.hubIcon} aria-hidden="true" className="material-symbols-outlined shrink-0 text-icon-sm text-muted" />
+                            <span className="truncate">{user.hub}</span>
                           </span>
                         </td>
                         <td className="py-3 px-space-sm">
                           <div className="space-y-0.5">
-                            <span className="text-text-primary font-medium text-[12px] block">{user.scopeTitle}</span>
-                            <span className={`text-[11px] block ${user.isSuspended ? 'text-status-danger font-semibold' : 'text-text-secondary'}`}>
+                            <span className="text-primary font-medium text-meta block">{user.scopeTitle}</span>
+                            <span className={`text-micro block ${user.isSuspended ? 'text-danger font-semibold' : 'text-muted'}`}>
                               {user.scopeDesc}
                             </span>
                           </div>
                         </td>
                         <td className="py-3 px-space-sm">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-xs-caps text-label-xs-caps font-semibold ${user.securityBadge}`}>
-                            <Icon name={user.securityIcon} className="material-symbols-outlined text-[12px]" />
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-semibold ${user.securityBadge}`}>
+                            <Icon name={user.securityIcon} className="material-symbols-outlined text-icon-sm" />
                             {user.securityState}
                           </span>
                         </td>
-                        <td className="py-3 px-space-sm text-text-secondary text-[12px]">
+                        <td className="py-3 px-space-sm text-muted text-meta">
                           <span>{user.lastActive}</span>
-                          <span className="block text-[10px] text-text-secondary/70">{user.device}</span>
+                          <span className="block text-micro text-muted/70">{user.device}</span>
                         </td>
                         <td className="py-3 px-space-md text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -420,9 +435,9 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                                   e.stopPropagation();
                                   onShowToast?.(`Password reset link sent to ${user.email}`);
                                 }}
-                                className="p-1 rounded-lg hover:bg-surface-subtle text-text-secondary hover:text-text-primary transition-colors"
+                                className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary transition-colors" title="Reset password" aria-label="Reset password"
                               >
-                                <Icon name="lock_reset" className="material-symbols-outlined text-[18px]" />
+                                <Icon name="lock_reset" className="material-symbols-outlined text-icon-md" />
                               </button>
                             ) : (
                               <>
@@ -431,20 +446,20 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                                     e.stopPropagation();
                                     onShowToast?.(`Editing access privileges for ${user.name}`);
                                   }}
-                                  className="p-1 rounded-lg hover:bg-surface-subtle text-text-secondary hover:text-text-primary transition-colors"
+                                  className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary transition-colors"
                                   title="Edit Permissions"
                                 >
-                                  <Icon name="edit" className="material-symbols-outlined text-[18px]" />
+                                  <Icon name="edit" className="material-symbols-outlined text-icon-md" />
                                 </button>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onShowToast?.(`Terminated active session on ${user.device}`);
                                   }}
-                                  className="p-1 rounded-lg hover:bg-status-danger-bg text-text-secondary hover:text-status-danger transition-colors"
+                                  className="p-1 rounded-lg hover:bg-status-danger-bg text-muted hover:text-danger transition-colors"
                                   title="Kill Session"
                                 >
-                                  <Icon name="logout" className="material-symbols-outlined text-[18px]" />
+                                  <Icon name="logout" className="material-symbols-outlined text-icon-md" />
                                 </button>
                                 {user.isDbUser && user.role !== 'Store Owner' && (
                                   <button
@@ -452,10 +467,10 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                                       e.stopPropagation();
                                       handleDeleteUser(user.id, user.name);
                                     }}
-                                    className="p-1 rounded-lg hover:bg-status-danger-bg text-status-danger hover:text-red-700 transition-colors"
+                                    className="p-1 rounded-lg hover:bg-status-danger-bg text-danger transition-colors"
                                     title="Delete User"
                                   >
-                                    <Icon name="delete" className="material-symbols-outlined text-[18px]" />
+                                    <Icon name="delete" className="material-symbols-outlined text-icon-md" />
                                   </button>
                                 )}
                               </>
@@ -470,39 +485,39 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
             </div>
 
             {/* Table Pagination Footer */}
-            <div className="p-space-md bg-surface-subtle border-t border-border-subtle flex items-center justify-between">
-              <span className="font-label-sm text-label-sm text-text-secondary">
+            <div className="p-space-md bg-surface-subtle border-t border-subtle flex items-center justify-between">
+              <span className="text-label text-muted">
                 Showing 1 to {filteredUsers.length} of 148 team members
               </span>
               <div className="flex items-center gap-1">
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-border-subtle text-text-secondary hover:text-text-primary font-label-sm text-label-sm disabled:opacity-50" disabled>
+                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-subtle text-muted hover:text-primary text-label disabled:opacity-50" disabled>
                   Previous
                 </button>
-                <button className="px-2.5 py-1 rounded bg-primary-container text-on-primary font-label-sm text-label-sm font-semibold">1</button>
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-border-subtle text-text-secondary hover:text-text-primary font-label-sm text-label-sm">2</button>
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-border-subtle text-text-secondary hover:text-text-primary font-label-sm text-label-sm">3</button>
-                <span className="px-1 text-text-secondary">...</span>
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-border-subtle text-text-secondary hover:text-text-primary font-label-sm text-label-sm">25</button>
-                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-border-subtle text-text-secondary hover:text-text-primary font-label-sm text-label-sm">Next</button>
+                <button className="px-2.5 py-1 rounded bg-primary-container text-on-accent text-label font-semibold">1</button>
+                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-subtle text-muted hover:text-primary text-label">2</button>
+                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-subtle text-muted hover:text-primary text-label">3</button>
+                <span className="px-1 text-muted">...</span>
+                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-subtle text-muted hover:text-primary text-label">25</button>
+                <button className="px-2.5 py-1 rounded bg-surface-container-lowest border border-subtle text-muted hover:text-primary text-label">Next</button>
               </div>
             </div>
           </div>
 
           {/* System Security Policy Banner */}
-          <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle flex items-start gap-space-md">
-            <div className="p-2.5 rounded-xl bg-status-info-bg text-status-info shrink-0">
-              <Icon name="verified" className="material-symbols-outlined text-[24px]" />
+          <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-subtle flex items-start gap-space-md">
+            <div className="p-2.5 rounded-xl bg-status-info-bg text-info shrink-0">
+              <Icon name="verified" className="material-symbols-outlined text-icon-xl" />
             </div>
             <div className="flex-1 space-y-1">
               <div className="flex items-center justify-between">
-                <h4 className="font-headline-sm text-headline-sm text-text-primary font-semibold">
+                <h4 className="text-subheading text-primary font-semibold">
                   FC Operational Hardening Rules in Effect
                 </h4>
-                <span className="font-label-xs-caps text-label-xs-caps px-2 py-0.5 rounded bg-status-success-bg text-status-success font-semibold">
+                <span className="text-caption px-2 py-0.5 rounded bg-status-success-bg text-success font-semibold">
                   ACTIVE ENFORCEMENT
                 </span>
               </div>
-              <p className="font-body-sm text-body-sm text-text-secondary leading-relaxed">
+              <p className="text-body text-secondary leading-relaxed">
                 All handheld RF guns in BLR-FC1 and BOM-FC2 must re-authenticate credentials every 8 hours. High-value stock write-offs exceeding ₹1,00,000 require concurrent cryptographic authorization by a VP or Station Commander.
               </p>
             </div>
@@ -512,53 +527,53 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         {/* RIGHT PANEL: 35% Role Policy Inspector & Deep Controls */}
         <div className="lg:col-span-4 space-y-space-md">
           {/* Main Policy Inspector Card */}
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-border-subtle p-space-md space-y-space-md sticky top-20">
+          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-md space-y-space-md sticky top-20">
             {/* Inspector Header */}
-            <div className="flex items-start justify-between pb-space-sm border-b border-border-subtle">
+            <div className="flex items-start justify-between pb-space-sm border-b border-subtle">
               <div>
-                <div className="flex items-center gap-1.5 font-label-xs-caps text-label-xs-caps uppercase tracking-wider text-primary font-bold">
-                  <Icon name="shield" className="material-symbols-outlined text-[14px]" />
+                <div className="flex items-center gap-1.5 text-caption uppercase tracking-wider text-accent font-semibold">
+                  <Icon name="shield" className="material-symbols-outlined text-icon-sm" />
                   <span>Role Policy Inspector</span>
                 </div>
-                <h3 className="font-headline-sm text-headline-sm text-text-primary mt-0.5 font-semibold">{selectedUser.role}</h3>
-                <p className="font-body-sm text-body-sm text-text-secondary">
-                  Assigned to: <strong className="text-text-primary">{selectedUser.name}</strong> ({selectedUser.assignedHub})
+                <h3 className="text-subheading text-primary mt-0.5 font-semibold">{selectedUser.role}</h3>
+                <p className="text-body text-secondary">
+                  Assigned to: <strong className="text-primary">{selectedUser.name}</strong> ({selectedUser.assignedHub})
                 </p>
               </div>
-              <span className={`px-2 py-0.5 rounded-full font-label-xs-caps text-label-xs-caps font-semibold ${selectedUser.tierBadge}`}>
+              <span className={`px-2 py-0.5 rounded-full text-caption font-semibold ${selectedUser.tierBadge}`}>
                 {selectedUser.tier}
               </span>
             </div>
 
             {/* Permission Matrix Checklist by Module */}
             <div className="space-y-space-sm">
-              <span className="font-label-xs-caps text-label-xs-caps uppercase text-text-secondary tracking-wider block">
+              <span className="text-caption uppercase text-muted tracking-wider block">
                 Granular Module Permissions
               </span>
 
               {selectedUser.modules.map((mod, mIdx) => (
-                <div key={mIdx} className="p-space-sm rounded-lg bg-surface-subtle border border-border-subtle space-y-1.5">
+                <div key={mIdx} className="p-space-sm rounded-lg bg-surface-subtle border border-subtle space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-label-sm text-label-sm font-semibold text-text-primary flex items-center gap-1.5">
-                      <Icon name={mod.icon} className="material-symbols-outlined text-[16px] text-text-secondary" />
+                    <span className="text-label font-semibold text-primary flex items-center gap-1.5">
+                      <Icon name={mod.icon} className="material-symbols-outlined text-icon text-muted" />
                       {mod.name}
                     </span>
-                    <span className={`font-label-xs-caps text-label-xs-caps px-1.5 py-0.5 rounded font-semibold ${mod.scopeColor}`}>
+                    <span className={`text-caption px-1.5 py-0.5 rounded font-semibold ${mod.scopeColor}`}>
                       {mod.scopeTag}
                     </span>
                   </div>
                   {mod.perms && (
-                    <div className="space-y-1 font-body-sm text-body-sm">
+                    <div className="space-y-1 text-body">
                       {mod.perms.map((p, pIdx) => (
-                        <div key={pIdx} className={`flex items-center gap-2 ${p.allowed ? 'text-text-primary' : 'text-text-secondary'}`}>
-                          <Icon name={p.allowed ? 'check_circle' : 'cancel'} className={`material-symbols-outlined text-[16px] ${p.allowed ? 'text-status-success' : 'text-status-danger'}`} />
+                        <div key={pIdx} className={`flex items-center gap-2 ${p.allowed ? 'text-primary' : 'text-muted'}`}>
+                          <Icon name={p.allowed ? 'check_circle' : 'cancel'} className={`material-symbols-outlined text-icon ${p.allowed ? 'text-success' : 'text-danger'}`} />
                           <span>{p.text}</span>
                         </div>
                       ))}
                     </div>
                   )}
                   {mod.desc && (
-                    <p className="font-body-sm text-body-sm text-text-secondary leading-relaxed">
+                    <p className="text-body text-secondary leading-relaxed">
                       {mod.desc}
                     </p>
                   )}
@@ -567,44 +582,44 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
             </div>
 
             {/* Security Hardening Controls */}
-            <div className="space-y-space-xs pt-space-xs border-t border-border-subtle">
-              <span className="font-label-xs-caps text-label-xs-caps uppercase text-text-secondary tracking-wider block">
+            <div className="space-y-space-xs pt-space-xs border-t border-subtle">
+              <span className="text-caption uppercase text-muted tracking-wider block">
                 Station Security Controls
               </span>
-              <div className="grid grid-cols-2 gap-space-xs text-body-sm text-body-sm">
-                <div className="p-2 rounded bg-surface-subtle border border-border-subtle">
-                  <span className="text-text-secondary text-[11px] block">IP Whitelisting</span>
-                  <span className="font-medium text-text-primary text-[12px]">{selectedUser.ipWhitelist}</span>
+              <div className="grid grid-cols-2 gap-space-xs text-body text-body">
+                <div className="p-2 rounded bg-surface-subtle border border-subtle">
+                  <span className="text-muted text-micro block">IP Whitelisting</span>
+                  <span className="font-medium text-primary text-meta">{selectedUser.ipWhitelist}</span>
                 </div>
-                <div className="p-2 rounded bg-surface-subtle border border-border-subtle">
-                  <span className="text-text-secondary text-[11px] block">Session Inactivity</span>
-                  <span className="font-medium text-text-primary text-[12px]">{selectedUser.sessionLimit}</span>
+                <div className="p-2 rounded bg-surface-subtle border border-subtle">
+                  <span className="text-muted text-micro block">Session Inactivity</span>
+                  <span className="font-medium text-primary text-meta">{selectedUser.sessionLimit}</span>
                 </div>
-                <div className="p-2 rounded bg-surface-subtle border border-border-subtle col-span-2 flex items-center justify-between">
+                <div className="p-2 rounded bg-surface-subtle border border-subtle col-span-2 flex items-center justify-between">
                   <div>
-                    <span className="text-text-secondary text-[11px] block">Stock Reconciliation</span>
-                    <span className="font-medium text-text-primary text-[12px]">Mandatory Mobile OTP Verification</span>
+                    <span className="text-muted text-micro block">Stock Reconciliation</span>
+                    <span className="font-medium text-primary text-meta">Mandatory Mobile OTP Verification</span>
                   </div>
-                  <Icon name="verified" className="material-symbols-outlined text-status-success text-[18px]" />
+                  <Icon name="verified" className="material-symbols-outlined text-success text-icon-md" />
                 </div>
               </div>
             </div>
 
             {/* Recent Audit Trail Entries */}
-            <div className="space-y-space-xs pt-space-xs border-t border-border-subtle">
+            <div className="space-y-space-xs pt-space-xs border-t border-subtle">
               <div className="flex items-center justify-between">
-                <span className="font-label-xs-caps text-label-xs-caps uppercase text-text-secondary tracking-wider">
+                <span className="text-caption uppercase text-muted tracking-wider">
                   Live Operator Audit Trail
                 </span>
-                <span className="font-label-xs-caps text-label-xs-caps text-status-info font-semibold">Real-time</span>
+                <span className="text-caption text-info font-semibold">Real-time</span>
               </div>
               <div className="space-y-2">
                 {selectedUser.auditEntries.map((aud, aIdx) => (
-                  <div key={aIdx} className="flex items-start gap-2 text-[12px]">
+                  <div key={aIdx} className="flex items-start gap-2 text-meta">
                     <span className={`w-1.5 h-1.5 rounded-full ${aud.dotColor} mt-1.5 shrink-0`}></span>
                     <div>
-                      <span className="font-medium text-text-primary block">{aud.title}</span>
-                      <span className="text-text-secondary text-[11px]">{aud.sub}</span>
+                      <span className="font-medium text-primary block">{aud.title}</span>
+                      <span className="text-muted text-micro">{aud.sub}</span>
                     </div>
                   </div>
                 ))}
@@ -612,27 +627,27 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
             </div>
 
             {/* Inspector Action Buttons */}
-            <div className="pt-space-sm border-t border-border-subtle flex flex-col gap-2">
+            <div className="pt-space-sm border-t border-subtle flex flex-col gap-2">
               <button
                 onClick={() => onShowToast?.(`Editing permissions matrix for ${selectedUser.name}`)}
-                className="w-full h-9 rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-primary font-label-md text-label-md font-medium transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                className="w-full h-9 rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-accent text-label-lg font-medium transition-colors shadow-sm flex items-center justify-center gap-1.5"
               >
-                <Icon name="tune" className="material-symbols-outlined text-[18px]" />
+                <Icon name="tune" className="material-symbols-outlined text-icon-md" />
                 <span>Modify Permissions</span>
               </button>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => onShowToast?.(`Viewing full cryptographic audit trail for ${selectedUser.name}`)}
-                  className="h-8 rounded-lg bg-surface-subtle hover:bg-surface-container-high border border-border-subtle text-text-primary font-label-sm text-label-sm font-medium transition-colors flex items-center justify-center gap-1"
+                  className="h-8 rounded-lg bg-surface-subtle hover:bg-surface-container-high border border-subtle text-primary text-label font-medium transition-colors flex items-center justify-center gap-1"
                 >
-                  <Icon name="history" className="material-symbols-outlined text-[16px] text-text-secondary" />
+                  <Icon name="history" className="material-symbols-outlined text-icon text-muted" />
                   <span>View Full Audit</span>
                 </button>
                 <button
                   onClick={() => onShowToast?.(`Suspended access for ${selectedUser.name}`)}
-                  className="h-8 rounded-lg bg-status-danger-bg hover:bg-error-container text-status-danger font-label-sm text-label-sm font-medium transition-colors flex items-center justify-center gap-1 border border-status-danger/20"
+                  className="h-8 rounded-lg bg-status-danger-bg hover:bg-error-container text-danger text-label font-medium transition-colors flex items-center justify-center gap-1 border border-status-danger/20"
                 >
-                  <Icon name="lock" className="material-symbols-outlined text-[16px]" />
+                  <Icon name="lock" className="material-symbols-outlined text-icon" />
                   <span>Suspend Access</span>
                 </button>
               </div>
@@ -643,50 +658,50 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
 
       {/* Invite Team Member Modal */}
       {isInviteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-border-subtle max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-space-lg border-b border-border-subtle flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-scrim/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-subtle max-w-md w-full overflow-hidden animate-fade-in fade-in duration-150">
+            <div className="p-space-lg border-b border-subtle flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Icon name="person_add" className="p-2 rounded-xl bg-primary-container text-white material-symbols-outlined text-[20px]" />
+                <Icon name="person_add" className="p-2 rounded-xl bg-primary-container text-on-accent material-symbols-outlined text-icon-lg" />
                 <div>
-                  <h3 className="font-headline-sm font-semibold text-text-primary">Invite Team Member</h3>
-                  <p className="text-xs text-text-secondary">Provision administrator credentials in Everwear RBAC</p>
+                  <h3 className="font-semibold text-primary">Invite Team Member</h3>
+                  <p className="text-meta text-muted">Provision administrator credentials in Everwear RBAC</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsInviteModalOpen(false)}
-                className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-text-secondary"
+                className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-muted" title="Close" aria-label="Close"
               >
-                <Icon name="close" className="material-symbols-outlined text-[18px]" />
+                <Icon name="close" className="material-symbols-outlined text-icon-md" />
               </button>
             </div>
 
             <form onSubmit={handleCreateUser} className="p-space-lg space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Full Name</label>
+                <label className="block text-meta font-semibold text-muted mb-1">Full Name</label>
                 <input
                   type="text"
                   placeholder="e.g. Alisha Kapoor"
                   value={inviteForm.name}
                   onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
-                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                  className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Work Email *</label>
+                <label className="block text-meta font-semibold text-muted mb-1">Work Email *</label>
                 <input
                   type="email"
                   required
                   placeholder="alisha@everwear.test"
                   value={inviteForm.email}
                   onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                  className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Initial Password (min 12 characters) *</label>
+                <label className="block text-meta font-semibold text-muted mb-1">Initial Password (min 12 characters) *</label>
                 <input
                   type="password"
                   required
@@ -694,37 +709,38 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                   placeholder="••••••••••••"
                   value={inviteForm.password}
                   onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })}
-                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
+                  className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
                 />
-                <p className="text-[10px] text-text-secondary mt-1">Must contain at least 12 characters.</p>
+                <p className="text-micro text-muted mt-1">Must contain at least 12 characters.</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Role / Permissions Level</label>
-                <select
+                <label className="block text-meta font-semibold text-muted mb-1">Role / Permissions Level</label>
+                <Select
                   value={inviteForm.role}
                   onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
-                  className="w-full h-9 px-3 bg-surface-canvas border border-border-subtle rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
-                >
-                  <option value="staff">Operations Staff (Catalog, Orders, Inventory, Fulfillment)</option>
-                  <option value="owner">Store Owner (Full Administrative & Financial Access)</option>
-                </select>
+                  aria-label="Role / permissions level"
+                  options={[
+                    { value: 'staff', label: 'Operations staff (catalog, orders, inventory, fulfillment)' },
+                    { value: 'owner', label: 'Store owner (full administrative and financial access)' },
+                  ]}
+                />
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-border-subtle">
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-subtle">
                 <button
                   type="button"
                   onClick={() => setIsInviteModalOpen(false)}
-                  className="h-9 px-4 rounded-xl border border-border-subtle bg-surface-container-lowest text-text-primary text-xs font-semibold hover:bg-surface-subtle transition-colors cursor-pointer"
+                  className="h-9 px-4 rounded-xl border border-subtle bg-surface-container-lowest text-primary text-meta font-semibold hover:bg-surface-subtle transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary-container-hover text-on-accent text-meta font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <Icon name={isSubmitting ? 'hourglass_top' : 'check'} className="material-symbols-outlined text-[16px]" />
+                  <Icon name={isSubmitting ? 'hourglass_top' : 'check'} className="material-symbols-outlined text-icon" />
                   <span>{isSubmitting ? 'Creating...' : 'Grant Access'}</span>
                 </button>
               </div>

@@ -12,7 +12,7 @@ export const TOKEN_KEY = "everwear_admin_token"
 
 /** The sixteen modules the nav offers, in nav order. */
 export const MODULES = [
-  { path: "overview", title: /executive operations overview/i },
+  { path: "overview", title: /executive overview/i },
   { path: "analytics-and-reports", title: /analytics/i },
   { path: "order-management", title: /order management/i },
   { path: "products", title: /catalog/i },

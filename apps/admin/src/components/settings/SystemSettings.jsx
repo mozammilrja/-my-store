@@ -12,6 +12,7 @@ import {
 } from '../ui';
 import { adminApi } from '../../lib/api';
 import { useSettingsQuery, useUpdateSettingsMutation } from '../../hooks/useAdminQueries';
+import { useSession } from '../../lib/session';
 
 export function SystemSettings({ onNavigate, onShowToast }) {
   const [activeSection, setActiveSection] = useState('general');
@@ -30,6 +31,8 @@ export function SystemSettings({ onNavigate, onShowToast }) {
     refetch: refetchSettings,
   } = useSettingsQuery();
   const updateSettingsMutation = useUpdateSettingsMutation();
+  // PATCH /admin/settings is owner-only server-side.
+  const { isOwner: canEditSettings } = useSession();
 
   // Backend store settings
   const [storeName, setStoreName] = useState('Everwear');
@@ -110,10 +113,10 @@ export function SystemSettings({ onNavigate, onShowToast }) {
               variant="primary"
               size="sm"
               onClick={handleSaveSettings}
-              disabled={isSaving}
-              icon={isSaving ? "hourglass_top" : "save"}
+              disabled={isSaving || !canEditSettings}
+              title={canEditSettings ? undefined : 'Only an owner can change store settings'}
             >
-              {isSaving ? "Saving..." : "Save Configuration"}
+              {isSaving ? 'Saving' : 'Save configuration'}
             </Button>
           </div>
         }

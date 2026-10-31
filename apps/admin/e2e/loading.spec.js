@@ -142,7 +142,7 @@ test("a background refetch keeps the current content on screen", async ({ page, 
     if (res.url().includes("/admin/dashboard")) refetched = true
   })
 
-  await page.getByRole("button", { name: /flash sync/i }).click()
+  await page.getByRole("button", { name: /^Refresh$/i }).click()
   // Content must never be replaced by a skeleton while refetching in the background.
   await expect(page.locator(SKELETON)).toHaveCount(0)
   await expect(page.locator("main table tbody tr")).toHaveCount(rowsBefore)

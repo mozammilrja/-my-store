@@ -16,6 +16,7 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
+import { useSession } from '../../lib/session';
 import { usersList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useUsersQuery, useCreateUserMutation, useDeleteUserMutation } from '../../hooks/useAdminQueries';
@@ -147,6 +148,9 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   // One shared pager over the rows this module actually holds.
   const usersPager = useClientTable(filteredUsers);
 
+  // The API refuses user writes for a staff account; say so before the call.
+  const { isOwner: canManageUsers, role } = useSession();
+
   if (isUsersLoading) {
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={6} label="Loading users and roles" />;
   }
@@ -181,20 +185,14 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
               Security Audit Export
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast?.("Opening Custom Role Policy Creator...")}
-              icon="verified_user"
-            >
-              Create Custom Role Policy
-            </Button>
-            <Button
               variant="primary"
               size="sm"
               onClick={() => setIsInviteModalOpen(true)}
-              icon="person_add"
+              disabled={!canManageUsers}
+              title={canManageUsers ? undefined : 'Only an owner can invite team members'}
             >
-              Invite Team Member
+              <Icon name="person_add" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+              Invite team member
             </Button>
           </div>
         }
@@ -465,7 +463,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                                 >
                                   <Icon name="logout" className="material-symbols-outlined text-icon-md" />
                                 </button>
-                                {user.isDbUser && user.role !== 'Store Owner' && (
+                                {canManageUsers && user.isDbUser && user.role !== 'Store Owner' && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();

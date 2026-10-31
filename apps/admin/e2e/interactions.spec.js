@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { getAdminToken, seed, gotoModule, watchConsole, pageOverflow } from "./helpers.js"
+import { getAdminToken, seed, gotoModule, watchConsole, pageOverflow, API_URL } from "./helpers.js"
 
 test("the orders table filters, searches and pages", async ({ page, context, request }) => {
   await seed(context, { token: await getAdminToken(request) })
@@ -10,7 +10,7 @@ test("the orders table filters, searches and pages", async ({ page, context, req
   expect(initial).toBeGreaterThan(0)
 
   // Status pills narrow the list and stay mutually exclusive.
-  const deliveredTab = page.getByRole("tab", { name: /delivered/i })
+  const deliveredTab = page.getByRole("tab", { name: /^Delivered$/i })
   await deliveredTab.click()
   await expect(deliveredTab).toHaveAttribute("aria-selected", "true")
   await expect(page.getByRole("tab", { name: /all orders/i })).toHaveAttribute("aria-selected", "false")
@@ -21,13 +21,75 @@ test("the orders table filters, searches and pages", async ({ page, context, req
   // Search narrows, clearing restores.
   const search = page.getByRole("searchbox").first()
   await search.fill("zzz-no-such-order")
-  await expect(page.locator("main table")).toContainText(/no orders found/i)
+  await expect(page.locator("main table")).toContainText(/no orders match these filters/i)
   await search.fill("")
   await expect(rows).toHaveCount(initial)
 
-  // Pagination reports a sane range and disables its ends.
-  await expect(page.getByText(/showing/i)).toBeVisible()
-  await expect(page.getByRole("button", { name: /previous/i })).toBeDisabled()
+  // A single short page carries no pagination strip at all.
+  await expect(page.getByRole("button", { name: /previous page/i })).toHaveCount(0)
+  expect(await rows.count()).toBeLessThanOrEqual(10)
+})
+
+test("pagination pages through a larger result set", async ({ page, context, request }) => {
+  await seed(context, { token: await getAdminToken(request) })
+
+  // A stubbed page of results, so the control is exercised without needing
+  // dozens of real orders in the database.
+  const makeOrder = (n) => ({
+    id: `order_stub_${n}`,
+    displayId: 9000 + n,
+    email: `shopper${n}@example.test`,
+    customerId: null,
+    currency: "inr",
+    items: [{ id: `i${n}`, productTitle: "Stub item", quantity: 1, unitPrice: 1000, total: 1000 }],
+    shippingAddress: { firstName: "Stub", lastName: `Shopper ${n}` },
+    totals: { itemSubtotal: 1000, discountTotal: 0, shippingTotal: 0, taxTotal: 0, total: 1000 },
+    paymentMethod: "cod",
+    paymentStatus: "awaiting",
+    fulfillmentStatus: "unfulfilled",
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  })
+
+  await page.route(`${API_URL}/admin/orders*`, async (route) => {
+    const url = new URL(route.request().url())
+    const pageNo = Number(url.searchParams.get("page") ?? 1)
+    const limit = Number(url.searchParams.get("limit") ?? 10)
+    const total = 23
+    const start = (pageNo - 1) * limit
+    const slice = Array.from({ length: Math.max(0, Math.min(limit, total - start)) }, (_, i) =>
+      makeOrder(start + i + 1)
+    )
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ orders: slice, count: total, page: pageNo, pages: Math.ceil(total / limit) }),
+    })
+  })
+
+  await gotoModule(page, "order-management")
+
+  const rows = page.locator("main table tbody tr")
+  await expect(rows).toHaveCount(10)
+  await expect(page.getByText(/page 1 of 3/i)).toBeVisible()
+  await expect(page.getByRole("button", { name: /previous page/i })).toBeDisabled()
+
+  await page.getByRole("button", { name: /next page/i }).click()
+  await expect(page.getByText(/page 2 of 3/i)).toBeVisible()
+  await expect(rows).toHaveCount(10)
+  await expect(page.getByRole("button", { name: /previous page/i })).toBeEnabled()
+
+  await page.getByRole("button", { name: /next page/i }).click()
+  await expect(page.getByText(/page 3 of 3/i)).toBeVisible()
+  await expect(rows).toHaveCount(3)
+  await expect(page.getByRole("button", { name: /next page/i })).toBeDisabled()
+
+  // Changing the page size returns to the first page.
+  await page.getByRole("button", { name: /rows per page/i }).click()
+  await page.getByRole("option", { name: "20", exact: true }).click()
+  await expect(page.getByText(/page 1 of 2/i)).toBeVisible()
+  await expect(rows).toHaveCount(20)
 })
 
 test("a filter dropdown opens, selects with the keyboard and closes on Escape", async ({
@@ -51,7 +113,7 @@ test("a filter dropdown opens, selects with the keyboard and closes on Escape", 
   await page.keyboard.press("Enter")
   await expect(listbox).toBeHidden()
   await expect(trigger).toHaveAttribute("aria-expanded", "false")
-  await expect(trigger).toHaveText(/prepaid/i)
+  await expect(trigger).toHaveText(/paid/i)
 
   await trigger.click()
   await expect(page.getByRole("listbox").first()).toBeVisible()
@@ -106,7 +168,7 @@ test("keyboard focus is always visible on the primary controls", async ({ page, 
   await seed(context, { token: await getAdminToken(request) })
   await gotoModule(page, "overview")
 
-  await page.getByRole("button", { name: /flash sync/i }).focus()
+  await page.getByRole("button", { name: /^Refresh$/i }).focus()
   const outline = await page.evaluate(() => {
     const el = document.activeElement
     const s = getComputedStyle(el)

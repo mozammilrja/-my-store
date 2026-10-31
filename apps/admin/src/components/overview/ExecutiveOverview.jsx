@@ -1,14 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { TOP_SELLING_SKUS, OPERATIONAL_INCIDENTS } from '../../data/mockData';
-import { useDashboardQuery } from '../../hooks/useAdminQueries';
-import { formatMoney, formatDate } from '../../lib/format';
-import { Icon,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
+import React, { useMemo } from 'react';
+import {
+  Icon,
   Badge,
   Button,
   Table,
@@ -17,29 +9,40 @@ import { Icon,
   TableHead,
   TableRow,
   TableCell,
-  Alert,
-  AlertTitle,
-  AlertDescription,
   Progress,
-  Separator,
   PageContainer,
   PageHeader,
-  DateRangeFilter,
   ContentGrid,
   StatsCard,
   SectionCard,
   StatusBadge,
-  ErrorState,
   EmptyState,
+  ErrorState,
   SkeletonPage,
   Thumbnail,
 } from '../ui';
+import { useDashboardQuery, useOrdersQuery } from '../../hooks/useAdminQueries';
+import { formatMoney } from '../../lib/format';
 
-const INCIDENT_VARIANT = {
-  CRITICAL: 'destructive',
-  WARNING: 'warning',
-  INFO: 'info',
-};
+/**
+ * Every figure on this screen comes from /admin/dashboard or /admin/orders.
+ * The dashboard endpoint reports a fixed 30-day window, so the whole page is
+ * labelled for that window rather than offering ranges it cannot answer.
+ */
+const WINDOW_LABEL = 'Last 30 days';
+
+const FULFILLMENT_STAGES = [
+  { key: 'unfulfilled', label: 'Awaiting dispatch', tone: 'warning', icon: 'inventory_2' },
+  { key: 'shipped', label: 'In transit', tone: 'info', icon: 'local_shipping' },
+  { key: 'delivered', label: 'Delivered', tone: 'success', icon: 'task_alt' },
+  { key: 'returned', label: 'Returned', tone: 'destructive', icon: 'assignment_return' },
+];
+
+const PAYMENT_STAGES = [
+  { key: 'paid', label: 'Paid', tone: 'success' },
+  { key: 'awaiting', label: 'Awaiting payment', tone: 'warning' },
+  { key: 'refunded', label: 'Refunded', tone: 'info' },
+];
 
 const RELATIVE_STEPS = [
   [60, 'sec'],
@@ -61,593 +64,469 @@ function relativeTime(iso) {
   return `${Math.floor(seconds / 86400)} d ago`;
 }
 
+/** Revenue arrives split by currency, so it is never collapsed into one number. */
+function RevenueByCurrency({ revenue }) {
+  if (!revenue?.length) return <span className="text-kpi text-muted">—</span>;
+  return (
+    <span className="flex flex-col gap-0.5">
+      {revenue.map((row) => (
+        <span key={row.currency} className="text-kpi tabular-nums text-primary">
+          {formatMoney(row.total, row.currency)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
-  const [timeRange, setTimeRange] = useState('Today');
-  const [chartMode, setChartMode] = useState('Hourly GMV');
-  const [incidents, setIncidents] = useState(OPERATIONAL_INCIDENTS);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const { data: dashboardData, isLoading, isError, error, refetch } = useDashboardQuery();
+  const {
+    data: dashboard,
+    isLoading: isDashboardLoading,
+    isError: isDashboardError,
+    error: dashboardError,
+    refetch: refetchDashboard,
+    isFetching: isDashboardFetching,
+  } = useDashboardQuery();
 
-  const defaultOrders = useMemo(() => [
-    {
-      ref: '#EW-892401',
-      fullId: 'EVR-984210-BLR',
-      timeAgo: '14 secs ago',
-      customer: 'Meera Singhania',
-      tier: 'VIP COUTURE',
-      tierVariant: 'vip',
-      email: 'meera.s***@everwear.vip',
-      items: '4 items (2x Anarkali, 2x Dupatta)',
-      value: '₹24,890',
-      payMode: 'HDFC Card (Prepaid)',
-      payIcon: 'credit_card',
-      node: 'BLR-FC1',
-      slaStatus: 'Picking (18m left)',
-      slaVariant: 'info',
-    },
-    {
-      ref: '#EW-892400',
-      fullId: 'EVR-984209-BOM',
-      timeAgo: '42 secs ago',
-      customer: 'Raghavan Iyer',
-      tier: 'GOLD TIER',
-      tierVariant: 'secondary',
-      email: 'r.iyer***@gmail.com',
-      items: '2 items (Selvedge Denim, Relaxed Tee)',
-      value: '₹6,450',
-      payMode: 'UPI (Instant)',
-      payIcon: 'qr_code_2',
-      node: 'BOM-FC2',
-      slaStatus: 'Manifested',
-      slaVariant: 'success',
-    },
-    {
-      ref: '#EW-892399',
-      fullId: 'EVR-984208-DEL',
-      timeAgo: '1m 12s ago',
-      customer: 'Tanya Kapoor',
-      tier: 'NEW SHOPPER',
-      tierVariant: 'secondary',
-      email: 'kapoortanya***@outlook.com',
-      items: '1 item (Pleated Emerald Midi Dress)',
-      value: '₹4,290',
-      payMode: 'COD (Verified OTP)',
-      payIcon: 'local_atm',
-      node: 'DEL-FC3',
-      slaStatus: 'Pack Queue',
-      slaVariant: 'info',
-    },
-    {
-      ref: '#EW-892398',
-      fullId: 'EVR-984207-HYD',
-      timeAgo: '2m 04s ago',
-      customer: 'Devendra Sen',
-      tier: 'VIP COUTURE',
-      tierVariant: 'vip',
-      email: 'dev.sen***@rediffmail.com',
-      items: '5 items (Silk Blend Overshirts, Linen Pants)',
-      value: '₹31,200',
-      payMode: 'Amex Corporate (Prepaid)',
-      payIcon: 'credit_card',
-      node: 'CCU-FC4',
-      slaStatus: 'In-Transit (Air)',
-      slaVariant: 'success',
-    },
-    {
-      ref: '#EW-892397',
-      fullId: 'EVR-984206-MAA',
-      timeAgo: '2m 45s ago',
-      customer: 'Pooja Nambiar',
-      tier: 'SILVER TIER',
-      tierVariant: 'secondary',
-      email: 'p.nambiar***@yahoo.com',
-      items: '2 items (Chanderi Printed Stole, Kurti)',
-      value: '₹5,190',
-      payMode: 'UPI (Instant)',
-      payIcon: 'qr_code_2',
-      node: 'BLR-FC1',
-      slaStatus: 'Dispatched',
-      slaVariant: 'success',
-    },
-  ], []);
+  // A wider slice of orders so the pipeline and product mix are counted from
+  // the same window the dashboard reports on.
+  const {
+    data: ordersData,
+    isError: isOrdersError,
+    refetch: refetchOrders,
+  } = useOrdersQuery({ limit: 100 });
 
-  const recentOrders = useMemo(() => {
-    if (dashboardData?.recentOrders && dashboardData.recentOrders.length > 0) {
-      return dashboardData.recentOrders.map((ro, i) => {
-        const val = ro.totals?.total ? formatMoney(ro.totals.total, ro.currency) : '₹4,890';
-        const name = ro.shippingAddress ? `${ro.shippingAddress.firstName || ''} ${ro.shippingAddress.lastName || ''}`.trim() : ro.email?.split('@')[0] || 'Customer';
-        return {
-          ref: `#EW-${ro.displayId || 1000 + i}`,
-          fullId: `EVR-${ro.displayId || 1000 + i}-BLR`,
-          timeAgo: relativeTime(ro.createdAt),
-          customer: name,
-          tier: ro.paymentStatus === 'paid' ? 'PREPAID' : 'COD',
-          tierVariant: 'secondary',
-          email: ro.email,
-          items: `${ro.items?.length || 1} items`,
-          value: val,
-          payMode: ro.paymentStatus === 'paid' ? 'UPI (Instant)' : 'Cash on Delivery',
-          payIcon: ro.paymentStatus === 'paid' ? 'qr_code_2' : 'local_atm',
-          node: 'BLR-FC1',
-          slaStatus: ro.fulfillmentStatus === 'shipped' ? 'Dispatched' : 'Picking',
-          slaVariant: ro.fulfillmentStatus === 'shipped' ? 'success' : 'info',
+  const orders = ordersData?.orders ?? [];
+
+  const derived = useMemo(() => {
+    const byFulfillment = Object.fromEntries(FULFILLMENT_STAGES.map((s) => [s.key, 0]));
+    const byPayment = Object.fromEntries(PAYMENT_STAGES.map((s) => [s.key, 0]));
+    const byMethod = new Map();
+    const products = new Map();
+    let units = 0;
+    let cancelled = 0;
+
+    for (const order of orders) {
+      if (order.status === 'canceled') cancelled += 1;
+      if (order.fulfillmentStatus in byFulfillment) byFulfillment[order.fulfillmentStatus] += 1;
+      if (order.paymentStatus in byPayment) byPayment[order.paymentStatus] += 1;
+      const method = order.paymentMethod || 'unknown';
+      byMethod.set(method, (byMethod.get(method) || 0) + 1);
+
+      for (const item of order.items ?? []) {
+        const qty = item.quantity ?? 0;
+        units += qty;
+        const key = item.productId || item.productTitle;
+        const prev = products.get(key) || {
+          title: item.productTitle,
+          thumbnail: item.thumbnail,
+          units: 0,
+          revenue: 0,
+          currency: order.currency,
         };
-      });
-    }
-    return defaultOrders;
-  }, [dashboardData, defaultOrders]);
-
-  const handleFlashSync = async () => {
-    setIsSyncing(true);
-    await refetch();
-    setIsSyncing(false);
-    onShowToast({
-      type: 'success',
-      title: 'Flash Sync Complete',
-      message: 'Telemetry refreshed across all 4 national fulfillment clusters (Cluster BLR-FC1 live).',
-    });
-  };
-
-  const handleDownloadPdf = () => {
-    onShowToast({
-      type: 'info',
-      title: 'Executive Brief Generated',
-      message: 'Daily Operations Executive PDF summary downloaded successfully.',
-    });
-  };
-
-  const handleResolveIncident = (incidentId, actionTaken) => {
-    setIncidents(prev => prev.map(inc => {
-      if (inc.id === incidentId) {
-        return { ...inc, resolved: true };
+        prev.units += qty;
+        prev.revenue += item.total ?? 0;
+        products.set(key, prev);
       }
-      return inc;
-    }));
-    onShowToast({
-      type: 'success',
-      title: 'Action Executed',
-      message: `${actionTaken} applied successfully. Dispatch routing updated.`,
-    });
-  };
+    }
 
-  // Metrics adjusted by time range
-  const openIncidents = incidents.filter((i) => !i.resolved);
+    const topProducts = [...products.values()].sort((a, b) => b.units - a.units).slice(0, 5);
+    return { byFulfillment, byPayment, byMethod: [...byMethod.entries()], topProducts, units, cancelled };
+  }, [orders]);
 
-  const metrics = {
-    gmv: timeRange === 'Today' ? '₹4,82,94,200' :
-         timeRange === 'Yesterday' ? '₹3,94,20,500' :
-         timeRange === 'Last 7D' ? '₹31,42,80,000' : '₹1,28,40,90,000',
-    gmvGrowth: timeRange === 'Today' ? '+14.2%' : '+8.6%',
-    ordersCount: timeRange === 'Today' ? '14,820' :
-                 timeRange === 'Yesterday' ? '12,410' :
-                 timeRange === 'Last 7D' ? '98,420' : '4,12,800',
-    aov: '₹3,258',
-    deliveredPct: '94.8%',
-    activeNodes: '4 / 4 Nodes',
-    exceptionsCount: openIncidents.length,
-    depletedSkus: dashboardData?.lowStock?.length || 86
-  };
+  const totalOrders = useMemo(
+    () => (dashboard?.revenue ?? []).reduce((sum, row) => sum + row.orders, 0),
+    [dashboard]
+  );
 
-  if (isLoading) {
+  // Average order value only means something within a single currency.
+  const averageOrderValue = useMemo(
+    () =>
+      (dashboard?.revenue ?? [])
+        .filter((row) => row.orders > 0)
+        .map((row) => ({ currency: row.currency, value: Math.round(row.total / row.orders) })),
+    [dashboard]
+  );
+
+  const dailySeries = useMemo(() => {
+    const rows = dashboard?.daily ?? [];
+    if (!rows.length) return { days: [], max: 0, currency: null };
+    // Chart the currency that carries the most revenue, and say which it is.
+    const lead = [...(dashboard?.revenue ?? [])].sort((a, b) => b.total - a.total)[0];
+    const currency = lead?.currency ?? rows[0].currency;
+    const days = rows.filter((r) => r.currency === currency);
+    return { days, max: Math.max(...days.map((d) => d.total), 1), currency };
+  }, [dashboard]);
+
+  if (isDashboardLoading) {
     return <SkeletonPage variant="dashboard" stats={6} statsCols={6} label="Loading executive overview" />;
   }
 
+  const attention = dashboard?.attention ?? { toShip: 0, toCollect: 0, lowStock: 0 };
+  const lowStock = dashboard?.lowStock ?? [];
+  const recentOrders = dashboard?.recentOrders ?? [];
+
   return (
     <PageContainer>
-      {/* Live System Telemetry Status Bar */}
-      <Card className="flex flex-col justify-between gap-space-sm px-space-md py-space-sm sm:flex-row sm:items-center">
-        <div className="flex min-w-0 items-center gap-space-sm">
-          <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-status-success" />
-          <span className="shrink-0 text-caption uppercase tracking-wider text-success">
-            Live telemetry online
-          </span>
-          <span aria-hidden="true" className="h-1 w-1 shrink-0 rounded-full bg-text-faint" />
-          <span className="truncate text-body text-secondary">
-            Connected to the Everwear Commerce API
-          </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-space-md text-caption text-muted">
-          <span className="flex items-center gap-1 font-medium">
-            <Icon name="cloud_done" aria-hidden="true" className="material-symbols-outlined text-icon-sm text-success" />
-            Live sync active
-          </span>
-          <span aria-hidden="true" className="h-1 w-1 rounded-full bg-text-faint" />
-          <span className="font-mono whitespace-nowrap">BLR · BOM · DEL · CCU</span>
-        </div>
-      </Card>
-
-      {isError && (
-        <ErrorState
-          title="Live dashboard telemetry is unavailable"
-          message={error?.message}
-          onRetry={() => refetch()}
-        />
-      )}
-
-      {/* Page Title & Operational Actions Toolbar */}
       <PageHeader
-        kicker="Ops Orchestration Center"
-        badge="Q2 FY24-25 ACTIVE"
-        title="Executive Operations Overview"
-        description="Real-time consolidated fashion commerce telemetry across 4 national fulfillment hubs (Bengaluru, Mumbai, Delhi-NCR, Kolkata)."
+        kicker="Operations"
+        badge={WINDOW_LABEL}
+        title="Executive overview"
+        description="Trading, fulfilment and stock signals for the Everwear store, read straight from the commerce API."
         actions={
-          <>
-            <DateRangeFilter
-              ranges={['Today', 'Yesterday', 'Last 7D', 'MTD', 'Q2 FY24-25']}
-              activeRange={timeRange}
-              onRangeChange={setTimeRange}
+          <Button
+            variant="secondary"
+            onClick={() => {
+              refetchDashboard();
+              refetchOrders();
+            }}
+            disabled={isDashboardFetching}
+          >
+            <Icon
+              name="sync"
+              aria-hidden="true"
+              className={`material-symbols-outlined text-icon-md ${isDashboardFetching ? 'animate-spin' : ''}`}
             />
-            <Button
-              variant="secondary"
-              size="default"
-              onClick={handleFlashSync}
-              disabled={isSyncing}
-              className="gap-1.5"
-              type="button"
-            >
-              <Icon name="sync" className={`material-symbols-outlined text-icon-md text-accent ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Syncing...' : 'Flash Sync'}</span>
-            </Button>
-            <Button
-              variant="primary"
-              size="default"
-              onClick={handleDownloadPdf}
-              className="gap-1.5"
-              type="button"
-            >
-              <Icon name="download" className="material-symbols-outlined text-icon-md" />
-              <span>Daily Brief (PDF)</span>
-            </Button>
-          </>
+            <span>{isDashboardFetching ? 'Refreshing' : 'Refresh'}</span>
+          </Button>
         }
       />
 
-      {/* KPI Metric Grid (7 Cards Bento) */}
-      <ContentGrid cols={7}>
-        <StatsCard
-          title="Gross Merchandise Value"
-          value={metrics.gmv}
-          trend={metrics.gmvGrowth}
-          trendType="up"
-          progress={88}
-          progressLabel="Target Achievement"
-          targetText="106.4% of Daily Quota"
-          subtext="Prepaid: 72.4% (Razorpay/UPI) • COD: 27.6%"
+      {isDashboardError && (
+        <ErrorState
+          title="Dashboard figures are unavailable"
+          message={dashboardError?.message}
+          onRetry={() => refetchDashboard()}
         />
+      )}
 
+      {/* KPI row. Each tile is one number the API reports or one derived from it. */}
+      <ContentGrid columns={6}>
         <StatsCard
-          title="Orders Placed"
-          value={metrics.ordersCount}
-          icon="shopping_cart"
-          trend="+21.4%"
-          trendType="up"
-          trendLabel="vs SLA Target"
-          subtext={`AOV: ${metrics.aov}`}
+          title={`Revenue · ${WINDOW_LABEL}`}
+          value={<RevenueByCurrency revenue={dashboard?.revenue} />}
+          icon="payments"
+          subtext={
+            (dashboard?.revenue?.length ?? 0) > 1
+              ? 'Reported per currency, not combined'
+              : 'Excludes cancelled orders'
+          }
         />
-
         <StatsCard
-          title="On-Time Dispatch SLA"
-          value={metrics.deliveredPct}
-          icon="local_shipping"
-          iconColor="text-success"
-          trend="Target: 92%"
-          trendType="neutral"
-          trendLabel="within 4h"
-          subtext="Fastest Node: BLR-FC1 (2.2h)"
-        />
-
-        <StatsCard
-          title="Active Hub Nodes"
-          value={metrics.activeNodes}
-          icon="hub"
+          title="Orders placed"
+          value={totalOrders}
+          icon="shopping_bag"
           iconColor="text-info"
-          badge="OPERATIONAL"
-          badgeVariant="success"
-          trendLabel="All Nodes Live"
-          subtext="Peak Node: BLR-FC1 (38%)"
+          subtext={
+            derived.cancelled > 0 ? `${derived.cancelled} cancelled separately` : 'Excludes cancelled orders'
+          }
         />
-
         <StatsCard
-          className="bg-status-danger-bg/40 border-status-danger/20 hover:border-status-danger/40"
-          title="Critical Exceptions"
-          value={metrics.exceptionsCount}
-          icon="warning"
-          iconColor="text-danger"
-          badge="ACTION REQ"
-          badgeVariant="destructive"
-          trendLabel="Immediate action"
-          subtext="Unblock in Triage Queue Below"
+          title="Average order value"
+          value={
+            averageOrderValue.length ? (
+              <span className="flex flex-col gap-0.5">
+                {averageOrderValue.map((row) => (
+                  <span key={row.currency} className="text-kpi tabular-nums text-primary">
+                    {formatMoney(row.value, row.currency)}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              '—'
+            )
+          }
+          icon="receipt_long"
+          subtext={`${derived.units} unit${derived.units === 1 ? '' : 's'} sold`}
         />
-
         <StatsCard
-          title="Depleted Stock (SKUs)"
-          value={metrics.depletedSkus}
-          icon="inventory_2"
+          title="Registered customers"
+          value={dashboard?.customers ?? 0}
+          icon="group"
+          iconColor="text-info"
+          subtext="Accounts with a password set"
+          onClick={() => onNavigate('customers-and-loyalty')}
+        />
+        <StatsCard
+          title="Awaiting dispatch"
+          value={attention.toShip}
+          icon="local_shipping"
           iconColor="text-warning"
-          trend="Out of stock"
-          trendType="down"
-          trendLabel="in 1+ hub"
-          subtext="Open Inventory Matrix →"
+          badge={attention.toShip > 0 ? 'Action' : undefined}
+          badgeVariant="warning"
+          subtext="Orders not yet fulfilled"
+          onClick={() => onNavigate('order-management')}
+        />
+        <StatsCard
+          title="Low stock SKUs"
+          value={attention.lowStock}
+          icon="inventory_2"
+          iconColor={attention.lowStock > 0 ? 'text-danger' : 'text-success'}
+          subtext={`At or below ${dashboard?.lowStockThreshold ?? 0} units`}
           onClick={() => onNavigate('inventory-and-warehouses')}
         />
       </ContentGrid>
 
-      {/* Main Multi-Column Matrix: Sales Chart (8 Cols) + Exception Triage Queue (4 Cols) */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg items-start">
-        {/* Left Column (8 Cols): Sales Velocity & Hub Throughput Charts */}
-        <div className="xl:col-span-8 space-y-space-lg">
-          <Card className="p-space-lg shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm pb-space-md border-b border-subtle">
-              <div>
-                <CardTitle className="text-heading font-semibold text-primary">
-                  Sales Velocity &amp; Hub Throughput
-                </CardTitle>
-                <CardDescription className="text-body text-secondary">
-                  Hourly order volume compared to prior period baseline across all omnichannel channels.
-                </CardDescription>
-              </div>
-
-              {/* Chart Mode Toggle */}
-              <div className="flex items-center gap-1 bg-surface-subtle p-1 rounded-xl border border-subtle text-meta">
-                {['Hourly GMV', 'Units Dispatched', 'Prepaid vs COD'].map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setChartMode(mode)}
-                    className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
- chartMode === mode
- ? 'bg-surface-container-lowest text-accent font-semibold shadow-xs'
- : 'text-muted hover:text-primary'
- }`}
-                    type="button"
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Stylized Visual Chart */}
-            <div className="pt-space-md space-y-space-md">
-              <div className="flex h-64 w-full flex-col justify-between rounded-xl border border-subtle bg-surface-subtle p-space-md">
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-meta font-mono text-muted">
-                  <span>₹80L peak</span>
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-chart-1"></span> Today’s velocity</span>
-                    <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-chart-baseline"></span> Baseline (last week)</span>
-                  </div>
-                </div>
-
-                {/* SVG Area / Bars */}
-                <div className="relative h-44 w-full flex items-end gap-1.5 sm:gap-3 px-1">
-                  {[
-                    { hour: '06h', val: 24, base: 18 },
-                    { hour: '08h', val: 42, base: 30 },
-                    { hour: '10h', val: 78, base: 55 },
-                    { hour: '12h', val: 92, base: 68 },
-                    { hour: '14h', val: 86, base: 74 },
-                    { hour: '16h', val: 96, base: 70 },
-                    { hour: '18h', val: 88, base: 82 },
-                    { hour: '20h', val: 95, base: 85 },
-                    { hour: '22h', val: 72, base: 60 },
-                    { hour: '00h', val: 38, base: 25 },
-                  ].map((col) => (
-                    <div key={col.hour} className="flex-1 flex flex-col items-center gap-1 group">
-                      <div className="w-full flex items-end justify-center gap-1 h-36">
-                        <div 
-                          style={{ height: `${col.base}%` }} 
-                          className="w-full max-w-[12px] rounded-t-sm bg-chart-baseline"
-                          title={`Baseline: ${col.base}%`}
-                        />
-                        <div 
-                          style={{ height: `${col.val}%` }} 
-                          className="w-full max-w-[14px] rounded-t-sm bg-chart-1 transition-colors group-hover:bg-primary-hover"
-                          title={`Today: ${col.val}%`}
-                        />
+      <div className="grid items-start gap-space-lg xl:grid-cols-12">
+        <div className="flex min-w-0 flex-col gap-space-lg xl:col-span-8">
+          {/* Daily revenue, straight from the dashboard's own series. */}
+          <SectionCard
+            title={`Daily revenue · ${WINDOW_LABEL}`}
+            description={
+              dailySeries.currency
+                ? `Orders settled in ${dailySeries.currency.toUpperCase()}, by day.`
+                : 'No settled orders in this window yet.'
+            }
+          >
+            {dailySeries.days.length === 0 ? (
+              <EmptyState
+                icon="show_chart"
+                title="No revenue in this window"
+                description="A paid order appears on this trend as soon as it is placed."
+              />
+            ) : (
+              <div className="flex flex-col gap-space-sm">
+                <div
+                  role="img"
+                  aria-label={`Daily revenue in ${dailySeries.currency.toUpperCase()} across ${dailySeries.days.length} days`}
+                  className="flex h-56 items-end gap-2 rounded-xl border border-subtle bg-surface-subtle p-space-md"
+                >
+                  {dailySeries.days.map((d) => {
+                    const pct = Math.max(4, Math.round((d.total / dailySeries.max) * 100));
+                    return (
+                      <div key={d.day} className="group flex h-full min-w-0 flex-1 flex-col items-center gap-1.5">
+                        <span className="whitespace-nowrap text-micro tabular-nums text-muted opacity-0 transition-opacity group-hover:opacity-100">
+                          {formatMoney(d.total, d.currency)}
+                        </span>
+                        {/* The track is the measured box; the bar takes its share of it. */}
+                        <div className="flex w-full flex-1 items-end justify-center">
+                          <div
+                            className="w-full max-w-[42px] rounded-t-sm bg-chart-1 transition-colors group-hover:bg-accent"
+                            style={{ height: `${pct}%` }}
+                            title={`${d.day}: ${formatMoney(d.total, d.currency)} from ${d.orders} order${d.orders === 1 ? '' : 's'}`}
+                          />
+                        </div>
+                        <span className="w-full truncate text-center text-micro tabular-nums text-muted">
+                          {d.day.slice(5)}
+                        </span>
                       </div>
-                      <span className="text-micro font-mono text-muted whitespace-nowrap">{col.hour}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+                <p className="text-meta text-muted">Hover a bar for the exact amount and order count.</p>
               </div>
-            </div>
-          </Card>
+            )}
+          </SectionCard>
 
-          {/* Top Selling Garments Table */}
-          <Card className="p-space-lg shadow-sm">
-            <div className="flex items-center justify-between pb-space-md border-b border-subtle">
-              <div>
-                <CardTitle className="text-heading font-semibold text-primary">
-                  Top Performing Garments &amp; Styles (Real-Time)
-                </CardTitle>
-                <CardDescription className="text-body text-secondary">
-                  Highest velocity luxury garments by unit sell-through, gross margin &amp; regional demand.
-                </CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onNavigate('products')}
-                className="text-meta"
-                type="button"
-              >
-                View Catalog Master →
+          {/* Product mix derived from the line items on those orders. */}
+          <SectionCard
+            title="Most ordered products"
+            description="Ranked by units across the orders in this window."
+            action={
+              <Button variant="outline" size="sm" onClick={() => onNavigate('products')}>
+                Open catalog
               </Button>
-            </div>
-
-            <div className="overflow-x-auto pt-2">
+            }
+            contentClassName="p-0"
+          >
+            {derived.topProducts.length === 0 ? (
+              <EmptyState
+                icon="checkroom"
+                title="No line items yet"
+                description="Product rankings appear once orders contain items."
+                className="m-space-md"
+              />
+            ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="border-b border-subtle">
-                    <TableHead>Garment Style</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Units Sold</TableHead>
-                    <TableHead>Revenue</TableHead>
-                    <TableHead>Gross Margin</TableHead>
-                    <TableHead>Stock Status</TableHead>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Product</TableHead>
+                    <TableHead className="text-right">Units</TableHead>
+                    <TableHead className="text-right">Revenue</TableHead>
+                    <TableHead className="w-[30%]">Share of units</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {TOP_SELLING_SKUS.map((item) => {
-                    const title = item.title || item.name;
-                    const units = item.unitsSold || item.units || '840';
-                    const margin = item.margin || '58';
-                    const stock = item.stockStatus || item.stockBuffer || 'Healthy';
-                    const isLow = typeof stock === 'string' && (stock.toLowerCase().includes('low') || stock.toLowerCase().includes('danger') || item.bufferType === 'danger');
+                  {derived.topProducts.map((p) => {
+                    const share = derived.units ? Math.round((p.units / derived.units) * 100) : 0;
                     return (
-                      <TableRow 
-                        key={item.id} 
-                        className="cursor-pointer hover:bg-surface-subtle transition-colors"
-                        onClick={() => onNavigate('products')}
-                      >
+                      <TableRow key={p.title} className="cursor-pointer" onClick={() => onNavigate('products')}>
                         <TableCell>
                           <div className="flex min-w-0 items-center gap-2.5">
-                            <Thumbnail src={item.image} alt={title} className="w-9 h-11 rounded-md" imgClassName="object-cover" />
-                            <div className="flex min-w-0 flex-col">
-                              <span className="line-clamp-2 font-semibold text-meta text-primary" title={title}>{title}</span>
-                              <span className="font-mono text-micro text-muted whitespace-nowrap">{item.sku}</span>
-                            </div>
+                            <Thumbnail
+                              src={p.thumbnail}
+                              alt={p.title}
+                              className="h-11 w-9 rounded-md"
+                              imgClassName="object-cover"
+                            />
+                            <span className="line-clamp-2 font-semibold text-meta text-primary" title={p.title}>
+                              {p.title}
+                            </span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-meta text-muted">{item.category}</TableCell>
-                        <TableCell className="font-mono text-meta font-semibold whitespace-nowrap">{units} pcs</TableCell>
-                        <TableCell className="font-mono text-meta font-semibold text-primary whitespace-nowrap">{item.revenue}</TableCell>
-                        <TableCell>
-                          <Badge variant="success" className="text-micro">{margin}%</Badge>
+                        <TableCell className="text-right tabular-nums">{p.units}</TableCell>
+                        <TableCell className="whitespace-nowrap text-right tabular-nums">
+                          {formatMoney(p.revenue, p.currency)}
                         </TableCell>
                         <TableCell>
-                          <StatusBadge status={stock} size="sm" />
+                          <div className="flex items-center gap-2">
+                            <Progress value={share} label={`${share}% of units`} className="flex-1" />
+                            <span className="w-9 shrink-0 text-right text-meta tabular-nums text-muted">{share}%</span>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
                   })}
                 </TableBody>
               </Table>
-            </div>
-          </Card>
+            )}
+          </SectionCard>
         </div>
 
-        {/* Right Column (4 Cols): Operations Exception Triage & Live Stream */}
-        <div className="xl:col-span-4 space-y-space-lg">
-          {/* Operations Exception Triage Queue */}
-          <Card className="p-space-md shadow-sm border-l-4 border-l-status-danger">
-            <div className="flex items-center justify-between pb-2 border-b border-subtle">
-              <div className="flex items-center gap-2">
-                <Icon name="notification_important" className="material-symbols-outlined text-danger text-icon-lg" />
-                <CardTitle className="text-body font-semibold text-primary">
-                  Operations Exception Triage
-                </CardTitle>
-              </div>
-              <Badge variant="destructive" size="sm">
-                {openIncidents.length} pending
-              </Badge>
-            </div>
-
-            <div className="space-y-space-sm pt-2">
-              {openIncidents.length === 0 ? (
-                <EmptyState
-                  icon="task_alt"
-                  title="No open exceptions"
-                  description="Every fulfillment node is inside its SLA window."
-                  className="p-6"
-                />
-              ) : (
-                openIncidents.map((inc) => (
-                  <div
-                    key={inc.id}
-                    className="flex flex-col gap-2 rounded-xl border border-subtle bg-surface-subtle p-3"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <StatusBadge
-                        status={inc.level}
-                        size="sm"
-                        variant={INCIDENT_VARIANT[inc.level] || 'info'}
-                        showDot
+        <div className="flex min-w-0 flex-col gap-space-lg xl:col-span-4">
+          {/* Pipeline counts, from the order list rather than a static figure. */}
+          <SectionCard
+            title="Order pipeline"
+            description={`${orders.length} order${orders.length === 1 ? '' : 's'} counted.`}
+          >
+            {isOrdersError ? (
+              <ErrorState
+                title="Pipeline unavailable"
+                message="The order list could not be read."
+                onRetry={() => refetchOrders()}
+              />
+            ) : orders.length === 0 ? (
+              <EmptyState icon="inbox" title="No orders yet" description="The pipeline fills as orders arrive." />
+            ) : (
+              <div className="flex flex-col gap-space-sm">
+                {FULFILLMENT_STAGES.map((stage) => (
+                  <div key={stage.key} className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2 text-meta text-secondary">
+                      <Icon
+                        name={stage.icon}
+                        aria-hidden="true"
+                        className="material-symbols-outlined shrink-0 text-icon-sm text-muted"
                       />
-                      <Badge variant="outline" size="sm" className="min-w-0">
-                        <span className="truncate">{inc.node}</span>
-                      </Badge>
-                    </div>
-                    <div className="text-meta font-semibold text-primary">{inc.title}</div>
-                    <p className="text-micro leading-relaxed text-muted">{inc.desc}</p>
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                      <span className="font-mono text-micro text-muted whitespace-nowrap">
-                        {inc.etaText || 'Awaiting action'}
-                      </span>
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                        {inc.dismissText && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleResolveIncident(inc.id, inc.dismissText)}
-                          >
-                            {inc.dismissText}
-                          </Button>
-                        )}
-                        {inc.actionText && (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleResolveIncident(inc.id, inc.actionText)}
-                          >
-                            {inc.actionText}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-
-          {/* Real-Time Ingested Orders Stream */}
-          <Card className="p-space-md shadow-sm">
-            <div className="flex items-center justify-between pb-2 border-b border-subtle">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-status-success animate-pulse"></span>
-                <CardTitle className="text-body font-semibold text-primary">
-                  Live Dispatch Stream
-                </CardTitle>
-              </div>
-              <button 
-                onClick={() => onNavigate('order-management')}
-                className="text-accent text-meta font-semibold hover:underline"
-                type="button"
-              >
-                All Orders →
-              </button>
-            </div>
-
-            <div className="space-y-space-xs pt-2">
-              {recentOrders.map((ord, idx) => (
-                <div 
-                  key={idx} 
-                  onClick={() => {
-                    onSelectOrder?.(ord.fullId);
-                    onNavigate('order-management', ord.fullId);
-                  }}
-                  className="p-2.5 rounded-xl hover:bg-surface-subtle transition-colors cursor-pointer border border-subtle/40 space-y-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-meta font-semibold text-primary whitespace-nowrap">{ord.ref}</span>
-                    <span className="text-micro text-muted font-mono whitespace-nowrap">{ord.timeAgo}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-meta">
-                    <span className="font-medium text-primary truncate max-w-[150px]">{ord.customer}</span>
-                    <span className="font-mono font-semibold text-primary whitespace-nowrap">{ord.value}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-micro text-muted pt-0.5">
-                    <span>{ord.items}</span>
-                    <Badge variant={ord.slaVariant || 'info'} className="text-micro py-0 px-1 font-semibold">
-                      {ord.slaStatus}
+                      <span className="truncate">{stage.label}</span>
+                    </span>
+                    <Badge variant={stage.tone} size="sm" className="tabular-nums">
+                      {derived.byFulfillment[stage.key]}
                     </Badge>
                   </div>
+                ))}
+                <div className="mt-1 flex flex-col gap-1 border-t border-subtle pt-space-sm">
+                  {PAYMENT_STAGES.map((stage) => (
+                    <div key={stage.key} className="flex items-center justify-between gap-2">
+                      <span className="truncate text-meta text-secondary">{stage.label}</span>
+                      <Badge variant={stage.tone} size="sm" className="tabular-nums">
+                        {derived.byPayment[stage.key]}
+                      </Badge>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </Card>
+                {derived.byMethod.length > 0 && (
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-subtle pt-space-sm">
+                    <span className="text-caption uppercase text-muted">Payment method</span>
+                    {derived.byMethod.map(([method, count]) => (
+                      <Badge key={method} variant="secondary" size="sm">
+                        {method.toUpperCase()} · {count}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title="Low stock"
+            description={`At or below ${dashboard?.lowStockThreshold ?? 0} units.`}
+            action={
+              <Button variant="outline" size="sm" onClick={() => onNavigate('inventory-and-warehouses')}>
+                Inventory
+              </Button>
+            }
+          >
+            {lowStock.length === 0 ? (
+              <EmptyState
+                icon="task_alt"
+                title="Nothing below threshold"
+                description="Every tracked variant is above its reorder point."
+              />
+            ) : (
+              <div className="flex flex-col gap-space-xs">
+                {lowStock.map((row) => (
+                  <div
+                    key={`${row.productId}-${row.variantId}`}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-subtle p-2.5"
+                  >
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-semibold text-meta text-primary">{row.title}</span>
+                      <span className="truncate text-micro text-muted">{row.variantTitle}</span>
+                    </span>
+                    <Badge variant={row.stock === 0 ? 'destructive' : 'warning'} size="sm" className="tabular-nums">
+                      {row.stock} left
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title="Latest orders"
+            action={
+              <Button variant="outline" size="sm" onClick={() => onNavigate('order-management')}>
+                All orders
+              </Button>
+            }
+          >
+            {recentOrders.length === 0 ? (
+              <EmptyState icon="receipt_long" title="No orders yet" description="New orders appear here first." />
+            ) : (
+              <div className="flex flex-col gap-space-xs">
+                {recentOrders.map((order) => {
+                  const name = order.shippingAddress
+                    ? `${order.shippingAddress.firstName ?? ''} ${order.shippingAddress.lastName ?? ''}`.trim()
+                    : '';
+                  return (
+                    <button
+                      key={order.id}
+                      type="button"
+                      onClick={() => {
+                        onSelectOrder?.(order.id);
+                        onNavigate('order-management');
+                      }}
+                      className="flex flex-col gap-1 rounded-lg border border-subtle p-2.5 text-left transition-colors hover:bg-surface-subtle"
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="whitespace-nowrap font-mono text-meta font-semibold text-primary">
+                          #{order.displayId}
+                        </span>
+                        <span className="whitespace-nowrap text-micro text-muted">{relativeTime(order.createdAt)}</span>
+                      </span>
+                      <span className="flex items-center justify-between gap-2 text-meta">
+                        <span className="truncate text-secondary">{name || order.email}</span>
+                        <span className="whitespace-nowrap font-semibold tabular-nums text-primary">
+                          {formatMoney(order.totals?.total ?? 0, order.currency)}
+                        </span>
+                      </span>
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="text-micro text-muted">
+                          {order.items?.length ?? 0} item{(order.items?.length ?? 0) === 1 ? '' : 's'}
+                        </span>
+                        <StatusBadge status={order.fulfillmentStatus} size="sm" />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </SectionCard>
         </div>
       </div>
     </PageContainer>
   );
 }
+
+export default ExecutiveOverview;

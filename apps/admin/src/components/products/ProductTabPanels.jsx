@@ -166,6 +166,86 @@ export function StockAllocationPanel({ product, onSave, isSaving, canEdit = true
     );
   };
 
+  // One row per variant, with the derived stock state the cells read.
+  const inventoryRows = variants.map((v) => {
+    const tracked = valueFor(v, 'manageInventory');
+    const stock = Number(valueFor(v, 'stock')) || 0;
+    const key = variantKey(v);
+    return {
+      key,
+      variant: v,
+      title: v.title || 'Default',
+      sku: v.sku || 'Not set',
+      tracked,
+      stock,
+      backorder: valueFor(v, 'allowBackorder'),
+      isDirty: Boolean(draft[key]),
+    };
+  });
+
+  const inventoryColumns = [
+    { key: 'variant', header: 'Variant', className: 'text-primary', accessor: 'title' },
+    { key: 'sku', header: 'SKU', className: 'font-mono text-num text-secondary', accessor: 'sku' },
+    {
+      key: 'stock',
+      header: 'Units on hand',
+      align: 'right',
+      cell: (row) => (
+        <Input
+          type="number"
+          min="0"
+          inputMode="numeric"
+          value={row.stock}
+          disabled={!row.tracked || !canEdit}
+          onChange={(e) => setField(row.key, 'stock', e.target.value)}
+          aria-label={`Units on hand for ${row.variant.title || 'default variant'}`}
+          className="ml-auto w-24 text-right tabular-nums"
+        />
+      ),
+    },
+    {
+      key: 'tracked',
+      header: 'Track inventory',
+      align: 'center',
+      cell: (row) => (
+        <Checkbox
+          checked={row.tracked}
+          disabled={!canEdit}
+          onChange={(e) => setField(row.key, 'manageInventory', e.target.checked)}
+          aria-label={`Track inventory for ${row.variant.title || 'default variant'}`}
+        />
+      ),
+    },
+    {
+      key: 'backorder',
+      header: 'Allow backorder',
+      align: 'center',
+      cell: (row) => (
+        <Checkbox
+          checked={row.backorder}
+          disabled={!row.tracked || !canEdit}
+          onChange={(e) => setField(row.key, 'allowBackorder', e.target.checked)}
+          aria-label={`Allow backorder for ${row.variant.title || 'default variant'}`}
+        />
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (row) =>
+        !row.tracked ? (
+          <StatusBadge status="Not tracked" variant="neutral" />
+        ) : row.stock > 0 ? (
+          <StatusBadge status="In stock" variant="success" />
+        ) : row.backorder ? (
+          <StatusBadge status="On backorder" variant="warning" />
+        ) : (
+          <StatusBadge status="Out of stock" variant="destructive" />
+        ),
+    },
+  ];
+
+
   return (
     <SectionCard
       title="Stock allocation"
@@ -211,86 +291,17 @@ export function StockAllocationPanel({ product, onSave, isSaving, canEdit = true
           </div>
         </div>
 
-        <div className="scrollbar-thin w-full overflow-x-auto">
-          <table className="w-full border-collapse text-left text-body">
-            <caption className="sr-only">Stock on hand for each variant</caption>
-            <thead className="bg-surface-subtle">
-              <tr className="border-b border-subtle">
-                <th className="h-10 px-3 text-caption uppercase text-secondary">Variant</th>
-                <th className="h-10 px-3 text-caption uppercase text-secondary">SKU</th>
-                <th className="h-10 px-3 text-right text-caption uppercase text-secondary">
-                  Units on hand
-                </th>
-                <th className="h-10 px-3 text-center text-caption uppercase text-secondary">
-                  Track inventory
-                </th>
-                <th className="h-10 px-3 text-center text-caption uppercase text-secondary">
-                  Allow backorder
-                </th>
-                <th className="h-10 px-3 text-caption uppercase text-secondary">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {variants.map((v) => {
-                const tracked = valueFor(v, 'manageInventory');
-                const stock = Number(valueFor(v, 'stock')) || 0;
-                const backorder = valueFor(v, 'allowBackorder');
-                const key = variantKey(v);
-                const isDirty = Boolean(draft[key]);
-                return (
-                  <tr
-                    key={key}
-                    className={cn('border-b border-subtle', isDirty && 'bg-status-info-bg')}
-                  >
-                    <td className="px-3 py-2 text-primary">{v.title || 'Default'}</td>
-                    <td className="px-3 py-2 font-mono text-num text-secondary">
-                      {v.sku || 'Not set'}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <Input
-                        type="number"
-                        min="0"
-                        inputMode="numeric"
-                        value={stock}
-                        disabled={!tracked || !canEdit}
-                        onChange={(e) => setField(key, 'stock', e.target.value)}
-                        aria-label={`Units on hand for ${v.title || 'default variant'}`}
-                        className="ml-auto w-24 text-right tabular-nums"
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <Checkbox
-                        checked={tracked}
-                        disabled={!canEdit}
-                        onChange={(e) => setField(key, 'manageInventory', e.target.checked)}
-                        aria-label={`Track inventory for ${v.title || 'default variant'}`}
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <Checkbox
-                        checked={backorder}
-                        disabled={!tracked || !canEdit}
-                        onChange={(e) => setField(key, 'allowBackorder', e.target.checked)}
-                        aria-label={`Allow backorder for ${v.title || 'default variant'}`}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      {!tracked ? (
-                        <StatusBadge status="Not tracked" variant="neutral" />
-                      ) : stock > 0 ? (
-                        <StatusBadge status="In stock" variant="success" />
-                      ) : backorder ? (
-                        <StatusBadge status="On backorder" variant="warning" />
-                      ) : (
-                        <StatusBadge status="Out of stock" variant="destructive" />
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={inventoryRows}
+          columns={inventoryColumns}
+          keyField="key"
+          caption="Stock on hand for each variant"
+          containerClassName="border-0 bg-transparent shadow-none rounded-none"
+          rowClassName={(row) => (row.isDirty ? 'bg-status-info-bg' : '')}
+          emptyIcon="inventory_2"
+          emptyTitle="No variants to stock"
+          emptyMessage="This product has no variants, so there is nothing to count."
+        />
       </div>
     </SectionCard>
   );

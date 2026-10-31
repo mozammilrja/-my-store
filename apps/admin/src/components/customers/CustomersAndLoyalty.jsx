@@ -19,7 +19,7 @@ import { adminApi } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
 import { useCustomersQuery, useCustomerQuery } from '../../hooks/useAdminQueries';
 import { useServerTable } from '../../hooks/useServerTable';
-import { TablePagination } from '../shared/DataTable';
+import { DataTable } from '../shared/DataTable';
 
 export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
   const table = useServerTable();
@@ -161,6 +161,131 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
   if (isCustomersLoading) {
     return <SkeletonPage variant="split" stats={6} statsCols={6} columns={6} label="Loading customers" />;
   }
+
+
+  const customerColumns = [
+    {
+      key: 'customer',
+      header: 'Customer & Tier',
+      cell: (cust) => (
+        <div className="flex items-center gap-2.5">
+          <div className="relative shrink-0">
+            {cust.avatar ? (
+              <Thumbnail src={cust.avatar} alt={cust.name} className="w-8 h-8 rounded-full shadow-sm" imgClassName="object-cover" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-surface-subtle text-muted text-subheading flex items-center justify-center font-semibold">
+                {cust.initials}
+              </div>
+            )}
+            {cust.tier.includes('COUTURE') && (
+              <span
+                className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-primary-container flex items-center justify-center text-on-accent shadow-xs"
+                title="VIP Couture"
+              >
+                <Icon name="star" className="material-symbols-outlined text-icon-sm" />
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-label-lg font-semibold text-primary flex items-center gap-1.5 flex-wrap">
+              {cust.name}
+              <span className={`px-1.5 py-px rounded-full text-caption tracking-wider uppercase ${cust.tierBadge}`}>
+                {cust.tier}
+              </span>
+            </span>
+            <span className="text-micro text-muted truncate">{cust.idBadge}</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'contact',
+      header: 'Contact & Geo',
+      cell: (cust) => (
+        <div className="flex flex-col">
+          <span className="text-primary font-medium text-meta truncate max-w-[170px]">{cust.email}</span>
+          <span className="text-muted text-micro flex items-center gap-1">
+            <Icon name="location_on" className="material-symbols-outlined text-icon-sm" />
+            {cust.geo}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'lifetime',
+      header: 'Lifetime Orders / GMV',
+      align: 'right',
+      cell: (cust) => (
+        <div className="flex flex-col items-end">
+          <span className="font-semibold text-primary text-num">{cust.gmv}</span>
+          <span className="text-muted text-micro">{cust.ordersCount}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'aov',
+      header: 'AOV / Ret Rate',
+      align: 'right',
+      cell: (cust) => (
+        <div className="flex flex-col items-end">
+          <span className="font-medium text-primary text-meta">{cust.aov}</span>
+          <span className={`inline-flex items-center gap-0.5 text-micro font-semibold ${cust.returnRateColor}`}>
+            {cust.returnRate.includes('Low') && <span className="w-1.5 h-1.5 rounded-full bg-status-success mr-0.5" />}
+            {cust.returnRate}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'loyalty',
+      header: 'Loyalty Float',
+      align: 'right',
+      cell: (cust) => (
+        <div className="flex flex-col items-end">
+          <span className="font-semibold text-accent text-meta">{cust.points}</span>
+          <span className="text-muted text-micro">{cust.pointsValue}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'lastActive',
+      header: 'Last Active',
+      cell: (cust) => (
+        <div className="flex flex-col">
+          <span className="text-primary font-medium text-meta flex items-center gap-1">
+            {cust.isOnline && <span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse" />}
+            {cust.lastActive}
+          </span>
+          <span className="text-muted text-micro truncate max-w-[140px]">{cust.lastActiveSub}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'action',
+      header: 'Action',
+      align: 'center',
+      cell: (cust) =>
+        cust.id === selectedCustomerId ? (
+          <button
+            className="px-2.5 py-1 rounded-lg bg-primary-container text-on-accent text-meta font-medium shadow-sm hover:bg-primary-container-hover transition-all cursor-pointer"
+            type="button"
+          >
+            Selected
+          </button>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedCustomerId(cust.id);
+            }}
+            className="px-2.5 py-1 rounded-lg bg-surface-subtle text-primary text-meta font-medium hover:bg-surface-container-high transition-all cursor-pointer"
+            type="button"
+          >
+            View
+          </button>
+        ),
+    },
+  ];
 
   return (
     <PageContainer>
@@ -438,161 +563,24 @@ export function CustomersAndLoyalty({ onNavigate, onShowToast }) {
           </div>
 
           {/* Directory Data Table */}
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-subtle">
-            <div className="overflow-x-auto scrollbar-thin">
-              <table className="w-full text-left border-collapse min-w-[960px]">
-                <thead>
-                  <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                    <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Customer &amp; Tier</th>
-                    <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Contact &amp; Geo</th>
-                    <th className="py-2.5 px-3 font-semibold text-right whitespace-nowrap">Lifetime Orders / GMV</th>
-                    <th className="py-2.5 px-3 font-semibold text-right whitespace-nowrap">AOV / Ret Rate</th>
-                    <th className="py-2.5 px-3 font-semibold text-right whitespace-nowrap">Loyalty Float</th>
-                    <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Last Active</th>
-                    <th className="py-2.5 px-3 font-semibold text-center whitespace-nowrap">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle text-body text-primary">
-                  {filteredCustomers.map(cust => {
-                    const isSelected = cust.id === selectedCustomerId;
-                    return (
-                      <tr
-                        key={cust.id}
-                        onClick={() => setSelectedCustomerId(cust.id)}
-                        className={`transition-colors cursor-pointer group ${
- isSelected ? 'bg-primary-fixed/30 hover:bg-primary-fixed/40' : 'hover:bg-surface-subtle'
- }`}
-                      >
-                        {/* Customer & Tier */}
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="relative shrink-0">
-                              {cust.avatar ? (
-                                <Thumbnail src={cust.avatar} alt={cust.name} className="w-8 h-8 rounded-full shadow-sm" imgClassName="object-cover" />
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-surface-subtle text-muted text-subheading flex items-center justify-center font-semibold">
-                                  {cust.initials}
-                                </div>
-                              )}
-                              {cust.tier.includes('COUTURE') && (
-                                <span
-                                  className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-primary-container flex items-center justify-center text-on-accent shadow-xs"
-                                  title="VIP Couture"
-                                >
-                                  <Icon name="star" className="material-symbols-outlined text-icon-sm" />
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-label-lg font-semibold text-primary flex items-center gap-1.5 flex-wrap">
-                                {cust.name}
-                                <span className={`px-1.5 py-px rounded-full text-caption tracking-wider uppercase ${cust.tierBadge}`}>
-                                  {cust.tier}
-                                </span>
-                              </span>
-                              <span className="text-micro text-muted truncate">
-                                {cust.idBadge}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Contact & Geo */}
-                        <td className="py-3 px-3">
-                          <div className="flex flex-col">
-                            <span className="text-primary font-medium text-meta truncate max-w-[170px]">
-                              {cust.email}
-                            </span>
-                            <span className="text-muted text-micro flex items-center gap-1">
-                              <Icon name="location_on" className="material-symbols-outlined text-icon-sm" />
-                              {cust.geo}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Lifetime Orders / GMV */}
-                        <td className="py-3 px-3 text-right">
-                          <div className="flex flex-col items-end">
-                            <span className="font-semibold text-primary text-num">
-                              {cust.gmv}
-                            </span>
-                            <span className="text-muted text-micro">{cust.ordersCount}</span>
-                          </div>
-                        </td>
-
-                        {/* AOV / Ret Rate */}
-                        <td className="py-3 px-3 text-right">
-                          <div className="flex flex-col items-end">
-                            <span className="font-medium text-primary text-meta">
-                              {cust.aov}
-                            </span>
-                            <span className={`inline-flex items-center gap-0.5 text-micro font-semibold ${cust.returnRateColor}`}>
-                              {cust.returnRate.includes('Low') && <span className="w-1.5 h-1.5 rounded-full bg-status-success mr-0.5"></span>}
-                              {cust.returnRate}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Loyalty Float */}
-                        <td className="py-3 px-3 text-right">
-                          <div className="flex flex-col items-end">
-                            <span className="font-semibold text-accent text-meta">
-                              {cust.points}
-                            </span>
-                            <span className="text-muted text-micro">{cust.pointsValue}</span>
-                          </div>
-                        </td>
-
-                        {/* Last Active */}
-                        <td className="py-3 px-3">
-                          <div className="flex flex-col">
-                            <span className="text-primary font-medium text-meta flex items-center gap-1">
-                              {cust.isOnline && <span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse"></span>}
-                              {cust.lastActive}
-                            </span>
-                            <span className="text-muted text-micro truncate max-w-[140px]">
-                              {cust.lastActiveSub}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Action */}
-                        <td className="py-3 px-3 text-center">
-                          {isSelected ? (
-                            <button
-                              className="px-2.5 py-1 rounded-lg bg-primary-container text-on-accent text-meta font-medium shadow-sm hover:bg-primary-container-hover transition-all cursor-pointer"
-                              type="button"
-                            >
-                              Selected
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedCustomerId(cust.id);
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-surface-subtle text-primary text-meta font-medium hover:bg-surface-container-high transition-all cursor-pointer"
-                              type="button"
-                            >
-                              View
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <TablePagination
-              currentPage={table.page}
-              pageSize={table.limit}
-              totalItems={customersData?.count ?? 0}
-              onPageChange={table.setPage}
-              onPageSizeChange={table.setLimit}
-            />
-          </div>
+          <DataTable
+            data={filteredCustomers}
+            columns={customerColumns}
+            keyField="id"
+            className="min-w-[960px]"
+            activeRowId={selectedCustomerId}
+            onRowClick={(cust) => setSelectedCustomerId(cust.id)}
+            emptyIcon="person_search"
+            emptyTitle="No customers match these filters"
+            emptyMessage="No customer matches the current search, tier or segment selection."
+            pagination={{
+              page: table.page,
+              pageSize: table.limit,
+              totalItems: customersData?.count ?? 0,
+              onPageChange: table.setPage,
+              onPageSizeChange: table.setLimit,
+            }}
+          />
 
           {/* Segment Quick-Actions & Cohort Intelligence Widget (2 Bottom Cards) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">

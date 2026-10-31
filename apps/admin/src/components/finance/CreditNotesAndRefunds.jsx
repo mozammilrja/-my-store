@@ -16,6 +16,7 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
+import { DataTable, TableToolbar } from '../shared/DataTable';
 import { adminApi } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
 import { useCreditNotesQuery } from '../../hooks/useAdminQueries';
@@ -97,6 +98,99 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
   if (isCreditNotesLoading) {
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={7} label="Loading credit notes" />;
   }
+
+
+  const creditNoteColumns = [
+    {
+      key: 'id',
+      header: 'Credit Note ID',
+      cell: (note) => (
+        <div className="flex items-center gap-1.5">
+          <div className={`w-1.5 h-6 rounded-full ${selectedNoteId === note.id ? 'bg-primary-container' : 'bg-transparent'}`} />
+          <div>
+            <span className="font-semibold text-primary block text-body">{note.id}</span>
+            <span className="text-caption text-muted">{note.time}</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'invoice',
+      header: 'Original Invoice / Order',
+      cell: (note) => (
+        <>
+          <div className="font-medium text-primary">{note.invoice}</div>
+          <div className="text-caption text-muted">{note.orderId}</div>
+        </>
+      ),
+    },
+    {
+      key: 'customer',
+      header: 'Customer / Reason',
+      cell: (note) => (
+        <>
+          <div className="font-medium text-primary truncate max-w-[130px]">{note.customer}</div>
+          <span
+            title={note.reason}
+            className="inline-block max-w-[11rem] truncate rounded border border-subtle bg-surface-subtle px-1.5 py-0.5 text-micro text-muted"
+          >
+            {note.reason}
+          </span>
+        </>
+      ),
+    },
+    { key: 'taxableValue', header: 'Taxable Value', align: 'right', className: 'text-num text-primary font-semibold', accessor: 'taxableValue' },
+    {
+      key: 'gstReversal',
+      header: 'GST Reversal',
+      align: 'right',
+      cell: (note) => (
+        <>
+          <div className="text-num text-success font-semibold">{note.gstReversal}</div>
+          <span className="text-micro text-muted">{note.gstType}</span>
+        </>
+      ),
+    },
+    {
+      key: 'channel',
+      header: 'Settlement Channel',
+      cell: (note) => (
+        <>
+          <div className="flex items-center gap-1.5">
+            <Icon name={note.channelIcon} className={`material-symbols-outlined text-icon ${note.channelColor}`} />
+            <span className="text-label text-primary">{note.channel}</span>
+          </div>
+          <span className="text-micro text-muted">{note.channelSub}</span>
+        </>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (note) => (
+        <span className={`px-2 py-0.5 rounded-full text-caption font-semibold ${note.statusBadge}`}>{note.status}</span>
+      ),
+    },
+    {
+      key: 'action',
+      header: 'Action',
+      align: 'center',
+      cell: (note) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onShowToast?.(`Credit Note options for ${note.id}`);
+          }}
+          className="p-1 rounded hover:bg-surface-subtle text-muted hover:text-primary"
+          type="button"
+          title="More actions"
+          aria-label="More actions"
+        >
+          <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
+        </button>
+      ),
+    },
+  ];
 
   return (
     <PageContainer>
@@ -204,114 +298,44 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
       {/* Main Content Layout (65% Table / 35% Inspector) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg items-start">
         {/* 65% Main Table Module */}
-        <div className="xl:col-span-8 bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden flex flex-col">
-          <div className="p-4 bg-surface-container-lowest flex items-center justify-between border-b border-subtle">
-            <div className="flex items-center gap-2">
-              <span className="text-subheading text-primary font-semibold">Statutory Credit Register Ledger</span>
-              <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed text-caption font-semibold">
-                Active Batch 24-05-C
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-muted text-caption">
-              <span>SORTED BY: ISSUED DATE (DESC)</span>
-              <Icon name="swap_vert" className="material-symbols-outlined text-icon text-primary" />
-            </div>
-          </div>
-
-          {/* Responsive Table Viewport */}
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-left text-body min-w-[980px] border-collapse">
-              <thead>
-                <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                  <th className="py-2.5 px-3 whitespace-nowrap">Credit Note ID</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Original Invoice / Order</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Customer / Reason</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Taxable Value</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap">GST Reversal</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Settlement Channel</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Status</th>
-                  <th className="py-2.5 px-2 text-center whitespace-nowrap">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle text-primary">
-                {notesPager.pageRows.map((note) => {
-                  const isSelected = selectedNoteId === note.id;
-                  return (
-                    <tr
-                      key={note.id}
-                      onClick={() => setSelectedNoteId(note.id)}
-                      className={`cursor-pointer transition-colors group ${
- isSelected ? 'bg-primary-fixed/20' : 'hover:bg-surface-subtle'
- }`}
-                    >
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <div className={`w-1.5 h-6 rounded-full ${isSelected ? 'bg-primary-container' : 'bg-transparent'}`}></div>
-                          <div>
-                            <span className="font-semibold text-primary block text-body">{note.id}</span>
-                            <span className="text-caption text-muted">{note.time}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-medium text-primary">{note.invoice}</div>
-                        <div className="text-caption text-muted">{note.orderId}</div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-medium text-primary truncate max-w-[130px]">{note.customer}</div>
-                        <span
-                          title={note.reason}
-                          className="inline-block max-w-[11rem] truncate rounded border border-subtle bg-surface-subtle px-1.5 py-0.5 text-micro text-muted"
-                        >
-                          {note.reason}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-right text-num text-primary font-semibold">
-                        {note.taxableValue}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="text-num text-success font-semibold">{note.gstReversal}</div>
-                        <span className="text-micro text-muted">{note.gstType}</span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <Icon name={note.channelIcon} className={`material-symbols-outlined text-icon ${note.channelColor}`} />
-                          <span className="text-label text-primary">{note.channel}</span>
-                        </div>
-                        <span className="text-micro text-muted">{note.channelSub}</span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className={`px-2 py-0.5 rounded-full text-caption font-semibold ${note.statusBadge}`}>
-                          {note.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onShowToast?.(`Credit Note options for ${note.id}`);
-                          }}
-                          className="p-1 rounded hover:bg-surface-subtle text-muted hover:text-primary"
-                          type="button" title="More actions" aria-label="More actions"
-                        >
-                          <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <TablePagination
-            currentPage={notesPager.page}
-            pageSize={notesPager.limit}
-            totalItems={notesPager.total}
-            onPageChange={notesPager.setPage}
-            onPageSizeChange={notesPager.setLimit}
-          />
-        </div>
+        <DataTable
+          data={notesPager.pageRows}
+          columns={creditNoteColumns}
+          keyField="id"
+          className="min-w-[980px]"
+          containerClassName="xl:col-span-8"
+          activeRowId={selectedNoteId}
+          onRowClick={(note) => setSelectedNoteId(note.id)}
+          emptyIcon="receipt_long"
+          emptyTitle="No credit notes match these filters"
+          emptyMessage="No credit note matches the current search, channel or status selection."
+          pagination={{
+            page: notesPager.page,
+            pageSize: notesPager.limit,
+            totalItems: notesPager.total,
+            onPageChange: notesPager.setPage,
+            onPageSizeChange: notesPager.setLimit,
+          }}
+          toolbar={
+            <TableToolbar
+              className="p-4"
+              left={
+                <div className="flex items-center gap-2">
+                  <span className="text-subheading text-primary font-semibold">Statutory Credit Register Ledger</span>
+                  <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed text-caption font-semibold">
+                    Active Batch 24-05-C
+                  </span>
+                </div>
+              }
+              right={
+                <div className="flex items-center gap-2 text-muted text-caption">
+                  <span>SORTED BY: ISSUED DATE (DESC)</span>
+                  <Icon name="swap_vert" className="material-symbols-outlined text-icon text-primary" />
+                </div>
+              }
+            />
+          }
+        />
 
         {/* 35% Inspector Panel (Exact from Stitch design) */}
           {!selectedNote ? (

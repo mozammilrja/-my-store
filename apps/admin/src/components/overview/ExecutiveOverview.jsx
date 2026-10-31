@@ -64,20 +64,6 @@ function relativeTime(iso) {
   return `${Math.floor(seconds / 86400)} d ago`;
 }
 
-/** Revenue arrives split by currency, so it is never collapsed into one number. */
-function RevenueByCurrency({ revenue }) {
-  if (!revenue?.length) return <span className="text-kpi text-muted">—</span>;
-  return (
-    <span className="flex flex-col gap-0.5">
-      {revenue.map((row) => (
-        <span key={row.currency} className="text-kpi tabular-nums text-primary">
-          {formatMoney(row.total, row.currency)}
-        </span>
-      ))}
-    </span>
-  );
-}
-
 export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
   const {
     data: dashboard,
@@ -96,7 +82,15 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
     refetch: refetchOrders,
   } = useOrdersQuery({ limit: 100 });
 
-  const orders = ordersData?.orders ?? [];
+  const currency = dashboard?.currency ?? 'inr';
+
+  // The overview reports on the one region the store trades in, so orders
+  // placed in a currency it no longer operates are left out of these counts.
+  // They remain visible, in full, in Order management.
+  const orders = useMemo(
+    () => (ordersData?.orders ?? []).filter((o) => o.currency === currency),
+    [ordersData, currency]
+  );
 
   const derived = useMemo(() => {
     const byFulfillment = Object.fromEntries(FULFILLMENT_STAGES.map((s) => [s.key, 0]));
@@ -134,29 +128,18 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
     return { byFulfillment, byPayment, byMethod: [...byMethod.entries()], topProducts, units, cancelled };
   }, [orders]);
 
-  const totalOrders = useMemo(
-    () => (dashboard?.revenue ?? []).reduce((sum, row) => sum + row.orders, 0),
-    [dashboard]
-  );
+  const revenue = dashboard?.revenue ?? { total: 0, orders: 0 };
+  const totalOrders = revenue.orders;
 
-  // Average order value only means something within a single currency.
   const averageOrderValue = useMemo(
-    () =>
-      (dashboard?.revenue ?? [])
-        .filter((row) => row.orders > 0)
-        .map((row) => ({ currency: row.currency, value: Math.round(row.total / row.orders) })),
-    [dashboard]
+    () => (revenue.orders > 0 ? Math.round(revenue.total / revenue.orders) : null),
+    [revenue]
   );
 
   const dailySeries = useMemo(() => {
-    const rows = dashboard?.daily ?? [];
-    if (!rows.length) return { days: [], max: 0, currency: null };
-    // Chart the currency that carries the most revenue, and say which it is.
-    const lead = [...(dashboard?.revenue ?? [])].sort((a, b) => b.total - a.total)[0];
-    const currency = lead?.currency ?? rows[0].currency;
-    const days = rows.filter((r) => r.currency === currency);
+    const days = dashboard?.daily ?? [];
     return { days, max: Math.max(...days.map((d) => d.total), 1), currency };
-  }, [dashboard]);
+  }, [dashboard, currency]);
 
   if (isDashboardLoading) {
     return <SkeletonPage variant="dashboard" stats={6} statsCols={6} label="Loading executive overview" />;
@@ -204,13 +187,9 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
       <ContentGrid columns={6}>
         <StatsCard
           title={`Revenue · ${WINDOW_LABEL}`}
-          value={<RevenueByCurrency revenue={dashboard?.revenue} />}
+          value={formatMoney(revenue.total, currency)}
           icon="payments"
-          subtext={
-            (dashboard?.revenue?.length ?? 0) > 1
-              ? 'Reported per currency, not combined'
-              : 'Excludes cancelled orders'
-          }
+          subtext={`${dashboard?.region?.name ?? 'Operating region'}, excluding cancelled orders`}
         />
         <StatsCard
           title="Orders placed"
@@ -223,19 +202,7 @@ export function ExecutiveOverview({ onNavigate, onShowToast, onSelectOrder }) {
         />
         <StatsCard
           title="Average order value"
-          value={
-            averageOrderValue.length ? (
-              <span className="flex flex-col gap-0.5">
-                {averageOrderValue.map((row) => (
-                  <span key={row.currency} className="text-kpi tabular-nums text-primary">
-                    {formatMoney(row.value, row.currency)}
-                  </span>
-                ))}
-              </span>
-            ) : (
-              '—'
-            )
-          }
+          value={averageOrderValue === null ? '—' : formatMoney(averageOrderValue, currency)}
           icon="receipt_long"
           subtext={`${derived.units} unit${derived.units === 1 ? '' : 's'} sold`}
         />

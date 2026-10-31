@@ -69,5 +69,4 @@ export const QUERY_KEYS = {
 
   // System Settings
   settings: ['admin', 'settings'],
-  regions: ['admin', 'regions'],
 };

@@ -270,6 +270,9 @@ export function DataTable({
   onSelectAll,
   activeRowId,
   onRowClick,
+  // Optional per-row classes: a string, or (row, index) => string. Lets a module
+  // tint rows by state (a discrepancy, a suspension) without forking the table.
+  rowClassName,
   isLoading = false,
   isError = false,
   errorTitle,
@@ -378,7 +381,8 @@ export function DataTable({
                   aria-current={isActive ? "true" : undefined}
                   className={cn(
                     isClickable && "cursor-pointer",
-                    isActive && "bg-primary-fixed/50 hover:bg-primary-fixed/60"
+                    isActive && "bg-primary-fixed/50 hover:bg-primary-fixed/60",
+                    typeof rowClassName === "function" ? rowClassName(row, rIdx) : rowClassName
                   )}
                 >
                   {selectable && (

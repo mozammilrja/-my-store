@@ -269,8 +269,7 @@ export const adminApi = {
   customers: (params = {}) => api('/admin/customers', { query: params }),
   customer: (id) => api(`/admin/customers/${id}`),
 
-  // Regions & Store
-  regions: () => api('/admin/regions'),
+  // Store
   categories: () => api('/admin/categories'),
   createCategory: (body) => api('/admin/categories', { method: 'POST', body }),
   updateCategory: (id, body) => api(`/admin/categories/${id}`, { method: 'PATCH', body }),

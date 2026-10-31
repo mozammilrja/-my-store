@@ -15,6 +15,7 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
+import { DataTable } from '../shared/DataTable';
 import { adminApi } from '../../lib/api';
 import { useOrdersQuery } from '../../hooks/useAdminQueries';
 
@@ -370,6 +371,111 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={7} label="Loading settlements" />;
   }
 
+
+  const txnColumns = [
+    {
+      key: 'txn',
+      header: 'Transaction ID / Order',
+      cell: (t) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-accent">{t.txnCode}</span>
+          <span className="text-micro text-muted">{t.orderRef}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'customer',
+      header: 'Customer',
+      cell: (t) => (
+        <div className="flex items-center gap-2">
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold text-micro ${t.initialsBg}`}>
+            {t.initials}
+          </div>
+          <span className="font-semibold text-primary truncate max-w-[110px]">{t.customer}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'method',
+      header: 'Method',
+      cell: (t) => (
+        <span className="flex min-w-0 items-center gap-1 font-medium text-primary" title={t.method}>
+          <Icon name={t.methodIcon} aria-hidden="true" className={`material-symbols-outlined shrink-0 text-icon ${t.methodColor}`} />
+          <span className="truncate">{t.method}</span>
+        </span>
+      ),
+    },
+    { key: 'gross', header: 'Gross Amount', align: 'right', className: 'font-semibold', accessor: 'gross' },
+    { key: 'mdr', header: 'MDR + GST', align: 'right', className: 'text-muted font-medium', accessor: 'mdr' },
+    { key: 'net', header: 'Net Settled', align: 'right', className: 'font-semibold text-success', accessor: 'net' },
+    {
+      key: 'utr',
+      header: 'Bank UTR / Ref',
+      cell: (t) => (
+        <span
+          className={`font-mono text-micro px-1.5 py-0.5 rounded ${
+            t.utr === 'MISSING_UTR'
+              ? 'bg-status-danger-bg text-danger font-semibold'
+              : 'bg-surface-subtle text-muted border border-subtle'
+          }`}
+        >
+          {t.utr}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Gateway Status',
+      cell: (t) => (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-micro font-semibold ${t.statusBadge}`}>
+          {t.status}
+        </span>
+      ),
+    },
+    {
+      key: 'recon',
+      header: 'Recon Match',
+      cell: (t) => (
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-semibold ${t.reconBadge}`}>
+          <Icon name={t.reconIcon} className="material-symbols-outlined text-icon-sm" />
+          {t.reconMatch}
+        </span>
+      ),
+    },
+    {
+      key: 'action',
+      header: 'Action',
+      align: 'center',
+      cell: (t) =>
+        t.status === 'Discrepancy' ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedTxnId(t.id);
+              setIsReMatchModalOpen(true);
+            }}
+            className="p-1 rounded-md text-danger hover:bg-status-danger-bg transition-colors"
+            title="Resolve Discrepancy"
+            type="button"
+          >
+            <Icon name="build" className="material-symbols-outlined text-icon-md" />
+          </button>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedTxnId(t.id);
+            }}
+            className="p-1 rounded-md text-muted hover:text-primary hover:bg-surface-subtle transition-colors"
+            title="View Breakdown"
+            type="button"
+          >
+            <Icon name="visibility" className="material-symbols-outlined text-icon-md" />
+          </button>
+        ),
+    },
+  ];
+
   return (
     <PageContainer>
       {paymentsError && (
@@ -700,129 +806,31 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
               </div>
             </div>
 
-            {/* Table */}
-            <div className="overflow-x-auto scrollbar-thin w-full">
-              <table className="w-full text-left border-collapse min-w-[1020px]">
-                <thead>
-                  <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                    <th className="py-2.5 px-3 whitespace-nowrap">Transaction ID / Order</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Customer</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Method</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Gross Amount</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">MDR + GST</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Net Settled</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Bank UTR / Ref</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Gateway Status</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Recon Match</th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle text-meta text-primary">
-                  {txnPager.pageRows.map((t) => {
-                    const isSelected = selectedTxnId === t.id;
-                    const isDiscrepancy = t.status === 'Discrepancy';
-                    const isDisputed = t.status === 'Chargeback Hold';
-
-                    return (
-                      <tr
-                        key={t.id}
-                        onClick={() => setSelectedTxnId(t.id)}
-                        className={`hover:bg-surface-subtle/70 transition-colors cursor-pointer ${
- isSelected
- ? 'bg-primary-fixed/20'
- : isDiscrepancy
- ? 'bg-status-danger-bg/25'
- : isDisputed
- ? 'bg-status-warning-bg/20'
- : ''
- }`}
-                      >
-                        <td className="py-2.5 px-3">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-accent">{t.txnCode}</span>
-                            <span className="text-micro text-muted">{t.orderRef}</span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold text-micro ${t.initialsBg}`}>
-                              {t.initials}
-                            </div>
-                            <span className="font-semibold text-primary truncate max-w-[110px]">{t.customer}</span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className="flex min-w-0 items-center gap-1 font-medium text-primary" title={t.method}>
-                            <Icon name={t.methodIcon} aria-hidden="true" className={`material-symbols-outlined shrink-0 text-icon ${t.methodColor}`} />
-                            <span className="truncate">{t.method}</span>
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-semibold">{t.gross}</td>
-                        <td className="py-2.5 px-3 text-right text-muted font-medium">{t.mdr}</td>
-                        <td className="py-2.5 px-3 text-right font-semibold text-success">{t.net}</td>
-                        <td className="py-2.5 px-3">
-                          <span
-                            className={`font-mono text-micro px-1.5 py-0.5 rounded ${
- t.utr === 'MISSING_UTR'
- ? 'bg-status-danger-bg text-danger font-semibold'
- : 'bg-surface-subtle text-muted border border-subtle'
- }`}
-                          >
-                            {t.utr}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-micro font-semibold ${t.statusBadge}`}>
-                            {t.status}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-semibold ${t.reconBadge}`}>
-                            <Icon name={t.reconIcon} className="material-symbols-outlined text-icon-sm" />
-                            {t.reconMatch}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          {isDiscrepancy ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTxnId(t.id);
-                                setIsReMatchModalOpen(true);
-                              }}
-                              className="p-1 rounded-md text-danger hover:bg-status-danger-bg transition-colors"
-                              title="Resolve Discrepancy"
-                              type="button"
-                            >
-                              <Icon name="build" className="material-symbols-outlined text-icon-md" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTxnId(t.id);
-                              }}
-                              className="p-1 rounded-md text-muted hover:text-primary hover:bg-surface-subtle transition-colors"
-                              title="View Breakdown"
-                              type="button"
-                            >
-                              <Icon name="visibility" className="material-symbols-outlined text-icon-md" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <TablePagination
-              currentPage={txnPager.page}
-              pageSize={txnPager.limit}
-              totalItems={txnPager.total}
-              onPageChange={txnPager.setPage}
-              onPageSizeChange={txnPager.setLimit}
+            <DataTable
+              data={txnPager.pageRows}
+              columns={txnColumns}
+              keyField="id"
+              className="min-w-[1020px]"
+              containerClassName="border-0 bg-transparent shadow-none rounded-none"
+              activeRowId={selectedTxnId}
+              onRowClick={(t) => setSelectedTxnId(t.id)}
+              rowClassName={(t) =>
+                t.status === 'Discrepancy'
+                  ? 'bg-status-danger-bg/25'
+                  : t.status === 'Chargeback Hold'
+                  ? 'bg-status-warning-bg/20'
+                  : ''
+              }
+              emptyIcon="account_balance"
+              emptyTitle="No transactions in this window"
+              emptyMessage="No settlement matches the current search, method or status filter."
+              pagination={{
+                page: txnPager.page,
+                pageSize: txnPager.limit,
+                totalItems: txnPager.total,
+                onPageChange: txnPager.setPage,
+                onPageSizeChange: txnPager.setLimit,
+              }}
             />
           </div>
 

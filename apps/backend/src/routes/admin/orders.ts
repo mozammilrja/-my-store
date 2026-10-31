@@ -2,6 +2,7 @@ import { Router } from "express"
 import type { Filter } from "mongodb"
 import { z } from "zod"
 import { withTransaction } from "../../db/client.js"
+import { getOperatingRegion } from "../../lib/operating-region.js"
 import { db, type OrderDoc } from "../../db/schema.js"
 import { badRequest, conflict, notFound } from "../../lib/errors.js"
 import { assetUrl } from "../../lib/serialize.js"
@@ -44,41 +45,52 @@ export const toAdminOrder = (o: OrderDoc) => ({
 
 export const adminOrderRoutes = Router()
 
+/** Day boundaries follow the operating region, not the server's locale. */
+const TIMEZONE = "Asia/Kolkata"
+
 adminOrderRoutes.get("/me", (req, res) => {
   res.json({ admin: req.admin })
 })
 
-/** Headline numbers for the dashboard: last 30 days, plus what needs attention. */
+/**
+ * Headline numbers for the dashboard: last 30 days, plus what needs attention.
+ *
+ * Revenue is scoped to the one region the store trades in. It used to be
+ * grouped by currency and returned as a list, which made the dashboard a
+ * side-by-side comparison of regions the business no longer operates.
+ * Historical orders in other currencies stay in the database and in the order
+ * lists; they are simply not added to this period's takings.
+ */
 adminOrderRoutes.get("/dashboard", async (_req, res) => {
   const { lowStockThreshold: LOW_STOCK } = await getSettings()
+  const region = await getOperatingRegion()
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000)
-  const live = { status: { $ne: "canceled" as const } }
+  const live = { status: { $ne: "canceled" as const }, currency: region.currency }
   const [byCurrency, daily, toShip, toCollect, recent, lowStock, customers] = await Promise.all([
+    db
+      .orders()
+      .aggregate<{ _id: null; revenue: number; orders: number }>([
+        { $match: { ...live, createdAt: { $gte: since } } },
+        { $group: { _id: null, revenue: { $sum: "$totals.total" }, orders: { $sum: 1 } } },
+      ])
+      .toArray(),
     db
       .orders()
       .aggregate<{ _id: string; revenue: number; orders: number }>([
         { $match: { ...live, createdAt: { $gte: since } } },
-        { $group: { _id: "$currency", revenue: { $sum: "$totals.total" }, orders: { $sum: 1 } } },
-        { $sort: { revenue: -1 } },
-      ])
-      .toArray(),
-    db
-      .orders()
-      .aggregate<{ _id: { day: string; currency: string }; revenue: number; orders: number }>([
-        { $match: { ...live, createdAt: { $gte: since } } },
         {
           $group: {
-            _id: { day: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, currency: "$currency" },
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: TIMEZONE } },
             revenue: { $sum: "$totals.total" },
             orders: { $sum: 1 },
           },
         },
-        { $sort: { "_id.day": 1 } },
+        { $sort: { _id: 1 } },
       ])
       .toArray(),
     db.orders().countDocuments({ ...live, fulfillmentStatus: "unfulfilled" }),
     db.orders().countDocuments({ ...live, paymentStatus: "awaiting" }),
-    db.orders().find({}, { sort: { createdAt: -1 }, limit: 8 }).toArray(),
+    db.orders().find({ currency: region.currency }, { sort: { createdAt: -1 }, limit: 8 }).toArray(),
     db
       .products()
       .aggregate<{ productId: string; title: string; handle: string; variantId: string; variantTitle: string; stock: number }>([
@@ -104,8 +116,10 @@ adminOrderRoutes.get("/dashboard", async (_req, res) => {
 
   res.json({
     periodDays: 30,
-    revenue: byCurrency.map((r) => ({ currency: r._id, total: r.revenue, orders: r.orders })),
-    daily: daily.map((d) => ({ day: d._id.day, currency: d._id.currency, total: d.revenue, orders: d.orders })),
+    region: { id: region._id, name: region.name, currency: region.currency },
+    currency: region.currency,
+    revenue: { total: byCurrency[0]?.revenue ?? 0, orders: byCurrency[0]?.orders ?? 0 },
+    daily: daily.map((d) => ({ day: d._id, total: d.revenue, orders: d.orders })),
     attention: { toShip, toCollect, lowStock: lowStock.length },
     lowStock,
     recentOrders: recent.map(toAdminOrder),

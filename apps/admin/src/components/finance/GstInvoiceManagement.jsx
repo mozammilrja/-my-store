@@ -32,6 +32,7 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
+import { DataTable } from '../shared/DataTable';
 import { INITIAL_GST_METRICS, INITIAL_HSN_MASTER, INITIAL_CREDIT_NOTES, INITIAL_EWAY_BILLS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useInvoicesQuery } from '../../hooks/useAdminQueries';
@@ -353,6 +354,42 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
   if (isInvoicesLoading) {
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={8} label="Loading tax invoices" />;
   }
+
+
+  const lineItemColumns = [
+    {
+      key: 'desc',
+      header: 'Description & HSN',
+      cell: (item) => (
+        <>
+          <div className="line-clamp-2 font-medium text-primary">{item.desc}</div>
+          <div className="text-micro text-muted font-mono whitespace-nowrap">HSN: {item.hsn}</div>
+        </>
+      ),
+    },
+    { key: 'qty', header: 'Qty', align: 'center', className: 'font-mono whitespace-nowrap', accessor: 'qty' },
+    {
+      key: 'taxable',
+      header: 'Taxable',
+      align: 'right',
+      className: 'font-mono whitespace-nowrap',
+      cell: (item) => `\u20B9${Number(item.taxable ?? 0).toFixed(2)}`,
+    },
+    {
+      key: 'gst',
+      header: 'GST',
+      align: 'right',
+      className: 'font-mono text-micro whitespace-nowrap',
+      cell: (item) => `${item.rate} (\u20B9${Number(item.taxAmt ?? 0).toFixed(2)})`,
+    },
+    {
+      key: 'total',
+      header: 'Total',
+      align: 'right',
+      className: 'font-mono font-semibold whitespace-nowrap',
+      cell: (item) => `\u20B9${Number(item.total ?? 0).toFixed(2)}`,
+    },
+  ];
 
   return (
     <PageContainer>
@@ -1035,35 +1072,16 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 </div>
 
                 {/* Itemized Table */}
-                <div className="border border-subtle rounded-lg overflow-hidden">
-                  <table className="w-full text-left text-micro border-collapse">
-                    <thead className="bg-surface-subtle font-semibold text-muted">
-                      <tr>
-                        <th className="p-1.5">Description &amp; HSN</th>
-                        <th className="p-1.5 text-center">Qty</th>
-                        <th className="p-1.5 text-right">Taxable</th>
-                        <th className="p-1.5 text-right">GST</th>
-                        <th className="p-1.5 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-subtle">
-                      {selectedInvoice.items.map(item => (
-                        <tr key={item.id}>
-                          <td className="p-1.5">
-                            <div className="line-clamp-2 font-medium text-primary">{item.desc}</div>
-                            <div className="text-micro text-muted font-mono whitespace-nowrap">HSN: {item.hsn}</div>
-                          </td>
-                          <td className="p-1.5 text-center font-mono whitespace-nowrap">{item.qty}</td>
-                          <td className="p-1.5 text-right font-mono whitespace-nowrap">₹{item.taxable.toFixed(2)}</td>
-                          <td className="p-1.5 text-right font-mono text-micro whitespace-nowrap">
-                            {item.rate} (₹{item.taxAmt.toFixed(2)})
-                          </td>
-                          <td className="p-1.5 text-right font-mono font-semibold whitespace-nowrap">₹{item.total.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  data={selectedInvoice.items ?? []}
+                  columns={lineItemColumns}
+                  keyField="id"
+                  className="text-micro"
+                  containerClassName="border border-subtle rounded-lg"
+                  emptyIcon="receipt_long"
+                  emptyTitle="No line items"
+                  emptyMessage="This invoice records no line items."
+                />
 
                 {/* Tax Breakdown & Computation Box */}
                 <div className="p-3 rounded-lg bg-surface-canvas space-y-1.5 border border-subtle text-meta">

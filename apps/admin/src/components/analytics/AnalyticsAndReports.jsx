@@ -13,6 +13,88 @@ import {
   Thumbnail,
 } from '../ui';
 import { useDashboardQuery } from '../../hooks/useAdminQueries';
+import { DataTable, TableToolbar } from '../shared/DataTable';
+
+// The four channels the attribution table reports on, lifted out of the markup
+// so the shared table can render them. Figures are unchanged.
+const CHANNEL_ECONOMICS = [
+  {
+    id: 'app',
+    name: 'Mobile App (iOS / Android)',
+    note: 'Owned Direct \u2022 Zero Commission',
+    icon: 'smartphone',
+    iconWrap: 'bg-primary-fixed text-accent',
+    orders: '31,420',
+    gmv: '\u20B98.95 Cr',
+    conv: '3.92%',
+    convBadge: 'bg-status-success-bg text-success',
+    aov: '\u20B92,848',
+    aovClass: 'font-medium',
+    returnRate: '13.2%',
+    returnClass: 'font-semibold text-success',
+    take: '0.0% (\u20B90)',
+    takeClass: 'text-muted font-medium',
+    cm2: '44.6%',
+    cm2Class: 'text-success',
+  },
+  {
+    id: 'web',
+    name: 'Storefront Web (everwear.in)',
+    note: 'Direct Consumer \u2022 Next.js Headless',
+    icon: 'laptop_mac',
+    iconWrap: 'bg-surface-subtle text-primary border border-subtle',
+    orders: '17,890',
+    gmv: '\u20B94.65 Cr',
+    conv: '2.41%',
+    convBadge: 'bg-surface-subtle text-muted border border-subtle',
+    aov: '\u20B92,599',
+    aovClass: 'font-medium',
+    returnRate: '15.8%',
+    returnClass: 'text-primary font-medium',
+    take: '1.8% (PG Gateway)',
+    takeClass: 'text-muted font-medium',
+    cm2: '38.2%',
+    cm2Class: 'text-success',
+  },
+  {
+    id: 'myntra',
+    name: 'Myntra Marketplace',
+    note: 'Syndicated Tier-1 \u2022 Omnichannel API',
+    icon: 'storefront',
+    iconWrap: 'bg-fashion-magenta/10 text-accent',
+    orders: '14,120',
+    gmv: '\u20B93.34 Cr',
+    conv: '4.18%',
+    convBadge: 'bg-status-info-bg text-info',
+    aov: '\u20B92,365',
+    aovClass: 'font-medium',
+    returnRate: '21.4%',
+    returnClass: 'text-danger font-semibold',
+    take: '24.5% Take',
+    takeClass: 'text-warning font-semibold',
+    cm2: '21.8%',
+    cm2Class: 'text-warning',
+  },
+  {
+    id: 'nykaa',
+    name: 'Nykaa Fashion',
+    note: 'Curated Premium \u2022 Designer Assortment',
+    icon: 'diamond',
+    iconWrap: 'bg-status-info-bg text-info',
+    orders: '4,280',
+    gmv: '\u20B91.48 Cr',
+    conv: '1.94%',
+    convBadge: 'bg-surface-subtle text-muted border border-subtle',
+    aov: '\u20B93,458',
+    aovClass: 'font-semibold text-primary',
+    returnRate: '16.1%',
+    returnClass: 'text-primary font-medium',
+    take: '26.0% Take',
+    takeClass: 'text-warning font-semibold',
+    cm2: '23.2%',
+    cm2Class: 'text-warning',
+  },
+];
 
 export function AnalyticsAndReports({ onNavigate, onShowToast }) {
   const [dateRange, setDateRange] = useState('30d'); // '30d', 'mtd', 'q2'
@@ -177,6 +259,86 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
   if (isDashboardLoading) {
     return <SkeletonPage variant="analytics" stats={6} statsCols={6} columns={7} label="Loading analytics" />;
   }
+
+
+
+  const skuColumns = [
+    {
+      key: 'sku',
+      header: 'SKU & Product',
+      cell: (item) => (
+        <div className="flex items-center gap-2.5">
+          <Thumbnail src={item.img} alt={item.name} className="w-9 h-11 shrink-0" imgClassName="object-cover" />
+          <div className="min-w-0">
+            <div className="text-meta font-semibold text-primary truncate">{item.name}</div>
+            <div className="truncate text-micro text-muted">
+              {item.sku} &bull; {item.price}
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'category',
+      header: 'Category',
+      cell: (item) => (
+        <span className={`px-1.5 py-0.5 rounded-full text-micro font-semibold ${item.badgeColor}`}>
+          {item.category}
+        </span>
+      ),
+    },
+    { key: 'units', header: 'Units Sold', align: 'right', className: 'font-medium', accessor: 'units' },
+    { key: 'margin', header: 'Net Margin', align: 'right', cell: (item) => <span className={item.marginColor}>{item.margin}</span> },
+    { key: 'returnRate', header: 'Return Rate', align: 'right', cell: (item) => <span className={item.returnColor}>{item.returnRate}</span> },
+    {
+      key: 'action',
+      header: 'Action Trigger',
+      align: 'right',
+      cell: (item) => (
+        <button
+          onClick={() => onShowToast && onShowToast(`Trigger executed: ${item.action} for ${item.sku}`)}
+          className={`px-2 py-1 rounded text-micro font-semibold transition-colors ${item.actionBtn}`}
+          type="button"
+        >
+          {item.action}
+        </button>
+      ),
+    },
+  ];
+
+  const channelColumns = [
+    {
+      key: 'channel',
+      header: 'Channel Name',
+      cell: (c) => (
+        <div className="flex items-center gap-2.5">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${c.iconWrap}`}>
+            <Icon name={c.icon} className="material-symbols-outlined text-icon-md" />
+          </div>
+          <div>
+            <div className="text-body font-semibold text-primary">{c.name}</div>
+            <div className="truncate text-micro text-muted">{c.note}</div>
+          </div>
+        </div>
+      ),
+    },
+    { key: 'orders', header: 'Orders Vol', align: 'right', className: 'font-medium', accessor: 'orders' },
+    { key: 'gmv', header: 'Gross GMV', align: 'right', className: 'font-semibold text-primary', accessor: 'gmv' },
+    {
+      key: 'conv',
+      header: 'Conv. Rate',
+      align: 'right',
+      cell: (c) => (
+        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-micro font-semibold ${c.convBadge}`}>
+          {c.conv}
+        </span>
+      ),
+    },
+    { key: 'aov', header: 'AOV (\u20B9)', align: 'right', cell: (c) => <span className={c.aovClass}>{c.aov}</span> },
+    { key: 'returnRate', header: 'Return Rate', align: 'right', cell: (c) => <span className={c.returnClass}>{c.returnRate}</span> },
+    { key: 'take', header: 'Take Rate / Comm.', align: 'right', cell: (c) => <span className={c.takeClass}>{c.take}</span> },
+    { key: 'cm2', header: 'CM2 Margin', align: 'right', cell: (c) => <span className={`font-semibold ${c.cm2Class}`}>{c.cm2}</span> },
+  ];
 
   return (
     <PageContainer>
@@ -574,178 +736,62 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
       </div>
 
       {/* Channel Performance Matrix Table */}
-      <div className="bg-surface-container-lowest rounded-xl p-5 shadow-sm overflow-hidden border border-subtle">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-caption text-muted uppercase tracking-wider">
-                Channel Unit Economics
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
-                OMNICHANNEL DIRECT + SYNDICATED
-              </span>
-            </div>
-            <h2 className="text-heading font-semibold text-primary mt-0.5">
-              Sales Channel Attribution &amp; Margin Realization
-            </h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-micro text-muted">Comparing 4 active channels</span>
-            <button 
-              className="p-1 text-muted hover:text-primary rounded-lg transition-colors" 
-              title="Filter columns" 
-              type="button"
-              onClick={() => onShowToast && onShowToast('Channel dimension filters active: Direct, Marketplace, Partner.')}
-            >
-              <Icon name="tune" className="material-symbols-outlined text-icon-md" />
-            </button>
-          </div>
-        </div>
+      <DataTable
+        data={CHANNEL_ECONOMICS}
+        columns={channelColumns}
+        keyField="id"
+        className="min-w-[850px]"
+        emptyIcon="insights"
+        emptyTitle="No channels to compare"
+        emptyMessage="No sales channel reported figures for this period."
+        toolbar={
+          <TableToolbar
+            className="p-5"
+            left={
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-caption text-muted uppercase tracking-wider">Channel Unit Economics</span>
+                  <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
+                    OMNICHANNEL DIRECT + SYNDICATED
+                  </span>
+                </div>
+                <h2 className="text-heading font-semibold text-primary mt-0.5">
+                  Sales Channel Attribution &amp; Margin Realization
+                </h2>
+              </div>
+            }
+            right={
+              <>
+                <span className="text-micro text-muted">Comparing {CHANNEL_ECONOMICS.length} active channels</span>
+                <button
+                  className="p-1 text-muted hover:text-primary rounded-lg transition-colors"
+                  title="Filter columns"
+                  type="button"
+                  onClick={() => onShowToast && onShowToast('Channel dimension filters active: Direct, Marketplace, Partner.')}
+                >
+                  <Icon name="tune" className="material-symbols-outlined text-icon-md" />
+                </button>
+              </>
+            }
+          />
+        }
+      />
 
-        {/* Data Table */}
-        <div className="overflow-x-auto scrollbar-thin -mx-5 px-5">
-          <table className="w-full text-left border-collapse min-w-[850px]">
-            <thead>
-              <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                <th className="py-2.5 px-3 text-left text-caption text-muted uppercase tracking-wider whitespace-nowrap">Channel Name</th>
-                <th className="py-2.5 px-3 text-right text-caption text-muted uppercase tracking-wider whitespace-nowrap">Orders Vol</th>
-                <th className="py-2.5 px-3 text-right text-caption text-muted uppercase tracking-wider whitespace-nowrap">Gross GMV</th>
-                <th className="py-2.5 px-3 text-right text-caption text-muted uppercase tracking-wider whitespace-nowrap">Conv. Rate</th>
-                <th className="py-2.5 px-3 text-right text-caption text-muted uppercase tracking-wider whitespace-nowrap">AOV (₹)</th>
-                <th className="py-2.5 px-3 text-right text-caption text-muted uppercase tracking-wider whitespace-nowrap">Return Rate</th>
-                <th className="py-2.5 px-3 text-right text-caption text-muted uppercase tracking-wider whitespace-nowrap">Take Rate / Comm.</th>
-                <th className="py-2.5 px-3 text-right text-caption text-muted uppercase tracking-wider whitespace-nowrap">CM2 Margin</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle/50 text-meta text-primary">
-              {/* Row 1: Direct Mobile App */}
-              <tr className="hover:bg-surface-subtle/50 transition-colors">
-                <td className="py-3 px-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-primary-fixed flex items-center justify-center text-accent shrink-0">
-                      <Icon name="smartphone" className="material-symbols-outlined text-icon-md" />
-                    </div>
-                    <div>
-                      <div className="text-body font-semibold text-primary">Mobile App (iOS / Android)</div>
-                      <div className="truncate text-micro text-muted">Owned Direct • Zero Commission</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-3 text-right font-medium">31,420</td>
-                <td className="py-3 px-3 text-right font-semibold text-primary">₹8.95 Cr</td>
-                <td className="py-3 px-3 text-right">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
-                    3.92%
-                  </span>
-                </td>
-                <td className="py-3 px-3 text-right font-medium">₹2,848</td>
-                <td className="py-3 px-3 text-right font-semibold text-success">13.2%</td>
-                <td className="py-3 px-3 text-right text-muted font-medium">0.0% (₹0)</td>
-                <td className="py-3 px-3 text-right">
-                  <span className="font-semibold text-success">44.6%</span>
-                </td>
-              </tr>
-              {/* Row 2: Storefront Web */}
-              <tr className="hover:bg-surface-subtle/50 transition-colors">
-                <td className="py-3 px-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-surface-subtle flex items-center justify-center text-primary shrink-0 border border-subtle">
-                      <Icon name="laptop_mac" className="material-symbols-outlined text-icon-md" />
-                    </div>
-                    <div>
-                      <div className="text-body font-semibold text-primary">Storefront Web (everwear.in)</div>
-                      <div className="truncate text-micro text-muted">Direct Consumer • Next.js Headless</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-3 text-right font-medium">17,890</td>
-                <td className="py-3 px-3 text-right font-semibold text-primary">₹4.65 Cr</td>
-                <td className="py-3 px-3 text-right">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-surface-subtle text-muted text-micro font-semibold border border-subtle">
-                    2.41%
-                  </span>
-                </td>
-                <td className="py-3 px-3 text-right font-medium">₹2,599</td>
-                <td className="py-3 px-3 text-right text-primary font-medium">15.8%</td>
-                <td className="py-3 px-3 text-right text-muted font-medium">1.8% (PG Gateway)</td>
-                <td className="py-3 px-3 text-right">
-                  <span className="font-semibold text-success">38.2%</span>
-                </td>
-              </tr>
-              {/* Row 3: Myntra Marketplace */}
-              <tr className="hover:bg-surface-subtle/50 transition-colors">
-                <td className="py-3 px-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-fashion-magenta/10 flex items-center justify-center text-accent shrink-0">
-                      <Icon name="storefront" className="material-symbols-outlined text-icon-md" />
-                    </div>
-                    <div>
-                      <div className="text-body font-semibold text-primary">Myntra Marketplace</div>
-                      <div className="truncate text-micro text-muted">Syndicated Tier-1 • Omnichannel API</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-3 text-right font-medium">14,120</td>
-                <td className="py-3 px-3 text-right font-semibold text-primary">₹3.34 Cr</td>
-                <td className="py-3 px-3 text-right">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-status-info-bg text-info text-micro font-semibold">
-                    4.18%
-                  </span>
-                </td>
-                <td className="py-3 px-3 text-right font-medium">₹2,365</td>
-                <td className="py-3 px-3 text-right text-danger font-semibold">21.4%</td>
-                <td className="py-3 px-3 text-right text-warning font-semibold">24.5% Take</td>
-                <td className="py-3 px-3 text-right">
-                  <span className="font-semibold text-warning">21.8%</span>
-                </td>
-              </tr>
-              {/* Row 4: Nykaa Fashion */}
-              <tr className="hover:bg-surface-subtle/50 transition-colors">
-                <td className="py-3 px-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-status-info-bg flex items-center justify-center text-info shrink-0">
-                      <Icon name="diamond" className="material-symbols-outlined text-icon-md" />
-                    </div>
-                    <div>
-                      <div className="text-body font-semibold text-primary">Nykaa Fashion</div>
-                      <div className="truncate text-micro text-muted">Curated Premium • Designer Assortment</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-3 text-right font-medium">4,280</td>
-                <td className="py-3 px-3 text-right font-semibold text-primary">₹1.48 Cr</td>
-                <td className="py-3 px-3 text-right">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-surface-subtle text-muted text-micro font-semibold border border-subtle">
-                    1.94%
-                  </span>
-                </td>
-                <td className="py-3 px-3 text-right font-semibold text-primary">₹3,458</td>
-                <td className="py-3 px-3 text-right text-primary font-medium">16.1%</td>
-                <td className="py-3 px-3 text-right text-warning font-semibold">26.0% Take</td>
-                <td className="py-3 px-3 text-right">
-                  <span className="font-semibold text-warning">23.2%</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      {/* Channel Summary Footer Banner */}
+      <div className="mt-4 pt-2 flex flex-col md:flex-row md:items-center justify-between gap-2 text-muted text-micro bg-surface-subtle p-3 rounded-xl border border-subtle">
+        <div className="flex items-center gap-2">
+          <Icon name="info" className="material-symbols-outlined text-accent text-icon" />
+          <span>
+            Direct app and web traffic drive <strong className="text-primary">73.8%</strong> of total CM2 profit pool with zero third-party platform commissions.
+          </span>
         </div>
-
-        {/* Channel Summary Footer Banner */}
-        <div className="mt-4 pt-2 flex flex-col md:flex-row md:items-center justify-between gap-2 text-muted text-micro bg-surface-subtle p-3 rounded-xl border border-subtle">
-          <div className="flex items-center gap-2">
-            <Icon name="info" className="material-symbols-outlined text-accent text-icon" />
-            <span>
-              Direct app and web traffic drive <strong className="text-primary">73.8%</strong> of total CM2 profit pool with zero third-party platform commissions.
-            </span>
-          </div>
-          <button 
-            className="text-accent font-semibold hover:underline shrink-0 text-left md:text-right" 
-            type="button"
-            onClick={() => onShowToast && onShowToast('Navigating to commission and syndication payout settings.')}
-          >
-            Configure Commission Splits &rarr;
-          </button>
-        </div>
+        <button
+          className="text-accent font-semibold hover:underline shrink-0 text-left md:text-right"
+          type="button"
+          onClick={() => onShowToast && onShowToast('Navigating to commission and syndication payout settings.')}
+        >
+          Configure Commission Splits &rarr;
+        </button>
       </div>
 
       {/* Dual Split Diagnostics: Return Reasons Intelligence + Operational SKU Triggers */}
@@ -899,54 +945,16 @@ export function AnalyticsAndReports({ onNavigate, onShowToast }) {
             </p>
 
             {/* SKU Detailed Mini Table */}
-            <div className="overflow-x-auto scrollbar-thin">
-              <table className="w-full text-left border-collapse min-w-[620px]">
-                <thead>
-                  <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                    <th className="py-2.5 px-3 text-left text-caption text-muted uppercase tracking-wider whitespace-nowrap">SKU &amp; Product</th>
-                    <th className="py-2.5 px-3 text-left text-caption text-muted uppercase tracking-wider whitespace-nowrap">Category</th>
-                    <th className="py-2.5 px-3 text-right text-caption text-muted uppercase tracking-wider whitespace-nowrap">Units Sold</th>
-                    <th className="py-2.5 px-3 text-right text-caption text-muted uppercase tracking-wider whitespace-nowrap">Net Margin</th>
-                    <th className="py-2.5 px-3 text-right text-caption text-muted uppercase tracking-wider whitespace-nowrap">Return Rate</th>
-                    <th className="py-2.5 px-3 text-right text-caption text-muted uppercase tracking-wider whitespace-nowrap">Action Trigger</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle/50 text-meta text-primary">
-                  {activeSkuList.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-surface-subtle/50 transition-colors">
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-2">
-                          <Thumbnail src={item.img} alt={item.name} className="w-9 h-11 shrink-0" imgClassName="object-cover" />
-                          <div className="min-w-0">
-                            <div className="text-meta font-semibold text-primary truncate">{item.name}</div>
-                            <div className="truncate text-micro text-muted">
-                              {item.sku} • {item.price}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className={`px-1.5 py-0.5 rounded-full text-micro font-semibold ${item.badgeColor}`}>
-                          {item.category}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-medium">{item.units}</td>
-                      <td className={`py-2.5 px-3 text-right ${item.marginColor}`}>{item.margin}</td>
-                      <td className={`py-2.5 px-3 text-right ${item.returnColor}`}>{item.returnRate}</td>
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          onClick={() => onShowToast && onShowToast(`Trigger executed: ${item.action} for ${item.sku}`)}
-                          className={`px-2 py-1 rounded text-micro font-semibold transition-colors ${item.actionBtn}`}
-                          type="button"
-                        >
-                          {item.action}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              data={activeSkuList}
+              columns={skuColumns}
+              keyField="sku"
+              className="min-w-[620px]"
+              containerClassName="border-0 bg-transparent shadow-none"
+              emptyIcon="inventory_2"
+              emptyTitle="No SKUs in this band"
+              emptyMessage="No product matches the selected margin or return filter."
+            />
           </div>
 
           {/* Quick Operational Trigger Ribbon */}

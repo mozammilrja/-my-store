@@ -28,23 +28,63 @@ const toAdminCustomer = (c: CustomerDoc, orders?: { count: number; spent: { curr
 
 adminStoreRoutes.get("/customers", async (req, res) => {
   const q = z
-    .object({ q: z.string().trim().max(100).optional(), page: z.coerce.number().int().min(1).max(1000).default(1), limit: z.coerce.number().int().min(1).max(100).default(25) })
+    .object({
+      q: z.string().trim().max(100).optional(),
+      /**
+       * How many orders the customer has placed. The admin's segment pills
+       * filtered on this client-side over one page, so a segment whose members
+       * were all on page two came back empty.
+       */
+      segment: z.enum(["all", "repeat", "ordered", "none"]).default("all"),
+      /** Matches the city on any address the customer has on file. */
+      city: z.string().trim().max(80).optional(),
+      page: z.coerce.number().int().min(1).max(1000).default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(25),
+    })
     .parse(req.query)
   const filter: Filter<CustomerDoc> = q.q
     ? { $or: [{ email: { $regex: escape(q.q), $options: "i" } }, { firstName: { $regex: escape(q.q), $options: "i" } }, { lastName: { $regex: escape(q.q), $options: "i" } }] }
     : {}
+
+  // One pass over the orders gives both the segment filter and the counts the
+  // pills show, so neither is limited to the page being displayed.
+  const perCustomer = await db
+    .orders()
+    .aggregate<{ _id: string; count: number }>([
+      { $match: { customerId: { $ne: null }, status: { $ne: "canceled" } } },
+      { $group: { _id: "$customerId", count: { $sum: 1 } } },
+    ])
+    .toArray()
+  const ordersBy = new Map(perCustomer.map((s) => [s._id, s.count]))
+  const repeatIds = perCustomer.filter((s) => s.count >= 3).map((s) => s._id)
+  const onceIds = perCustomer.filter((s) => s.count > 0 && s.count < 3).map((s) => s._id)
+  const anyIds = perCustomer.filter((s) => s.count > 0).map((s) => s._id)
+
+  if (q.city) filter["addresses.city"] = q.city
+  if (q.segment === "repeat") filter._id = { $in: repeatIds }
+  else if (q.segment === "ordered") filter._id = { $in: onceIds }
+  else if (q.segment === "none") filter._id = { $nin: anyIds }
+
+  const totalCustomers = await db.customers().countDocuments(q.q ? { $or: filter.$or! } : {})
+  // The cities actually on file, so the region picker cannot offer a choice
+  // that returns nothing.
+  const cities = (await db.customers().distinct("addresses.city")).filter(Boolean).sort()
+  const segmentCounts = {
+    all: totalCustomers,
+    repeat: repeatIds.length,
+    ordered: onceIds.length,
+    none: Math.max(0, totalCustomers - anyIds.length),
+  }
+
   const [customers, count] = await Promise.all([
     db.customers().find(filter, { projection: { passwordHash: 0 }, sort: { createdAt: -1 }, skip: (q.page - 1) * q.limit, limit: q.limit }).toArray(),
     db.customers().countDocuments(filter),
   ])
-  const stats = await db
-    .orders()
-    .aggregate<{ _id: string; count: number }>([{ $match: { customerId: { $in: customers.map((x) => x._id) }, status: { $ne: "canceled" } } }, { $group: { _id: "$customerId", count: { $sum: 1 } } }])
-    .toArray()
-  const countBy = new Map(stats.map((s) => [s._id, s.count]))
   res.json({
-    customers: customers.map((x) => ({ ...toAdminCustomer(x), orderCount: countBy.get(x._id) ?? 0 })),
+    customers: customers.map((x) => ({ ...toAdminCustomer(x), orderCount: ordersBy.get(x._id) ?? 0 })),
     count,
+    segmentCounts,
+    cities,
     page: q.page,
     pages: Math.max(1, Math.ceil(count / q.limit)),
   })

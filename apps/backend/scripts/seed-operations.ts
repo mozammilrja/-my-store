@@ -222,11 +222,16 @@ async function seed() {
   const PAYMENT_METHODS: OrderDoc["paymentMethod"][] = ["razorpay", "cod", "razorpay", "razorpay", "cod"]
   // Weighted so most orders are paid and delivered, with a realistic tail of
   // unpaid, cancelled and returned ones for the filters and charts to show.
+  // Returns carry a stage so the reverse-logistics queue has something at every
+  // step of its lifecycle. Seeding them all as `refunded` left every triage tab
+  // showing the same finished rows.
   const ORDER_SHAPES: {
     payment: OrderDoc["paymentStatus"]
     fulfillment: OrderDoc["fulfillmentStatus"]
     status: OrderDoc["status"]
+    returnStage?: NonNullable<OrderDoc["returnRequest"]>["status"]
   }[] = [
+    { payment: "paid", fulfillment: "delivered", status: "completed" },
     { payment: "paid", fulfillment: "delivered", status: "completed" },
     { payment: "paid", fulfillment: "delivered", status: "completed" },
     { payment: "paid", fulfillment: "delivered", status: "completed" },
@@ -235,12 +240,44 @@ async function seed() {
     { payment: "paid", fulfillment: "unfulfilled", status: "pending" },
     { payment: "awaiting", fulfillment: "unfulfilled", status: "pending" },
     { payment: "awaiting", fulfillment: "unfulfilled", status: "pending" },
-    { payment: "refunded", fulfillment: "returned", status: "completed" },
     { payment: "awaiting", fulfillment: "unfulfilled", status: "canceled" },
+    { payment: "paid", fulfillment: "returned", status: "pending", returnStage: "requested" },
+    { payment: "paid", fulfillment: "returned", status: "pending", returnStage: "approved" },
+    { payment: "paid", fulfillment: "returned", status: "pending", returnStage: "pickup_scheduled" },
+    { payment: "paid", fulfillment: "returned", status: "pending", returnStage: "received" },
+    { payment: "paid", fulfillment: "returned", status: "pending", returnStage: "inspected" },
+    { payment: "refunded", fulfillment: "returned", status: "completed", returnStage: "refunded" },
+    { payment: "paid", fulfillment: "returned", status: "completed", returnStage: "rejected" },
   ]
 
+  /** Steps a return has already passed, used to date its events. */
+  const RETURN_STEP: Record<NonNullable<OrderDoc["returnRequest"]>["status"], number> = {
+    requested: 0,
+    approved: 1,
+    pickup_scheduled: 2,
+    received: 3,
+    inspected: 4,
+    refunded: 5,
+    rejected: 5,
+  }
+
+  // Count only orders this script did NOT write. Taking the global maximum
+  // moved every seeded order's displayId on each run, which shifted the invoice
+  // numbers derived from it and collided with the unique index on the invoices
+  // this script had already written. Keyed off real orders, a re-run is a
+  // no-op update rather than a renumbering.
   const highestDisplayId =
-    (await db.orders().find({}, { sort: { displayId: -1 }, limit: 1 }).toArray())[0]?.displayId ?? 1000
+    (
+      await db
+        .orders()
+        .find({ _id: { $not: /^seed_/ } }, { sort: { displayId: -1 }, limit: 1 })
+        .toArray()
+    )[0]?.displayId ?? 1000
+
+  // If a seeded order is already in the database, keep the number it was given.
+  const seededDisplayIds = new Map(
+    (await db.orders().find({ _id: /^seed_ord_/ }).toArray()).map((o) => [o._id, o.displayId])
+  )
 
   const seededOrders: OrderDoc[] = Array.from({ length: 48 }, (_, i) => {
     const customer = customers[i % customers.length]
@@ -276,7 +313,7 @@ async function seed() {
 
     return {
       _id: id("ord", i + 1),
-      displayId: highestDisplayId + i + 1,
+      displayId: seededDisplayIds.get(id("ord", i + 1)) ?? highestDisplayId + i + 1,
       cartId: id("cart", i + 1),
       regionId: INDIA_REGION._id,
       currency: "inr",
@@ -307,14 +344,21 @@ async function seed() {
           : {}),
       },
       fulfillmentStatus: shape.fulfillment,
-      ...(shape.fulfillment === "returned"
+      ...(shape.returnStage
         ? {
             returnRequest: {
-              status: "refunded" as const,
+              status: shape.returnStage,
               reason: REFUND_REASONS[i % REFUND_REASONS.length],
               items: items.map((it) => ({ itemId: it._id, quantity: it.quantity })),
+              // The reverse AWB only exists once a pickup has been booked.
+              ...(RETURN_STEP[shape.returnStage] >= 2
+                ? {
+                    returnAwb: `RV${String(90000 + i * 7).padStart(9, "0")}`,
+                    carrier: CARRIERS[i % CARRIERS.length],
+                  }
+                : {}),
               requestedAt: daysAgo(82 - Math.floor(i * 1.8)),
-              updatedAt: daysAgo(79 - Math.floor(i * 1.8)),
+              updatedAt: daysAgo(82 - Math.floor(i * 1.8) - RETURN_STEP[shape.returnStage]),
             },
           }
         : {}),
@@ -482,7 +526,10 @@ async function seed() {
 
     return {
       _id: idFor("inv", order._id),
-      invoiceNumber: `EVR/26-27/${String(1001 + i)}`,
+      // Numbered from the order, not from this list's position: which orders
+      // are invoiceable shifts between runs, and a positional number then
+      // landed on a number another invoice still held.
+      invoiceNumber: `EVR/26-27/${String(order.displayId).padStart(4, "0")}`,
       orderId: order._id,
       displayId: order.displayId,
       customerName: `${addr.firstName} ${addr.lastName}`.trim(),
@@ -504,7 +551,9 @@ async function seed() {
   /* ---------- credit notes ---------- */
   const creditNotes: CreditNoteDoc[] = invoices.slice(0, 14).map((inv, i) => ({
     _id: idFor("cn", inv.orderId),
-    creditNoteNumber: `CN/26-27/${String(501 + i)}`,
+    // Keyed off the invoice it reverses, for the same reason as the invoice
+    // number above: a positional number is not stable across runs.
+    creditNoteNumber: `CN/26-27/${String(inv.displayId).padStart(4, "0")}`,
     invoiceNumber: inv.invoiceNumber,
     orderId: inv.orderId,
     customerName: inv.customerName,

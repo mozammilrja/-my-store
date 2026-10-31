@@ -38,6 +38,9 @@ export const toAdminOrder = (o: OrderDoc) => ({
   paymentMethod: o.paymentMethod,
   paymentStatus: o.paymentStatus,
   fulfillmentStatus: o.fulfillmentStatus,
+  // The reverse-logistics queue is built from this. It was never sent, so the
+  // admin could not tell a requested return from a refunded one.
+  returnRequest: o.returnRequest ?? null,
   status: o.status,
   createdAt: o.createdAt,
   updatedAt: o.updatedAt,

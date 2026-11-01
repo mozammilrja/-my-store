@@ -2,9 +2,10 @@ import { cn } from "@/lib/utils"
 import type { Product } from "@lib/api/types"
 import { formatMoney } from "@lib/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { HeartIcon, StarIcon } from "lucide-react"
+import { StarIcon } from "lucide-react"
 import Image from "next/image"
 import { QuickAdd, QuickVariant } from "./quick-add"
+import { WishlistCardButton } from "./wishlist-card-button"
 
 /** Swatch fills for colour option values the catalog uses. */
 const SWATCHES: Record<string, string> = {
@@ -121,13 +122,7 @@ export function ProductCard({
         )}
 
         {/* Wishlist Quick Action Heart Button */}
-        <button
-          type="button"
-          aria-label="Add to wishlist"
-          className="absolute top-2.5 right-2.5 size-7 sm:size-8 rounded-full bg-surface-container-lowest/80 backdrop-blur-xs hover:bg-surface-container-lowest text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors shadow-xs z-10 cursor-pointer"
-        >
-          <HeartIcon className="size-3.5" />
-        </button>
+        <WishlistCardButton productId={product.id} productTitle={product.title} />
 
         {/* Quick Add Action Bar */}
         <QuickAdd

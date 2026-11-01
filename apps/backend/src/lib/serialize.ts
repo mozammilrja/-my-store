@@ -82,6 +82,26 @@ export function toStoreOrder(o: OrderDoc) {
     paymentMethod: o.paymentMethod,
     paymentStatus: o.paymentStatus,
     fulfillmentStatus: o.fulfillmentStatus,
+    shipment: o.shipment
+      ? {
+          carrier: o.shipment.carrier,
+          awb: o.shipment.awb,
+          status: o.shipment.status,
+          labelUrl: o.shipment.labelUrl,
+          pickupScheduledAt: o.shipment.pickupScheduledAt?.toISOString(),
+          estimatedDelivery: o.shipment.estimatedDelivery?.toISOString(),
+        }
+      : undefined,
+    returnRequest: o.returnRequest
+      ? {
+          status: o.returnRequest.status,
+          reason: o.returnRequest.reason,
+          items: o.returnRequest.items,
+          returnAwb: o.returnRequest.returnAwb,
+          carrier: o.returnRequest.carrier,
+          requestedAt: o.returnRequest.requestedAt?.toISOString(),
+        }
+      : undefined,
     status: o.status,
     createdAt: o.createdAt,
   }

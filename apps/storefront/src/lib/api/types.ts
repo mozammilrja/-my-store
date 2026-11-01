@@ -161,8 +161,12 @@ export type OrderSummary = {
   total: number
   itemCount: number
   status: Order["status"]
+  paymentMethod?: Order["paymentMethod"]
   paymentStatus: Order["paymentStatus"]
   fulfillmentStatus: Order["fulfillmentStatus"]
+  shipment?: Order["shipment"]
+  returnRequest?: Order["returnRequest"] & { reason?: string; requestedAt?: string }
+  items?: OrderItem[]
   thumbnails: (string | null)[]
 }
 

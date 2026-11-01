@@ -121,6 +121,20 @@ export async function listOrders(): Promise<OrderSummary[]> {
   return (await api<{ orders: OrderSummary[] }>("/store/customers/me/orders", { token: await authed() })).orders
 }
 
+export async function requestReturn(orderId: string, reason: string, items?: { itemId: string; quantity: number }[]): Promise<ActionResult> {
+  try {
+    await api(`/store/customers/me/orders/${encodeURIComponent(orderId)}/returns`, {
+      method: "POST",
+      token: await authed(),
+      body: { reason, items },
+    })
+    revalidatePath("/", "layout")
+    return { error: null }
+  } catch (e) {
+    return { error: message(e) }
+  }
+}
+
 /** An order the visitor may see: their own (signed in) or the one this browser just placed. */
 export async function retrieveOrder(id: string): Promise<Order | null> {
   try {

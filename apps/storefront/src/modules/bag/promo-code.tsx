@@ -1,14 +1,11 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { applyPromotions } from "@lib/data/shop"
 import { notifyCartUpdated } from "@lib/util/cart-events"
 import type { Cart } from "@lib/api/types"
-import { XIcon } from "lucide-react"
 import { FormEvent, useState } from "react"
+import { toast } from "sonner"
 
-/** Add or remove promotion codes; the backend validates every code. */
 export function PromoCode({ cart }: { cart: Cart }) {
   const [code, setCode] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -32,58 +29,91 @@ export function PromoCode({ cart }: { cart: Cart }) {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const value = code.trim()
+    const value = code.trim().toUpperCase()
     if (!value || pending) return
     if (applied.includes(value)) {
       setError("That code is already applied.")
       return
     }
-    if (await apply([...applied, value])) setCode("")
+    const success = await apply([...applied, value])
+    if (success) {
+      setCode("")
+      toast.success(`Coupon code ${value} applied successfully`)
+    }
+  }
+
+  const removeCode = async (codeToRemove: string) => {
+    const next = applied.filter((c) => c !== codeToRemove)
+    await apply(next)
+    toast.info(`Removed promo code ${codeToRemove}`)
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <form onSubmit={submit} className="flex items-end gap-2" noValidate>
-        <div className="flex flex-1 flex-col gap-1.5">
-          <label htmlFor="promo-code" className="text-xs text-muted-foreground">Promotion code</label>
-          <Input
+    <div className="p-space-lg bg-surface-container-lowest rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.02)] border border-surface-container-high/60">
+      <span className="font-label-caps text-label-caps tracking-wider uppercase text-on-surface-variant block mb-space-sm font-bold">
+        Promotional Offers &amp; Coupons
+      </span>
+
+      <form onSubmit={submit} className="flex items-center gap-space-xs" noValidate>
+        <div className="relative flex-1">
+          <span className="material-symbols-outlined absolute left-space-md top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">
+            local_offer
+          </span>
+          <input
             id="promo-code"
             value={code}
             maxLength={64}
             autoComplete="off"
-            onChange={(e) => setCode(e.target.value)}
-            aria-invalid={!!error}
-            aria-describedby={error ? "promo-error" : undefined}
+            onChange={(e) => {
+              setCode(e.target.value.toUpperCase())
+              if (error) setError(null)
+            }}
+            placeholder="Enter coupon code"
+            className="w-full h-11 pl-10 pr-space-md bg-surface-container-low text-on-surface font-label-md text-label-md rounded-lg uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-primary border border-surface-container-high"
             data-testid="discount-input"
           />
         </div>
-        <Button type="submit" variant="outline" disabled={!code.trim() || pending} data-testid="discount-apply-button">
-          {pending ? "Applying" : "Apply"}
-        </Button>
+        <button
+          type="submit"
+          disabled={pending || !code.trim()}
+          className="h-11 px-space-lg bg-secondary text-on-secondary font-label-md text-label-md uppercase tracking-wider rounded-lg hover:bg-secondary/90 transition-colors cursor-pointer disabled:opacity-50 shrink-0 font-semibold"
+        >
+          {pending ? "Applying..." : "Apply"}
+        </button>
       </form>
-      {error && (
-        <p id="promo-error" role="alert" className="text-sm text-destructive-foreground" data-testid="discount-error-message">
-          {error}
-        </p>
-      )}
+
+      {/* Applied Promo Codes List */}
       {applied.length > 0 && (
-        <ul className="flex flex-wrap gap-2" aria-label="Applied codes">
+        <div className="mt-space-sm flex flex-col gap-1.5">
           {applied.map((c) => (
-            <li key={c}>
+            <div
+              key={c}
+              className="flex items-center justify-between text-secondary font-label-sm text-label-sm bg-secondary-fixed/30 px-3 py-1.5 rounded-lg border border-secondary/20"
+            >
+              <span className="flex items-center gap-space-xs font-semibold">
+                <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                Code {c} applied successfully
+              </span>
               <button
                 type="button"
-                onClick={() => apply(applied.filter((a) => a !== c))}
+                onClick={() => removeCode(c)}
                 disabled={pending}
-                className="inline-flex h-8 items-center gap-1.5 border border-border bg-card px-3 text-xs uppercase tracking-wide hover:border-foreground"
-                data-testid="remove-discount-button"
+                className="text-on-surface-variant hover:text-error transition-colors p-0.5 cursor-pointer"
+                title={`Remove code ${c}`}
               >
-                {c}
-                <XIcon className="size-3" aria-hidden />
-                <span className="sr-only">Remove code</span>
+                <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
+      )}
+
+      {/* Error message */}
+      {error && (
+        <p className="mt-2 text-xs font-body-sm text-error flex items-center gap-1" role="alert">
+          <span className="material-symbols-outlined text-[14px]">error</span>
+          {error}
+        </p>
       )}
     </div>
   )

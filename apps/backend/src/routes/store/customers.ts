@@ -1,7 +1,7 @@
 import { Router } from "express"
 import { z } from "zod"
 import { db, type CustomerDoc, type OrderDoc } from "../../db/schema.js"
-import { assetUrl } from "../../lib/serialize.js"
+import { assetUrl, toStoreOrder } from "../../lib/serialize.js"
 import { clientKey, hashPassword, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
 import { ApiError, conflict, notFound, unauthorized } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
@@ -27,8 +27,39 @@ export const toOrderSummary = (o: OrderDoc) => ({
   total: o.totals.total,
   itemCount: o.items.reduce((n, i) => n + i.quantity, 0),
   status: o.status,
+  paymentMethod: o.paymentMethod,
   paymentStatus: o.paymentStatus,
   fulfillmentStatus: o.fulfillmentStatus,
+  shipment: o.shipment
+    ? {
+        carrier: o.shipment.carrier,
+        awb: o.shipment.awb,
+        status: o.shipment.status,
+        labelUrl: o.shipment.labelUrl,
+        pickupScheduledAt: o.shipment.pickupScheduledAt?.toISOString(),
+        estimatedDelivery: o.shipment.estimatedDelivery?.toISOString(),
+      }
+    : undefined,
+  returnRequest: o.returnRequest
+    ? {
+        status: o.returnRequest.status,
+        reason: o.returnRequest.reason,
+        items: o.returnRequest.items,
+        returnAwb: o.returnRequest.returnAwb,
+        carrier: o.returnRequest.carrier,
+        requestedAt: o.returnRequest.requestedAt?.toISOString(),
+      }
+    : undefined,
+  items: o.items.map((i) => ({
+    id: i._id,
+    productTitle: i.productTitle,
+    productHandle: i.productHandle,
+    variantTitle: i.variantTitle,
+    thumbnail: i.thumbnail ? assetUrl(i.thumbnail) : null,
+    quantity: i.quantity,
+    unitPrice: i.unitPrice,
+    total: i.unitPrice * i.quantity,
+  })),
   thumbnails: o.items.slice(0, 4).map((i) => (i.thumbnail ? assetUrl(i.thumbnail) : null)),
 })
 
@@ -125,4 +156,30 @@ customerRoutes.delete("/customers/me/addresses/:addressId", async (req, res) => 
 customerRoutes.get("/customers/me/orders", async (req, res) => {
   const orders = await db.orders().find({ customerId: req.actorId! }, { sort: { createdAt: -1 }, limit: 100 }).toArray()
   res.json({ orders: orders.map(toOrderSummary) })
+})
+
+customerRoutes.post("/customers/me/orders/:id/returns", async (req, res) => {
+  const orderId = z.string().regex(/^order_[0-9a-z]{16}$/).parse(req.params.id)
+  const body = z
+    .object({
+      reason: z.string().trim().min(1).max(500),
+      items: z.array(z.object({ itemId: z.string(), quantity: z.number().int().min(1) })).optional(),
+    })
+    .parse(req.body)
+
+  const order = await db.orders().findOne({ _id: orderId, customerId: req.actorId! })
+  if (!order) throw notFound("Order")
+
+  const now = new Date()
+  const returnRequest = {
+    status: "requested" as const,
+    reason: body.reason,
+    items: body.items ?? order.items.map((i) => ({ itemId: i._id, quantity: i.quantity })),
+    requestedAt: now,
+    updatedAt: now,
+  }
+
+  await db.orders().updateOne({ _id: orderId }, { $set: { returnRequest, updatedAt: now } })
+  const updated = await db.orders().findOne({ _id: orderId })
+  res.status(201).json({ order: toStoreOrder(updated!) })
 })

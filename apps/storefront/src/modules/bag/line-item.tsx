@@ -4,17 +4,15 @@ import { formatMoney } from "@lib/money"
 import { cn } from "@/lib/utils"
 import { deleteLineItem, updateLineItem } from "@lib/data/shop"
 import { notifyCartUpdated } from "@lib/util/cart-events"
+import { useWishlist } from "@lib/util/wishlist"
 import type { CartItem } from "@lib/api/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { Loader2Icon, MinusIcon, PlusIcon } from "lucide-react"
 import Image from "next/image"
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 
 const MAX_PER_LINE = 10
 
-
-/** One bag line with quantity controls. Totals always come back from the server. */
 export function LineItem({
   item,
   currencyCode,
@@ -26,6 +24,7 @@ export function LineItem({
 }) {
   const [pending, setPending] = useState<"update" | "remove" | null>(null)
   const busy = useRef(false)
+  const wishlist = useWishlist()
 
   const run = async (kind: "update" | "remove", fn: () => Promise<unknown>) => {
     if (busy.current) return
@@ -45,71 +44,169 @@ export function LineItem({
   const setQuantity = (quantity: number) =>
     run("update", () => updateLineItem({ lineId: item.id, quantity }))
 
+  const handleSaveToWishlist = () => {
+    wishlist.toggle(item.productId)
+    run("remove", () => deleteLineItem(item.id))
+    toast.success("Moved to your wishlist")
+  }
+
+  // Parse color & size from variantTitle (e.g. "M / Black" or "Black / M" or "M")
+  const parts = (item.variantTitle ?? "").split("/").map((s) => s.trim())
+  const size = parts.find((p) => /^(xs|s|m|l|xl|xxl|\d{2})$/i.test(p)) ?? (parts.length === 1 ? parts[0] : "")
+  const color = parts.find((p) => p !== size) ?? (parts.length > 1 ? parts[1] : "")
+
   return (
-    <li className={cn("grid grid-cols-[6rem_1fr] gap-4 py-6 sm:grid-cols-[8rem_1fr]", pending && "opacity-70")} data-testid="product-row">
-      <LocalizedClientLink href={`/products/${item.productHandle}`} className="relative aspect-[4/5] overflow-hidden bg-muted">
-        {item.thumbnail && <Image src={item.thumbnail} alt="" fill sizes="128px" className="object-cover" />}
-      </LocalizedClientLink>
-      <div className="flex min-w-0 flex-col gap-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 flex-col gap-1">
-            <LocalizedClientLink
-              href={`/products/${item.productHandle}`}
-              className="font-medium hover:underline hover:underline-offset-4"
-              data-testid="product-title"
-            >
-              {item.productTitle}
-            </LocalizedClientLink>
-            {item.variantTitle && (
-              <span className="text-sm text-muted-foreground" data-testid="product-variant">{item.variantTitle}</span>
+    <div
+      className={cn(
+        "flex flex-col sm:flex-row gap-space-md p-space-md bg-surface-container-lowest rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.02)] relative group border border-surface-container-high/60 transition-opacity",
+        pending && "opacity-60"
+      )}
+      data-testid="product-row"
+    >
+      {/* Product Image Thumbnail */}
+      <div className="w-full sm:w-36 h-48 bg-surface-container-low rounded-lg overflow-hidden shrink-0 relative">
+        <LocalizedClientLink
+          href={`/products/${item.productHandle}`}
+          className="block w-full h-full relative"
+          tabIndex={-1}
+        >
+          {item.thumbnail ? (
+            <Image
+              src={item.thumbnail}
+              alt={item.productTitle}
+              fill
+              sizes="(min-width: 640px) 144px, 100vw"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-on-surface-variant font-body-sm text-xs p-2 text-center">
+              No photograph
+            </div>
+          )}
+        </LocalizedClientLink>
+        <span className="absolute top-2 left-2 px-2 py-0.5 bg-secondary-fixed text-on-secondary-fixed font-label-caps text-[10px] uppercase rounded font-bold shadow-2xs">
+          Atelier Curated
+        </span>
+      </div>
+
+      {/* Details & Actions */}
+      <div className="flex-1 flex flex-col justify-between min-w-0">
+        <div>
+          <div className="flex items-start justify-between gap-space-sm">
+            <div className="min-w-0 flex-1 pr-2">
+              <span className="font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant block truncate font-bold">
+                Everwear Atelier Contemporary
+              </span>
+              <h3 className="font-headline-sm text-headline-sm text-primary mt-0.5 font-medium truncate">
+                <LocalizedClientLink
+                  href={`/products/${item.productHandle}`}
+                  className="hover:underline underline-offset-4"
+                  data-testid="product-title"
+                >
+                  {item.productTitle}
+                </LocalizedClientLink>
+              </h3>
+            </div>
+            {editable && (
+              <button
+                type="button"
+                onClick={() => run("remove", () => deleteLineItem(item.id))}
+                disabled={!!pending}
+                aria-label="Remove item"
+                className="text-on-surface-variant hover:text-error transition-colors p-1 cursor-pointer disabled:opacity-40"
+                data-testid="product-delete-button"
+                title="Remove item"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
             )}
-            <span className="text-sm text-muted-foreground tabular-nums">
-              {formatMoney(item.unitPrice, currencyCode)} each
-            </span>
           </div>
-          <span className="tabular-nums" data-testid="product-price">{formatMoney(item.total, currencyCode)}</span>
+
+          {/* Variants specs */}
+          <div className="flex items-center gap-space-md mt-space-sm text-body-sm text-on-surface-variant flex-wrap" data-testid="product-variant">
+            {color && (
+              <span>
+                Color: <strong className="text-on-surface font-semibold capitalize">{color}</strong>
+              </span>
+            )}
+            {size && (
+              <span>
+                Size: <strong className="text-on-surface font-semibold uppercase">{size}</strong>
+              </span>
+            )}
+            {!color && !size && item.variantTitle && (
+              <span>
+                Variant: <strong className="text-on-surface font-semibold">{item.variantTitle}</strong>
+              </span>
+            )}
+          </div>
         </div>
 
-        {editable ? (
-          <div className="mt-auto flex items-center justify-between gap-4">
-            <div className="flex h-10 items-center border" role="group" aria-label={`Quantity for ${item.productTitle}`}>
+        {/* Bottom bar: Stepper, Wishlist, Price */}
+        <div className="flex items-end justify-between mt-space-md pt-space-sm border-t border-surface-container-high/80 flex-wrap gap-2">
+          {editable ? (
+            <div className="flex items-center gap-space-sm flex-wrap">
+              {/* Micro-stepper Quantity Controls */}
+              <div
+                className="flex items-center border border-outline-variant/60 rounded-lg overflow-hidden bg-surface-container-lowest shadow-2xs"
+                role="group"
+                aria-label={`Quantity for ${item.productTitle}`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setQuantity(item.quantity - 1)}
+                  disabled={item.quantity <= 1 || !!pending}
+                  className="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer"
+                  aria-label="Decrease quantity"
+                >
+                  <span className="material-symbols-outlined text-[16px]">remove</span>
+                </button>
+                <span
+                  className="w-8 text-center font-label-md text-label-md text-on-surface tabular-nums font-semibold"
+                  data-testid="product-quantity"
+                >
+                  {item.quantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity(item.quantity + 1)}
+                  disabled={item.quantity >= MAX_PER_LINE || !!pending}
+                  className="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer"
+                  aria-label="Increase quantity"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add</span>
+                </button>
+              </div>
+
+              {/* Save to Wishlist Action */}
               <button
                 type="button"
-                onClick={() => setQuantity(item.quantity - 1)}
-                disabled={item.quantity <= 1 || !!pending}
-                className="flex h-full w-10 items-center justify-center disabled:opacity-40"
-                aria-label="Decrease quantity"
+                onClick={handleSaveToWishlist}
+                disabled={!!pending}
+                className="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors underline underline-offset-4 cursor-pointer disabled:opacity-50"
               >
-                <MinusIcon className="size-3.5" aria-hidden />
-              </button>
-              <span className="w-8 text-center text-sm tabular-nums" data-testid="product-quantity">
-                {pending === "update" ? <Loader2Icon className="mx-auto size-3.5 animate-spin" aria-label="Updating" /> : item.quantity}
-              </span>
-              <button
-                type="button"
-                onClick={() => setQuantity(item.quantity + 1)}
-                disabled={item.quantity >= MAX_PER_LINE || !!pending}
-                className="flex h-full w-10 items-center justify-center disabled:opacity-40"
-                aria-label="Increase quantity"
-              >
-                <PlusIcon className="size-3.5" aria-hidden />
+                Save to Wishlist
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => run("remove", () => deleteLineItem(item.id))}
-              disabled={!!pending}
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
-              data-testid="product-delete-button"
+          ) : (
+            <span className="font-body-sm text-on-surface-variant">Qty: {item.quantity}</span>
+          )}
+
+          <div className="text-right">
+            <span
+              className="font-headline-sm text-headline-sm text-primary font-semibold tabular-nums block"
+              data-testid="product-price"
             >
-              {pending === "remove" ? "Removing" : "Remove"}
-              <span className="sr-only"> {item.productTitle}</span>
-            </button>
+              {formatMoney(item.total, currencyCode)}
+            </span>
+            {item.quantity > 1 && (
+              <span className="block font-body-sm text-[11px] text-on-surface-variant tabular-nums">
+                {formatMoney(item.unitPrice, currencyCode)} each
+              </span>
+            )}
           </div>
-        ) : (
-          <span className="mt-auto text-sm text-muted-foreground">Qty {item.quantity}</span>
-        )}
+        </div>
       </div>
-    </li>
+    </div>
   )
 }

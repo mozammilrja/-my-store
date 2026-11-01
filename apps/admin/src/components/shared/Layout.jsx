@@ -74,6 +74,10 @@ export function PageHeader({
   badge,
   badgeVariant = "info",
   actions,
+  // A reporting screen leads with its title rather than with the first figure
+  // under it, so it takes the larger step of the scale. Everything else keeps
+  // the size the list modules were built against.
+  size = "default",
   className,
   children,
   ...props
@@ -81,12 +85,16 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex flex-col justify-between gap-space-md lg:flex-row lg:items-end",
+        "flex flex-col justify-between gap-space-md",
+        // A reporting header carries a whole filter bar on its right, which
+        // squeezed the title to a two-word column at 1024px. It only goes
+        // side-by-side once there is room for both.
+        size === "lg" ? "xl:flex-row xl:items-end" : "lg:flex-row lg:items-end",
         className
       )}
       {...props}
     >
-      <div className="flex min-w-0 max-w-3xl flex-col gap-1">
+      <div className={cn("flex min-w-0 max-w-3xl flex-col", size === "lg" ? "gap-1.5" : "gap-1")}>
         {(kicker || breadcrumb || badge) && (
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {breadcrumb ? (
@@ -106,19 +114,33 @@ export function PageHeader({
           </div>
         )}
 
-        <h1 className="text-title font-semibold tracking-tight text-primary">
+        <h1
+          className={cn(
+            "font-semibold tracking-tight text-primary",
+            size === "lg" ? "text-display" : "text-title"
+          )}
+        >
           {title}
         </h1>
 
         {description && (
-          <p className="text-body text-secondary">{description}</p>
+          <p className={cn("text-secondary", size === "lg" ? "text-body-lg" : "text-body")}>
+            {description}
+          </p>
         )}
 
         {children}
       </div>
 
       {actions && (
-        <div className="flex min-w-0 flex-wrap items-center gap-2 lg:shrink-0">{actions}</div>
+        <div
+          className={cn(
+            "flex min-w-0 flex-wrap items-center gap-2",
+            size === "lg" ? "xl:shrink-0" : "lg:shrink-0"
+          )}
+        >
+          {actions}
+        </div>
       )}
     </div>
   );

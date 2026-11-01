@@ -299,7 +299,7 @@ export function RankedBars({
   return (
     // One grid for the whole list rather than one per row, so the three
     // columns share their widths and the figures line up down the chart.
-    <ul className="grid grid-cols-[minmax(5rem,10rem)_1fr_auto] items-center gap-x-space-md gap-y-space-sm">
+    <ul className="grid grid-cols-[minmax(6rem,14rem)_1fr_auto] items-center gap-x-space-md gap-y-space-sm">
       {sorted.map((row) => {
         const pct = (row.value / max) * 100;
         const share = sum > 0 ? Math.round((row.value / sum) * 100) : 0;
@@ -373,11 +373,16 @@ export function SplitBreakdown({ parts = [], total, formatValue, emptyMessage = 
                   {p.label}
                 </span>
               </span>
-              <span className="flex shrink-0 items-baseline gap-2">
+              {/* Figures hug their own widths rather than reserving a fixed
+                  column each: three padded columns took the whole row on a
+                  narrow panel and left the label truncating mid-word. */}
+              <span className="flex shrink-0 items-baseline gap-space-sm">
                 <span className="text-num tabular-nums text-primary">{p.value}</span>
-                <span className="w-10 text-right text-micro tabular-nums text-faint">{share}%</span>
+                <span className="w-9 text-right text-meta tabular-nums text-faint">{share}%</span>
                 {p.amount !== undefined && formatValue && (
-                  <span className="w-24 text-right text-meta tabular-nums text-muted">{formatValue(p.amount)}</span>
+                  <span className="whitespace-nowrap text-right text-meta tabular-nums text-muted">
+                    {formatValue(p.amount)}
+                  </span>
                 )}
               </span>
             </li>
@@ -415,7 +420,7 @@ export function Waterfall({ steps = [], formatValue = (v) => String(v), formatTi
   const { top, ticks } = niceTicks(Math.max(...bars.map((b) => b.to), 0));
   const band = plotW / Math.max(bars.length, 1);
   // Capped, never filling its slot: the leftover in the band is air, not data.
-  const barW = Math.min(band - 18, 24);
+  const barW = Math.min(band - 24, 44);
   const y = (v) => plotH - (v / top) * plotH;
 
   return (
@@ -513,7 +518,7 @@ export function Meter({ value, max, label, className }) {
   return (
     <span className={cn('flex items-center gap-2', className)}>
       <span
-        className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full"
+        className="h-2 w-full min-w-[3rem] shrink overflow-hidden rounded-full"
         style={{ backgroundColor: 'rgb(var(--chart-grid))' }}
         role="progressbar"
         aria-valuenow={pct}
@@ -523,7 +528,7 @@ export function Meter({ value, max, label, className }) {
       >
         <span className="block h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: tone }} />
       </span>
-      <span className="w-9 text-right text-micro tabular-nums text-muted">{pct}%</span>
+      <span className="w-10 shrink-0 text-right text-meta tabular-nums text-muted">{pct}%</span>
     </span>
   );
 }
@@ -539,7 +544,11 @@ export function Meter({ value, max, label, className }) {
  */
 export function ChartTabs({ options = [], value, onChange, label = 'Measure' }) {
   return (
-    <div className="flex items-center gap-space-md" role="group" aria-label={label}>
+    <div
+      role="group"
+      aria-label={label}
+      className="flex shrink-0 items-center gap-0.5 rounded-lg border border-subtle bg-surface-subtle p-1"
+    >
       {options.map((opt) => (
         <button
           key={opt.id}
@@ -547,10 +556,10 @@ export function ChartTabs({ options = [], value, onChange, label = 'Measure' }) 
           onClick={() => onChange(opt.id)}
           aria-pressed={opt.id === value}
           className={cn(
-            'cursor-pointer border-b-2 pb-1 text-meta transition-colors',
+            'h-7 cursor-pointer whitespace-nowrap rounded-md px-3 text-label transition-colors',
             opt.id === value
-              ? 'border-[rgb(var(--chart-1))] text-primary'
-              : 'border-transparent text-muted hover:text-primary'
+              ? 'bg-surface-container-lowest font-semibold text-accent shadow-xs'
+              : 'text-muted hover:text-primary'
           )}
         >
           {opt.label}
@@ -569,16 +578,64 @@ export function ChartTabs({ options = [], value, onChange, label = 'Measure' }) 
  * This is what replaced the pattern of a ranked-bar chart above a table of the
  * same rows — two readings of one dataset, stacked, for no extra information.
  */
-export function BarCell({ value, max, label, color = ACCENT }) {
+export function BarCell({ value, max, label, color = ACCENT, share }) {
   const pct = max > 0 ? Math.max((value / max) * 100, value > 0 ? 1.5 : 0) : 0;
-  return (
+  const bar = (
     <span
-      className="flex h-1.5 w-full min-w-[3rem] overflow-hidden rounded-full"
+      className="flex h-2 w-full min-w-[3rem] overflow-hidden rounded-full"
       style={{ backgroundColor: 'rgb(var(--chart-grid))' }}
       role="img"
       aria-label={label}
     >
       <span className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+    </span>
+  );
+
+  // A share column answers "how much of the whole", so the figure belongs
+  // beside the bar: reading a proportion off a bar length alone is a guess.
+  if (share === undefined || share === null) return bar;
+  return (
+    <span className="flex items-center gap-space-md">
+      {bar}
+      <span className="w-10 shrink-0 text-right text-meta tabular-nums text-muted">{share}%</span>
+    </span>
+  );
+}
+
+/**
+ * Sparkline
+ * The shape of one measure over the same days the board plots, at the size of
+ * a line of text. It carries no axis and no figure of its own: the tile it
+ * sits in already prints the number, and this only says which way it got there.
+ *
+ * Drawn only where the daily series measures exactly what the tile measures.
+ * A trend line under a figure it does not describe is a decoration that reads
+ * as evidence.
+ */
+export function Sparkline({ points = [], height = 36, color = ACCENT, label }) {
+  const [ref, width] = useWidth();
+  const values = points.map((p) => p.value);
+  if (!points.length) return <span ref={ref} className="block w-full" style={{ height }} />;
+
+  const max = Math.max(...values, 0);
+  const min = Math.min(...values, 0);
+  const span = max - min || 1;
+  const x = (i) => (points.length === 1 ? width / 2 : (i / (points.length - 1)) * width);
+  const y = (v) => height - 3 - ((v - min) / span) * (height - 6);
+
+  const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(2)} ${y(p.value).toFixed(2)}`).join(' ');
+  const area = `${line} L${x(points.length - 1).toFixed(2)} ${height} L${x(0).toFixed(2)} ${height} Z`;
+  const last = points.length - 1;
+
+  return (
+    <span ref={ref} className="block w-full" style={{ height }}>
+      {width > 0 && (
+        <svg width={width} height={height} role="img" aria-label={label} className="block">
+          <path d={area} fill={color} opacity="0.1" />
+          <path d={line} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+          <circle cx={x(last)} cy={y(points[last].value)} r="2.5" fill={color} />
+        </svg>
+      )}
     </span>
   );
 }

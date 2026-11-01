@@ -273,6 +273,11 @@ export function DataTable({
   // Optional per-row classes: a string, or (row, index) => string. Lets a module
   // tint rows by state (a discrepancy, a suspension) without forking the table.
   rowClassName,
+  // Sorting is driven from outside: the module already holds the rows, so the
+  // table only draws the control and reports the column that was asked for.
+  sortKey,
+  sortDirection = 'desc',
+  onSort,
   isLoading = false,
   isError = false,
   errorTitle,
@@ -339,27 +344,58 @@ export function DataTable({
                 />
               </TableHead>
             )}
-            {columns.map((col, idx) => (
-              <TableHead
-                key={col.key || idx}
-                className={cn(
-                  col.align === "center" && "text-center",
-                  col.align === "right" && "text-right",
-                  // `fit` columns hug their content instead of taking a share of
-                  // the slack: a 1px width plus nowrap is the auto-layout idiom
-                  // for "as narrow as the text allows".
-                  col.fit && "w-px whitespace-nowrap",
-                  // `grow` hands one column all the leftover width. Without it
-                  // the slack is shared between every non-`fit` column, which
-                  // is what a report of mostly text columns wants.
-                  col.grow && "w-full",
-                  col.headerClassName
-                )}
-                style={{ width: col.fit ? "1px" : col.width }}
-              >
-                {col.header}
-              </TableHead>
-            ))}
+            {columns.map((col, idx) => {
+              const columnKey = col.sortKey ?? col.key;
+              const sortable = Boolean(col.sortable && onSort);
+              const isSorted = sortable && sortKey === columnKey;
+              return (
+                <TableHead
+                  key={col.key || idx}
+                  aria-sort={
+                    isSorted ? (sortDirection === "asc" ? "ascending" : "descending") : sortable ? "none" : undefined
+                  }
+                  className={cn(
+                    col.align === "center" && "text-center",
+                    col.align === "right" && "text-right",
+                    // `fit` columns hug their content instead of taking a share of
+                    // the slack: a 1px width plus nowrap is the auto-layout idiom
+                    // for "as narrow as the text allows".
+                    col.fit && "w-px whitespace-nowrap",
+                    // `grow` hands one column all the leftover width. Without it
+                    // the slack is shared between every non-`fit` column, which
+                    // is what a report of mostly text columns wants.
+                    col.grow && "w-full",
+                    col.headerClassName
+                  )}
+                  style={{ width: col.fit ? "1px" : col.width }}
+                >
+                  {sortable ? (
+                    <button
+                      type="button"
+                      onClick={() => onSort(columnKey)}
+                      // The glyph is always in the flow, so a header does not
+                      // reflow the column the first time it is sorted.
+                      className={cn(
+                        "-mx-1 inline-flex max-w-full items-center gap-1 rounded px-1 py-0.5 text-caption uppercase transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        col.align === "right" && "flex-row-reverse",
+                        isSorted ? "text-primary" : "text-secondary"
+                      )}
+                      title={`Sort by ${typeof col.header === "string" ? col.header : columnKey}`}
+                    >
+                      <span className="whitespace-nowrap">{col.header}</span>
+                      <Icon
+                        name={!isSorted ? "swap_vert" : sortDirection === "asc" ? "arrow_upward" : "arrow_downward"}
+                        aria-hidden="true"
+                        size={14}
+                        className={cn("shrink-0", isSorted ? "text-accent" : "text-faint")}
+                      />
+                    </button>
+                  ) : (
+                    col.header
+                  )}
+                </TableHead>
+              );
+            })}
           </TableRow>
         </TableHeader>
 

@@ -105,3 +105,57 @@ export function useClientTable(rows, { pageSize: initialPageSize = DEFAULT_PAGE_
 
   return { page: current, setPage, limit, setLimit, total, pageRows };
 }
+
+/**
+ * useTableSort
+ * Orders a list the module already holds, for a table whose columns are
+ * sortable. `accessors` says what a column's value is, so a column that prints
+ * a formatted amount still sorts on the number behind it. Define it outside
+ * the component, or memoise it: it is a dependency of the sorted result.
+ *
+ * A first click on a column takes the direction that reads as "most
+ * interesting first" — largest for numbers, A to Z for text. Clicking the same
+ * column again reverses it.
+ */
+export function useTableSort(rows, accessors = {}, initial = {}) {
+  const [sort, setSort] = useState({
+    key: initial.key ?? null,
+    direction: initial.direction ?? "desc",
+  });
+
+  const onSort = useCallback(
+    (key) => {
+      setSort((prev) => {
+        if (prev.key === key) {
+          return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
+        }
+        const read = accessors[key];
+        const sample = Array.isArray(rows) ? rows.find((row) => read?.(row) !== undefined) : undefined;
+        const value = sample === undefined ? 0 : read?.(sample);
+        return { key, direction: typeof value === "string" ? "asc" : "desc" };
+      });
+    },
+    [rows, accessors]
+  );
+
+  const sorted = useMemo(() => {
+    const list = Array.isArray(rows) ? rows : [];
+    const read = accessors[sort.key];
+    if (!sort.key || !read) return list;
+    const sign = sort.direction === "asc" ? 1 : -1;
+    return [...list].sort((a, b) => {
+      const av = read(a);
+      const bv = read(b);
+      // A row with nothing recorded sorts last in either direction, rather
+      // than being treated as a zero that beats a real figure.
+      if (av === null || av === undefined) return bv === null || bv === undefined ? 0 : 1;
+      if (bv === null || bv === undefined) return -1;
+      if (typeof av === "string" || typeof bv === "string") {
+        return String(av).localeCompare(String(bv), undefined, { sensitivity: "base" }) * sign;
+      }
+      return (av - bv) * sign;
+    });
+  }, [rows, accessors, sort]);
+
+  return { rows: sorted, sortKey: sort.key, sortDirection: sort.direction, onSort };
+}

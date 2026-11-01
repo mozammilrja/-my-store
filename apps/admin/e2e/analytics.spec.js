@@ -5,7 +5,18 @@ import { getAdminToken, seed, API_URL } from "./helpers.js"
  * Analytics was a thousand lines of channel economics and margin tables typed
  * into the file. These check the replacement against the database: the figures
  * on screen are recomputed here from /admin/orders and must agree.
+ *
+ * The screen is four reports behind one toolbar — Overview, Products &
+ * Categories, Finance & Procurement, Marketing — so a check on anything but
+ * the headline figures opens its section first. The date window belongs to
+ * the page rather than to a section, which is itself asserted below.
  */
+
+/** Opens one of the four reports and waits for its panel. */
+async function openReport(page, name) {
+  await page.getByRole("tab", { name }).click()
+  await expect(page.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true")
+}
 
 const auth = (token) => ({ Authorization: `Bearer ${token}` })
 
@@ -104,7 +115,7 @@ test("the date range filters the figures and survives a refresh", async ({
 
   const ordersShown = async () =>
     Number(
-      (await page.locator("main").innerText()).match(/\bOrders\n([\d,]+)/)?.[1]?.replace(/,/g, "") ?? -1
+      (await page.locator("main").innerText()).match(/\bTotal orders\n([\d,]+)/i)?.[1]?.replace(/,/g, "") ?? -1
     )
 
   /*
@@ -193,24 +204,138 @@ test("every data region has an empty state rather than a blank panel", async ({
   await expect(page.locator("main h1")).toBeVisible()
 
   await expect(page.locator("main")).toContainText(/No orders in this range/i)
-  await expect(page.locator("main")).toContainText(/Nothing sold in this range/i)
-  await expect(page.locator("main")).toContainText(/No invoices in this range/i)
-  await expect(page.locator("main")).toContainText(/No purchase orders in this range/i)
   // An unavailable average is a dash, never a zero dressed up as a result.
   await expect(page.locator("main")).toContainText("—")
+
+  // Each section still owes its own empty state rather than a blank panel.
+  await openReport(page, /Products & Categories/)
+  await expect(page.locator("main")).toContainText(/Nothing sold in this range/i)
+  await expect(page.locator("main")).toContainText(/No category sales in this range/i)
+
+  await openReport(page, /Finance & Procurement/)
+  await expect(page.locator("main")).toContainText(/No invoices in this range/i)
+  await expect(page.locator("main")).toContainText(/No purchase orders in this range/i)
+
+  await openReport(page, /Marketing/)
+  await expect(page.locator("main")).toContainText(/No promotions yet/i)
 })
 
-test("analytics fits every viewport without sideways scroll", async ({ page, context, request }) => {
+test("every report fits every viewport without sideways scroll", async ({
+  page,
+  context,
+  request,
+}) => {
+  await seed(context, { token: await getAdminToken(request) })
+
+  for (const view of ["overview", "catalog", "finance", "marketing"]) {
+    await page.goto(`/analytics-and-reports?view=${view}`)
+    await expect(page.locator("main h1")).toBeVisible()
+
+    for (const width of [1440, 1366, 1280, 1024, 768, 390]) {
+      await page.setViewportSize({ width, height: 900 })
+      await page.waitForTimeout(250)
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+      )
+      expect(overflow, `${view} at ${width}px`).toBe(0)
+    }
+    await page.setViewportSize({ width: 1440, height: 900 })
+  }
+})
+
+test("the date window belongs to the page, not to a report", async ({ page, context, request }) => {
   await seed(context, { token: await getAdminToken(request) })
   await page.goto("/analytics-and-reports")
   await expect(page.locator("main h1")).toBeVisible()
 
-  for (const width of [1440, 1280, 768, 390]) {
-    await page.setViewportSize({ width, height: 900 })
-    await page.waitForTimeout(250)
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
-    )
-    expect(overflow, `${width}px`).toBe(0)
+  const settled = page.waitForResponse(
+    (r) => r.url().includes("/admin/analytics") && r.status() === 200
+  )
+  await page.getByRole("button", { name: "Last 7 days" }).click()
+  await settled
+  await expect(page).toHaveURL(/range=7d/)
+
+  // Moving between reports keeps the window: one query feeds all four, so a
+  // section cannot disagree with its neighbour about which days it reports.
+  for (const name of [/Products & Categories/, /Finance & Procurement/, /Marketing/, /Overview/]) {
+    await openReport(page, name)
+    await expect(page).toHaveURL(/range=7d/)
   }
+})
+
+test("a custom window is asked of the API and survives a refresh", async ({
+  page,
+  context,
+  request,
+}) => {
+  await seed(context, { token: await getAdminToken(request) })
+  await page.goto("/analytics-and-reports")
+  await expect(page.locator("main h1")).toBeVisible()
+
+  await page.getByRole("button", { name: "Custom date range" }).click()
+  const dialog = page.getByRole("dialog", { name: /custom date range/i })
+  await expect(dialog).toBeVisible()
+
+  await dialog.locator('input[type="date"]').first().fill("2026-09-01")
+  await dialog.locator('input[type="date"]').nth(1).fill("2026-09-30")
+
+  // The window is sent in UTC, so the request carries the instant the typed
+  // day begins in the operator's zone rather than the date string itself.
+  const asked = page.waitForRequest((r) => r.url().includes("/admin/analytics?from="))
+  await dialog.getByRole("button", { name: /apply range/i }).click()
+  const sent = new URL((await asked).url())
+  expect(new Date(sent.searchParams.get("from")).getTime()).toBe(
+    new Date("2026-09-01T00:00:00").getTime()
+  )
+  expect(new Date(sent.searchParams.get("to")).getTime()).toBe(
+    new Date("2026-09-30T23:59:59.999").getTime()
+  )
+
+  await expect(page).toHaveURL(/range=custom/)
+  await expect(page).toHaveURL(/from=2026-09-01/)
+  await expect(page).toHaveURL(/to=2026-09-30/)
+
+  await page.reload()
+  await expect(page.locator("main h1")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Custom date range" })).toHaveText(
+    /2026-09-01 to 2026-09-30/
+  )
+})
+
+test("report tables sort on the figure behind the cell, not the text in it", async ({
+  page,
+  context,
+  request,
+}) => {
+  await seed(context, { token: await getAdminToken(request) })
+  await page.goto("/analytics-and-reports?view=catalog")
+  await expect(page.locator("main h1")).toBeVisible()
+
+  const table = page.locator("main table").first()
+  const units = async () =>
+    (await table.locator("tbody tr td:nth-child(3)").allInnerTexts()).map((c) =>
+      Number(c.replace(/[^\d]/g, ""))
+    )
+
+  // Revenue descending is the order the report opens on.
+  await expect(table.locator("thead th", { hasText: "Revenue" })).toHaveAttribute(
+    "aria-sort",
+    "descending"
+  )
+
+  await table.getByRole("button", { name: "Units", exact: true }).click()
+  await expect(table.locator("thead th", { hasText: "Units" })).toHaveAttribute(
+    "aria-sort",
+    "descending"
+  )
+  const descending = await units()
+  expect([...descending].sort((a, b) => b - a)).toEqual(descending)
+
+  await table.getByRole("button", { name: "Units", exact: true }).click()
+  await expect(table.locator("thead th", { hasText: "Units" })).toHaveAttribute(
+    "aria-sort",
+    "ascending"
+  )
+  const ascending = await units()
+  expect([...ascending].sort((a, b) => a - b)).toEqual(ascending)
 })

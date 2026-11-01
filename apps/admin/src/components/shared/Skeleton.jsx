@@ -403,41 +403,46 @@ export function SkeletonPage({
             </div>
           )}
 
-          {/* Analytics opens on one board — a headline figure, its trend, and
-              a ruled strip of supporting figures in the same frame — so the
-              wait has that shape rather than a row of separate stat cards
-              that then rearrange themselves into something else. */}
+          {/* Analytics opens on five figures and the trend behind them, under
+              a toolbar that carries the report sections and the date window.
+              The wait has that shape rather than a row of cards that then
+              rearrange themselves into something else. */}
           {variant === "analytics" && (
-            <div className="flex flex-col gap-space-lg">
+            <div className="flex flex-col gap-space-xl">
+              {/* The tab rail, then the five figures, then the trend behind
+                  them. The variant draws its own tiles rather than taking
+                  them from `stats`, so the module's entry in App.jsx does not
+                  have to know the shape of the report it is waiting for. */}
+              <div className="flex flex-col gap-space-sm border-b border-subtle pb-space-sm xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} rounded="lg" className="h-9" style={{ width: 92 + (i % 3) * 48 }} />
+                  ))}
+                </div>
+                <Skeleton className="h-2.5 w-56" />
+              </div>
+
+              <SkeletonStatsGrid count={5} cols={5} />
+
               <div className="overflow-hidden rounded-xl border border-subtle bg-surface-container-lowest shadow-xs">
                 <div className="flex flex-col gap-space-lg p-space-lg">
                   <div className="flex items-start justify-between gap-space-lg">
                     <div className="flex flex-col gap-2">
-                      <Skeleton className="h-2.5 w-20" />
-                      <Skeleton className="h-8 w-48" />
-                      <Skeleton className="h-2.5 w-56" />
+                      <Skeleton className="h-4 w-36" />
+                      <Skeleton className="h-2.5 w-64" />
                     </div>
-                    <Skeleton className="h-3 w-40" />
+                    <Skeleton rounded="lg" className="h-9 w-52" />
                   </div>
-                  <SkeletonChart height={248} legend={false} />
-                </div>
-                <div className="grid grid-cols-2 gap-px border-t border-subtle bg-border-subtle sm:grid-cols-3 xl:grid-cols-5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex flex-col gap-2 bg-surface-container-lowest px-space-lg py-space-md">
-                      <Skeleton className="h-2.5 w-20" />
-                      <Skeleton className="h-5 w-28" />
-                      <Skeleton className="h-2 w-24" />
-                    </div>
-                  ))}
+                  <SkeletonChart height={320} legend={false} />
                 </div>
               </div>
-              <div className="grid gap-space-lg lg:grid-cols-[1.55fr_1fr]">
+
+              <div className="grid gap-space-lg xl:grid-cols-[1.5fr_1fr]">
                 <SkeletonCard>
-                  <SkeletonChart bars={4} height={200} legend={false} />
+                  <SkeletonChart bars={4} height={220} legend={false} />
                 </SkeletonCard>
                 <SkeletonCard lines={5} />
               </div>
-              <SkeletonTable rows={rows} columns={columns} />
             </div>
           )}
 

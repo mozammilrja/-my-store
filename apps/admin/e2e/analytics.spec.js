@@ -20,21 +20,31 @@ async function openReport(page, name) {
 
 const auth = (token) => ({ Authorization: `Bearer ${token}` })
 
-/** Recounts the headline figures straight from the order records. */
-async function recount(request, token, days) {
+/**
+ * Recounts the headline figures straight from the order records, over the
+ * window the API says it used.
+ *
+ * This used to rebuild the window itself from a day count and then widen it by
+ * a day to be safe. The slop was the bug: the window slides forward with the
+ * clock, so every order eventually crossed the real boundary while the extra
+ * day kept counting it, and the test failed once per order, a month after that
+ * order was placed. Comparing against the API's own range compares like with
+ * like and has no boundary of its own to get wrong.
+ */
+async function recount(request, token, range, currency) {
   const res = await request.get(`${API_URL}/admin/orders?limit=100`, { headers: auth(token) })
   const { orders } = await res.json()
-  const dash = await (await request.get(`${API_URL}/admin/dashboard`, { headers: auth(token) })).json()
+  // One page of orders. If the store ever outgrows it the recount would
+  // silently undercount, so say so rather than fail as a mismatch.
+  expect(orders.length, "the recount reads one page of orders; raise the limit").toBeLessThan(100)
 
-  const to = Date.now()
-  const from = to - (days - 1) * 24 * 60 * 60 * 1000
-  const inRange = orders.filter((o) => {
+  const from = new Date(range.from).getTime()
+  const to = new Date(range.to).getTime()
+  const live = orders.filter((o) => {
     const t = new Date(o.createdAt).getTime()
-    return o.currency === dash.currency && t >= from - 24 * 60 * 60 * 1000 && t <= to
+    return o.currency === currency && o.status !== "canceled" && t >= from && t <= to
   })
-  const live = inRange.filter((o) => o.status !== "canceled")
   return {
-    currency: dash.currency,
     orders: live.length,
     units: live.reduce((n, o) => n + o.items.reduce((m, i) => m + i.quantity, 0), 0),
     grossSales: live.reduce((n, o) => n + o.totals.itemSubtotal, 0),
@@ -47,8 +57,12 @@ test("the API's analytics agree with the order records", async ({ request }) => 
   expect(res.ok()).toBeTruthy()
   const body = await res.json()
 
-  const expected = await recount(request, token, 30)
-  expect(body.currency).toBe(expected.currency)
+  // The region's currency is the one the dashboard reports, so the two
+  // screens cannot be reading different books.
+  const dash = await (await request.get(`${API_URL}/admin/dashboard`, { headers: auth(token) })).json()
+  expect(body.currency).toBe(dash.currency)
+
+  const expected = await recount(request, token, body.range, body.currency)
   expect(body.totals.orders).toBe(expected.orders)
   expect(body.totals.units).toBe(expected.units)
   expect(body.totals.grossSales).toBe(expected.grossSales)

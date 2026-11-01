@@ -299,7 +299,12 @@ export function RankedBars({
   return (
     // One grid for the whole list rather than one per row, so the three
     // columns share their widths and the figures line up down the chart.
-    <ul className="grid grid-cols-[minmax(6rem,14rem)_1fr_auto] items-center gap-x-space-md gap-y-space-sm">
+    /* The label column is sized to its text and capped, not given a fixed
+       width: minmax took its maximum whenever there was room, so a panel of
+       short city names spent 14rem on them and left the bars a stub too
+       short to compare. fit-content gives that width back to the bars, which
+       also keep a floor of their own. */
+    <ul className="grid grid-cols-[fit-content(14rem)_minmax(4rem,1fr)_auto] items-center gap-x-space-md gap-y-space-sm">
       {sorted.map((row) => {
         const pct = (row.value / max) * 100;
         const share = sum > 0 ? Math.round((row.value / sum) * 100) : 0;

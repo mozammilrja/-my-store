@@ -2,6 +2,8 @@
 
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { cn } from "@/lib/utils"
+import { usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
 
 export type MenuSection = {
   title: string
@@ -1076,6 +1078,26 @@ export function MegaMenu({
 }: {
   _catalogCategories?: Array<{ id: string; name: string; handle: string }>
 }) {
+  // The panel used to be shown by `group-hover` alone, so clicking a link
+  // navigated with the menu still open over the new page: nothing closed it
+  // until the pointer happened to leave. Hover still opens it, but now a
+  // click, Escape or a navigation closes it.
+  const [openDept, setOpenDept] = useState<string | null>(null)
+  const pathname = usePathname()
+
+  useEffect(() => {
+    setOpenDept(null)
+  }, [pathname])
+
+  useEffect(() => {
+    if (!openDept) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenDept(null)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [openDept])
+
   return (
     <nav className="relative w-full bg-surface-container-lowest border-b border-border/60 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
       <div className="w-full px-margin-mobile md:px-margin flex items-center justify-between relative">
@@ -1086,6 +1108,10 @@ export function MegaMenu({
               key={dept.id}
               className="group static"
               style={{ "--dept-accent": dept.accentColor || "#ee5f73" } as React.CSSProperties}
+              onMouseEnter={() => setOpenDept(dept.id)}
+              onMouseLeave={() => setOpenDept(null)}
+              onFocus={() => setOpenDept(dept.id)}
+              onClick={() => setOpenDept(null)}
             >
               <LocalizedClientLink
                 href={dept.href}
@@ -1100,7 +1126,8 @@ export function MegaMenu({
               {/* Myntra-Style Mega Menu Dropdown */}
               <div
                 className={cn(
-                  "hidden group-hover:block absolute top-full left-margin-mobile md:left-margin w-[1120px]",
+                  openDept === dept.id ? "block" : "hidden",
+                  "absolute top-full left-margin-mobile md:left-margin w-[1120px]",
                   "max-w-[calc(100vw-2rem)] md:max-w-[calc(100vw-6rem)]",
                   "bg-white shadow-[0_25px_60px_rgba(0,0,0,0.22)] z-50 border border-border/80 rounded-b-md overflow-hidden",
                   "before:absolute before:-top-4 before:left-0 before:right-0 before:h-4 before:content-['']"

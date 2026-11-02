@@ -19,6 +19,7 @@ import { adminOrderRoutes } from "./routes/admin/orders.js"
 import { adminProductRoutes } from "./routes/admin/products.js"
 import { adminStoreRoutes } from "./routes/admin/store.js"
 import { adminLogisticsRoutes } from "./routes/admin/logistics.js"
+import { adminWarehouseRoutes } from "./routes/admin/warehouses.js"
 
 /** Turns anything thrown by a route into the API's error shape. */
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
@@ -93,7 +94,7 @@ export function createApp(): Express {
 
   app.use("/admin", adminAuthRoutes)
   // Everything past the login route needs a signed-in admin.
-  app.use("/admin", ...requireAdmin, adminAnalyticsRoutes, adminOrderRoutes, adminProductRoutes, adminStoreRoutes, adminSettingsRoutes, adminUserRoutes, adminLogisticsRoutes)
+  app.use("/admin", ...requireAdmin, adminAnalyticsRoutes, adminOrderRoutes, adminProductRoutes, adminStoreRoutes, adminSettingsRoutes, adminUserRoutes, adminLogisticsRoutes, adminWarehouseRoutes)
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "not_found", message: "Route not found" } })

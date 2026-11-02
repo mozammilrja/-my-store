@@ -7,6 +7,7 @@ import { badRequest, conflict, notFound } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
 import { computeTotals, promotionUsable } from "../../lib/totals.js"
 import { toStoreOrder } from "../../lib/serialize.js"
+import { executeIdempotent } from "../../lib/idempotency.js"
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
@@ -135,10 +136,12 @@ storePaymentRoutes.post("/carts/:id/confirm-payment", async (req, res) => {
       razorpayPaymentId: z.string().optional(),
       razorpaySignature: z.string().optional(),
       paymentIntentId: z.string().optional(),
+      idempotencyKey: z.string().optional(),
     })
     .parse(req.body)
 
   const id = cartId.parse(req.params.id)
+  const idempotencyKey = (req.headers["idempotency-key"] as string) || body.idempotencyKey
 
   // Signature verification for Razorpay
   if (body.provider === "razorpay" && isRazorpayConfigured()) {
@@ -155,134 +158,220 @@ storePaymentRoutes.post("/carts/:id/confirm-payment", async (req, res) => {
     }
   }
 
-  const order = await withTransaction(async (session) => {
-    const cart = await db.carts().findOne({ _id: id }, { session })
-    if (!cart) throw notFound("Cart")
-    if (cart.completedAt) {
-      const existing = await db.orders().findOne({ cartId: cart._id }, { session })
-      if (existing) return existing
-    }
+  const performConfirmation = async () => {
+    const order = await withTransaction(async (session) => {
+      const cart = await db.carts().findOne({ _id: id }, { session })
+      if (!cart) throw notFound("Cart")
+      if (cart.completedAt) {
+        const existing = await db.orders().findOne({ cartId: cart._id }, { session })
+        if (existing) return existing
+      }
 
-    const region = await db.regions().findOne({ _id: cart.regionId }, { session })
-    if (!region) throw notFound("Region")
+      const region = await db.regions().findOne({ _id: cart.regionId }, { session })
+      if (!region) throw notFound("Region")
 
-    const items = cart.items
-    if (!items.length) throw badRequest("Cart is empty")
+      const items = cart.items
+      if (!items.length) throw badRequest("Cart is empty")
 
-    // Reserve stock atomically
-    for (const item of items) {
-      const taken = await db.products().updateOne(
-        {
-          _id: item.productId,
-          variants: {
-            $elemMatch: {
-              _id: item.variantId,
-              $or: [{ manageInventory: false }, { allowBackorder: true }, { stock: { $gte: item.quantity } }],
+      // Reserve stock atomically
+      for (const item of items) {
+        const taken = await db.products().updateOne(
+          {
+            _id: item.productId,
+            variants: {
+              $elemMatch: {
+                _id: item.variantId,
+                $or: [{ manageInventory: false }, { allowBackorder: true }, { stock: { $gte: item.quantity } }],
+              },
             },
           },
-        },
-        { $inc: { "variants.$[v].stock": -item.quantity } },
-        { arrayFilters: [{ "v._id": item.variantId, "v.manageInventory": true, "v.allowBackorder": false }], session }
+          { $inc: { "variants.$[v].stock": -item.quantity } },
+          { arrayFilters: [{ "v._id": item.variantId, "v.manageInventory": true, "v.allowBackorder": false }], session }
+        )
+        if (!taken.matchedCount) throw conflict(`${item.productTitle} (${item.variantTitle}) sold out`, "out_of_stock")
+      }
+
+      // Process promotion usage
+      const promotions = cart.promoCodes.length
+        ? await db.promotions().find({ code: { $in: cart.promoCodes } }, { session }).toArray()
+        : []
+      for (const promo of promotions) {
+        if (!promotionUsable(promo, cart.currency)) throw conflict(`Promo ${promo.code} expired`, "invalid_promo")
+        const used = await db.promotions().updateOne(
+          { _id: promo._id, $or: [{ usageLimit: null }, { usageLimit: { $exists: false } }, { $expr: { $lt: ["$usageCount", "$usageLimit"] } }] },
+          { $inc: { usageCount: 1 } },
+          { session }
+        )
+        if (!used.matchedCount) throw conflict(`Promo ${promo.code} has been used up`, "invalid_promo")
+      }
+
+      const counter = await db.counters().findOneAndUpdate(
+        { _id: "order" },
+        { $inc: { seq: 1 } },
+        { upsert: true, returnDocument: "after", session }
       )
-      if (!taken.matchedCount) throw conflict(`${item.productTitle} (${item.variantTitle}) sold out`, "out_of_stock")
+
+      const now = new Date()
+      const shippingOption = region.shippingOptions.find((s) => s._id === cart.shippingOptionId) ?? region.shippingOptions[0] ?? { _id: "standard", name: "Standard Delivery", amount: 0 }
+      const totals = computeTotals(cart, region, promotions)
+
+      const doc: OrderDoc = {
+        _id: newId("order"),
+        displayId: 1000 + (counter?.seq ?? 1),
+        cartId: cart._id,
+        regionId: region._id,
+        currency: cart.currency,
+        customerId: cart.customerId ?? null,
+        email: cart.email!,
+        items,
+        shippingAddress: cart.shippingAddress!,
+        billingAddress: cart.billingAddress ?? cart.shippingAddress!,
+        shippingOption,
+        promoCodes: cart.promoCodes,
+        totals,
+        paymentMethod: body.provider,
+        paymentStatus: body.provider === "cod" ? "awaiting" : "paid",
+        paymentDetails: {
+          provider: body.provider,
+          transactionId: body.razorpayPaymentId ?? body.paymentIntentId ?? `cod_${Date.now()}`,
+          razorpayOrderId: body.razorpayOrderId,
+          razorpayPaymentId: body.razorpayPaymentId,
+          razorpaySignature: body.razorpaySignature,
+          paymentIntentId: body.paymentIntentId,
+          paidAt: body.provider === "cod" ? undefined : now,
+        },
+        fulfillmentStatus: "unfulfilled",
+        status: "pending",
+        createdAt: now,
+        updatedAt: now,
+      }
+
+      await db.orders().insertOne(doc, { session })
+      await db.carts().updateOne(
+        { _id: cart._id },
+        { $set: { completedAt: now, orderId: doc._id, updatedAt: now } },
+        { session }
+      )
+
+      // Ledger: Immutable inventory movements
+      for (const item of items) {
+        await db.inventoryMovements().insertOne(
+          {
+            _id: newId("mov"),
+            sku: `SKU-${item.variantId.slice(-6)}`,
+            variantId: item.variantId,
+            hubId: "BLR-FC1",
+            type: "outbound",
+            quantity: item.quantity,
+            referenceType: "order",
+            referenceId: doc._id,
+            reason: `Order #${doc.displayId} placement`,
+            balanceAfter: 0,
+            createdAt: now,
+          },
+          { session }
+        )
+      }
+
+      // Record coupon redemptions
+      for (const promo of promotions) {
+        await db.couponRedemptions().insertOne(
+          {
+            _id: newId("crm"),
+            code: promo.code,
+            promotionId: promo._id,
+            customerId: doc.customerId,
+            cartId: cart._id,
+            orderId: doc._id,
+            status: "redeemed",
+            createdAt: now,
+          },
+          { session }
+        )
+      }
+
+      // Generate GST Invoice in DB
+      const invoiceNumber = `INV-${new Date().getFullYear()}-${doc.displayId}`
+      await db.invoices().insertOne(
+        {
+          _id: newId("inv"),
+          invoiceNumber,
+          orderId: doc._id,
+          displayId: doc.displayId,
+          customerName: `${doc.shippingAddress.firstName} ${doc.shippingAddress.lastName}`,
+          shippingAddress: doc.shippingAddress,
+          billingAddress: doc.billingAddress,
+          items: doc.items.map((i) => ({
+            name: i.productTitle,
+            sku: `SKU-${i.variantId.slice(-6)}`,
+            hsn: "6204",
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            taxableValue: Math.round((i.unitPrice * i.quantity) / 1.12),
+            gstRate: 12,
+            cgst: Math.round((i.unitPrice * i.quantity * 0.06) / 1.12),
+            sgst: Math.round((i.unitPrice * i.quantity * 0.06) / 1.12),
+            igst: 0,
+          })),
+          subtotal: doc.totals.itemSubtotal,
+          cgstTotal: Math.round((doc.totals.taxTotal || 0) / 2),
+          sgstTotal: Math.round((doc.totals.taxTotal || 0) / 2),
+          igstTotal: 0,
+          grandTotal: doc.totals.total,
+          currency: doc.currency,
+          status: doc.paymentStatus === "paid" ? "paid" : "issued",
+          issuedAt: now,
+        },
+        { session }
+      )
+
+      // Transactional Outbox Event
+      await db.outboxEvents().insertOne(
+        {
+          _id: newId("outbox"),
+          topic: "order.placed",
+          payload: { orderId: doc._id, displayId: doc.displayId, email: doc.email, total: doc.totals.total },
+          status: "pending",
+          retryCount: 0,
+          createdAt: now,
+        },
+        { session }
+      )
+
+      // Notification
+      await db.notifications().insertOne(
+        {
+          _id: newId("notif"),
+          recipientType: "customer",
+          recipientId: doc.customerId ?? doc.email,
+          type: "order_confirmation",
+          title: `Order #${doc.displayId} Confirmed`,
+          message: `Your payment was verified and order #${doc.displayId} is confirmed.`,
+          channel: "in_app",
+          status: "unread",
+          metadata: { orderId: doc._id, displayId: doc.displayId },
+          createdAt: now,
+        },
+        { session }
+      )
+
+      return doc
+    })
+
+    return {
+      status: 201,
+      body: { order: toStoreOrder(order) },
     }
+  }
 
-    // Process promotion usage
-    const promotions = cart.promoCodes.length
-      ? await db.promotions().find({ code: { $in: cart.promoCodes } }, { session }).toArray()
-      : []
-    for (const promo of promotions) {
-      if (!promotionUsable(promo, cart.currency)) throw conflict(`Promo ${promo.code} expired`, "invalid_promo")
-      await db.promotions().updateOne({ _id: promo._id }, { $inc: { usageCount: 1 } }, { session })
-    }
+  if (idempotencyKey) {
+    const result = await executeIdempotent(idempotencyKey, "confirm_payment", req.body, performConfirmation)
+    res.status(result.status).json(result.body)
+    return
+  }
 
-    const counter = await db.counters().findOneAndUpdate(
-      { _id: "order" },
-      { $inc: { seq: 1 } },
-      { upsert: true, returnDocument: "after", session }
-    )
-
-    const now = new Date()
-    const shippingOption = region.shippingOptions.find((s) => s._id === cart.shippingOptionId) ?? region.shippingOptions[0] ?? { _id: "standard", name: "Standard Delivery", amount: 0 }
-    const totals = computeTotals(cart, region, promotions)
-
-    const doc: OrderDoc = {
-      _id: newId("order"),
-      displayId: 1000 + (counter?.seq ?? 1),
-      cartId: cart._id,
-      regionId: region._id,
-      currency: cart.currency,
-      customerId: cart.customerId ?? null,
-      email: cart.email!,
-      items,
-      shippingAddress: cart.shippingAddress!,
-      billingAddress: cart.billingAddress ?? cart.shippingAddress!,
-      shippingOption,
-      promoCodes: cart.promoCodes,
-      totals,
-      paymentMethod: body.provider,
-      paymentStatus: body.provider === "cod" ? "awaiting" : "paid",
-      paymentDetails: {
-        provider: body.provider,
-        transactionId: body.razorpayPaymentId ?? body.paymentIntentId ?? `cod_${Date.now()}`,
-        razorpayOrderId: body.razorpayOrderId,
-        razorpayPaymentId: body.razorpayPaymentId,
-        razorpaySignature: body.razorpaySignature,
-        paymentIntentId: body.paymentIntentId,
-        paidAt: body.provider === "cod" ? undefined : now,
-      },
-      fulfillmentStatus: "unfulfilled",
-      status: "pending",
-      createdAt: now,
-      updatedAt: now,
-    }
-
-    await db.orders().insertOne(doc, { session })
-    await db.carts().updateOne(
-      { _id: cart._id },
-      { $set: { completedAt: now, orderId: doc._id, updatedAt: now } },
-      { session }
-    )
-
-    // Generate GST Invoice in DB
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${doc.displayId}`
-    await db.invoices().insertOne(
-      {
-        _id: newId("inv"),
-        invoiceNumber,
-        orderId: doc._id,
-        displayId: doc.displayId,
-        customerName: `${doc.shippingAddress.firstName} ${doc.shippingAddress.lastName}`,
-        shippingAddress: doc.shippingAddress,
-        billingAddress: doc.billingAddress,
-        items: doc.items.map((i) => ({
-          name: i.productTitle,
-          sku: `SKU-${i.variantId.slice(-6)}`,
-          hsn: "6204",
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-          taxableValue: Math.round((i.unitPrice * i.quantity) / 1.12),
-          gstRate: 12,
-          cgst: Math.round((i.unitPrice * i.quantity * 0.06) / 1.12),
-          sgst: Math.round((i.unitPrice * i.quantity * 0.06) / 1.12),
-          igst: 0,
-        })),
-        subtotal: doc.totals.itemSubtotal,
-        cgstTotal: Math.round((doc.totals.taxTotal || 0) / 2),
-        sgstTotal: Math.round((doc.totals.taxTotal || 0) / 2),
-        igstTotal: 0,
-        grandTotal: doc.totals.total,
-        currency: doc.currency,
-        status: doc.paymentStatus === "paid" ? "paid" : "issued",
-        issuedAt: now,
-      },
-      { session }
-    )
-
-    return doc
-  })
-
-  res.status(201).json({ order: toStoreOrder(order) })
+  const result = await performConfirmation()
+  res.status(result.status).json(result.body)
 })
 
 /**
@@ -306,6 +395,26 @@ storePaymentRoutes.post("/webhooks/razorpay", async (req, res) => {
   }
 
   const event = req.body
+  const eventId = (event.id ?? event.payload?.payment?.entity?.id ?? req.headers["x-razorpay-event-id"]) as string
+  if (eventId) {
+    const existing = await db.paymentWebhookEvents().findOne({ provider: "razorpay", eventId })
+    if (existing) {
+      res.json({ status: "ok", duplicate: true })
+      return
+    }
+    await db.paymentWebhookEvents().insertOne({
+      _id: newId("pwe"),
+      provider: "razorpay",
+      eventId,
+      event: event.event ?? "payment.captured",
+      payload: event,
+      signature: signature ?? "",
+      status: "processed",
+      processedAt: new Date(),
+      createdAt: new Date(),
+    }).catch(() => {})
+  }
+
   if (event.event === "payment.captured") {
     const payment = event.payload?.payment?.entity
     const orderId = payment?.notes?.orderId
@@ -354,6 +463,26 @@ storePaymentRoutes.post("/webhooks/stripe", async (req, res) => {
   }
 
   const event = req.body
+  const eventId = (event.id ?? req.headers["stripe-event-id"]) as string
+  if (eventId) {
+    const existing = await db.paymentWebhookEvents().findOne({ provider: "stripe", eventId })
+    if (existing) {
+      res.json({ status: "ok", duplicate: true })
+      return
+    }
+    await db.paymentWebhookEvents().insertOne({
+      _id: newId("pwe"),
+      provider: "stripe",
+      eventId,
+      event: event.type ?? "payment_intent.succeeded",
+      payload: event,
+      signature: signature ?? "",
+      status: "processed",
+      processedAt: new Date(),
+      createdAt: new Date(),
+    }).catch(() => {})
+  }
+
   if (event.type === "payment_intent.succeeded") {
     const intent = event.data?.object
     const cartId = intent?.metadata?.cartId

@@ -1,6 +1,6 @@
 import { Router, type RequestHandler } from "express"
 import { z } from "zod"
-import { db } from "../../db/schema.js"
+import { db, type AdminUserRole } from "../../db/schema.js"
 import { clientKey, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
 import { ApiError, unauthorized } from "../../lib/errors.js"
 import { email } from "../../lib/validation.js"
@@ -33,7 +33,7 @@ export const requireAdmin = [requireAuth("admin"), loadAdmin] as const
 declare global {
   namespace Express {
     interface Request {
-      admin?: { id: string; email: string; name: string | null; role: "owner" | "staff" }
+      admin?: { id: string; email: string; name: string | null; role: AdminUserRole }
     }
   }
 }

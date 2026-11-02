@@ -1,9 +1,9 @@
 import { Router } from "express"
 import { z } from "zod"
-import { db, type CustomerDoc, type OrderDoc } from "../../db/schema.js"
-import { assetUrl, toStoreOrder } from "../../lib/serialize.js"
+import { db, type CustomerDoc, type OrderDoc, type SupportTicketDoc, type LoyaltyAccountDoc, type NotificationDoc, type WishlistDoc } from "../../db/schema.js"
+import { assetUrl, toStoreOrder, toStoreProduct } from "../../lib/serialize.js"
 import { clientKey, hashPassword, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
-import { ApiError, conflict, notFound, unauthorized } from "../../lib/errors.js"
+import { ApiError, badRequest, conflict, notFound, unauthorized } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
 import { address, email, password } from "../../lib/validation.js"
 
@@ -182,4 +182,199 @@ customerRoutes.post("/customers/me/orders/:id/returns", async (req, res) => {
   await db.orders().updateOne({ _id: orderId }, { $set: { returnRequest, updatedAt: now } })
   const updated = await db.orders().findOne({ _id: orderId })
   res.status(201).json({ order: toStoreOrder(updated!) })
+})
+
+/* ---------- Wishlist ---------- */
+
+customerRoutes.get("/customers/me/wishlist", async (req, res) => {
+  const customerId = req.actorId!
+  const wishlist = await db.wishlists().findOne({ customerId })
+  const productIds = wishlist?.productIds ?? []
+  if (!productIds.length) {
+    res.json({ productIds: [], items: [] })
+    return
+  }
+  const products = await db.products().find({ _id: { $in: productIds }, status: "published" }).toArray()
+  const defaultRegion = await db.regions().findOne({ currency: "inr" }) ?? (await db.regions().findOne({}))
+  const items = defaultRegion ? products.map((p) => toStoreProduct(p, defaultRegion)) : []
+  res.json({ productIds, items })
+})
+
+customerRoutes.post("/customers/me/wishlist", async (req, res) => {
+  const customerId = req.actorId!
+  const body = z.object({ productId: z.string().min(1) }).parse(req.body)
+  const product = await db.products().findOne({ _id: body.productId, status: "published" })
+  if (!product) throw notFound("Product")
+
+  const now = new Date()
+  await db.wishlists().updateOne(
+    { customerId },
+    {
+      $addToSet: { productIds: body.productId },
+      $setOnInsert: { _id: newId("wish"), customerId, createdAt: now },
+      $set: { updatedAt: now },
+    },
+    { upsert: true }
+  )
+  const updated = await db.wishlists().findOne({ customerId })
+  res.json({ productIds: updated?.productIds ?? [] })
+})
+
+customerRoutes.delete("/customers/me/wishlist/:productId", async (req, res) => {
+  const customerId = req.actorId!
+  await db.wishlists().updateOne(
+    { customerId },
+    {
+      $pull: { productIds: req.params.productId },
+      $set: { updatedAt: new Date() },
+    }
+  )
+  const updated = await db.wishlists().findOne({ customerId })
+  res.json({ productIds: updated?.productIds ?? [] })
+})
+
+/* ---------- Loyalty & Privilege Club ---------- */
+
+customerRoutes.get("/customers/me/loyalty", async (req, res) => {
+  const customerId = req.actorId!
+  let loyalty = await db.loyaltyAccounts().findOne({ customerId })
+  if (!loyalty) {
+    const now = new Date()
+    loyalty = {
+      _id: newId("loyalty"),
+      customerId,
+      tier: "silver",
+      pointsBalance: 250,
+      lifetimePoints: 250,
+      transactions: [
+        {
+          _id: newId("ltx"),
+          type: "earn",
+          points: 250,
+          reason: "Welcome to Everwear Privilege Club",
+          createdAt: now,
+        },
+      ],
+      createdAt: now,
+      updatedAt: now,
+    }
+    await db.loyaltyAccounts().insertOne(loyalty)
+  }
+  res.json({ loyalty })
+})
+
+/* ---------- Support Tickets & Concierge ---------- */
+
+customerRoutes.get("/customers/me/tickets", async (req, res) => {
+  const customerId = req.actorId!
+  const tickets = await db.supportTickets().find({ customerId }, { sort: { updatedAt: -1 }, limit: 50 }).toArray()
+  res.json({ tickets })
+})
+
+customerRoutes.post("/customers/me/tickets", async (req, res) => {
+  const customerId = req.actorId!
+  const customer = await me(customerId)
+  const body = z
+    .object({
+      subject: z.string().trim().min(3).max(200),
+      category: z.enum(["order", "refund", "shipping", "general", "exchange"]).default("general"),
+      priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+      orderId: z.string().optional(),
+      message: z.string().trim().min(3).max(2000),
+      attachments: z.array(z.string()).optional(),
+    })
+    .parse(req.body)
+
+  const counter = await db.counters().findOneAndUpdate(
+    { _id: "ticket" },
+    { $inc: { seq: 1 } },
+    { upsert: true, returnDocument: "after" }
+  )
+
+  const now = new Date()
+  const ticketDoc: SupportTicketDoc = {
+    _id: newId("tkt"),
+    ticketNumber: `TKT-${now.getFullYear()}-${String(1000 + (counter?.seq ?? 1))}`,
+    customerId,
+    orderId: body.orderId ?? null,
+    subject: body.subject,
+    category: body.category,
+    priority: body.priority,
+    status: "open",
+    messages: [
+      {
+        _id: newId("msg"),
+        sender: "customer",
+        senderName: `${customer.firstName ?? "Everwear"} ${customer.lastName ?? "Customer"}`.trim(),
+        message: body.message,
+        attachments: body.attachments,
+        createdAt: now,
+      },
+    ],
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  await db.supportTickets().insertOne(ticketDoc)
+  res.status(201).json({ ticket: ticketDoc })
+})
+
+customerRoutes.get("/customers/me/tickets/:ticketId", async (req, res) => {
+  const ticket = await db.supportTickets().findOne({ _id: req.params.ticketId, customerId: req.actorId! })
+  if (!ticket) throw notFound("Support Ticket")
+  res.json({ ticket })
+})
+
+customerRoutes.post("/customers/me/tickets/:ticketId/messages", async (req, res) => {
+  const customerId = req.actorId!
+  const customer = await me(customerId)
+  const ticket = await db.supportTickets().findOne({ _id: req.params.ticketId, customerId })
+  if (!ticket) throw notFound("Support Ticket")
+
+  const body = z
+    .object({
+      message: z.string().trim().min(1).max(2000),
+      attachments: z.array(z.string()).optional(),
+    })
+    .parse(req.body)
+
+  const now = new Date()
+  const newMsg = {
+    _id: newId("msg"),
+    sender: "customer" as const,
+    senderName: `${customer.firstName ?? "Everwear"} ${customer.lastName ?? "Customer"}`.trim(),
+    message: body.message,
+    attachments: body.attachments,
+    createdAt: now,
+  }
+
+  await db.supportTickets().updateOne(
+    { _id: ticket._id },
+    {
+      $push: { messages: newMsg },
+      $set: { status: ticket.status === "closed" ? "in_progress" : ticket.status, updatedAt: now },
+    }
+  )
+
+  const updated = await db.supportTickets().findOne({ _id: ticket._id })
+  res.status(201).json({ ticket: updated })
+})
+
+/* ---------- Notifications ---------- */
+
+customerRoutes.get("/customers/me/notifications", async (req, res) => {
+  const customerId = req.actorId!
+  const notifications = await db
+    .notifications()
+    .find({ recipientId: customerId }, { sort: { createdAt: -1 }, limit: 50 })
+    .toArray()
+  res.json({ notifications })
+})
+
+customerRoutes.post("/customers/me/notifications/:id/read", async (req, res) => {
+  await db.notifications().updateOne(
+    { _id: req.params.id, recipientId: req.actorId! },
+    { $set: { status: "read" } }
+  )
+  res.json({ success: true })
 })

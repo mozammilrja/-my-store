@@ -746,8 +746,17 @@ export function SecureCheckoutFlow({
                 })}
               </div>
 
-              {/* Step 2 Submit / Continue Button, on the same recipe as step 1
-                  and the order CTA. */}
+              {/* Step 2 Submit / Continue Button */}
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={handleDeliverySubmit}
+                  data-testid="submit-delivery-option-button"
+                  className={requestedStep === "delivery" ? "h-11 px-6 rounded bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider font-semibold hover:bg-inverse-surface transition-colors cursor-pointer" : "hidden"}
+                >
+                  Continue to Payment
+                </button>
+              </div>
             </div>
 
             {/* Bento Card 3: 3. Secure Payment */}

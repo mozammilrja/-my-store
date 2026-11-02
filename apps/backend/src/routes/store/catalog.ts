@@ -1,10 +1,12 @@
 import { Router } from "express"
 import type { Document, Filter } from "mongodb"
 import { z } from "zod"
-import { db, type CategoryDoc, type ProductDoc } from "../../db/schema.js"
-import { notFound } from "../../lib/errors.js"
+import { db, type CategoryDoc, type ProductDoc, type ProductReviewDoc } from "../../db/schema.js"
+import { notFound, unauthorized, badRequest } from "../../lib/errors.js"
 import { regionForCountry } from "../../lib/regions.js"
 import { toStoreProduct, assetUrl } from "../../lib/serialize.js"
+import { optionalAuth, requireAuth } from "../../lib/auth.js"
+import { newId } from "../../lib/ids.js"
 
 const country = z.string().regex(/^[a-zA-Z]{2}$/, "country must be a 2-letter code")
 const handle = z.string().regex(/^[a-z0-9][a-z0-9-]{0,99}$/, "invalid handle")
@@ -354,4 +356,73 @@ catalogRoutes.get("/facets", async (req, res) => {
     priceRange: prices[0]?.min != null ? { min: prices[0].min, max: prices[0].max } : null,
     onSaleCount,
   })
+})
+
+/* ---------- Product Reviews & Social Proof ---------- */
+
+catalogRoutes.get("/products/:handle/reviews", async (req, res) => {
+  const product = await db.products().findOne({ handle: req.params.handle, status: "published" })
+  if (!product) throw notFound("Product")
+
+  const reviews = await db
+    .productReviews()
+    .find({ productId: product._id, status: "approved" }, { sort: { createdAt: -1 }, limit: 100 })
+    .toArray()
+
+  const count = reviews.length
+  const totalScore = reviews.reduce((acc, r) => acc + r.rating, 0)
+  const average = count ? Number((totalScore / count).toFixed(1)) : 0
+
+  const breakdown: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+  for (const r of reviews) {
+    const star = Math.min(5, Math.max(1, Math.round(r.rating)))
+    breakdown[star] = (breakdown[star] ?? 0) + 1
+  }
+
+  res.json({
+    reviews,
+    summary: {
+      count,
+      average,
+      breakdown,
+    },
+  })
+})
+
+catalogRoutes.post("/products/:handle/reviews", requireAuth("customer"), async (req, res) => {
+  const product = await db.products().findOne({ handle: req.params.handle, status: "published" })
+  if (!product) throw notFound("Product")
+
+  const customerId = req.actorId!
+  const customer = await db.customers().findOne({ _id: customerId })
+  if (!customer) throw unauthorized()
+
+  const body = z
+    .object({
+      rating: z.number().int().min(1).max(5),
+      title: z.string().trim().max(120).optional(),
+      comment: z.string().trim().min(5).max(1000),
+    })
+    .parse(req.body)
+
+  const verifiedOrdersCount = await db
+    .orders()
+    .countDocuments({ customerId, "items.productId": product._id, paymentStatus: "paid" })
+  const verifiedPurchase = verifiedOrdersCount > 0
+
+  const doc: ProductReviewDoc = {
+    _id: newId("rev"),
+    productId: product._id,
+    customerId,
+    customerName: `${customer.firstName ?? "Verified"} ${customer.lastName ?? "Shopper"}`.trim(),
+    rating: body.rating,
+    title: body.title,
+    comment: body.comment,
+    verifiedPurchase,
+    status: "approved",
+    createdAt: new Date(),
+  }
+
+  await db.productReviews().insertOne(doc)
+  res.status(201).json({ review: doc })
 })

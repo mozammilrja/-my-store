@@ -63,10 +63,12 @@ const LAST_NAMES = ["Sharma", "Iyer", "Nair", "Reddy", "Patel", "Banerjee", "Kul
 const phoneFor = (n: number) => `9${String(810000000 + n * 7919).slice(0, 9)}`
 
 const addressFor = (n: number): Address => {
-  const place = CITIES[n % CITIES.length]
+  const place = CITIES[n % CITIES.length] ?? CITIES[0]!
+  const firstName = FIRST_NAMES[n % FIRST_NAMES.length] ?? "Everwear"
+  const lastName = LAST_NAMES[(n * 3) % LAST_NAMES.length] ?? "Customer"
   return {
-    firstName: FIRST_NAMES[n % FIRST_NAMES.length],
-    lastName: LAST_NAMES[(n * 3) % LAST_NAMES.length],
+    firstName,
+    lastName,
     address1: `${12 + (n % 80)}, ${["MG Road", "Linking Road", "Sector 29", "Park Street", "Anna Salai"][n % 5]}`,
     address2: `${["Indiranagar", "Bandra West", "DLF Phase 2", "Ballygunge", "Alwarpet"][n % 5]}`,
     city: place.city,
@@ -148,7 +150,7 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000)
 
 /** Writes every document by its own `_id`; reruns update rather than insert. */
 async function upsertAll<T extends { _id: string }>(
-  collection: { bulkWrite: (ops: unknown[]) => Promise<unknown> },
+  collection: { bulkWrite: (...args: any[]) => Promise<any> },
   docs: T[]
 ) {
   if (!docs.length) return 0
@@ -280,13 +282,13 @@ async function seed() {
   )
 
   const seededOrders: OrderDoc[] = Array.from({ length: 48 }, (_, i) => {
-    const customer = customers[i % customers.length]
-    const addr = customer.addresses[0]
-    const shape = ORDER_SHAPES[i % ORDER_SHAPES.length]
+    const customer = customers[i % customers.length]!
+    const addr = customer.addresses[0] ?? addressFor(i)
+    const shape = ORDER_SHAPES[i % ORDER_SHAPES.length]!
     const createdAt = daysAgo(89 - Math.floor(i * 1.8))
 
     const items = Array.from({ length: 1 + (i % 3) }, (_, j) => {
-      const product = products[(i * 5 + j * 11) % products.length]
+      const product = products[(i * 5 + j * 11) % products.length]!
       const variant = product.variants[j % product.variants.length] ?? product.variants[0]
       const quantity = 1 + ((i + j) % 3)
       return {
@@ -323,12 +325,12 @@ async function seed() {
       shippingAddress: addr,
       billingAddress: addr,
       shippingOption: { _id: "so_standard", name: "Standard delivery", amount: shippingTotal },
-      promoCodes: discountTotal ? [PROMOTIONS[i % PROMOTIONS.length].code] : [],
+      promoCodes: discountTotal && PROMOTIONS[i % PROMOTIONS.length] ? [PROMOTIONS[i % PROMOTIONS.length]!.code] : [],
       totals: { itemSubtotal, discountTotal, shippingTotal, taxTotal, total },
-      paymentMethod: PAYMENT_METHODS[i % PAYMENT_METHODS.length],
+      paymentMethod: PAYMENT_METHODS[i % PAYMENT_METHODS.length] ?? "cod",
       paymentStatus: shape.payment,
       paymentDetails: {
-        provider: PAYMENT_METHODS[i % PAYMENT_METHODS.length],
+        provider: PAYMENT_METHODS[i % PAYMENT_METHODS.length] ?? "cod",
         ...(paidAt ? { paidAt, transactionId: `pay_${id("tx", i + 1).slice(5)}` } : {}),
         ...(shape.payment === "refunded"
           ? {
@@ -336,7 +338,7 @@ async function seed() {
                 {
                   id: id("rf", i + 1),
                   amount: total,
-                  reason: REFUND_REASONS[i % REFUND_REASONS.length],
+                  reason: REFUND_REASONS[i % REFUND_REASONS.length] ?? "Return",
                   createdAt: daysAgo(80 - Math.floor(i * 1.8)),
                 },
               ],
@@ -348,13 +350,13 @@ async function seed() {
         ? {
             returnRequest: {
               status: shape.returnStage,
-              reason: REFUND_REASONS[i % REFUND_REASONS.length],
+              reason: REFUND_REASONS[i % REFUND_REASONS.length] ?? "Return",
               items: items.map((it) => ({ itemId: it._id, quantity: it.quantity })),
               // The reverse AWB only exists once a pickup has been booked.
               ...(RETURN_STEP[shape.returnStage] >= 2
                 ? {
                     returnAwb: `RV${String(90000 + i * 7).padStart(9, "0")}`,
-                    carrier: CARRIERS[i % CARRIERS.length],
+                    carrier: CARRIERS[i % CARRIERS.length] ?? "delhivery",
                   }
                 : {}),
               requestedAt: daysAgo(82 - Math.floor(i * 1.8)),
@@ -373,7 +375,7 @@ async function seed() {
     _id: id("sup", i + 1),
     name: s.name,
     contactPerson: s.contactPerson,
-    email: `${s.contactPerson.split(" ")[0].toLowerCase()}@${s.name.toLowerCase().replace(/[^a-z]+/g, "")}.in`,
+    email: `${(s.contactPerson.split(" ")[0] ?? "contact").toLowerCase()}@${s.name.toLowerCase().replace(/[^a-z]+/g, "")}.in`,
     phone: phoneFor(i + 3),
     categories: s.categories,
     rating: s.rating,
@@ -384,10 +386,10 @@ async function seed() {
 
   /* ---------- purchase orders ---------- */
   const purchaseOrders: PurchaseOrderDoc[] = Array.from({ length: 18 }, (_, i) => {
-    const supplier = suppliers[i % suppliers.length]
-    const status = PO_STATUSES[i % PO_STATUSES.length]
+    const supplier = suppliers[i % suppliers.length]!
+    const status = PO_STATUSES[i % PO_STATUSES.length] ?? "submitted"
     const items = Array.from({ length: 2 + (i % 3) }, (_, j) => {
-      const product = products[(i * 3 + j) % products.length]
+      const product = products[(i * 3 + j) % products.length]!
       const variant = product.variants[0]
       const quantity = 40 + ((i * 7 + j * 13) % 160)
       // Landed cost sits below the retail price, as a real PO would.
@@ -412,7 +414,7 @@ async function seed() {
       poNumber: `PO-2026-${String(1001 + i)}`,
       supplierId: supplier._id,
       supplierName: supplier.name,
-      hubId: ["BLR-FC1", "BOM-FC2", "DEL-FC1", "CCU-FC4"][i % 4],
+      hubId: ["BLR-FC1", "BOM-FC2", "DEL-FC1", "CCU-FC4"][i % 4]!,
       items,
       status,
       expectedDate: daysAgo(-7 + (i % 30)),
@@ -427,8 +429,8 @@ async function seed() {
   // beyond that only as far as the orders allow.
   const shippableOrders = seededOrders.filter((o) => o.fulfillmentStatus !== "unfulfilled")
   const shipments: ShipmentDoc[] = shippableOrders.slice(0, 26).map((order: OrderDoc, i) => {
-    const status = SHIPMENT_STATUSES[i % SHIPMENT_STATUSES.length]
-    const carrier = CARRIERS[i % CARRIERS.length]
+    const status = SHIPMENT_STATUSES[i % SHIPMENT_STATUSES.length] ?? "manifested"
+    const carrier = CARRIERS[i % CARRIERS.length] ?? "delhivery"
     const created = daysAgo(30 - (i % 28))
     const addr = order.shippingAddress ?? addressFor(i)
 
@@ -496,7 +498,7 @@ async function seed() {
   )
   const invoices: InvoiceDoc[] = invoiceable.map((order: OrderDoc, i) => {
     const addr = order.shippingAddress ?? addressFor(i)
-    const place = CITIES.find((c) => c.province === addr.province) ?? CITIES[0]
+    const place = CITIES.find((c) => c.province === addr.province) ?? CITIES[0]!
     // Karnataka is the place of supply, so same-state orders split CGST/SGST
     // and the rest attract IGST.
     const intraState = addr.province === "Karnataka"
@@ -559,7 +561,7 @@ async function seed() {
     customerName: inv.customerName,
     // A partial refund on most, a full one where the whole order came back.
     refundAmount: i % 3 === 0 ? inv.grandTotal : Math.round(inv.grandTotal * 0.45),
-    reason: REFUND_REASONS[i % REFUND_REASONS.length],
+    reason: REFUND_REASONS[i % REFUND_REASONS.length] ?? "Customer return",
     status: i % 5 === 4 ? "canceled" : i % 2 === 0 ? "settled" : "issued",
     createdAt: daysAgo(25 - i),
   }))
@@ -594,7 +596,7 @@ async function seed() {
     { name: "Meera Krishnan", role: "staff" as const },
   ].map((u, i) => ({
     _id: id("usr", i + 1),
-    email: `${u.name.split(" ")[0].toLowerCase()}@everwear.test`,
+    email: `${(u.name.split(" ")[0] ?? "staff").toLowerCase()}@everwear.test`,
     name: u.name,
     passwordHash: staffPassword,
     role: u.role,

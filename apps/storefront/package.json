@@ -10,7 +10,7 @@
     "nextjs"
   ],
   "scripts": {
-    "dev": "next dev -p 8001",
+    "dev": "next dev --webpack -p 8001",
     "build": "next build",
     "start": "next start -p 8001",
     "lint": "eslint .",

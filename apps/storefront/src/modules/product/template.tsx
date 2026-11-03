@@ -31,15 +31,14 @@ export function ProductTemplate({
   policies: RegionPolicies | null
   currencyCode: string
 }) {
-
   return (
     <>
-      <Container className="pt-6" data-testid="product-container">
+      <Container className="pt-4" data-testid="product-container">
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <LocalizedClientLink href="/store">Shop</LocalizedClientLink>
+                <LocalizedClientLink href="/store">Home</LocalizedClientLink>
               </BreadcrumbLink>
             </BreadcrumbItem>
             {category && (
@@ -52,6 +51,18 @@ export function ProductTemplate({
                 </BreadcrumbItem>
               </>
             )}
+            {collection && (
+              <>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <LocalizedClientLink href={`/collections/${collection.handle}`}>
+                      {collection.title}
+                    </LocalizedClientLink>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+              </>
+            )}
             <BreadcrumbSeparator />
             <BreadcrumbItem>
               <BreadcrumbPage>{product.title}</BreadcrumbPage>
@@ -60,31 +71,41 @@ export function ProductTemplate({
         </Breadcrumb>
       </Container>
 
-      <Container className="grid gap-10 pt-8 pb-24 lg:grid-cols-12 lg:gap-12 lg:py-10">
-        <div className="lg:col-span-7">
-          <Suspense fallback={<Skeleton className="aspect-[4/5] w-full" />}>
+      <Container className="grid gap-6 pt-4 pb-16 lg:grid-cols-12 lg:gap-8 lg:pt-6">
+        {/* Left: image mosaic */}
+        <div className="min-w-0 lg:col-span-7">
+          <Suspense fallback={<Skeleton className="aspect-[3/4] w-full" />}>
             <Gallery product={product} />
           </Suspense>
         </div>
-        <div className="lg:col-span-5">
-          <div className="flex flex-col gap-8 lg:sticky lg:top-28">
-            <div className="flex flex-col gap-3">
-              {collection && (
+
+        {/* Right: sticky buy column */}
+        <div className="min-w-0 lg:col-span-5">
+          <div className="flex flex-col gap-4 lg:sticky lg:top-28">
+            <div className="flex flex-col gap-1">
+              {collection ? (
                 <LocalizedClientLink
                   href={`/collections/${collection.handle}`}
-                  className="w-fit font-label-caps text-[10px] sm:text-[11px] font-bold tracking-[0.14em] uppercase text-secondary hover:underline"
+                  className="w-fit text-base font-bold text-foreground hover:underline"
                 >
                   {collection.title}
                 </LocalizedClientLink>
+              ) : (
+                <span className="text-base font-bold text-foreground">Everwear</span>
               )}
-              <h1 className="font-display-hero text-3xl sm:text-4xl lg:text-5xl font-light tracking-tight text-foreground leading-[1.1]" data-testid="product-title">
+              <h1
+                className="text-base font-normal text-muted-foreground leading-snug"
+                data-testid="product-title"
+              >
                 {product.title}
+                {product.subtitle ? ` · ${product.subtitle}` : ""}
               </h1>
-              {product.subtitle && <p className="text-muted-foreground">{product.subtitle}</p>}
             </div>
+
             <Suspense fallback={<Skeleton className="h-64 w-full" />}>
               <PurchasePanel product={product} />
             </Suspense>
+
             <Details product={product} policies={policies} currencyCode={currencyCode} />
           </div>
         </div>

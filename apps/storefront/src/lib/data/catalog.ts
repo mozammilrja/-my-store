@@ -59,8 +59,14 @@ export const listProducts = cache(async (query: ProductQuery) =>
   })
 )
 
+/** Product detail skips the catalog TTL so admin image updates show up immediately. */
 export const getProduct = cache(async (handle: string, country: string) =>
-  orNull(api<{ product: Product }>(`/store/products/${encodeURIComponent(handle)}`, { query: { country }, cache: CATALOG }).then((r) => r.product))
+  orNull(
+    api<{ product: Product }>(`/store/products/${encodeURIComponent(handle)}`, {
+      query: { country },
+      cache: "no-store",
+    }).then((r) => r.product)
+  )
 )
 
 export const getFacets = cache(async (query: { country: string; category?: string[]; collection?: string[] }) =>

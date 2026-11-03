@@ -65,6 +65,9 @@ export type Product = {
   handle: string
   title: string
   subtitle: string | null
+  brand?: string | null
+  rating?: number | null
+  ratingCount?: number
   description: string | null
   thumbnail: string | null
   images: string[]

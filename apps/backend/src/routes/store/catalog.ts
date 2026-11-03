@@ -75,7 +75,11 @@ catalogRoutes.get("/categories", async (_req, res) => {
 })
 
 catalogRoutes.get("/categories/:handle", async (req, res) => {
-  const category = await db.categories().findOne({ handle: handle.parse(req.params.handle) })
+  const parsedHandle = handle.parse(req.params.handle)
+  const altHandle = parsedHandle === "t-shirts" ? "tshirts" : parsedHandle === "tshirts" ? "t-shirts" : parsedHandle
+  const category = await db.categories().findOne({
+    $or: [{ handle: parsedHandle }, { handle: altHandle }],
+  })
   if (!category) throw notFound("Category")
   res.json({
     category: { id: category._id, handle: category.handle, name: category.name, description: category.description ?? null, parentId: category.parentId ?? null },
@@ -282,9 +286,26 @@ catalogRoutes.get("/products", async (req, res) => {
   ]
 
   const [result] = await db.products().aggregate<{ items: ProductDoc[]; total: { n: number }[] }>(pipeline).toArray()
+  const items = result?.items ?? []
   const count = result?.total[0]?.n ?? 0
+
+  let statsMap = new Map<string, { rating: number | null; ratingCount: number }>()
+  if (items.length > 0) {
+    const productIds = items.map((p) => p._id)
+    const stats = await db
+      .productReviews()
+      .aggregate<{ _id: string; avg: number; count: number }>([
+        { $match: { productId: { $in: productIds }, status: "approved" } },
+        { $group: { _id: "$productId", avg: { $avg: "$rating" }, count: { $sum: 1 } } },
+      ])
+      .toArray()
+    statsMap = new Map(
+      stats.map((s) => [s._id, { rating: Number(s.avg.toFixed(1)), ratingCount: s.count }])
+    )
+  }
+
   res.json({
-    products: (result?.items ?? []).map((p) => toStoreProduct(p, region)),
+    products: items.map((p) => toStoreProduct(p, region, statsMap.get(p._id))),
     count,
     page: query.page,
     limit: query.limit,
@@ -297,7 +318,19 @@ catalogRoutes.get("/products/:handle", async (req, res) => {
   const region = await regionForCountry(code)
   const product = await db.products().findOne({ handle: handle.parse(req.params.handle), status: "published" })
   if (!product) throw notFound("Product")
-  res.json({ product: toStoreProduct(product, region) })
+
+  const stats = await db
+    .productReviews()
+    .aggregate<{ _id: string; avg: number; count: number }>([
+      { $match: { productId: product._id, status: "approved" } },
+      { $group: { _id: "$productId", avg: { $avg: "$rating" }, count: { $sum: 1 } } },
+    ])
+    .toArray()
+  const reviewStats = stats[0]
+    ? { rating: Number(stats[0].avg.toFixed(1)), ratingCount: stats[0].count }
+    : undefined
+
+  res.json({ product: toStoreProduct(product, region, reviewStats) })
 })
 
 /**

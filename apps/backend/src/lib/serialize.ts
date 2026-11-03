@@ -13,7 +13,11 @@ const MAX_VISIBLE_STOCK = 99
 export const isInStock = (v: ProductDoc["variants"][number]) => !v.manageInventory || v.allowBackorder || v.stock > 0
 
 /** Product as the shop sees it: prices only in the region's currency, stock as availability. */
-export function toStoreProduct(product: ProductDoc, region: RegionDoc) {
+export function toStoreProduct(
+  product: ProductDoc,
+  region: RegionDoc,
+  reviewStats?: { rating: number | null; ratingCount: number }
+) {
   const currency = region.currency
   const variants = product.variants.map((v) => {
     const price = v.prices[currency]
@@ -32,11 +36,19 @@ export function toStoreProduct(product: ProductDoc, region: RegionDoc) {
   })
   const priced = variants.map((v) => v.price).filter((p): p is number => p !== null)
 
+  const brand =
+    product.brand ??
+    product.tags?.find((t) => t.startsWith("brand:"))?.replace("brand:", "") ??
+    "Everwear"
+
   return {
     id: product._id,
     handle: product.handle,
     title: product.title,
     subtitle: product.subtitle ?? null,
+    brand,
+    rating: reviewStats?.rating ?? null,
+    ratingCount: reviewStats?.ratingCount ?? 0,
     description: product.description ?? null,
     thumbnail: product.thumbnail ?? product.images[0] ? assetUrl((product.thumbnail ?? product.images[0])!) : null,
     images: product.images.map(assetUrl),

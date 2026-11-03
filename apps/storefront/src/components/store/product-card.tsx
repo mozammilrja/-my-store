@@ -2,9 +2,7 @@ import { cn } from "@/lib/utils"
 import type { Product } from "@lib/api/types"
 import { formatMoney } from "@lib/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { StarIcon } from "lucide-react"
-import Image from "next/image"
-import { QuickAdd, QuickVariant } from "./quick-add"
+import { ProductCardGallery } from "./product-card-gallery"
 import { WishlistCardButton } from "./wishlist-card-button"
 
 /** Swatch fills for colour option values the catalog uses. */
@@ -34,166 +32,130 @@ type ProductCardProps = {
   headingLevel?: "h2" | "h3"
 }
 
-const quickVariants = (product: Product): QuickVariant[] =>
-  product.variants.map((v) => ({ id: v.id, inStock: v.inStock && v.price !== null, options: v.options }))
+const galleryImages = (product: Product) => {
+  const seen = new Set<string>()
+  const list: string[] = []
+  for (const url of [product.thumbnail, ...product.images].filter(Boolean) as string[]) {
+    if (seen.has(url)) continue
+    seen.add(url)
+    list.push(url)
+  }
+  return list
+}
 
 /**
- * Stitch Editorial Product Card:
- * Architectural precision, 3:4 portrait crop, subtle hover zoom,
- * status badge, Wishlist quick button, Quick Add bar, and Atelier meta block.
+ * Myntra-inspired product listing card:
+ * portrait image carousel, wishlist, brand, title, price + MRP + discount.
+ * Quick Size / quick-add is intentionally omitted.
  */
 export function ProductCard({
   product,
   priority = false,
-  sizes = "(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw",
+  sizes = "(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw",
   className,
   headingLevel = "h3",
 }: ProductCardProps) {
   const Heading = headingLevel
   const range = product.priceRange
   const cheapest = range ? product.variants.find((v) => v.price === range.min) : undefined
-  const onSale = !!cheapest?.compareAtPrice
+  const onSale = !!cheapest?.compareAtPrice && cheapest.compareAtPrice > (cheapest.price ?? 0)
   const isNew = product.tags.includes("new-arrival")
-  const image = product.thumbnail ?? product.images[0]
-  const second = product.images.find((url) => url !== image)
+  const images = galleryImages(product)
   const colors = product.options.find((o) => o.title.toLowerCase() === "color")?.values ?? []
-  const sizeCount = product.options.find((o) => o.title.toLowerCase() === "size")?.values.length ?? 0
   const href = `/products/${product.handle}`
 
   const discountPercent =
-    onSale && cheapest && cheapest.compareAtPrice
-      ? Math.round(((cheapest.compareAtPrice - cheapest.price!) / cheapest.compareAtPrice) * 100)
+    onSale && cheapest?.compareAtPrice && cheapest.price != null
+      ? Math.round(((cheapest.compareAtPrice - cheapest.price) / cheapest.compareAtPrice) * 100)
       : null
 
   return (
     <article
       className={cn(
-        "group/card relative flex flex-col bg-surface-container-lowest rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all duration-300 border border-border/50",
+        "group/card relative flex h-full flex-col bg-surface-container-lowest",
         className
       )}
       data-testid="product-wrapper"
     >
       <div className="relative aspect-[3/4] overflow-hidden bg-surface-container-low">
-        <LocalizedClientLink href={href} className="absolute inset-0" tabIndex={-1} aria-hidden>
-          {image ? (
-            <>
-              <Image
-                src={image}
-                alt=""
-                fill
-                sizes={sizes}
-                loading={priority ? "eager" : "lazy"}
-                className={cn(
-                  "object-cover transition-transform duration-500 ease-out group-hover/card:scale-105 motion-reduce:transition-none",
-                  second && "group-hover/card:opacity-0"
-                )}
-              />
-              {second && (
-                <Image
-                  src={second}
-                  alt=""
-                  fill
-                  sizes={sizes}
-                  className="object-cover opacity-0 transition-opacity duration-500 group-hover/card:opacity-100"
-                />
-              )}
-            </>
-          ) : (
-            <span className="flex h-full items-center justify-center font-label-caps text-xs text-muted-foreground">
-              No image
-            </span>
-          )}
-        </LocalizedClientLink>
+        <ProductCardGallery
+          images={images}
+          title={product.title}
+          href={href}
+          sizes={sizes}
+          priority={priority}
+        />
 
-        {/* Status Badges from Stitch Design System */}
         {(onSale || isNew) && (
-          <div className="pointer-events-none absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
-            {onSale && (
-              <span className="bg-secondary-container text-on-secondary-fixed px-2 py-0.5 rounded font-label-caps text-[11px] uppercase font-bold tracking-tight shadow-xs">
-                {discountPercent ? `-${discountPercent}%` : "Sale"}
+          <div className="pointer-events-none absolute top-2 left-2 z-10 flex flex-col gap-1">
+            {onSale && discountPercent != null && (
+              <span className="bg-secondary px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-secondary-foreground">
+                {discountPercent}% OFF
               </span>
             )}
-            {isNew && (
-              <span className="bg-success/10 text-success px-2 py-0.5 rounded font-label-caps text-[11px] uppercase font-bold tracking-tight shadow-xs">
+            {isNew && !onSale && (
+              <span className="bg-foreground px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-background">
                 New
               </span>
             )}
           </div>
         )}
 
-        {/* Wishlist Quick Action Heart Button */}
         <WishlistCardButton productId={product.id} productTitle={product.title} />
-
-        {/* Quick Add Action Bar */}
-        <QuickAdd
-          title={product.title}
-          variants={quickVariants(product)}
-          className="absolute inset-x-2 bottom-2 translate-y-[calc(100%+0.5rem)] opacity-0 transition-all duration-300 ease-out group-hover/card:translate-y-0 group-hover/card:opacity-100 focus-within:translate-y-0 focus-within:opacity-100 max-lg:hidden z-20"
-        />
       </div>
 
-      {/* Product Meta Block */}
-      <div className="p-3.5 flex flex-col flex-1 justify-between gap-2">
-        <div className="flex flex-col gap-1">
-          <span className="font-label-caps text-[10px] uppercase text-muted-foreground tracking-wider font-semibold">
-            Everwear Atelier
-          </span>
-          <Heading className="font-headline-sm text-sm sm:text-base font-medium leading-snug line-clamp-2 text-foreground" data-testid="product-title">
-            <LocalizedClientLink
-              href={href}
-              className="after:absolute after:inset-0 after:content-[''] hover:underline hover:underline-offset-2 lg:after:hidden"
-            >
-              {product.title}
-            </LocalizedClientLink>
-          </Heading>
+      <div className="flex flex-1 flex-col gap-1 px-1 pt-2.5 pb-1">
+        <span className="text-[12px] font-bold uppercase tracking-wide text-foreground">Everwear</span>
 
-          {/* Rating */}
-          <div className="flex items-center gap-1.5 pt-0.5">
-            <div className="flex items-center text-brand-champagne text-[12px]">
-              <StarIcon className="size-3 fill-brand-champagne text-brand-champagne" />
-              <span className="font-label-sm text-xs font-bold ml-1 text-foreground">4.9</span>
-            </div>
-            {sizeCount > 1 && (
-              <span className="text-[11px] text-muted-foreground font-body-sm">
-                · {sizeCount} sizes
-              </span>
-            )}
-          </div>
-        </div>
+        <Heading
+          className="line-clamp-1 text-[13px] font-normal leading-snug text-muted-foreground"
+          data-testid="product-title"
+        >
+          <LocalizedClientLink href={href} className="relative z-[2] hover:text-foreground">
+            {product.title}
+          </LocalizedClientLink>
+        </Heading>
 
-        {/* Pricing row with compareAt line-through */}
-        <div className="flex items-baseline justify-between pt-1 border-t border-border/40">
-          {range && cheapest ? (
-            <p className="flex items-baseline gap-2 text-sm tabular-nums" data-testid="price">
-              <span className={cn("font-bold text-foreground", onSale && "text-secondary font-bold")}>
-                {range.max > range.min && <span className="font-normal text-muted-foreground text-xs">From </span>}
+        <div className="mt-auto flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 pt-1 tabular-nums" data-testid="price">
+          {range && cheapest?.price != null ? (
+            <>
+              <span className="text-[14px] font-bold text-foreground">
                 {formatMoney(range.min, product.currency)}
               </span>
-              {onSale && cheapest.compareAtPrice !== null && (
-                <span className="text-xs text-muted-foreground line-through font-normal" data-testid="original-price">
-                  {formatMoney(cheapest.compareAtPrice, product.currency)}
-                </span>
+              {onSale && cheapest.compareAtPrice != null && (
+                <>
+                  <span
+                    className="text-[12px] text-muted-foreground line-through"
+                    data-testid="original-price"
+                  >
+                    {formatMoney(cheapest.compareAtPrice, product.currency)}
+                  </span>
+                  {discountPercent != null && (
+                    <span className="text-[12px] font-semibold text-orange-600 dark:text-orange-400">
+                      ({discountPercent}% OFF)
+                    </span>
+                  )}
+                </>
               )}
-            </p>
+            </>
           ) : (
-            <p className="text-sm text-muted-foreground">Price unavailable</p>
-          )}
-
-          {/* Color swatches */}
-          {colors.length > 0 && (
-            <div className="flex items-center gap-1">
-              <span className="sr-only">Colours: {colors.join(", ")}</span>
-              {colors.slice(0, 4).map((c) => (
-                <span
-                  key={c}
-                  aria-hidden
-                  className="size-2.5 rounded-full border border-black/15 shadow-2xs"
-                  style={{ backgroundColor: SWATCHES[c.toLowerCase()] ?? "#d4d4d4" }}
-                />
-              ))}
-            </div>
+            <span className="text-[13px] text-muted-foreground">Price unavailable</span>
           )}
         </div>
+
+        {colors.length > 0 && (
+          <div className="flex items-center gap-1 pt-1">
+            <span className="sr-only">Colours: {colors.join(", ")}</span>
+            {colors.slice(0, 4).map((c) => (
+              <span
+                key={c}
+                aria-hidden
+                className="size-2 rounded-full border border-black/15"
+                style={{ backgroundColor: SWATCHES[c.toLowerCase()] ?? "#d4d4d4" }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </article>
   )

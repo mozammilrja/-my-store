@@ -80,6 +80,7 @@ export type ProductDoc = {
   handle: string
   title: string
   subtitle?: string
+  brand?: string
   description?: string
   status: "draft" | "published"
   thumbnail?: string

@@ -6,10 +6,20 @@ import type { Category } from "@lib/api/types"
 import { getFacets, listProducts } from "@lib/data/catalog"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, SearchXIcon, SlidersHorizontalIcon, XIcon } from "lucide-react"
+import { formatMoney } from "@lib/money"
 import { listingHref, SORTS, type Listing } from "./params"
 import { CatalogFilterSidebar } from "./catalog-filter-sidebar"
 
 const PER_PAGE = 12
+
+/** "Under Rs. 1,000", "Rs. 1,000 - Rs. 2,999" or "Rs. 3,000 and above". */
+const priceChipLabel = (min: number | undefined, max: number | undefined, currency: string) => {
+  if (min !== undefined && max !== undefined) {
+    return `${formatMoney(min, currency)} - ${formatMoney(max, currency)}`
+  }
+  if (max !== undefined) return `Under ${formatMoney(max, currency)}`
+  return `${formatMoney(min ?? 0, currency)} and above`
+}
 
 /**
  * Editorial Product Listing with Hierarchical Faceted Filter Sidebar:
@@ -38,19 +48,32 @@ export async function ProductListing({
   const [result, facets] = await Promise.all([
     listProducts({
       country: countryCode,
+      q: listing.q || undefined,
       category,
       collection: collectionIds,
+      brand: listing.brands,
       option: listing.options,
+      minPrice: listing.minPrice,
+      maxPrice: listing.maxPrice,
+      minDiscount: listing.discount,
+      minRating: listing.rating,
+      inStock: listing.inStock,
       onSale: listing.sale,
       sort: listing.sort,
       page: listing.page,
       limit: PER_PAGE,
     }),
-    getFacets({ country: countryCode, category: categoryIds, collection: collectionIds }),
+    getFacets({
+      country: countryCode,
+      q: listing.q || undefined,
+      category: categoryIds,
+      collection: collectionIds,
+    }),
   ])
 
   const href = (change: Partial<Listing>) => listingHref(path, listing, change)
   const chips = [
+    ...(listing.q ? [{ label: `“${listing.q}”`, href: href({ q: "" }) }] : []),
     ...listing.categories.map((handle) => ({
       label: categories?.find((c) => c.handle === handle)?.name ?? handle,
       href: href({ categories: listing.categories.filter((c) => c !== handle) }),
@@ -62,6 +85,25 @@ export async function ProductListing({
         href: href({ options: listing.options.filter((x) => x !== o) }),
       }
     }),
+    ...listing.brands.map((brand) => ({
+      label: brand,
+      href: href({ brands: listing.brands.filter((b) => b !== brand) }),
+    })),
+    ...(listing.minPrice !== undefined || listing.maxPrice !== undefined
+      ? [
+          {
+            label: priceChipLabel(listing.minPrice, listing.maxPrice, facets.currency),
+            href: href({ minPrice: undefined, maxPrice: undefined }),
+          },
+        ]
+      : []),
+    ...(listing.discount !== undefined
+      ? [{ label: `${listing.discount}% off or more`, href: href({ discount: undefined }) }]
+      : []),
+    ...(listing.rating !== undefined
+      ? [{ label: `${listing.rating}★ & above`, href: href({ rating: undefined }) }]
+      : []),
+    ...(listing.inStock ? [{ label: "In stock", href: href({ inStock: false }) }] : []),
     ...(listing.sale ? [{ label: "On sale", href: href({ sale: false }) }] : []),
   ]
 

@@ -78,9 +78,13 @@ export function WishlistView({ catalogProducts }: { catalogProducts: Product[] }
     })
   }
 
-  const handleRemove = (product: Product) => {
-    remove(product.id)
-    toast.info(`Removed ${product.title} from your wishlist`)
+  const handleRemove = async (product: Product) => {
+    try {
+      await remove(product.id)
+      toast.info(`Removed ${product.title} from your wishlist`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "We couldn't update your wishlist.")
+    }
   }
 
   const totalCount = wishlistIds.length > 0 ? wishlistIds.length : savedProducts.length

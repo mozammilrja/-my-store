@@ -1,9 +1,8 @@
 "use client"
 
-import { cn } from "@/lib/utils"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
-import { useCallback, useRef, useState } from "react"
+import { useRef } from "react"
 
 type ProductCardGalleryProps = {
   images: string[]
@@ -11,15 +10,20 @@ type ProductCardGalleryProps = {
   href: string
   sizes: string
   priority?: boolean
+  /** Image on show. Owned by the card so the dots and the hover agree. */
+  active: number
+  /** The card is hovered or focused: load every slide so autoplay never shows a blank. */
+  warm?: boolean
+  /** Swipe on touch screens. */
+  onActiveChange: (index: number) => void
 }
 
 /**
- * Myntra-style listing gallery:
- * - Desktop: horizontal hover zones switch images
- * - Mobile: swipe
- * - Dots: clickable, sync with active image, do not navigate
- * - Mouse leave resets to primary image
- * - State is local to each card instance
+ * The image area of a listing card.
+ *
+ * Presentation only: the index lives in the card, so autoplay, hovering a dot and clicking a dot all drive the same state. Every slide is
+ * mounted on one sliding track, and every slide is fetched once the card is
+ * hovered, so autoplay never lands on an image that has not loaded.
  */
 export function ProductCardGallery({
   images,
@@ -27,27 +31,22 @@ export function ProductCardGallery({
   href,
   sizes,
   priority = false,
+  active,
+  warm = false,
+  onActiveChange,
 }: ProductCardGalleryProps) {
-  const slides = images.length ? images : []
-  const [index, setIndex] = useState(0)
   const touchStartX = useRef<number | null>(null)
   const didSwipe = useRef(false)
-  const active = slides.length ? Math.min(index, slides.length - 1) : 0
 
-  const goTo = useCallback(
-    (next: number) => {
-      if (!slides.length) return
-      setIndex(((next % slides.length) + slides.length) % slides.length)
-    },
-    [slides.length]
-  )
-
-  const onMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (slides.length < 2) return
-    const rect = event.currentTarget.getBoundingClientRect()
-    const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width - 0.001)
-    setIndex(Math.floor((x / rect.width) * slides.length))
+  if (!images.length) {
+    return (
+      <div className="flex h-full cursor-default items-center justify-center text-xs text-muted-foreground">
+        No image
+      </div>
+    )
   }
+
+  const current = Math.min(Math.max(active, 0), images.length - 1)
 
   const onTouchStart = (event: React.TouchEvent) => {
     touchStartX.current = event.touches[0]?.clientX ?? null
@@ -55,37 +54,29 @@ export function ProductCardGallery({
   }
 
   const onTouchEnd = (event: React.TouchEvent) => {
-    if (touchStartX.current == null || slides.length < 2) return
+    if (touchStartX.current == null || images.length < 2) return
     const endX = event.changedTouches[0]?.clientX ?? touchStartX.current
     const delta = endX - touchStartX.current
     touchStartX.current = null
     if (Math.abs(delta) < 28) return
+    // A swipe must not also follow the link under it.
     didSwipe.current = true
-    goTo(delta < 0 ? active + 1 : active - 1)
-  }
-
-  if (!slides.length) {
-    return (
-      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-        No image
-      </div>
-    )
+    const next = delta < 0 ? current + 1 : current - 1
+    onActiveChange(((next % images.length) + images.length) % images.length)
   }
 
   return (
     <div
       className="absolute inset-0 z-[1]"
-      onMouseMove={onMouseMove}
-      onMouseLeave={() => setIndex(0)}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       data-testid="product-card-gallery"
     >
       <LocalizedClientLink
         href={href}
-        className="absolute inset-0 block"
+        className="absolute inset-0 block cursor-pointer"
         tabIndex={-1}
-        aria-label={title}
+        aria-hidden="true"
         onClick={(event) => {
           if (didSwipe.current) {
             event.preventDefault()
@@ -93,60 +84,33 @@ export function ProductCardGallery({
           }
         }}
       >
-        {slides.map((src, i) => (
-          <Image
-            key={`${src}-${i}`}
-            src={src}
-            alt={i === active ? title : ""}
-            fill
-            sizes={sizes}
-            loading={priority && i === 0 ? "eager" : "lazy"}
-            className={cn(
-              "object-cover transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-              i === active ? "opacity-100" : "opacity-0"
-            )}
-            draggable={false}
-          />
-        ))}
-      </LocalizedClientLink>
-
-      {slides.length > 1 && (
+        {/* A horizontal track that slides, the way Myntra's card carousel does. */}
         <div
-          className="absolute inset-x-0 bottom-2 z-[3] flex items-center justify-center gap-1.5"
-          role="tablist"
-          aria-label="Product images"
+          className="flex h-full w-full transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+          style={{ transform: `translateX(-${current * 100}%)` }}
         >
-          {slides.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              role="tab"
-              aria-selected={i === active}
-              aria-label={`Show image ${i + 1} of ${slides.length}`}
-              data-testid="product-card-dot"
-              onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                setIndex(i)
-              }}
-              className={cn(
-                "relative z-[4] flex size-4 items-center justify-center rounded-full",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-              )}
+          {images.map((src, i) => (
+            <div
+              key={`${src}-${i}`}
+              className="relative h-full w-full shrink-0"
             >
-              <span
-                className={cn(
-                  "block size-1.5 rounded-full transition-colors duration-200 motion-reduce:transition-none",
-                  i === active ? "bg-secondary" : "bg-background/90 ring-1 ring-foreground/20"
-                )}
+              <Image
+                src={src}
+                alt=""
+                fill
+                sizes={sizes}
+                quality={75}
+                loading={(priority && i === 0) || warm ? "eager" : "lazy"}
+                className="object-cover"
+                draggable={false}
               />
-            </button>
+            </div>
           ))}
         </div>
-      )}
+      </LocalizedClientLink>
 
-      <span className="sr-only" aria-live="polite">
-        Image {active + 1} of {slides.length}
+      <span className="sr-only" aria-live="polite" aria-atomic="true">
+        {title}, image {current + 1} of {images.length}
       </span>
     </div>
   )

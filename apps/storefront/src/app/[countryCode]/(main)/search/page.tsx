@@ -36,6 +36,9 @@ export default async function SearchPage(props: Props) {
     notFound()
   }
 
+  // A non-empty query never reaches this page: proxy.ts sends it to the
+  // filterable listing (`/store?rawQuery=`). This is the empty state.
+
   const result = query
     ? await listProducts({ country: countryCode, q: query, limit: RESULT_LIMIT }).catch(() => null)
     : { products: [], count: 0 }

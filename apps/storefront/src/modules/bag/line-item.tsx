@@ -44,8 +44,15 @@ export function LineItem({
   const setQuantity = (quantity: number) =>
     run("update", () => updateLineItem({ lineId: item.id, quantity }))
 
-  const handleSaveToWishlist = () => {
-    wishlist.toggle(item.productId)
+  const handleSaveToWishlist = async () => {
+    try {
+      if (!wishlist.isSaved(item.productId)) {
+        await wishlist.toggle(item.productId)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "We couldn't save this to your wishlist.")
+      return
+    }
     run("remove", () => deleteLineItem(item.id))
     toast.success("Moved to your wishlist")
   }

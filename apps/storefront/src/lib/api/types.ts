@@ -55,6 +55,8 @@ export type Variant = {
   options: Record<string, string>
   price: number | null
   compareAtPrice: number | null
+  /** Whole-percent saving against compareAtPrice, null when not on sale. */
+  discountPercent: number | null
   inStock: boolean
   available: number
   images: string[]
@@ -80,7 +82,17 @@ export type Product = {
   weight: number | null
   currency: string
   priceRange: { min: number; max: number } | null
+  /** MRP range across variants, null when nothing is discounted. */
+  compareAtPriceRange: { min: number; max: number } | null
+  /** MRP of the cheapest variant: the figure quoted beside the card price. */
+  compareAtPrice: number | null
+  /** Saving on the cheapest variant, null when not on sale. */
+  discountPercent: number | null
   onSale: boolean
+  /** A paid placement, rendered as an AD badge. */
+  sponsored: boolean
+  /** At least one variant is buyable. */
+  inStock: boolean
   variants: Variant[]
   createdAt: string
 }
@@ -92,6 +104,11 @@ export type Facets = {
   options: { title: string; values: { value: string; count: number }[] }[]
   priceRange: { min: number; max: number } | null
   onSaleCount: number
+  brands: { value: string; count: number }[]
+  /** Minimum-discount tiers that match at least one product. */
+  discounts: { value: number; count: number }[]
+  /** Minimum-rating tiers that match at least one product. */
+  ratings: { value: number; count: number }[]
 }
 
 export type Totals = {

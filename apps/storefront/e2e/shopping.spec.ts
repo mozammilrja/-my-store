@@ -77,8 +77,10 @@ test.describe("shopping journey", () => {
     await page.goto(`/${COUNTRY}/store`, { waitUntil: "domcontentloaded" })
     const card = page.getByTestId("product-wrapper").first()
     await expect(card).toBeVisible()
-    const title = card.getByTestId("product-title")
-    await title.click()
+    // Hovering swaps brand and title for the wishlist and size controls, so
+    // the image is the pointer's route to the product; the title stays the
+    // keyboard's route and is covered in product-card.spec.ts.
+    await card.getByTestId("product-card-gallery").click()
     await expect(page).toHaveURL(/\/products\//)
     await expect(page.getByTestId("product-actions")).toBeVisible()
   })

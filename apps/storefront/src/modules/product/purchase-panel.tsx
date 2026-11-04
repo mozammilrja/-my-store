@@ -40,6 +40,15 @@ export function PurchasePanel({ product }: { product: Product }) {
       const match = variants.find((v) => v.id === vIdFromUrl)
       if (match) return { ...match.options }
     }
+    // `?size=M` from a listing card's size chip: preselect that size, on a
+    // variant that can be bought if one exists.
+    const sizeFromUrl = searchParams.get("size")
+    const sizeTitle = product.options.find((o) => o.title.trim().toLowerCase().includes("size"))?.title
+    if (sizeFromUrl && sizeTitle) {
+      const forSize = variants.filter((v) => v.options[sizeTitle] === sizeFromUrl)
+      const match = forSize.find(buyable) ?? forSize[0]
+      if (match) return { ...match.options }
+    }
     return { ...(variants.find(buyable) ?? variants[0])?.options }
   })
   const [adding, setAdding] = useState(false)
@@ -48,12 +57,16 @@ export function PurchasePanel({ product }: { product: Product }) {
   const { isSaved, toggle: toggleWishlist } = useWishlist()
   const saved = isSaved(product.id)
 
-  const handleWishlist = () => {
-    const addedToWishlist = toggleWishlist(product.id)
-    if (addedToWishlist) {
-      toast.success(`Saved ${product.title} to your wishlist`)
-    } else {
-      toast.info(`Removed ${product.title} from wishlist`)
+  const handleWishlist = async () => {
+    try {
+      const addedToWishlist = await toggleWishlist(product.id)
+      if (addedToWishlist) {
+        toast.success(`Saved ${product.title} to your wishlist`)
+      } else {
+        toast.info(`Removed ${product.title} from wishlist`)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "We couldn't update your wishlist.")
     }
   }
 

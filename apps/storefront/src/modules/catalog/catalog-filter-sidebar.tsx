@@ -5,7 +5,15 @@ import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, SearchIcon, StarIcon, XIco
 import { cn } from "@/lib/utils"
 import type { Category } from "@lib/api/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { formatMoney } from "@lib/money"
 import { listingHref, toggle, type Listing } from "./params"
+
+const bucketLabelFor = (min: number | undefined, max: number | undefined, currency: string) =>
+  min !== undefined && max !== undefined
+    ? `${formatMoney(min, currency)} - ${formatMoney(max, currency)}`
+    : max !== undefined
+      ? `Under ${formatMoney(max, currency)}`
+      : `${formatMoney(min ?? 0, currency)} and above`
 
 const SWATCH: Record<string, string> = {
   black: "#111111",
@@ -24,13 +32,22 @@ const SWATCH: Record<string, string> = {
   emerald: "#065f46",
 }
 
-const BRANDS = [
-  { name: "Everwear Tailoring", count: 24 },
-  { name: "Heritage Loom 1984", count: 18 },
-  { name: "Aurum Footwear", count: 12 },
-  { name: "Atelier Silvercraft", count: 15 },
-  { name: "Everwear Studio", count: 28 },
-]
+/**
+ * Round price bands derived from the catalog's own range, so the buckets
+ * always bracket real products instead of guessing at a currency.
+ */
+const priceBuckets = (range: { min: number; max: number } | null) => {
+  if (!range || range.max <= range.min) return []
+  const span = range.max - range.min
+  const step = Math.max(1, Math.round(span / 4 / 100000) * 100000 || Math.round(span / 4))
+  const edges = [range.min + step, range.min + step * 2, range.min + step * 3]
+  return [
+    { min: undefined as number | undefined, max: edges[0] as number | undefined },
+    { min: edges[0] as number | undefined, max: edges[1] as number | undefined },
+    { min: edges[1] as number | undefined, max: edges[2] as number | undefined },
+    { min: edges[2] as number | undefined, max: undefined as number | undefined },
+  ]
+}
 
 const GENDERS = [
   { handle: "men", label: "Men" },
@@ -49,9 +66,14 @@ export function CatalogFilterSidebar({
   listing: Listing
   categories?: Category[]
   facets: {
+    currency: string
     options: { title: string; values: { value: string; count: number }[] }[]
     onSaleCount: number
     priceRange: { min: number; max: number } | null
+    /** Absent while a response cached before these facets shipped is replayed. */
+    brands?: { value: string; count: number }[]
+    discounts?: { value: number; count: number }[]
+    ratings?: { value: number; count: number }[]
   }
   currentCategoryHandle?: string
 }) {
@@ -89,6 +111,25 @@ export function CatalogFilterSidebar({
         href: href({ options: listing.options.filter((x) => x !== o) }),
       }
     }),
+    ...listing.brands.map((brand) => ({
+      label: brand,
+      href: href({ brands: listing.brands.filter((b) => b !== brand) }),
+    })),
+    ...(listing.minPrice !== undefined || listing.maxPrice !== undefined
+      ? [
+          {
+            label: bucketLabelFor(listing.minPrice, listing.maxPrice, facets.currency),
+            href: href({ minPrice: undefined, maxPrice: undefined }),
+          },
+        ]
+      : []),
+    ...(listing.discount !== undefined
+      ? [{ label: `${listing.discount}% off or more`, href: href({ discount: undefined }) }]
+      : []),
+    ...(listing.rating !== undefined
+      ? [{ label: `${listing.rating}\u2605 & above`, href: href({ rating: undefined }) }]
+      : []),
+    ...(listing.inStock ? [{ label: "In Stock", href: href({ inStock: false }) }] : []),
     ...(listing.sale ? [{ label: "On Sale", href: href({ sale: false }) }] : []),
   ]
 
@@ -98,9 +139,24 @@ export function CatalogFilterSidebar({
     (o) => !["color", "size"].includes(o.title.toLowerCase())
   )
 
-  const filteredBrands = BRANDS.filter((b) =>
-    b.name.toLowerCase().includes(brandSearch.toLowerCase())
+  // A facets payload cached before these fields existed must not blank the page.
+  const brandFacets = facets.brands ?? []
+  const discountFacets = facets.discounts ?? []
+  const ratingFacets = facets.ratings ?? []
+
+  const filteredBrands = brandFacets.filter((b) =>
+    b.value.toLowerCase().includes(brandSearch.trim().toLowerCase())
   )
+  const buckets = priceBuckets(facets.priceRange)
+  const money = (amount: number) => formatMoney(amount, facets.currency)
+  const bucketLabel = (min?: number, max?: number) =>
+    min !== undefined && max !== undefined
+      ? `${money(min)} - ${money(max)}`
+      : max !== undefined
+        ? `Under ${money(max)}`
+        : `${money(min ?? 0)} and above`
+  const bucketActive = (min?: number, max?: number) =>
+    listing.minPrice === min && listing.maxPrice === max
 
   return (
     <aside
@@ -260,32 +316,42 @@ export function CatalogFilterSidebar({
           />
         </button>
 
-        {openSections.price && (
+        {openSections.price && facets.priceRange && (
           <div className="flex flex-col gap-2 pt-1">
             <div className="flex items-center justify-between text-xs text-muted-foreground pb-1">
-              <span>Min: ₹799</span>
+              <span>Min: {money(facets.priceRange.min)}</span>
               <span className="h-px w-6 bg-border" />
-              <span>Max: ₹8,990+</span>
+              <span>Max: {money(facets.priceRange.max)}</span>
             </div>
 
-            {/* Quick Price Ranges */}
-            {[
-              { label: "Under ₹1,000", hrefChange: { sort: "price_asc" as const } },
-              { label: "₹1,000 - ₹2,999", hrefChange: { sort: "newest" as const } },
-              { label: "₹3,000 - ₹5,999", hrefChange: { sort: "newest" as const } },
-              { label: "₹6,000 and above", hrefChange: { sort: "price_desc" as const } },
-            ].map((p, idx) => (
-              <LocalizedClientLink
-                key={idx}
-                href={href(p.hrefChange)}
-                className="flex items-center gap-2.5 text-xs text-foreground hover:text-secondary transition-colors py-0.5"
-              >
-                <span className="size-3.5 rounded-full border border-input flex items-center justify-center shrink-0">
-                  <span className="size-1.5 rounded-full bg-transparent" />
-                </span>
-                <span>{p.label}</span>
-              </LocalizedClientLink>
-            ))}
+            {buckets.map((b, idx) => {
+              const selected = bucketActive(b.min, b.max)
+              return (
+                <LocalizedClientLink
+                  key={idx}
+                  href={
+                    selected
+                      ? href({ minPrice: undefined, maxPrice: undefined })
+                      : href({ minPrice: b.min, maxPrice: b.max })
+                  }
+                  aria-current={selected ? "true" : undefined}
+                  data-testid="price-refinement"
+                  className="flex items-center gap-2.5 text-xs text-foreground hover:text-secondary transition-colors py-0.5 cursor-pointer"
+                >
+                  <span className="size-3.5 rounded-full border border-input flex items-center justify-center shrink-0">
+                    <span
+                      className={cn(
+                        "size-1.5 rounded-full",
+                        selected ? "bg-secondary" : "bg-transparent"
+                      )}
+                    />
+                  </span>
+                  <span className={cn(selected && "font-semibold text-secondary")}>
+                    {bucketLabel(b.min, b.max)}
+                  </span>
+                </LocalizedClientLink>
+              )
+            })}
           </div>
         )}
       </div>
@@ -323,20 +389,40 @@ export function CatalogFilterSidebar({
             </div>
 
             <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto no-scrollbar">
-              {filteredBrands.map((b) => (
-                <label
-                  key={b.name}
-                  className="flex items-center justify-between text-xs text-foreground hover:text-secondary transition-colors cursor-pointer py-0.5"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="size-4 rounded border border-input bg-surface-container-lowest flex items-center justify-center shrink-0" />
-                    <span className="truncate">{b.name}</span>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
-                    ({b.count})
-                  </span>
-                </label>
-              ))}
+              {filteredBrands.length === 0 && (
+                <span className="text-xs text-muted-foreground">No matching brands</span>
+              )}
+              {filteredBrands.map((b) => {
+                const selected = listing.brands.includes(b.value)
+                return (
+                  <LocalizedClientLink
+                    key={b.value}
+                    href={href({ brands: toggle(listing.brands, b.value) })}
+                    aria-current={selected ? "true" : undefined}
+                    data-testid="brand-refinement"
+                    className="flex items-center justify-between text-xs text-foreground hover:text-secondary transition-colors cursor-pointer py-0.5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "size-4 rounded border flex items-center justify-center shrink-0",
+                          selected
+                            ? "border-secondary bg-secondary text-secondary-foreground"
+                            : "border-input bg-surface-container-lowest"
+                        )}
+                      >
+                        {selected && <CheckIcon className="size-3" />}
+                      </span>
+                      <span className={cn("truncate", selected && "font-semibold text-secondary")}>
+                        {b.value}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      ({b.count})
+                    </span>
+                  </LocalizedClientLink>
+                )
+              })}
             </div>
           </div>
         )}
@@ -543,13 +629,37 @@ export function CatalogFilterSidebar({
               </span>
             </LocalizedClientLink>
 
-            <label className="flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer pt-0.5">
-              <div className="flex items-center gap-2.5">
-                <span className="size-4 rounded border border-input bg-surface-container-lowest shrink-0" />
-                <span>Special Bank Discounts</span>
-              </div>
-              <span className="text-[10px] tabular-nums text-secondary font-semibold">10%</span>
-            </label>
+            {discountFacets.map((tier) => {
+              const selected = listing.discount === tier.value
+              return (
+                <LocalizedClientLink
+                  key={tier.value}
+                  href={href({ discount: selected ? undefined : tier.value })}
+                  aria-current={selected ? "true" : undefined}
+                  data-testid="discount-refinement"
+                  className="flex items-center justify-between text-xs text-foreground hover:text-secondary transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className={cn(
+                        "size-4 rounded border transition-colors flex items-center justify-center shrink-0",
+                        selected
+                          ? "border-secondary bg-secondary text-secondary-foreground"
+                          : "border-input bg-surface-container-lowest"
+                      )}
+                    >
+                      {selected && <CheckIcon className="size-3" />}
+                    </span>
+                    <span className={cn(selected && "font-semibold text-secondary")}>
+                      {tier.value}% off or more
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                    ({tier.count})
+                  </span>
+                </LocalizedClientLink>
+              )
+            })}
           </div>
         )}
       </div>
@@ -574,24 +684,43 @@ export function CatalogFilterSidebar({
 
         {openSections.rating && (
           <div className="flex flex-col gap-2 pt-1">
-            <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer hover:text-secondary transition-colors">
-              <span className="size-4 rounded border border-input bg-surface-container-lowest shrink-0" />
-              <div className="flex items-center gap-1 font-semibold">
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-700 text-white font-bold text-[10px]">
-                  4 <StarIcon className="size-2.5 fill-current" />
-                </span>
-                <span>&amp; above</span>
-              </div>
-            </label>
-            <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer hover:text-secondary transition-colors">
-              <span className="size-4 rounded border border-input bg-surface-container-lowest shrink-0" />
-              <div className="flex items-center gap-1 font-semibold">
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-600 text-white font-bold text-[10px]">
-                  3 <StarIcon className="size-2.5 fill-current" />
-                </span>
-                <span>&amp; above</span>
-              </div>
-            </label>
+            {ratingFacets.length === 0 && (
+              <span className="text-xs text-muted-foreground">No rated products here yet</span>
+            )}
+            {ratingFacets.map((tier) => {
+              const selected = listing.rating === tier.value
+              return (
+                <LocalizedClientLink
+                  key={tier.value}
+                  href={href({ rating: selected ? undefined : tier.value })}
+                  aria-current={selected ? "true" : undefined}
+                  data-testid="rating-refinement"
+                  className="flex items-center justify-between gap-2 text-xs text-foreground cursor-pointer hover:text-secondary transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "size-4 rounded border transition-colors flex items-center justify-center shrink-0",
+                        selected
+                          ? "border-secondary bg-secondary text-secondary-foreground"
+                          : "border-input bg-surface-container-lowest"
+                      )}
+                    >
+                      {selected && <CheckIcon className="size-3" />}
+                    </span>
+                    <span className="flex items-center gap-1 font-semibold">
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-700 text-white font-bold text-[10px]">
+                        {tier.value} <StarIcon aria-hidden className="size-2.5 fill-current" />
+                      </span>
+                      <span>&amp; above</span>
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                    ({tier.count})
+                  </span>
+                </LocalizedClientLink>
+              )
+            })}
           </div>
         )}
       </div>
@@ -616,12 +745,26 @@ export function CatalogFilterSidebar({
 
         {openSections.availability && (
           <div className="flex flex-col gap-2 pt-1">
-            <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer hover:text-secondary transition-colors">
-              <span className="size-4 rounded border border-primary bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-                <CheckIcon className="size-3" />
+            <LocalizedClientLink
+              href={href({ inStock: !listing.inStock })}
+              aria-current={listing.inStock ? "true" : undefined}
+              data-testid="stock-refinement"
+              className="flex items-center gap-2 text-xs text-foreground cursor-pointer hover:text-secondary transition-colors"
+            >
+              <span
+                className={cn(
+                  "size-4 rounded border transition-colors flex items-center justify-center shrink-0",
+                  listing.inStock
+                    ? "border-secondary bg-secondary text-secondary-foreground"
+                    : "border-input bg-surface-container-lowest"
+                )}
+              >
+                {listing.inStock && <CheckIcon className="size-3" />}
               </span>
-              <span>Exclude Out of Stock</span>
-            </label>
+              <span className={cn(listing.inStock && "font-semibold text-secondary")}>
+                Exclude Out of Stock
+              </span>
+            </LocalizedClientLink>
           </div>
         )}
       </div>

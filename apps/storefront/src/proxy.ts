@@ -1,3 +1,4 @@
+import { listingHref, parseListing } from "@modules/catalog/params"
 import { NextRequest, NextResponse } from "next/server"
 
 const API_URL = process.env.EVERWEAR_API_URL ?? (process.env.NODE_ENV === "production" ? "http://backend:9100" : "http://localhost:9100")
@@ -23,6 +24,25 @@ async function countryCodes() {
 }
 
 /**
+ * `/{cc}/search?q=shirt` answers on the filterable listing, Myntra-style:
+ * `/{cc}/store?rawQuery=shirt`. Done here, before anything renders, so the
+ * search page never flashes and no late client-side redirect races the user's
+ * next click. A blank query falls through to the search page's empty state.
+ */
+function searchRedirect(request: NextRequest, country: string) {
+  const { pathname, searchParams, origin } = request.nextUrl
+  if (pathname.replace(/\/$/, "").toLowerCase() !== `/${country}/search`) return null
+  const q = searchParams.get("q")?.trim().slice(0, 100)
+  if (!q) return null
+  const scope = searchParams.get("category")
+  const target = listingHref("/store", parseListing({}), {
+    q,
+    categories: scope && /^[a-z0-9-]{1,100}$/.test(scope) ? [scope] : [],
+  })
+  return NextResponse.redirect(`${origin}/${country}${target}`, 307)
+}
+
+/**
  * Region routing: every storefront URL starts with a country code.
  * Not IP-based, so crawlers and AI agents get a stable result.
  */
@@ -32,7 +52,7 @@ export async function proxy(request: NextRequest) {
 
   const codes = await countryCodes()
   const first = pathname.split("/")[1]?.toLowerCase()
-  if (first && codes.has(first)) return NextResponse.next()
+  if (first && codes.has(first)) return searchRedirect(request, first) ?? NextResponse.next()
 
   const country = codes.has(DEFAULT_REGION) ? DEFAULT_REGION : (codes.values().next().value ?? DEFAULT_REGION)
   // Serve the default country at "/" directly so the root URL has content.

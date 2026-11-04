@@ -2,6 +2,30 @@ import { connect, disconnect } from "../src/db/client.js"
 import { db, ensureIndexes, type ProductDoc, type VariantDoc } from "../src/db/schema.js"
 import { newId } from "../src/lib/ids.js"
 
+interface FeaturedSeed {
+  handle: string
+  title: string
+  subtitle: string
+  brand: string
+  description: string
+  status: "published" | "draft"
+  thumbnail: string
+  images: string[]
+  categoryHandles: string[]
+  tags: string[]
+  priceInr: number
+  compareAtPriceInr?: number
+  priceEur: number
+  compareAtPriceEur?: number
+  priceUsd: number
+  compareAtPriceUsd?: number
+  reviews?: { customerName: string; rating: number; title: string; comment: string }[]
+  /** Sizes stocked at zero, so the card can show a genuinely unavailable size. */
+  soldOutSizes?: string[]
+  /** A paid placement: adds the sponsored tag the storefront reads for its AD badge. */
+  sponsored?: boolean
+}
+
 interface CategorySeed {
   handle: string
   name: string
@@ -59,9 +83,11 @@ async function seed() {
   }
 
   console.log("Seeding Stitch featured products...")
-  const stitchProducts = [
+  const stitchProducts: FeaturedSeed[] = [
     {
       handle: "sculpted-linen-boyfriend-blazer",
+      soldOutSizes: ["XL"],
+      sponsored: true,
       title: "Sculpted Linen Boyfriend Blazer",
       subtitle: "Ecru Raw Flax / Single-breasted horn buttons",
       brand: "Everwear Atelier",
@@ -116,6 +142,7 @@ async function seed() {
     },
     {
       handle: "woven-kolhapuri-block-mule",
+      soldOutSizes: ["S", "XL"],
       title: "Woven Kolhapuri Block Mule",
       subtitle: "Full Grain Saddle Leather / 45mm Block Heel",
       brand: "Aurum Footwear",
@@ -170,6 +197,7 @@ async function seed() {
     },
     {
       handle: "normandy-pure-linen-resort-shirt",
+      soldOutSizes: ["M"],
       title: "Normandy Pure Linen Resort Shirt",
       subtitle: "French Flax Linen / Camp collar / Mother of pearl buttons",
       brand: "Everwear Atelier",
@@ -220,6 +248,7 @@ async function seed() {
     },
     {
       handle: "boxy-heavyweight-organic-tee",
+      sponsored: true,
       title: "Boxy Heavyweight Organic Tee",
       subtitle: "280 GSM Combed Cotton / Drop shoulder / Ribbed collar",
       brand: "Everwear Studio",
@@ -247,6 +276,7 @@ async function seed() {
     },
     {
       handle: "waffle-knit-resort-polo-tee",
+      sponsored: true,
       title: "Waffle Knit Resort Polo Tee",
       subtitle: "Textured Honeycomb Cotton / Johnny collar / Vintage wash",
       brand: "Everwear Atelier",
@@ -320,6 +350,7 @@ async function seed() {
     },
     {
       handle: "relaxed-supima-crewneck-tee",
+      soldOutSizes: ["S", "M", "L", "XL"],
       title: "Relaxed Supima Crewneck Tee",
       subtitle: "Long-staple American Supima Cotton / Mercerised finish / Micro-rib neckline",
       brand: "Everwear Studio",
@@ -380,11 +411,15 @@ async function seed() {
       options: { Size: sz },
       prices: { inr: sp.priceInr, eur: sp.priceEur, usd: sp.priceUsd },
       compareAtPrices: sp.compareAtPriceInr
-        ? { inr: sp.compareAtPriceInr, eur: sp.compareAtPriceEur, usd: sp.compareAtPriceUsd }
+        ? {
+            inr: sp.compareAtPriceInr,
+            ...(sp.compareAtPriceEur ? { eur: sp.compareAtPriceEur } : {}),
+            ...(sp.compareAtPriceUsd ? { usd: sp.compareAtPriceUsd } : {}),
+          }
         : undefined,
       manageInventory: true,
       allowBackorder: false,
-      stock: 50,
+      stock: sp.soldOutSizes?.includes(sz) ? 0 : 12 + idx * 9,
     }))
 
     const doc: Omit<ProductDoc, "_id" | "createdAt"> = {
@@ -398,7 +433,7 @@ async function seed() {
       images: sp.images,
       categoryIds,
       collectionId: null,
-      tags: sp.tags,
+      tags: sp.sponsored ? [...sp.tags, "sponsored"] : sp.tags,
       options: [{ title: "Size", values: sizes }],
       variants,
       weight: 500,

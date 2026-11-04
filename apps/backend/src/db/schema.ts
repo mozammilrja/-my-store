@@ -597,6 +597,7 @@ export async function ensureIndexes() {
     db.products().createIndex({ status: 1, categoryIds: 1 }),
     db.products().createIndex({ categoryIds: 1 }),
     db.products().createIndex({ collectionId: 1 }),
+    db.products().createIndex({ status: 1, brand: 1 }),
     db.products().createIndex({ "variants._id": 1 }, { unique: true }),
     db.products().createIndex(
       { title: "text", description: "text", tags: "text" },

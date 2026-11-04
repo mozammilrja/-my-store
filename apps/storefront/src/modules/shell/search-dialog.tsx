@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { listingHref, parseListing } from "@modules/catalog/params"
 import {
   Dialog,
   DialogContent,
@@ -138,8 +139,10 @@ function SearchPanel({
   const handleSelectQuery = (term: string) => {
     saveRecentSearch(term)
     onNavigate()
-    const scopeParam = scope && scope !== "all" ? `&category=${scope}` : ""
-    router.push(`/${countryCode}/search?q=${encodeURIComponent(term)}${scopeParam}`)
+    // Myntra-style: results open on the full listing, so every filter and
+    // sort applies to them, e.g. /store?f=Gender:men&rawQuery=shirt.
+    const categories = scope && scope !== "all" ? [scope] : []
+    router.push(`/${countryCode}${listingHref("/store", parseListing({}), { q: term, categories })}`)
   }
 
   const handleSelectCategory = (categoryHandle: string, term: string) => {

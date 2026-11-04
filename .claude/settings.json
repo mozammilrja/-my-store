@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint)",
+      "Bash(npm run typecheck)",
+      "mcp__claude_ai_Claude_Docs__guide"
+    ]
+  }
+}

@@ -114,7 +114,7 @@ export const getStorePolicies = cache(async (countryCode: string) => {
       : null)
   return {
     current: policies,
-    currency: current?.currency ?? (code === "in" ? "inr" : "eur"),
+    currency: current?.currency ?? "inr",
     regions: regions.flatMap((r) => (r.policies ? [{ id: r.id, name: r.name, currency: r.currency, policies: r.policies }] : [])),
   }
 })

@@ -1,5 +1,6 @@
 "use client"
 
+import { ensureOk } from "@lib/util/cart-action"
 import { applyPromotions } from "@lib/data/shop"
 import { notifyCartUpdated } from "@lib/util/cart-events"
 import type { Cart } from "@lib/api/types"
@@ -16,7 +17,7 @@ export function PromoCode({ cart }: { cart: Cart }) {
     setPending(true)
     setError(null)
     try {
-      await applyPromotions(codes)
+      ensureOk(await applyPromotions(codes))
       notifyCartUpdated()
       return true
     } catch (e) {
@@ -69,7 +70,7 @@ export function PromoCode({ cart }: { cart: Cart }) {
               if (error) setError(null)
             }}
             placeholder="Enter coupon code"
-            className="w-full h-11 pl-10 pr-space-md bg-surface-container-low text-on-surface font-label-md text-label-md rounded-lg uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-primary border border-surface-container-high"
+            className="w-full h-11 pl-11 pr-space-md bg-surface-container-low text-on-surface text-[14px] font-medium rounded-lg uppercase tracking-wide placeholder:normal-case placeholder:tracking-normal placeholder:font-normal placeholder:text-on-surface-variant/70 focus:outline-none focus:ring-1 focus:ring-primary border border-surface-container-high"
             data-testid="discount-input"
           />
         </div>

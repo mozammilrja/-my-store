@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Icon, Badge, Button, Avatar, AvatarImage, AvatarFallback } from '../ui';
-import { clearToken } from '../../lib/api';
+import { Icon, Badge, Button, Avatar, AvatarFallback } from '../ui';
+import { useSession } from '../../lib/session';
 import { useTheme } from '../../lib/theme';
 import { cn } from '../../lib/utils';
 
@@ -16,6 +16,15 @@ export function Header({
   onToggleMobileMenu,
 }) {
   const { theme, toggleTheme, isDark } = useTheme();
+  const { admin, signOut } = useSession();
+  const displayName = admin?.name || admin?.email?.split('@')[0] || 'Admin';
+  const initials = displayName
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('');
+  const roleLabel = admin?.role ? admin.role[0].toUpperCase() + admin.role.slice(1) : 'Admin';
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
 
@@ -82,13 +91,6 @@ export function Header({
 
       {/* Right: telemetry, utilities and profile */}
       <div className="flex shrink-0 items-center gap-2 sm:gap-space-md">
-        <div className="hidden items-center xl:flex">
-          <Badge variant="success" className="gap-2 font-medium">
-            <span className="h-2 w-2 shrink-0 rounded-full bg-status-success" />
-            Sync live
-          </Badge>
-        </div>
-
         <div className="hidden items-center gap-1.5 rounded-lg border border-subtle bg-surface-subtle px-space-sm py-1.5 text-label font-medium text-primary md:flex">
           <Icon name="calendar_today" className="material-symbols-outlined text-icon text-faint" />
           <span className="tabular-nums">{todayStr}</span>
@@ -149,18 +151,14 @@ export function Header({
             className="flex select-none items-center gap-space-sm rounded-lg border-l border-subtle py-1 pl-2 pr-1 transition-colors hover:bg-surface-subtle sm:pl-space-md"
           >
             <Avatar className="h-8 w-8">
-              <AvatarImage
-                alt=""
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBY9Tgm6nn9TMViDB2K0jV_IgnR1CTQzPSh4UF1qP0xioyqkpMq3i7rxekw2L-XzIqJ7t0oI4QqiK1ZfohmEgXR501aua43kgyya37eW_Pnzg1T4YVEcL0PZnC5nDOlZkUy2t-rC3JITisM8eYFYMI4d6TLZtJcydeuJ8KukkLzD8BdJmW5hA7Jm3FflcjpsXIW5n5FvIgEXboyVtaKgQdoBRB4-htL-mHupOCj5v7x"
-              />
-              <AvatarFallback>AS</AvatarFallback>
+              <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
             <span className="hidden flex-col text-left lg:flex">
               <span className="text-label font-semibold leading-tight text-primary">
-                Ananya Sharma
+                {displayName}
               </span>
               <span className="text-micro leading-tight text-muted">
-                VP Operations · {currentHub.id}
+                {roleLabel} · {currentHub.id}
               </span>
             </span>
             <Icon name="expand_more" className="material-symbols-outlined text-icon text-faint" />
@@ -172,8 +170,8 @@ export function Header({
               className="absolute right-0 top-full z-overlay mt-2 w-60 animate-zoom-in rounded-xl border border-subtle bg-overlay p-1.5 shadow-lg"
             >
               <div className="border-b border-subtle p-2 pb-2.5">
-                <div className="text-meta font-semibold text-primary">Ananya Sharma</div>
-                <div className="truncate text-micro text-muted">admin@everwear.test</div>
+                <div className="text-meta font-semibold text-primary">{displayName}</div>
+                <div className="truncate text-micro text-muted">{admin?.email}</div>
                 <div className="mt-1.5 flex items-center gap-1.5 text-micro text-success">
                   <span className="h-1.5 w-1.5 rounded-full bg-status-success" />
                   Active node: {currentHub.name}
@@ -201,9 +199,8 @@ export function Header({
                 <button
                   role="menuitem"
                   onClick={() => {
-                    clearToken();
                     setProfileOpen(false);
-                    window.location.reload();
+                    signOut();
                   }}
                   className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-meta text-danger transition-colors hover:bg-status-danger-bg"
                   type="button"

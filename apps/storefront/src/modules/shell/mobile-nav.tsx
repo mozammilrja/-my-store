@@ -10,7 +10,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { Wordmark } from "@/components/store/wordmark"
-import type { Region } from "@lib/api/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import {
   ChevronDownIcon,
@@ -21,7 +20,6 @@ import {
   TruckIcon,
 } from "lucide-react"
 import { useState } from "react"
-import { RegionSelect } from "./region-select"
 import { DEPARTMENTS_DATA } from "./mega-menu"
 import { cn } from "@/lib/utils"
 
@@ -29,11 +27,9 @@ export type NavLink = { href: string; label: string }
 
 export function MobileNav({
   _links,
-  regions,
 }: {
   links?: NavLink[]
   _links?: NavLink[]
-  regions: Region[]
 }) {
   const [open, setOpen] = useState(false)
   const [expandedDept, setExpandedDept] = useState<string | null>(null)
@@ -204,7 +200,7 @@ export function MobileNav({
               </li>
               <li>
                 <LocalizedClientLink
-                  href="/contact"
+                  href="/concierge"
                   onClick={() => setOpen(false)}
                   className="text-muted-foreground hover:text-foreground transition-colors flex items-center justify-between"
                 >
@@ -215,10 +211,6 @@ export function MobileNav({
             </ul>
           </div>
         </nav>
-
-        <div className="border-t border-border/60 p-5 bg-surface-container-low/40">
-          <RegionSelect regions={regions} id="mobile-region-select" />
-        </div>
       </SheetContent>
     </Sheet>
   )

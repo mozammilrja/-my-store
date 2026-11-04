@@ -1,9 +1,9 @@
 "use client"
 
+import { ensureOk } from "@lib/util/cart-action"
 import type { Customer, OrderSummary, Product } from "@lib/api/types"
 import { addToCart } from "@lib/data/shop"
 import { formatMoney } from "@lib/money"
-import { InvoiceDialog } from "@modules/account/invoice-dialog"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
 import { useParams } from "next/navigation"
@@ -20,8 +20,6 @@ export function OrdersListView({
   catalogProducts: Product[]
 }) {
   const { countryCode } = useParams<{ countryCode: string }>()
-  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<OrderSummary | null>(null)
-  const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTab, setSelectedTab] = useState<"all" | "processing" | "shipped" | "delivered" | "canceled" | "returns">("all")
   const [timeFilter, setTimeFilter] = useState("all")
@@ -107,7 +105,7 @@ export function OrdersListView({
         const product = catalogProducts.find((p) => p.title === firstItem?.productTitle) ?? catalogProducts[0]
         const variantId = product?.variants?.[0]?.id
         if (variantId) {
-          await addToCart({ variantId, quantity: 1, countryCode })
+          ensureOk(await addToCart({ variantId, quantity: 1, countryCode }))
           toast.success(`Re-ordered ${product.title}`)
         } else {
           toast.info("Viewing product details")
@@ -357,17 +355,20 @@ export function OrdersListView({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedInvoiceOrder(order)
-                        setInvoiceOpen(true)
-                      }}
-                      className="h-9 px-3 rounded bg-surface-container hover:bg-surface-variant text-on-surface font-label-sm text-label-sm uppercase flex items-center gap-1.5 transition-colors cursor-pointer"
+                    <LocalizedClientLink
+                      href={`/order/${order.id}/track`}
+                      className="h-9 px-3 rounded bg-surface-container hover:bg-surface-variant text-on-surface font-label-sm text-label-sm uppercase flex items-center gap-1.5 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+                      <span>Track</span>
+                    </LocalizedClientLink>
+                    <LocalizedClientLink
+                      href={`/order/${order.id}/invoice`}
+                      className="h-9 px-3 rounded bg-surface-container hover:bg-surface-variant text-on-surface font-label-sm text-label-sm uppercase flex items-center gap-1.5 transition-colors"
                     >
                       <span className="material-symbols-outlined text-[16px]">receipt_long</span>
-                      <span>Download Tax Invoice</span>
-                    </button>
+                      <span>Tax Invoice</span>
+                    </LocalizedClientLink>
                     <LocalizedClientLink
                       href={`/account/orders/details/${order.id}`}
                       className="h-9 px-3 rounded bg-surface-container hover:bg-surface-variant text-on-surface font-label-sm text-label-sm uppercase flex items-center gap-1.5 transition-colors"
@@ -646,13 +647,6 @@ export function OrdersListView({
           </a>
         </div>
       </aside>
-
-      {/* Invoice Modal */}
-      <InvoiceDialog
-        order={selectedInvoiceOrder}
-        open={invoiceOpen}
-        onOpenChange={setInvoiceOpen}
-      />
     </div>
   )
 }

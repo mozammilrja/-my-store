@@ -109,7 +109,7 @@ export function MarketingReport({ data }) {
               key: 'burn',
               header: 'Usage against limit',
               sortable: true,
-              className: 'w-[24%] min-w-[10rem]',
+              className: 'w-1/4 min-w-40',
               accessor: (p) => (
                 <Meter
                   value={p.usageCount}

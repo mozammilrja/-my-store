@@ -342,6 +342,7 @@ describe("facets", () => {
     assert.equal(status, 200)
     assert.deepEqual(body.brands, [{ value: tee.brand, count: 1 }])
     const sizes = (body.options as Json[]).find((o) => o.title === "Size")
+    assert.ok(sizes, "the tee's sizes are faceted")
     assert.ok(sizes.values.every((v: Json) => v.count === 1), "every size count is the tee alone")
   })
 })

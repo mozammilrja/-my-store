@@ -28,7 +28,7 @@ before(async () => {
   await ensureIndexes()
   const now = new Date()
   await db.adminUsers().insertOne({ _id: "admin_1", email: "owner@everwear.test", passwordHash: await hashPassword("owner-password-1"), role: "owner", createdAt: now, updatedAt: now })
-  await db.regions().insertOne({ _id: "reg_eu", name: "Europe", currency: "eur", countries: [{ code: "dk", name: "Denmark" }], taxRate: 0, taxInclusive: false, shippingOptions: [{ _id: "so_std", name: "Standard", amount: 500 }], createdAt: now, updatedAt: now })
+  await db.regions().insertOne({ _id: "reg_in", name: "India", currency: "inr", countries: [{ code: "in", name: "India" }], taxRate: 0, taxInclusive: false, shippingOptions: [{ _id: "so_std", name: "Standard", amount: 500 }], createdAt: now, updatedAt: now })
 })
 
 after(async () => {
@@ -64,7 +64,7 @@ describe("products", () => {
         { title: "Size", values: ["S", "M"] },
         { title: "Color", values: ["Black", "White"] },
       ],
-      prices: { eur: 5900 },
+      prices: { inr: 5900 },
       stock: 10,
     })
     assert.equal(res.status, 201)
@@ -77,11 +77,11 @@ describe("products", () => {
     const { body } = await call("GET", `/admin/products/${id}`)
     const v = body.product.variants[0]
     const res = await call("PATCH", `/admin/products/${id}`, {
-      variants: [{ id: v.id, prices: { eur: 4900 }, compareAtPrices: { eur: 5900 }, stock: 9 }],
+      variants: [{ id: v.id, prices: { inr: 4900 }, compareAtPrices: { inr: 5900 }, stock: 9 }],
     })
     assert.equal(res.status, 200)
     const edited = res.body.product.variants.find((x: Json) => x.id === v.id)
-    assert.deepEqual([edited.prices.eur, edited.compareAtPrices.eur, edited.stock], [4900, 5900, 9])
+    assert.deepEqual([edited.prices.inr, edited.compareAtPrices.inr, edited.stock], [4900, 5900, 9])
     assert.equal((await call("PATCH", `/admin/products/${id}`, { variants: [{ id: v.id, stock: -1 }] })).status, 400)
     assert.equal((await call("PATCH", `/admin/products/${id}`, { categoryIds: ["pcat_missing"] })).status, 400)
     assert.equal((await call("PATCH", `/admin/products/${id}`, { images: ["javascript:alert(1)"] })).status, 400)
@@ -186,9 +186,9 @@ describe("orders", () => {
   const placeOrder = async () => {
     const { body: list } = await call("GET", "/admin/products")
     const variant = list.products[0].variants[1]
-    const { body: c } = await call("POST", "/store/carts", { country: "dk" }, false)
+    const { body: c } = await call("POST", "/store/carts", { country: "in" }, false)
     await call("POST", `/store/carts/${c.cart.id}/items`, { variantId: variant.id, quantity: 2 }, false)
-    await call("PATCH", `/store/carts/${c.cart.id}`, { email: "buyer@example.com", shippingAddress: { firstName: "A", lastName: "B", address1: "Street 1", city: "Copenhagen", postalCode: "1000", countryCode: "dk" } }, false)
+    await call("PATCH", `/store/carts/${c.cart.id}`, { email: "buyer@example.com", shippingAddress: { firstName: "A", lastName: "B", address1: "Street 1", city: "Bengaluru", postalCode: "560001", countryCode: "in" } }, false)
     await call("POST", `/store/carts/${c.cart.id}/shipping`, { optionId: "so_std" }, false)
     const { body } = await call("POST", `/store/carts/${c.cart.id}/complete`, undefined, false)
     return { order: body.order, variantId: variant.id, productId: list.products[0].id }

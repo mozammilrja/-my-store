@@ -167,10 +167,10 @@ export default function AnalyticsAndReports() {
 
   const header = (
     <PageHeader
-      size="lg"
+      kicker="Core"
       title="Analytics & reports"
-      description="Monitor revenue, customer behaviour, order performance and business operations."
-      breadcrumb="Core / Analytics & Reports"
+      description="Revenue, customers and order performance over time."
+      size="lg"
       actions={
         <RangeControls
           rangeId={rangeId}
@@ -192,8 +192,9 @@ export default function AnalyticsAndReports() {
       <PageContainer>
         {header}
         <ErrorState
+          variant="page"
           title="Analytics could not be loaded"
-          message={error?.message}
+          error={error}
           onRetry={() => refetch()}
         />
       </PageContainer>

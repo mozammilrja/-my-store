@@ -5,8 +5,6 @@
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9100' : 'https://api.everwear.com');
 const TOKEN_KEY = 'everwear_admin_token';
-const DEFAULT_EMAIL = 'admin@everwear.test';
-const DEFAULT_PASSWORD = 'adminpassword123';
 
 export class ApiError extends Error {
   constructor(status, code, message) {
@@ -25,12 +23,34 @@ export const getToken = () => {
   }
 };
 
+/**
+ * Listeners told whenever the stored token appears or disappears, so the
+ * router can send a signed-out viewer to /login without polling storage.
+ */
+const tokenListeners = new Set();
+
+export const onTokenChange = (listener) => {
+  tokenListeners.add(listener);
+  return () => tokenListeners.delete(listener);
+};
+
+const notifyToken = (token) => {
+  tokenListeners.forEach((listener) => {
+    try {
+      listener(token);
+    } catch {
+      // A listener's failure must not stop the others
+    }
+  });
+};
+
 export const setToken = (token) => {
   try {
     localStorage.setItem(TOKEN_KEY, token);
   } catch {
     // Session in memory
   }
+  notifyToken(token);
 };
 
 const onClearTokenListeners = new Set();
@@ -43,13 +63,11 @@ export const registerOnClearToken = (listener) => {
 };
 
 /**
- * Forgets the token without telling anyone.
+ * Forgets the token after the API refused it.
  *
- * The 401 path uses this rather than `clearToken`. Notifying listeners there
- * empties the query cache out from under the very queries that are awaiting
- * this request: their cache entries vanish, the observers resubscribe to fresh
- * pending queries, and the rejection they were waiting for lands nowhere. The
- * screen then holds its skeletons forever instead of showing the error.
+ * This tells the router (so it can show the login) but deliberately does not
+ * empty the query cache: doing that out from under the queries still awaiting
+ * this request would strand them on skeletons instead of letting them fail.
  */
 const discardToken = () => {
   try {
@@ -57,6 +75,7 @@ const discardToken = () => {
   } catch {
     // Ignore
   }
+  notifyToken(null);
 };
 
 /** Signs the admin out: forgets the token and lets listeners drop cached data. */
@@ -71,35 +90,6 @@ export const clearToken = () => {
   });
 };
 
-/** Ensures an active admin authentication token exists, auto-signing in if needed in dev */
-export async function ensureAdminAuth() {
-  const existingToken = getToken();
-  if (existingToken) return existingToken;
-
-  // In production builds, do not attempt auto-login with default developer credentials
-  if (import.meta.env.PROD) {
-    return null;
-  }
-
-  try {
-    const res = await fetch(`${API_URL}/admin/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: DEFAULT_EMAIL, password: DEFAULT_PASSWORD }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.token) {
-        setToken(data.token);
-        return data.token;
-      }
-    }
-  } catch (err) {
-    console.warn('API auto-login unavailable:', err?.message);
-  }
-  return null;
-}
-
 const toSearch = (query) => {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query ?? {})) {
@@ -112,10 +102,8 @@ const toSearch = (query) => {
 
 export async function api(path, options = {}) {
   const { method = 'GET', body, query } = options;
-  let token = getToken();
-  if (!token && !path.includes('/auth/login')) {
-    token = await ensureAdminAuth();
-  }
+  const isLogin = path.includes('/auth/login');
+  const token = isLogin ? null : getToken();
 
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -132,29 +120,12 @@ export async function api(path, options = {}) {
     throw new ApiError(503, 'unavailable', `Can't reach the API at ${API_URL}. Is the backend running?`);
   }
 
-  // Handle unauthorized by attempting one re-auth
-  if (response.status === 401 && !path.includes('/auth/login')) {
-    discardToken();
-    token = await ensureAdminAuth();
-    if (!token) {
-      throw new ApiError(
-        401,
-        'session_expired',
-        'Your admin session has expired. Sign in again to continue.'
-      );
-    }
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-      try {
-        response = await fetch(`${API_URL}${path}${toSearch(query)}`, {
-          method,
-          headers,
-          ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-        });
-      } catch (err) {
-        throw new ApiError(503, 'unavailable', "Can't reach the API. Is the backend running?");
-      }
-    }
+  // A refused token is gone for good: forget it, which sends the viewer to the
+  // login. Only forget it if it is still the stored one, so a request that was
+  // sent before a fresh sign-in cannot sign the new session out.
+  if (response.status === 401 && !isLogin) {
+    if (token && getToken() === token) discardToken();
+    throw new ApiError(401, 'session_expired', 'Your admin session has expired. Sign in again to continue.');
   }
 
   const data = await response.json().catch(() => null);
@@ -219,6 +190,7 @@ export function uploadImage(file, { onProgress, signal } = {}) {
           resolve({ path: data.path, url: data.url });
           return;
         }
+        if (xhr.status === 401 && token && getToken() === token) discardToken();
         reject(
           new ApiError(
             xhr.status,
@@ -236,9 +208,7 @@ export function uploadImage(file, { onProgress, signal } = {}) {
       xhr.send(form);
     };
 
-    const existing = getToken();
-    if (existing) run(existing);
-    else ensureAdminAuth().then(run).catch(() => run(null));
+    run(getToken());
   });
 }
 

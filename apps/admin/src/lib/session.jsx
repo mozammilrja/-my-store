@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { adminApi } from './api';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { adminApi, clearToken, getToken, onTokenChange, setToken } from './api';
 
 /**
  * The signed-in admin, read once from /admin/me and shared by the whole app.
@@ -11,6 +11,10 @@ import { adminApi } from './api';
  * role check lives in one place instead of being retyped per component.
  */
 const SessionContext = createContext({
+  token: null,
+  isSignedIn: false,
+  signIn: async () => {},
+  signOut: () => {},
   admin: null,
   role: null,
   isOwner: false,
@@ -22,27 +26,68 @@ const SessionContext = createContext({
 const OWNER_ONLY = new Set(['users:write', 'settings:write']);
 
 export function SessionProvider({ children }) {
+  const queryClient = useQueryClient();
+  // The stored token is the only proof of a session. It changes on sign-in,
+  // sign-out, and when the API refuses it (api.js forgets it on a 401).
+  const [token, setTokenState] = useState(() => getToken());
+  // Why the last session ended: 'user' for Sign out, 'expired' when the API
+  // refused the token. The login page words its notice from this.
+  const [endedBy, setEndedBy] = useState(null);
+  const signingOut = useRef(false);
+  useEffect(
+    () =>
+      onTokenChange((next) => {
+        setTokenState(next);
+        if (next) setEndedBy(null);
+        else setEndedBy(signingOut.current ? 'user' : 'expired');
+        signingOut.current = false;
+      }),
+    []
+  );
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['admin', 'me'],
+    queryKey: ['admin', 'me', token],
     queryFn: () => adminApi.me(),
+    enabled: Boolean(token),
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
 
+  const signIn = useCallback(
+    async (email, password) => {
+      const { token: issued } = await adminApi.login(email, password);
+      // Nothing cached under a previous admin may leak into this session.
+      queryClient.clear();
+      setToken(issued);
+      return issued;
+    },
+    [queryClient]
+  );
+
+  const signOut = useCallback(() => {
+    signingOut.current = true;
+    clearToken();
+  }, []);
+
   const value = useMemo(() => {
-    const admin = data?.admin ?? null;
+    const admin = token ? data?.admin ?? null : null;
     const role = admin?.role ?? null;
     const isOwner = role === 'owner';
     return {
+      token,
+      isSignedIn: Boolean(token),
+      endedBy,
+      signIn,
+      signOut,
       admin,
       role,
       isOwner,
-      isLoading,
+      isLoading: Boolean(token) && isLoading,
       isError,
       /** `can('users:write')` — unknown capabilities are allowed, owner-only ones are not. */
       can: (capability) => (OWNER_ONLY.has(capability) ? isOwner : Boolean(role)),
     };
-  }, [data, isLoading, isError]);
+  }, [token, endedBy, data, isLoading, isError, signIn, signOut]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

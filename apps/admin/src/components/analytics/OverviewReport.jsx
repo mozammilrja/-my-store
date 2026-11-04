@@ -158,7 +158,7 @@ export function OverviewReport({
           {/* The chart shows that the deductions are small; the statement
               beside it gives the amounts that have to tie out. Stacked, the
               pair made this column twice the height of the one next to it. */}
-          <div className="grid gap-space-lg xl:grid-cols-[1.1fr_1fr] xl:items-center">
+          <div className="grid gap-space-lg xl:grid-cols-2 xl:items-center">
             <Waterfall steps={moneyFlow} height={300} formatValue={money} formatTick={moneyTick} />
             <dl className="flex flex-col gap-space-sm border-t border-subtle pt-space-md xl:border-l xl:border-t-0 xl:pl-space-lg xl:pt-0">
               <StatementRow label="Gross sales" value={money(totals?.grossSales ?? 0)} />
@@ -212,7 +212,7 @@ export function OverviewReport({
           hint="A customer is first-time when their earliest order falls in this range."
         >
           <div className="flex flex-col gap-space-lg">
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-space-xs">
               <span className="text-kpi text-primary">{formatCount(customers)}</span>
               <span className="text-meta text-faint">ordered in this range</span>
             </div>

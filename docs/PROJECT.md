@@ -216,8 +216,8 @@ None of these block the app in development.
 - **Emails:** the API sends none. No order confirmation or account email goes out.
 - **Rate limiting is per process.** The login limiter is an in-memory map, so it protects one instance. Running several copies behind a load balancer needs a shared store.
 - **Sessions:** customer and admin tokens are stateless JWTs, so logging out removes the token client-side but cannot revoke a copied one before it expires.
-- **India region:** its record has no `policies`, so shipping and returns details show as unavailable for `/in`. Europe has them.
-- **Demo data:** 54 published products share 12 images, and EUR and INR prices are set independently per variant.
+- **India region:** its record has no `policies`, so shipping and returns details show as unavailable for `/in`.
+- **Demo data:** 54 published products share 12 images, priced in INR only.
 - **Node version:** the root `package.json` asks for Node 22.23.4 or newer; the machine runs 22.22.2 and npm prints an `EBADENGINE` warning on install without any further effect.
 - **No linter on the API.** The frontend apps lint with `eslint-config-next`; `apps/backend` has no ESLint setup, so `npm run lint` skips it. `npm run typecheck` is the equivalent gate.
 - **Lockfile remnant:** `package-lock.json` still carries an `extraneous` entry for the old `apps/api` path. npm ignores it and it will disappear the next time the lockfile is rewritten.

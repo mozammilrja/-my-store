@@ -1,20 +1,21 @@
-import { listCategories, listRegions, getStorePolicies } from "@lib/data/catalog"
+import { listCategories, getStorePolicies } from "@lib/data/catalog"
+import { HeadsetIcon } from "lucide-react"
 import { deliveryDays } from "@lib/util/policies"
 import { Wordmark } from "@/components/store/wordmark"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { AccountMenu } from "./account-menu"
 import { Announcement } from "./announcement"
+import { HeaderAction } from "./header-action"
 import { MiniBag } from "./mini-bag"
 import { MegaMenu } from "./mega-menu"
 import { MobileNav, NavLink } from "./mobile-nav"
 import { SearchDialog } from "./search-dialog"
 import { WishlistButton } from "./wishlist-button"
-import { Icon } from "@/components/ui/icon"
 
 export const NEW_IN_HREF = "/store?sort=newest"
 
 export async function Header({ countryCode }: { countryCode: string }) {
-  const [regions, categories, policies] = await Promise.all([
-    listRegions().catch(() => []),
+  const [categories, policies] = await Promise.all([
     listCategories().catch(() => []),
     getStorePolicies(countryCode).catch(() => ({ current: null })),
   ])
@@ -39,13 +40,13 @@ export async function Header({ countryCode }: { countryCode: string }) {
 
   return (
     <>
-      <Announcement countryCode={countryCode} deliveryInfo={deliveryInfo} />
+      <Announcement deliveryInfo={deliveryInfo} />
       <header className="sticky top-0 z-40 bg-surface shadow-[0_1px_8px_rgba(0,0,0,0.04)] border-b border-border/60">
         <div className="w-full px-margin-mobile md:px-margin">
           <div className="h-20 flex items-center justify-between gap-space-lg">
             {/* Left: Mobile Trigger & Brand Wordmark */}
-            <div className="flex items-center gap-space-md shrink-0">
-              <MobileNav links={links} regions={regions} />
+            <div className="flex items-center gap-3 shrink-0">
+              <MobileNav links={links} />
               <LocalizedClientLink
                 href="/"
                 aria-label="EVERWEAR home"
@@ -62,14 +63,13 @@ export async function Header({ countryCode }: { countryCode: string }) {
             </div>
 
             {/* Right: Concierge, Wishlist, Search (mobile), Bag, Profile */}
-            <div className="flex items-center gap-space-md shrink-0">
-              <LocalizedClientLink
-                href="/contact"
-                className="hidden lg:flex flex-col items-center px-2 py-1 text-on-surface-variant hover:text-on-surface transition-colors"
-              >
-                <Icon name="support_agent" size={22} />
-                <span className="font-label-caps text-label-caps uppercase mt-1">Concierge</span>
-              </LocalizedClientLink>
+            <div className="flex items-center gap-3 shrink-0">
+              <HeaderAction
+                href="/concierge"
+                icon={HeadsetIcon}
+                label="Concierge"
+                className="hidden lg:flex"
+              />
 
               <WishlistButton />
 
@@ -79,17 +79,8 @@ export async function Header({ countryCode }: { countryCode: string }) {
 
               <MiniBag />
 
-              <div className="flex items-center gap-2 pl-2">
-                <LocalizedClientLink
-                  href="/account"
-                  aria-label="Account profile"
-                  data-testid="nav-account-link"
-                  className="flex items-center gap-2 group"
-                >
-                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary">
-                    <Icon name="person" size={18} />
-                  </div>
-                </LocalizedClientLink>
+              <div className="pl-2">
+                <AccountMenu />
               </div>
             </div>
           </div>

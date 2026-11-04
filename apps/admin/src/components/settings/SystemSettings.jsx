@@ -4,15 +4,49 @@ import {
   Button,
   Badge,
   Select,
+  Input,
+  Checkbox,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
   PageContainer,
   PageHeader,
   SectionCard,
-  ErrorState,
+  PageBody,
   SkeletonPage,
+  FormGrid,
+  FormInput,
 } from '../ui';
 import { adminApi } from '../../lib/api';
 import { useSettingsQuery, useUpdateSettingsMutation } from '../../hooks/useAdminQueries';
 import { useSession } from '../../lib/session';
+
+const SECTIONS = [
+  { id: 'general', label: 'General', icon: 'hub' },
+  { id: 'tax', label: 'GST & compliance', icon: 'receipt_long' },
+  { id: 'integrations', label: 'Webhooks', icon: 'webhook' },
+  { id: 'security', label: 'Security', icon: 'security' },
+];
+
+const WEBHOOKS = [
+  { name: 'Razorpay instant settlement', url: 'https://api.everwear.in/v2/webhooks/razorpay-settle' },
+  { name: 'HDFC SmartHub payment hook', url: 'https://api.everwear.in/v2/webhooks/hdfc-pg' },
+  { name: 'Bluedart manifest telemetry', url: 'https://api.everwear.in/v2/webhooks/bluedart-track' },
+];
+
+/** One setting: its name and explanation on the left, the control on the right. */
+function SettingRow({ id, title, description, children }) {
+  return (
+    <div className="flex flex-col gap-space-sm p-space-md sm:flex-row sm:items-center sm:justify-between sm:gap-space-lg">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <label htmlFor={id} className="text-label font-medium text-primary">{title}</label>
+        {description && <p className="text-meta text-muted">{description}</p>}
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
 
 export function SystemSettings({ onNavigate, onShowToast }) {
   const [activeSection, setActiveSection] = useState('general');
@@ -89,25 +123,18 @@ export function SystemSettings({ onNavigate, onShowToast }) {
 
   return (
     <PageContainer>
-      {settingsError && (
-        <ErrorState
-          title="Settings could not be loaded"
-          message={settingsError?.message}
-          onRetry={() => refetchSettings()}
-        />
-      )}
       <PageHeader
-        breadcrumb="EVERWEAR ADMIN / SETTINGS & ADMIN / SYSTEM SETTINGS"
-        title="Enterprise System Configuration & Node Governance"
-        description="Store name, low stock threshold and support contact."
+        kicker="Settings & admin"
+        title="Settings"
+        description="Store name, stock threshold and support contact."
         actions={
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-space-sm">
             <Button
               variant="outline"
               size="sm"
               onClick={handleResetDefaults}
             >
-              Reset Defaults
+              Reset defaults
             </Button>
             <Button
               variant="primary"
@@ -121,234 +148,185 @@ export function SystemSettings({ onNavigate, onShowToast }) {
           </div>
         }
       />
+      <PageBody
+        error={settingsError}
+        hasData={settingsData != null}
+        title="Settings could not be loaded"
+        onRetry={refetchSettings}
+      >
 
-      {/* Main Settings Tabs & Work Surface */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
-        {/* Navigation Sidebar (3 Cols) */}
-        <div className="lg:col-span-3 bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-2 space-y-1">
-          {[
-            { id: 'general', label: 'General & Node Routing', icon: 'hub' },
-            { id: 'tax', label: 'GST & Statutory Compliance', icon: 'receipt_long' },
-            { id: 'integrations', label: 'Gateway & API Webhooks', icon: 'webhook' },
-            { id: 'security', label: 'Zero-Trust & Session Rules', icon: 'security' }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveSection(tab.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-label transition-all text-left ${
- activeSection === tab.id
- ? 'bg-primary-container text-on-accent font-semibold shadow-xs'
- : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
+        <Tabs value={activeSection} onValueChange={setActiveSection}>
+          <TabsList aria-label="Settings sections">
+            {SECTIONS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id} className="gap-space-xs">
+                <Icon name={tab.icon} aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                <span>{tab.label}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <TabsContent value="general" className="flex flex-col gap-space-lg">
+            <SectionCard title="Store details" description="Saved to the store settings and used across the admin and storefront.">
+              <FormGrid columns={3}>
+                <FormInput
+                  id="settings-store-name"
+                  label="Store name"
+                  value={storeName}
+                  onChange={(value) => setStoreName(value)}
+                />
+                <FormInput
+                  id="settings-low-stock"
+                  label="Low-stock alert (units)"
+                  type="number"
+                  min="0"
+                  max="1000"
+                  value={lowStockThreshold}
+                  onChange={(value) => setLowStockThreshold(Number(value))}
+                />
+                <FormInput
+                  id="settings-support-email"
+                  label="Support email"
+                  type="email"
+                  value={supportEmail}
+                  onChange={(value) => setSupportEmail(value)}
+                />
+              </FormGrid>
+            </SectionCard>
+
+            <SectionCard
+              title="Fulfilment routing"
+              description="Split-shipment prevention and nearest-warehouse allocation."
+              contentClassName="p-0"
             >
-              <Icon name={tab.icon} className="material-symbols-outlined text-icon-md" />
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Settings Body (9 Cols) */}
-        <div className="lg:col-span-9 space-y-space-md">
-          {activeSection === 'general' && (
-            <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-6 space-y-6">
-              {/* Store Identity & Core Configuration */}
-              <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold text-primary">Everwear Storefront Identity & Policies</h3>
-                    <p className="text-meta text-muted mt-0.5">Global store metadata synchronized with backend database.</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">MONGODB LIVE</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-meta font-semibold text-muted mb-1">Store Name</label>
-                    <input
-                      type="text"
-                      value={storeName}
-                      onChange={(e) => setStoreName(e.target.value)}
-                      className="w-full h-9 px-3 bg-surface-container-lowest border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-meta font-semibold text-muted mb-1">Global Low-Stock Alert (Units)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="1000"
-                      value={lowStockThreshold}
-                      onChange={(e) => setLowStockThreshold(Number(e.target.value))}
-                      className="w-full h-9 px-3 bg-surface-container-lowest border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-meta font-semibold text-muted mb-1">Concierge Support Email</label>
-                    <input
-                      type="email"
-                      value={supportEmail}
-                      onChange={(e) => setSupportEmail(e.target.value)}
-                      className="w-full h-9 px-3 bg-surface-container-lowest border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-primary">Fulfillment Routing & Allocation</h3>
-                <p className="text-meta text-muted mt-1">Configure intelligent split-shipment prevention and nearest warehouse allocation logic.</p>
-              </div>
-
-              <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between p-4 bg-surface-canvas rounded-xl border border-subtle">
-                  <div>
-                    <div className="font-semibold text-body text-primary">Automated Proximity Dispatch</div>
-                    <div className="text-meta text-muted mt-0.5">Route courier orders automatically to the FC node with lowest ground transit SLA.</div>
-                  </div>
-                  <input
-                    type="checkbox"
+              <div className="divide-y divide-subtle">
+                <SettingRow
+                  id="settings-proximity-dispatch"
+                  title="Automated proximity dispatch"
+                  description="Route courier orders to the fulfilment centre with the shortest ground transit time."
+                >
+                  <Checkbox
+                    id="settings-proximity-dispatch"
                     checked={autoReconcile}
                     onChange={(e) => setAutoReconcile(e.target.checked)}
-                    className="w-5 h-5 accent-primary-container cursor-pointer"
+                    className="h-5 w-5"
                   />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-surface-canvas rounded-xl border border-subtle">
-                  <div>
-                    <div className="font-semibold text-body text-primary">Strict Gross Margin Guardrail</div>
-                    <div className="text-meta text-muted mt-0.5">Block checkout if promotional discounts push line item contribution margin below 45%.</div>
-                  </div>
-                  <input
-                    type="checkbox"
+                </SettingRow>
+                <SettingRow
+                  id="settings-margin-guardrail"
+                  title="Gross margin guardrail"
+                  description="Block checkout if promotional discounts push a line item's contribution margin below 45%."
+                >
+                  <Checkbox
+                    id="settings-margin-guardrail"
                     checked={marginShield}
                     onChange={(e) => setMarginShield(e.target.checked)}
-                    className="w-5 h-5 accent-primary-container cursor-pointer"
+                    className="h-5 w-5"
                   />
-                </div>
-
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-3">
-                  <div className="font-semibold text-body text-primary">Telemetry Sync Rate</div>
-                  <div className="flex items-center gap-3">
-                    <Select
-                      value={cloudSyncInterval}
-                      onChange={(e) => setCloudSyncInterval(e.target.value)}
-                      className="h-9 px-3 bg-surface-container-lowest border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none min-w-[260px]"
-                    >
-                      <option value="5">Every 5 Seconds (High Realtime)</option>
-                      <option value="15">Every 15 Seconds (Balanced)</option>
-                      <option value="60">Every 60 Seconds (Low Bandwidth)</option>
-                    </Select>
-                    <span className="text-meta text-muted font-mono">Current Cluster Ping: 18ms (BLR-FC1)</span>
-                  </div>
-                </div>
+                </SettingRow>
+                <SettingRow title="Telemetry sync rate" description="How often warehouse telemetry is pulled.">
+                  <Select
+                    value={cloudSyncInterval}
+                    onChange={(e) => setCloudSyncInterval(e.target.value)}
+                    aria-label="Telemetry sync rate"
+                    wrapperClassName="w-full sm:w-64"
+                  >
+                    <option value="5">Every 5 seconds (high realtime)</option>
+                    <option value="15">Every 15 seconds (balanced)</option>
+                    <option value="60">Every 60 seconds (low bandwidth)</option>
+                  </Select>
+                </SettingRow>
               </div>
-            </div>
-          )}
+            </SectionCard>
+          </TabsContent>
 
-          {activeSection === 'tax' && (
-            <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-6 space-y-6">
-              <div>
-                <h3 className="font-semibold text-primary">GSTIN & Statutory Tax Configurations</h3>
-                <p className="text-meta text-muted mt-1">ClearTax and NIC E-Invoicing Gateway credentials and automated GSTR sync.</p>
-              </div>
-
-              <div className="space-y-4 pt-2">
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-meta text-primary">Primary Registered GSTIN</span>
-                    <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-micro font-semibold">NOT RECORDED</span>
+          <TabsContent value="tax">
+            <SectionCard
+              title="GSTIN and statutory tax"
+              description="E-invoicing credentials and GSTR filing rules."
+              contentClassName="p-0"
+            >
+              <div className="divide-y divide-subtle">
+                {/* Settings hold a store name, a low-stock threshold and a
+                    support email; there is no GSTIN field to read. The box
+                    used to show a made-up number marked VERIFIED. */}
+                <div className="flex flex-col gap-space-sm p-space-md">
+                  <div className="flex items-center justify-between gap-space-sm">
+                    <span className="text-label font-medium text-primary">Primary registered GSTIN</span>
+                    <Badge variant="secondary">Not recorded</Badge>
                   </div>
-                  {/* Settings hold a store name, a low-stock threshold and a
-                      support email; there is no GSTIN field to read. The box
-                      used to show a made-up number marked VERIFIED. */}
-                  <input
+                  <Input
                     readOnly
+                    aria-label="Primary registered GSTIN"
                     value="No GSTIN is stored against this store"
-                    className="w-full h-9 px-3 bg-surface-container-lowest border border-subtle rounded-lg text-meta font-mono text-muted whitespace-nowrap"
+                    className="text-muted"
                   />
                 </div>
-
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-meta text-primary">Credit Note Auto-Lock Window</span>
-                    <span className="text-meta text-muted">Mandatory under Rule 54(1)</span>
-                  </div>
-                  <p className="text-meta text-muted">All credit notes issued within the calendar month are automatically locked on the 10th of following month prior to GSTR-1 filing.</p>
-                </div>
+                <SettingRow
+                  title="Credit note auto-lock window"
+                  description="Credit notes issued in a calendar month lock on the 10th of the following month, before GSTR-1 filing."
+                >
+                  <span className="text-meta text-muted">Mandatory under Rule 54(1)</span>
+                </SettingRow>
               </div>
-            </div>
-          )}
+            </SectionCard>
+          </TabsContent>
 
-          {activeSection === 'integrations' && (
-            <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-6 space-y-6">
-              <div>
-                <h3 className="font-semibold text-primary">Active Gateway Webhooks</h3>
-                <p className="text-meta text-muted mt-1">Real-time payment gateway notification endpoints and health status.</p>
-              </div>
-
-              <div className="space-y-3 pt-2">
-                {[
-                  { name: 'Razorpay Instant Settlement', url: 'https://api.everwear.in/v2/webhooks/razorpay-settle', status: 'Healthy 200 OK', lat: '14ms' },
-                  { name: 'HDFC SmartHub Payment Hook', url: 'https://api.everwear.in/v2/webhooks/hdfc-pg', status: 'Healthy 200 OK', lat: '22ms' },
-                  { name: 'Bluedart Manifest Telemetry', url: 'https://api.everwear.in/v2/webhooks/bluedart-track', status: 'Healthy 200 OK', lat: '38ms' }
-                ].map((hook, idx) => (
-                  <div key={idx} className="p-4 bg-surface-canvas rounded-xl border border-subtle flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-meta text-primary">{hook.name}</div>
-                      <div className="font-mono text-micro text-muted mt-0.5 whitespace-nowrap">{hook.url}</div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-micro font-semibold text-success">{hook.status}</span>
-                      <div className="text-micro text-muted font-mono whitespace-nowrap">{hook.lat}</div>
-                    </div>
-                  </div>
+          <TabsContent value="integrations">
+            {/* Each endpoint used to carry a "Healthy 200 OK" tag and a
+                latency (14ms, 22ms, 38ms). Nothing measures either, so only
+                the configured endpoints are listed. */}
+            <SectionCard
+              title="Gateway webhooks"
+              description="Endpoints that payment and courier providers notify."
+              contentClassName="p-0"
+            >
+              <ul className="divide-y divide-subtle">
+                {WEBHOOKS.map((hook) => (
+                  <li key={hook.url} className="flex min-w-0 flex-col gap-0.5 p-space-md">
+                    <span className="text-label font-medium text-primary">{hook.name}</span>
+                    <span className="truncate font-mono text-meta text-muted" title={hook.url}>{hook.url}</span>
+                  </li>
                 ))}
-              </div>
-            </div>
-          )}
+              </ul>
+            </SectionCard>
+          </TabsContent>
 
-          {activeSection === 'security' && (
-            <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-6 space-y-6">
-              <div>
-                <h3 className="font-semibold text-primary">Zero-Trust & Session Hardening</h3>
-                <p className="text-meta text-muted mt-1">Enforce dual-sign off and RF scanner idle timeouts across warehouses.</p>
-              </div>
-
-              <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between p-4 bg-surface-canvas rounded-xl border border-subtle">
-                  <div>
-                    <div className="font-semibold text-body text-primary">Enforce IP Subnet Lockdown</div>
-                    <div className="text-meta text-muted mt-0.5">Restrict warehouse RF scans to localized FC Wi-Fi subnets only.</div>
-                  </div>
-                  <input
-                    type="checkbox"
+          <TabsContent value="security">
+            <SectionCard
+              title="Session security"
+              description="Network restrictions and audit logging for warehouse devices."
+              contentClassName="p-0"
+            >
+              <div className="divide-y divide-subtle">
+                <SettingRow
+                  id="settings-ip-lockdown"
+                  title="IP subnet lockdown"
+                  description="Restrict warehouse RF scans to the fulfilment centre's own Wi-Fi subnets."
+                >
+                  <Checkbox
+                    id="settings-ip-lockdown"
                     checked={ipWhitelisting}
                     onChange={(e) => setIpWhitelisting(e.target.checked)}
-                    className="w-5 h-5 accent-primary-container cursor-pointer"
+                    className="h-5 w-5"
                   />
-                </div>
-
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold text-body text-primary">Audit Log Verbosity</div>
-                    <div className="text-meta text-muted mt-0.5">Detailed forensic traces stored on immutable ledger for 7 years.</div>
-                  </div>
+                </SettingRow>
+                <SettingRow title="Audit log verbosity" description="Detail kept for each recorded action.">
                   <Select
                     value={activeLogLevel}
                     onChange={(e) => setActiveLogLevel(e.target.value)}
-                    className="h-8 px-3 bg-surface-container-lowest border border-subtle rounded-lg text-meta font-semibold min-w-[220px]"
+                    aria-label="Audit log verbosity"
+                    wrapperClassName="w-full sm:w-64"
                   >
-                    <option value="INFO">INFO (Standard)</option>
-                    <option value="DEBUG">DEBUG (Verbose)</option>
-                    <option value="FORENSIC">FORENSIC (Cryptographic SHA256)</option>
+                    <option value="INFO">Info (standard)</option>
+                    <option value="DEBUG">Debug (verbose)</option>
+                    <option value="FORENSIC">Forensic (SHA-256 signed)</option>
                   </Select>
-                </div>
+                </SettingRow>
               </div>
-            </div>
-          )}
-
-        </div>
-      </div>
+            </SectionCard>
+          </TabsContent>
+        </Tabs>
+      </PageBody>
     </PageContainer>
   );
 }

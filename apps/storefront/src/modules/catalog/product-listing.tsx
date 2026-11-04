@@ -114,8 +114,8 @@ export async function ProductListing({
   return (
     <Container className="grid gap-8 py-8 lg:grid-cols-[18rem_1fr] lg:gap-8" data-testid="category-container">
       {/* Desktop Filter Sidebar */}
-      <div className="hidden lg:block w-72 shrink-0" aria-label="Filters">
-        <div className="sticky top-28">
+      <div className="hidden lg:block w-72 shrink-0 border-r border-border/70" aria-label="Filters">
+        <div>
           <CatalogFilterSidebar
             path={path}
             listing={listing}

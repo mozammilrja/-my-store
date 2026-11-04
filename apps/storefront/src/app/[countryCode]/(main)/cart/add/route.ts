@@ -1,3 +1,4 @@
+import { ensureOk } from "@lib/util/cart-action"
 import { getProduct } from "@lib/data/catalog"
 import { addToCart } from "@lib/data/shop"
 import { getRequestOrigin } from "@lib/util/site"
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!variantId) return NextResponse.redirect(`${origin}/${countryCode}/cart?error=add_failed`, 303)
 
   try {
-    await addToCart({ variantId, quantity, countryCode })
+    ensureOk(await addToCart({ variantId, quantity, countryCode }))
   } catch {
     return NextResponse.redirect(`${origin}/${countryCode}/cart?error=add_failed`, 303)
   }

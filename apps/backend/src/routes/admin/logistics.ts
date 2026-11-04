@@ -6,7 +6,6 @@ import { newId } from "../../lib/ids.js"
 import { createDelhiveryShipment, trackDelhiveryShipment } from "../../lib/logistics/delhivery.js"
 import { createBlueDartShipment, trackBlueDartShipment } from "../../lib/logistics/bluedart.js"
 import { createRazorpayRefund } from "../../lib/payments/razorpay.js"
-import { createStripeRefund } from "../../lib/payments/stripe.js"
 import { assetUrl } from "../../lib/serialize.js"
 import { getSettings } from "./settings.js"
 
@@ -205,12 +204,6 @@ adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
           amount: requestedAmount,
         })
         gatewayRefundId = rzpRefund.id
-      } else if (order.paymentDetails?.paymentIntentId) {
-        const stripeRefund = await createStripeRefund({
-          paymentIntentId: order.paymentDetails.paymentIntentId,
-          amount: requestedAmount,
-        })
-        gatewayRefundId = stripeRefund.id
       }
     } catch (err: any) {
       console.warn("Gateway refund warning (proceeding with store ledger refund):", err?.message)

@@ -95,17 +95,14 @@ export function Sidebar({
                 <BrandMark
                   src="/brand/aveliq-wordmark-mark.svg"
                   label="AVELIQ"
-                  className="h-4 w-[92px]"
-                  style={{ WebkitMaskPosition: 'left center', maskPosition: 'left center' }}
+                  align="left"
+                  className="h-4 w-24"
                 />
               )}
             </button>
 
             {!isCollapsed && (
               <div className="flex shrink-0 items-center gap-1.5">
-                <span className="rounded-full border border-status-info/20 bg-status-info-bg px-2 py-0.5 text-micro font-semibold tracking-wider text-info">
-                  PROD-IN-01
-                </span>
                 <button
                   onClick={onCloseMobile}
                   className="rounded-lg p-1 text-muted hover:bg-surface-subtle hover:text-primary lg:hidden"
@@ -145,7 +142,7 @@ export function Sidebar({
                           'group flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-body transition-colors',
                           isCollapsed && 'justify-center px-0',
                           isActive
-                            ? 'bg-primary-container font-medium text-on-accent'
+                            ? 'bg-primary-fixed font-semibold text-on-primary-fixed'
                             : 'text-muted hover:bg-surface-subtle hover:text-primary'
                         )}
                         title={item.label}
@@ -154,7 +151,7 @@ export function Sidebar({
                           name={item.icon}
                           className={cn(
                             'material-symbols-outlined shrink-0 text-icon-md transition-colors',
-                            isActive ? 'text-on-accent' : 'text-faint group-hover:text-primary'
+                            isActive ? 'text-accent' : 'text-faint group-hover:text-primary'
                           )}
                         />
                         {!isCollapsed && (
@@ -164,9 +161,7 @@ export function Sidebar({
                               <span
                                 className={cn(
                                   'shrink-0 rounded-full border px-1.5 py-px text-micro tabular-nums',
-                                  isActive
-                                    ? 'border-on-accent/25 bg-scrim/25 text-on-accent'
-                                    : BADGE_TONES[item.badgeTone] || BADGE_TONES.info
+                                  BADGE_TONES[item.badgeTone] || BADGE_TONES.info
                                 )}
                               >
                                 {badge}

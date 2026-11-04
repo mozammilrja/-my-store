@@ -45,6 +45,38 @@ export const addressSchema = z.object({
     .or(z.literal("")),
 })
 
+/**
+ * An address saved to the account's address book. Stricter than checkout's
+ * `addressSchema`: couriers need a phone number, and Indian PIN codes are six
+ * digits. Used by the form in the browser and again by the server action.
+ */
+export const savedAddressSchema = addressSchema
+  .extend({
+    phone: z
+      .string()
+      .trim()
+      .min(1, "Phone number is required")
+      .regex(/^\+?[\d\s()-]{8,20}$/, "Enter a valid phone number, e.g. +91 98765 43210")
+      .refine((v) => v.replace(/\D/g, "").length >= 10, "Phone number needs at least 10 digits"),
+  })
+  .superRefine((a, ctx) => {
+    if (a.countryCode.toLowerCase() === "in" && !/^\d{6}$/.test(a.postalCode)) {
+      ctx.addIssue({ code: "custom", path: ["postalCode"], message: "Enter a 6-digit PIN code" })
+    }
+  })
+
+/** Field name → first error message, for showing errors under each input. */
+export type FieldErrors = Partial<Record<string, string>>
+
+export const fieldErrorsFrom = (error: z.ZodError): FieldErrors => {
+  const out: FieldErrors = {}
+  for (const issue of error.issues) {
+    const key = String(issue.path[0] ?? "")
+    if (key && !out[key]) out[key] = issue.message
+  }
+  return out
+}
+
 export const checkoutAddressStepSchema = z.object({
   email: z
     .string()

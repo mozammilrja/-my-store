@@ -16,7 +16,7 @@ test("exporting customers writes the rows on screen", async ({ page, context, re
   await expect(page.locator("main h1")).toBeVisible()
 
   const download = page.waitForEvent("download")
-  await page.getByRole("button", { name: /export ledger/i }).click()
+  await page.getByRole("button", { name: /export csv/i }).click()
   const file = await download
 
   expect(file.suggestedFilename()).toMatch(/^everwear-customers-\d{4}-\d{2}-\d{2}\.csv$/)
@@ -77,7 +77,7 @@ test("a customer's order history opens the orders list filtered to them", async 
   await page.getByRole("button", { name: /view all/i }).first().click()
 
   await expect(page).toHaveURL(/\/order-management\?q=/)
-  await expect(page.locator("main h1")).toHaveText(/order management/i)
+  await expect(page.locator("main h1")).toHaveText(/^orders$/i)
 })
 
 test("no control claims an integration the store does not have", async ({

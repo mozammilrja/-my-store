@@ -130,6 +130,8 @@ export type CartItem = {
   quantity: number
   unitPrice: number
   total: number
+  /** Units this line could have right now; null when unknown (e.g. a completed cart). */
+  available?: number | null
 }
 
 export type Cart = {
@@ -164,13 +166,45 @@ export type Order = {
   shippingOption: ShippingOption
   promoCodes: string[]
   totals: Totals
-  paymentMethod: "cod" | "razorpay" | "stripe"
+  paymentMethod: "cod" | "razorpay"
   paymentStatus: "awaiting" | "paid" | "refunded"
   fulfillmentStatus: "unfulfilled" | "shipped" | "delivered" | "returned"
   shipment?: { carrier: string; awb: string; status: string; labelUrl?: string; pickupScheduledAt?: string; estimatedDelivery?: string }
   returnRequest?: { status: string; returnAwb?: string; carrier?: string }
   status: "pending" | "completed" | "canceled"
   createdAt: string
+}
+
+/** The GST tax invoice raised for an order (amounts in minor units). */
+export type Invoice = {
+  id: string
+  invoiceNumber: string
+  orderId: string
+  displayId: number
+  customerName: string
+  customerGstin?: string
+  shippingAddress: Address
+  billingAddress: Address
+  items: {
+    name: string
+    sku: string
+    hsn: string
+    quantity: number
+    unitPrice: number
+    taxableValue: number
+    gstRate: number
+    cgst: number
+    sgst: number
+    igst: number
+  }[]
+  subtotal: number
+  cgstTotal: number
+  sgstTotal: number
+  igstTotal: number
+  grandTotal: number
+  currency: string
+  status: "issued" | "paid" | "canceled"
+  issuedAt: string
 }
 
 export type OrderSummary = {

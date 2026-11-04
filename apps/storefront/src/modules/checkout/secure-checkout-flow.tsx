@@ -7,7 +7,11 @@ import Image from "next/image"
 import { toast } from "sonner"
 import type { Cart, Customer, Address } from "@lib/api/types"
 import { formatMoney } from "@lib/money"
-import { saveAddresses, setShippingOption, placeOrder } from "@lib/data/shop"
+import {
+  setCheckoutAddress,
+  setShippingOption,
+  placeOrder,
+} from "@lib/data/shop"
 import {
   checkoutAddressStepSchema,
   upiVerificationSchema,
@@ -31,32 +35,40 @@ export function SecureCheckoutFlow({
   customer,
   countries,
 }: SecureCheckoutFlowProps) {
-  const router = useRouter()
   const params = useParams<{ countryCode: string }>()
   const searchParams = useSearchParams()
   const countryCode = params.countryCode || "in"
-  const isIndia = countryCode.toLowerCase() === "in"
 
   const requestedStep = searchParams.get("step") || "address"
+  const router = useRouter()
 
-  // Determine active step index: 1 = Address, 2 = Delivery, 3 = Payment/Review
   const hasAddress = Boolean(cart.email && cart.shippingAddress)
-  const hasDelivery = Boolean(hasAddress && cart.shippingOptionId)
 
-  const activeStepNum =
-    requestedStep === "delivery"
-      ? 2
-      : requestedStep === "review"
-      ? 3
-      : !hasAddress
-      ? 1
-      : !hasDelivery
-      ? 2
-      : 3
+  /**
+   * Sequence rules:
+   * 1. Address step (Stage 01)
+   * 2. Delivery step (Stage 02)
+   * 3. Payment step (Stage 03)
+   */
+  const hasDelivery = Boolean(hasAddress && cart.shippingOptionId)
+  const stage: "address" | "delivery" | "payment" =
+    requestedStep === "payment" && hasDelivery
+      ? "payment"
+      : (requestedStep === "delivery" || requestedStep === "payment") &&
+        hasAddress
+      ? "delivery"
+      : "address"
 
   // Active payment tab
-  const [activeTab, setActiveTab] = useState<"upi" | "card" | "netbanking" | "cod">(
-    isIndia ? "upi" : "cod"
+  const requestedMethod = searchParams.get("method")
+  const [activeTab, setActiveTab] = useState<
+    "upi" | "card" | "netbanking" | "cod" | "emi"
+  >(
+    requestedMethod === "upi" ||
+      requestedMethod === "card" ||
+      requestedMethod === "netbanking"
+      ? requestedMethod
+      : "cod"
   )
 
   // Address selection state
@@ -65,6 +77,9 @@ export function SecureCheckoutFlow({
   const [showNewAddressForm, setShowNewAddressForm] = useState<boolean>(
     savedAddresses.length === 0
   )
+  const [showGstin, setShowGstin] = useState<boolean>(false)
+  const [gstinNumber, setGstinNumber] = useState<string>("")
+  const [gstinEntityName, setGstinEntityName] = useState<string>("")
 
   // Address Form State
   const initialAddress = cart.shippingAddress || savedAddresses[0] || {}
@@ -92,11 +107,10 @@ export function SecureCheckoutFlow({
   // UPI state
   const [selectedUpiApp, setSelectedUpiApp] = useState("gpay")
   const [upiIdInput, setUpiIdInput] = useState("")
-  const [upiVerified, setUpiVerified] = useState(false)
   const [upiError, setUpiError] = useState<string | null>(null)
+  const [showDynamicQr, setShowDynamicQr] = useState<boolean>(false)
 
   // Card state
-  const [useNewCard, setUseNewCard] = useState(false)
   const [cardData, setCardData] = useState({
     cardNumber: "",
     expiry: "",
@@ -112,33 +126,15 @@ export function SecureCheckoutFlow({
   const [isSubmitting, startTransition] = useTransition()
   const [generalError, setGeneralError] = useState<string | null>(null)
 
-  // Handle Verify UPI with Zod
-  const handleVerifyUpi = () => {
-    setUpiError(null)
-    const result = upiVerificationSchema.safeParse({ vpa: upiIdInput })
-    if (!result.success) {
-      setUpiError(result.error.issues[0]?.message || "Invalid UPI ID")
-      setUpiVerified(false)
-      toast.error("Please enter a valid UPI address")
-      return
-    }
-    setUpiVerified(true)
-    toast.success(`Verified UPI ID: ${result.data.vpa}`)
-  }
-
-  // Handle Address Submit (Step 1)
-  const handleAddressSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
+  const buildAddressForm = (): FormData | null => {
     setAddressErrors({})
-    setGeneralError(null)
 
     let targetAddr: Partial<Address>
     let targetEmail: string
 
     if (!showNewAddressForm && savedAddresses.length > 0) {
-      const chosen = savedAddresses[selectedAddressIndex] || savedAddresses[0]
-      targetAddr = chosen
-      targetEmail = cart.email || customer?.email || "customer@everwear.style"
+      targetAddr = savedAddresses[selectedAddressIndex] || savedAddresses[0]!
+      targetEmail = cart.email || customer?.email || addressData.email
     } else {
       targetAddr = {
         firstName: addressData.firstName,
@@ -154,15 +150,13 @@ export function SecureCheckoutFlow({
       targetEmail = addressData.email
     }
 
-    const payload = {
+    const validation = checkoutAddressStepSchema.safeParse({
       email: targetEmail,
       shipping: targetAddr,
       sameAsShipping: addressData.sameAsShipping,
       billing: addressData.sameAsShipping ? undefined : targetAddr,
-    }
+    })
 
-    // Validate with Zod
-    const validation = checkoutAddressStepSchema.safeParse(payload)
     if (!validation.success) {
       const errMap: Record<string, string> = {}
       validation.error.issues.forEach((issue) => {
@@ -170,11 +164,16 @@ export function SecureCheckoutFlow({
         if (!errMap[path]) errMap[path] = issue.message
       })
       setAddressErrors(errMap)
-      toast.error("Please complete all required delivery address fields.")
-      return false
+      if (!showNewAddressForm && savedAddresses.length > 0) {
+        setShowNewAddressForm(true)
+      }
+      toast.error("Please complete the delivery address.")
+      document
+        .getElementById("checkout-address")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" })
+      return null
     }
 
-    // Submit via FormData to saveAddresses
     const formData = new FormData()
     formData.append("email", targetEmail)
     formData.append("shipping.firstName", targetAddr.firstName || "")
@@ -184,63 +183,55 @@ export function SecureCheckoutFlow({
     formData.append("shipping.city", targetAddr.city || "")
     if (targetAddr.province) formData.append("shipping.province", targetAddr.province)
     formData.append("shipping.postalCode", targetAddr.postalCode || "")
-    formData.append("shipping.countryCode", (targetAddr.countryCode || countryCode).toLowerCase())
+    formData.append(
+      "shipping.countryCode",
+      (targetAddr.countryCode || countryCode).toLowerCase()
+    )
     if (targetAddr.phone) formData.append("shipping.phone", targetAddr.phone)
     if (addressData.sameAsShipping) formData.append("sameAsShipping", "on")
-
-    let result
-    await new Promise<void>((resolve) => {
-      startTransition(async () => {
-        try {
-          result = await saveAddresses({ error: null }, formData)
-          if (result?.error) {
-            setGeneralError(result.error)
-            toast.error(result.error)
-          } else {
-            router.push(`/${countryCode}/checkout?step=delivery`)
-          }
-        } catch (err: unknown) {
-          // In Next.js redirect throws a NEXT_REDIRECT error which is caught here
-          const message = err instanceof Error ? err.message : String(err)
-          if (!message.includes("NEXT_REDIRECT")) {
-            setGeneralError(message)
-            toast.error(message)
-          }
-        }
-        resolve()
-      })
-    })
-
-    return true
+    return formData
   }
 
-  // Handle Delivery Submit
-  const handleDeliverySubmit = async () => {
+  const handleContinue = () => {
     setGeneralError(null)
-    if (selectedDeliveryId && selectedDeliveryId !== cart.shippingOptionId) {
-      const shippingResult = await setShippingOption(selectedDeliveryId)
-      if (shippingResult?.error) {
-        setGeneralError(shippingResult.error)
-        toast.error(shippingResult.error)
-        return
-      }
+    const fail = (message: string) => {
+      setGeneralError(message)
+      toast.error(message)
     }
-    router.push(`/${countryCode}/checkout?step=review`)
+    const goTo = (step: "delivery" | "payment") => {
+      router.push(`/${countryCode}/checkout?step=${step}`)
+      router.refresh()
+      window.scrollTo({ top: 0 })
+    }
+
+    if (stage === "address") {
+      const addressForm = buildAddressForm()
+      if (!addressForm) return
+      startTransition(async () => {
+        const saved = await setCheckoutAddress(addressForm)
+        if (saved.error) return fail(saved.error)
+        goTo("delivery")
+      })
+      return
+    }
+
+    // DELIVERY step
+    if (!selectedDeliveryId) return fail("Please choose a delivery method.")
+    startTransition(async () => {
+      const shipping = await setShippingOption(selectedDeliveryId)
+      if (shipping.error) return fail(shipping.error)
+      goTo("payment")
+    })
   }
 
-  // Handle Place Order Submit (Step 3 / Unified CTA)
   const handlePlaceOrderSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
     setGeneralError(null)
 
-    // Ensure address is saved if not yet
-    if (!cart.shippingAddress && activeStepNum === 1) {
-      const ok = await handleAddressSubmit()
-      if (!ok) return
-    }
+    const addressForm = stage === "payment" ? null : buildAddressForm()
+    if (stage !== "payment" && !addressForm) return
 
-    // If new card is being used, validate with Zod
-    if (activeTab === "card" && useNewCard) {
+    if (activeTab === "card" && cardData.cardNumber.trim()) {
       const cardResult = cardValidationSchema.safeParse(cardData)
       if (!cardResult.success) {
         const errMap: Record<string, string> = {}
@@ -254,39 +245,54 @@ export function SecureCheckoutFlow({
       }
     }
 
-    // Determine backend payment method: COD or razorpay/stripe
-    const paymentMethodValue =
-      activeTab === "cod" ? "cod" : isIndia ? "razorpay" : "stripe"
+    setUpiError(null)
+    if (activeTab === "upi" && upiIdInput.trim()) {
+      const upi = upiVerificationSchema.safeParse({ vpa: upiIdInput })
+      if (!upi.success) {
+        setUpiError(
+          upi.error.issues[0]?.message ||
+            "Enter a valid UPI ID, e.g. name@okaxis"
+        )
+        toast.error("Please check your UPI ID.")
+        return
+      }
+    }
 
-    const formData = new FormData()
-    formData.append("countryCode", countryCode)
-    formData.append("paymentMethod", paymentMethodValue)
+    const orderForm = new FormData()
+    orderForm.append("countryCode", countryCode)
+    orderForm.append("paymentMethod", activeTab === "cod" ? "cod" : "razorpay")
+
+    const fail = (message: string) => {
+      setGeneralError(message)
+      toast.error(message)
+    }
 
     startTransition(async () => {
       try {
-        // The delivery choice lives in component state until now: this screen
-        // merges delivery and payment into one step, so persist it before the
-        // order is placed, or the cart ships on whatever option it already had.
-        if (selectedDeliveryId && selectedDeliveryId !== cart.shippingOptionId) {
-          const shippingResult = await setShippingOption(selectedDeliveryId)
-          if (shippingResult.error) {
-            setGeneralError(shippingResult.error)
-            toast.error(shippingResult.error)
-            return
+        if (addressForm) {
+          const saved = await setCheckoutAddress(addressForm)
+          if (saved.error) return fail(saved.error)
+          if (selectedDeliveryId) {
+            const shipping = await setShippingOption(selectedDeliveryId)
+            if (shipping.error) return fail(shipping.error)
           }
         }
 
-        const result = await placeOrder({ error: null }, formData)
+        const result = await placeOrder({ error: null }, orderForm)
         if (result?.error) {
-          setGeneralError(result.error)
-          toast.error(result.error)
+          if (activeTab !== "cod") {
+            router.push(
+              `/${countryCode}/checkout/payment-failed?method=${activeTab}&reason=${encodeURIComponent(
+                result.error
+              )}`
+            )
+            return
+          }
+          fail(result.error)
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err)
-        if (!message.includes("NEXT_REDIRECT")) {
-          setGeneralError(message)
-          toast.error(message)
-        }
+        if (!message.includes("NEXT_REDIRECT")) fail(message)
       }
     })
   }
@@ -298,991 +304,1277 @@ export function SecureCheckoutFlow({
     options.find((o) => o.id === selectedDeliveryId) || options[0]
   const deliveryFee = selectedOption?.amount ?? cart.totals.shippingTotal
 
+  const currency = cart.currency
+  const money = (n: number) => formatMoney(n, currency)
+  const isFreeDelivery = deliveryFee === 0
+  const ship = cart.shippingAddress
+  const stepIndex = stage === "address" ? 0 : stage === "delivery" ? 1 : 2
+
+  const PAY_MODES = [
+    {
+      id: "upi" as const,
+      label: "Instant UPI",
+      hint: "GPay, PhonePe, QR",
+      icon: "qr_code_2",
+      badge: "Fast",
+    },
+    {
+      id: "card" as const,
+      label: "Cards",
+      hint: "Visa, MC, RuPay, Amex",
+      icon: "credit_card",
+    },
+    {
+      id: "netbanking" as const,
+      label: "Net Banking",
+      hint: "All Indian Banks",
+      icon: "account_balance",
+    },
+    {
+      id: "cod" as const,
+      label: "Pay on Delivery",
+      hint: "Cash or UPI at doorstep",
+      icon: "payments",
+    },
+    {
+      id: "emi" as const,
+      label: "EMI & PayLater",
+      hint: "Simpl, Cardless EMI",
+      icon: "calendar_month",
+    },
+  ]
+
+  const destination = (withMethod: boolean) => (
+    <div
+      className="bg-surface-container-lowest p-5 md:p-6 rounded-lg shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-surface-container-high/50"
+      data-testid="deliver-to-summary"
+    >
+      <div className="flex items-start gap-3.5">
+        <div className="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface flex-shrink-0 mt-0.5">
+          <span aria-hidden className="material-symbols-outlined text-[20px]">
+            {withMethod ? "local_shipping" : "location_on"}
+          </span>
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-label-caps text-label-caps uppercase text-outline">
+              Delivery Address
+            </span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-container-high font-label-caps text-label-caps text-on-surface">
+              Default
+            </span>
+          </div>
+          <h3 className="font-body-md text-body-md font-medium text-on-surface mt-0.5">
+            {ship?.firstName} {ship?.lastName}
+            {ship?.phone ? (
+              <span className="text-outline font-normal"> | {ship.phone}</span>
+            ) : null}
+          </h3>
+          <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5 line-clamp-1">
+            {[ship?.address1, ship?.address2, ship?.city, ship?.province]
+              .filter(Boolean)
+              .join(", ")}
+            {ship?.postalCode ? ` — ${ship.postalCode}` : ""}
+          </p>
+          {withMethod && selectedOption && (
+            <p className="mt-1.5 flex flex-wrap items-center gap-x-3 text-[13px] text-on-surface">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-emerald-600" aria-hidden />
+                {selectedOption.name}
+              </span>
+              <span className={isFreeDelivery ? "font-semibold text-emerald-700" : "font-medium"}>
+                {isFreeDelivery ? "FREE" : money(deliveryFee)}
+              </span>
+            </p>
+          )}
+        </div>
+      </div>
+      <a
+        href={`/${countryCode}/checkout?step=address`}
+        className="self-start sm:self-center px-3.5 py-1.5 rounded bg-surface-container-low hover:bg-surface-container text-on-surface font-label-sm text-label-sm tracking-wide uppercase transition-colors whitespace-nowrap"
+      >
+        Change
+      </a>
+    </div>
+  )
+
   return (
-    <div className="w-full bg-surface min-h-[calc(100vh-16rem)]">
-      <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin py-space-xl w-full">
-        {/* Top Progress Bar - Exact Stitch lines 9-37 */}
-        <div className="mb-space-xl">
-          <div className="flex items-center justify-between bg-surface-container-lowest shadow-[0_1px_4px_rgba(0,0,0,0.02)] rounded-xl px-space-lg py-space-md overflow-x-auto border border-surface-container-high/60 gap-4">
-            <div className="flex items-center gap-space-md min-w-max">
-              {/* Step 1: Shipping Address */}
+    <div className="min-h-screen w-full bg-background font-body-md text-on-surface antialiased">
+      {/* Promotional Micro-ticker from Stitch design */}
+      <section className="w-full bg-surface-container-high py-space-xs px-margin text-center">
+        <div className="max-w-[1440px] mx-auto flex items-center justify-center gap-space-sm text-on-surface-variant">
+          <span aria-hidden className="material-symbols-outlined text-[15px] text-secondary">
+            local_shipping
+          </span>
+          <p className="font-label-caps text-label-caps uppercase tracking-wider">
+            Mid-Season Spring Edit • Complimentary express dispatch • 14-day archival return window
+          </p>
+        </div>
+      </section>
+
+      {/* Checkout Stepper Bar from Stitch design */}
+      <section className="w-full py-space-lg">
+        <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-space-md">
+            <div className="flex items-center gap-space-xs font-label-caps text-label-caps tracking-widest uppercase text-on-surface-variant">
+              <span>Checkout Sequence</span>
+              <span className="text-outline">/</span>
+              <span className="text-primary font-medium">Stage 0{stepIndex + 1} of 03</span>
+            </div>
+            <nav aria-label="Checkout Progress" className="flex items-center gap-space-sm sm:gap-space-md">
+              {/* Step 1: Address */}
               <div
                 className={`flex items-center gap-space-xs ${
-                  activeStepNum >= 1 ? "text-on-surface font-semibold" : "text-on-surface-variant"
+                  stepIndex === 0 ? "text-primary" : stepIndex > 0 ? "text-primary" : "text-on-surface-variant opacity-60"
                 }`}
+                data-testid="checkout-step-address"
               >
                 <span
-                  className={`w-7 h-7 rounded-full font-label-sm text-label-sm flex items-center justify-center font-bold ${
-                    activeStepNum >= 1
-                      ? "bg-primary text-on-primary"
-                      : "bg-surface-container text-on-surface"
+                  className={`w-6 h-6 rounded-full font-label-caps text-label-caps flex items-center justify-center ${
+                    stepIndex >= 0 ? "bg-primary text-on-primary font-medium" : "bg-surface-container-high text-on-surface-variant"
                   }`}
                 >
-                  1
+                  {stepIndex > 0 ? (
+                    <span aria-hidden className="material-symbols-outlined text-[14px]">check</span>
+                  ) : (
+                    "1"
+                  )}
                 </span>
-                <span className="font-label-md text-label-md uppercase tracking-wider">
-                  Shipping Address
+                <span className={`font-label-caps text-label-caps uppercase tracking-wider ${stepIndex === 0 ? "font-semibold" : ""}`}>
+                  Address
                 </span>
               </div>
+              <span className={`w-8 sm:w-12 h-0.5 ${stepIndex >= 1 ? "bg-primary" : "bg-surface-container-high"}`} />
 
-              <span className="text-on-surface-variant/40">/</span>
-
-              {/* Step 2: Delivery Method */}
+              {/* Step 2: Delivery */}
               <div
                 className={`flex items-center gap-space-xs ${
-                  activeStepNum >= 2 ? "text-on-surface font-semibold" : "text-on-surface-variant"
+                  stepIndex === 1 ? "text-primary" : stepIndex > 1 ? "text-primary" : "text-on-surface-variant opacity-60"
                 }`}
+                data-testid="checkout-step-delivery"
               >
                 <span
-                  className={`w-7 h-7 rounded-full font-label-sm text-label-sm flex items-center justify-center font-bold ${
-                    activeStepNum >= 2
-                      ? "bg-primary text-on-primary"
-                      : "bg-surface-container text-on-surface"
+                  className={`w-6 h-6 rounded-full font-label-caps text-label-caps flex items-center justify-center ${
+                    stepIndex >= 1 ? "bg-primary text-on-primary font-medium" : "bg-surface-container-high text-on-surface-variant"
                   }`}
                 >
-                  2
+                  {stepIndex > 1 ? (
+                    <span aria-hidden className="material-symbols-outlined text-[14px]">check</span>
+                  ) : (
+                    "2"
+                  )}
                 </span>
-                <span className="font-label-md text-label-md uppercase tracking-wider">
-                  Delivery Method
+                <span className={`font-label-caps text-label-caps uppercase tracking-wider ${stepIndex === 1 ? "font-semibold" : ""}`}>
+                  Delivery
                 </span>
               </div>
+              <span className={`w-8 sm:w-12 h-0.5 ${stepIndex >= 2 ? "bg-primary" : "bg-surface-container-high"}`} />
 
-              <span className="text-on-surface-variant/40">/</span>
-
-              {/* Step 3: Secure Payment */}
+              {/* Step 3: Payment */}
               <div
                 className={`flex items-center gap-space-xs ${
-                  activeStepNum >= 3 ? "text-on-surface font-semibold" : "text-on-surface-variant"
+                  stepIndex === 2 ? "text-primary font-semibold" : "text-on-surface-variant opacity-60"
                 }`}
+                data-testid="checkout-step-payment"
               >
                 <span
-                  className={`w-7 h-7 rounded-full font-label-sm text-label-sm flex items-center justify-center font-bold ${
-                    activeStepNum >= 3
-                      ? "bg-primary text-on-primary"
-                      : "bg-surface-container text-on-surface"
+                  className={`w-6 h-6 rounded-full font-label-caps text-label-caps flex items-center justify-center ${
+                    stepIndex === 2 ? "bg-primary text-on-primary font-medium" : "bg-surface-container-high text-on-surface-variant"
                   }`}
                 >
                   3
                 </span>
-                <span className="font-label-md text-label-md uppercase tracking-wider">
-                  Secure Payment
+                <span className="font-label-caps text-label-caps uppercase tracking-wider">
+                  Payment
                 </span>
               </div>
-
-              <span className="text-on-surface-variant/40">/</span>
-
-              {/* Step 4: Review & Confirm */}
-              <div className="flex items-center gap-space-xs text-on-surface-variant">
-                <span className="w-7 h-7 rounded-full bg-surface-container text-on-surface font-label-sm text-label-sm flex items-center justify-center font-bold">
-                  4
-                </span>
-                <span className="font-label-md text-label-md uppercase tracking-wider">
-                  Review &amp; Confirm
-                </span>
-              </div>
-            </div>
-
-            <div className="hidden lg:flex items-center gap-space-xs text-on-surface-variant text-label-sm font-label-sm shrink-0">
-              <span className="material-symbols-outlined text-[16px]">lock</span>
-              <span>256-Bit SSL Encrypted Checkout</span>
+            </nav>
+            <div className="hidden lg:flex items-center gap-space-xs text-on-surface-variant">
+              <span aria-hidden className="material-symbols-outlined text-[16px]">lock</span>
+              <span className="font-label-sm text-label-sm">Encrypted Protocol 256-bit</span>
             </div>
           </div>
         </div>
+      </section>
 
-        {generalError && (
-          <div
-            className="mb-space-lg p-space-md rounded-xl bg-error/10 border border-error/30 text-error font-body-sm flex items-center gap-space-sm"
-            role="alert"
-            data-testid="checkout-error"
-          >
-            <span className="material-symbols-outlined text-[20px]">error</span>
-            <span>{generalError}</span>
-          </div>
-        )}
-
-        {/* Main 12-Column Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
-          {/* Left Column (7 cols): The 3 Bento Cards */}
-          <div className="lg:col-span-7 flex flex-col gap-space-xl">
-            {/* Bento Card 1: 1. Shipping Address */}
+      {/* Main Content Stage: Split Layout */}
+      <main className="w-full pb-margin">
+        <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+          {generalError && (
             <div
-              className="bg-surface-container-lowest shadow-[0_1px_4px_rgba(0,0,0,0.02)] rounded-xl p-space-lg flex flex-col gap-space-lg border border-surface-container-high/60"
-              data-testid="address-step"
+              className="mb-6 flex items-center gap-3 rounded-lg border border-error/30 bg-error-container p-4 text-[14px] text-on-error-container"
+              role="alert"
+              data-testid="checkout-error"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-space-sm">
-                  <span className="material-symbols-outlined text-primary text-[24px]">
-                    location_on
-                  </span>
-                  <h2 className="font-headline-sm text-headline-sm text-primary font-semibold">
-                    1. Shipping Address
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowNewAddressForm((prev) => !prev)}
-                  className="font-label-md text-label-md text-secondary hover:underline cursor-pointer"
-                >
-                  {showNewAddressForm ? "Use Saved Address" : "+ Add New Address"}
-                </button>
-              </div>
-
-              {/* Saved Address Cards, as many as the customer actually has */}
-              {!showNewAddressForm && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
-                  {savedAddresses.map((addr, index) => (
-                    <label
-                      key={addr.id ?? index}
-                      onClick={() => setSelectedAddressIndex(index)}
-                      className={`relative flex flex-col p-space-md rounded-xl cursor-pointer transition-all border ${
-                        selectedAddressIndex === index
-                          ? "bg-surface-container/60 border-primary ring-1 ring-primary/20 shadow-xs"
-                          : "bg-surface-container-lowest shadow-[0_1px_2px_rgba(0,0,0,0.04)] border-surface-container-high/60 hover:bg-surface-container/40"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-space-xs">
-                        <div className="flex items-center gap-space-sm">
-                          <input
-                            type="radio"
-                            name="shipping_address_choice"
-                            checked={selectedAddressIndex === index}
-                            onChange={() => setSelectedAddressIndex(index)}
-                            className="accent-primary"
-                          />
-                          <span className="font-label-md text-label-md text-on-surface font-semibold">
-                            {[addr.firstName, addr.lastName].filter(Boolean).join(" ") ||
-                              [customer?.firstName, customer?.lastName].filter(Boolean).join(" ")}
-                          </span>
-                        </div>
-                        {index === 0 && (
-                          <span className="font-label-caps text-label-caps bg-surface-container-lowest text-on-surface px-2 py-0.5 rounded border border-surface-container-high/40">
-                            Default
-                          </span>
-                        )}
-                      </div>
-                      <p className="font-body-sm text-body-sm text-on-surface-variant pl-6">
-                        {[addr.address1, addr.address2, addr.city, addr.province]
-                          .filter(Boolean)
-                          .join(", ")}
-                        {addr.postalCode ? ` \u2014 ${addr.postalCode}` : ""}
-                      </p>
-                      {addr.phone && (
-                        <div className="pl-6 mt-space-sm flex items-center gap-space-sm font-label-sm text-label-sm text-on-surface-variant">
-                          <span>Phone: {addr.phone}</span>
-                        </div>
-                      )}
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              {/* Collapsible / Active New Address Form */}
-              {showNewAddressForm && (
-                <div
-                  id="new-address-form"
-                  className="flex flex-col gap-space-md pt-space-md bg-surface-container/30 p-space-md rounded-xl border border-surface-container-high/40"
-                >
-                  <span className="font-label-md text-label-md font-semibold text-on-surface">
-                    Add New Delivery Address
-                  </span>
-
-                  {/* Row: First Name & Last Name */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="First Name"
-                        value={addressData.firstName}
-                        onChange={(e) =>
-                          setAddressData({ ...addressData, firstName: e.target.value })
-                        }
-                        className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
-                        data-testid="shipping-first-name-input"
-                      />
-                      {addressErrors["shipping.firstName"] && (
-                        <p className="text-xs text-error mt-1">
-                          {addressErrors["shipping.firstName"]}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="Last Name"
-                        value={addressData.lastName}
-                        onChange={(e) =>
-                          setAddressData({ ...addressData, lastName: e.target.value })
-                        }
-                        className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
-                        data-testid="shipping-last-name-input"
-                      />
-                      {addressErrors["shipping.lastName"] && (
-                        <p className="text-xs text-error mt-1">
-                          {addressErrors["shipping.lastName"]}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Row: Phone & Email */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
-                    <div>
-                      <input
-                        type="tel"
-                        placeholder="Phone Number (+91 98201 55489)"
-                        value={addressData.phone}
-                        onChange={(e) =>
-                          setAddressData({ ...addressData, phone: e.target.value })
-                        }
-                        className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
-                      />
-                      {addressErrors["shipping.phone"] && (
-                        <p className="text-xs text-error mt-1">
-                          {addressErrors["shipping.phone"]}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <input
-                        type="email"
-                        placeholder="Email for dispatch updates"
-                        value={addressData.email}
-                        onChange={(e) =>
-                          setAddressData({ ...addressData, email: e.target.value })
-                        }
-                        className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
-                        data-testid="shipping-email-input"
-                      />
-                      {addressErrors["email"] && (
-                        <p className="text-xs text-error mt-1">
-                          {addressErrors["email"]}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Street Address */}
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="Street Address, Apartment, Suite, Unit"
-                      value={addressData.address1}
-                      onChange={(e) =>
-                        setAddressData({ ...addressData, address1: e.target.value })
-                      }
-                      className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
-                      data-testid="shipping-address-input"
-                    />
-                    {addressErrors["shipping.address1"] && (
-                      <p className="text-xs text-error mt-1">
-                        {addressErrors["shipping.address1"]}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* City, State, PIN Code */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-space-md">
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="City"
-                        value={addressData.city}
-                        onChange={(e) =>
-                          setAddressData({ ...addressData, city: e.target.value })
-                        }
-                        className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
-                        data-testid="shipping-city-input"
-                      />
-                      {addressErrors["shipping.city"] && (
-                        <p className="text-xs text-error mt-1">
-                          {addressErrors["shipping.city"]}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="State"
-                        value={addressData.province}
-                        onChange={(e) =>
-                          setAddressData({ ...addressData, province: e.target.value })
-                        }
-                        className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
-                      />
-                    </div>
-
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="PIN Code"
-                        value={addressData.postalCode}
-                        onChange={(e) =>
-                          setAddressData({ ...addressData, postalCode: e.target.value })
-                        }
-                        className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
-                        data-testid="shipping-postal-code-input"
-                      />
-                      {addressErrors["shipping.postalCode"] && (
-                        <p className="text-xs text-error mt-1">
-                          {addressErrors["shipping.postalCode"]}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Country Select */}
-                  <div>
-                    <select
-                      value={addressData.countryCode}
-                      onChange={(e) =>
-                        setAddressData({ ...addressData, countryCode: e.target.value })
-                      }
-                      className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
-                      data-testid="shipping-country-select"
-                    >
-                      {countries.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <label className="flex items-center gap-2 text-xs font-body-sm text-on-surface-variant cursor-pointer select-none pt-1">
-                    <input
-                      type="checkbox"
-                      checked={addressData.sameAsShipping}
-                      onChange={(e) =>
-                        setAddressData({
-                          ...addressData,
-                          sameAsShipping: e.target.checked,
-                        })
-                      }
-                      className="accent-primary"
-                      data-testid="billing-address-checkbox"
-                    />
-                    <span>Billing address is the same as shipping address</span>
-                  </label>
-                </div>
-              )}
-
-              {/* Step 1 Submit / Continue Button */}
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={handleAddressSubmit}
-                  data-testid="submit-address-button"
-                  className={requestedStep === "address" || showNewAddressForm ? "h-11 px-6 rounded bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider font-semibold hover:bg-inverse-surface transition-colors cursor-pointer" : "hidden"}
-                >
-                  Deliver to this address
-                </button>
-              </div>
+              <span aria-hidden className="material-symbols-outlined text-[20px]">error</span>
+              <span>{generalError}</span>
             </div>
+          )}
 
-            {/* Bento Card 2: 2. Delivery Method */}
-            <div
-              className="bg-surface-container-lowest shadow-[0_1px_4px_rgba(0,0,0,0.02)] rounded-xl p-space-lg flex flex-col gap-space-lg border border-surface-container-high/60"
-              data-testid="delivery-step"
-            >
-              <div className="flex items-center gap-space-sm">
-                <span className="material-symbols-outlined text-primary text-[24px]">
-                  local_shipping
-                </span>
-                <h2 className="font-headline-sm text-headline-sm text-primary font-semibold">
-                  2. Delivery Method
-                </h2>
-              </div>
-
-              {/* Delivery Options Grid - Exact Stitch lines 98-119 */}
-              <div
-                className="grid grid-cols-1 md:grid-cols-2 gap-space-md"
-                data-testid="delivery-options-container"
-              >
-                {options.map((opt, idx) => {
-                  const isSelected = selectedDeliveryId === opt.id
-                  const isFree = opt.amount === 0
-                  return (
-                    <label
-                      key={opt.id}
-                      onClick={() => setSelectedDeliveryId(opt.id)}
-                      className={`flex items-start gap-space-md p-space-md rounded-xl cursor-pointer transition-all border ${
-                        isSelected
-                          ? "bg-surface-container/60 border-primary ring-1 ring-primary/20 shadow-xs"
-                          : "bg-surface-container-lowest shadow-[0_1px_2px_rgba(0,0,0,0.04)] border-surface-container-high/60 hover:bg-surface-container/40"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="delivery_speed"
-                        checked={isSelected}
-                        onChange={() => setSelectedDeliveryId(opt.id)}
-                        className="accent-primary mt-1"
-                        data-testid="delivery-option-radio"
-                      />
-                      <div className="flex flex-col flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="font-label-md text-label-md font-semibold text-on-surface truncate">
-                            {opt.name || (idx === 0 ? "Complimentary Standard" : "Express VIP Air Courier")}
-                          </span>
-                          <span
-                            className={`font-label-md text-label-md font-semibold ${
-                              isFree ? "text-secondary" : "text-on-surface"
-                            }`}
-                          >
-                            {isFree ? "FREE" : formatMoney(opt.amount, cart.currency)}
-                          </span>
-                        </div>
-                        <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
-                          {idx === 0
-                            ? "Estimated delivery within 3-5 business days across India."
-                            : "Priority dispatch, guaranteed 24-48 hour delivery in major metros."}
-                        </p>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
+            {/* Left Column (7 cols on lg, 8 on xl): Stage Content */}
+            <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-space-lg">
+              {/* STAGE 01: ADDRESS SELECTION */}
+              {stage === "address" && (
+                <section data-testid="address-step" className="flex flex-col gap-space-lg">
+                  {/* Section Title & Action */}
+                  <div id="checkout-address" className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
+                    <div>
+                      <div className="flex items-center gap-space-xs text-on-surface-variant mb-1">
+                        <span aria-hidden className="material-symbols-outlined text-[18px]">location_on</span>
+                        <span className="font-label-caps text-label-caps uppercase tracking-widest">Destination Point</span>
                       </div>
-                    </label>
-                  )
-                })}
-              </div>
-
-              {/* Step 2 Submit / Continue Button */}
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={handleDeliverySubmit}
-                  data-testid="submit-delivery-option-button"
-                  className={requestedStep === "delivery" ? "h-11 px-6 rounded bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider font-semibold hover:bg-inverse-surface transition-colors cursor-pointer" : "hidden"}
-                >
-                  Continue to Payment
-                </button>
-              </div>
-            </div>
-
-            {/* Bento Card 3: 3. Secure Payment */}
-            <div
-              className="bg-surface-container-lowest shadow-[0_1px_4px_rgba(0,0,0,0.02)] rounded-xl p-space-lg flex flex-col gap-space-lg border border-surface-container-high/60"
-              data-testid="review-step"
-            >
-              <div className="flex items-center gap-space-sm">
-                <span className="material-symbols-outlined text-primary text-[24px]">
-                  credit_card
-                </span>
-                <h2 className="font-headline-sm text-headline-sm text-primary font-semibold">
-                  3. Secure Payment
-                </h2>
-              </div>
-
-              {/* Payment Method Tabs */}
-              <div className="flex items-center gap-space-sm overflow-x-auto pb-space-xs no-scrollbar">
-                {isIndia && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("upi")}
-                    className={`pay-tab px-space-md py-space-xs rounded-lg font-label-md text-label-md uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                      activeTab === "upi"
-                        ? "bg-primary text-on-primary font-semibold shadow-xs"
-                        : "bg-surface-container text-on-surface-variant hover:text-on-surface"
-                    }`}
-                  >
-                    UPI Apps
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("card")}
-                  className={`pay-tab px-space-md py-space-xs rounded-lg font-label-md text-label-md uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                    activeTab === "card"
-                      ? "bg-primary text-on-primary font-semibold shadow-xs"
-                      : "bg-surface-container text-on-surface-variant hover:text-on-surface"
-                  }`}
-                >
-                  Credit / Debit Card
-                </button>
-
-                {isIndia && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("netbanking")}
-                    className={`pay-tab px-space-md py-space-xs rounded-lg font-label-md text-label-md uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                      activeTab === "netbanking"
-                        ? "bg-primary text-on-primary font-semibold shadow-xs"
-                        : "bg-surface-container text-on-surface-variant hover:text-on-surface"
-                    }`}
-                  >
-                    NetBanking
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("cod")}
-                  className={`pay-tab px-space-md py-space-xs rounded-lg font-label-md text-label-md uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                    activeTab === "cod"
-                      ? "bg-primary text-on-primary font-semibold shadow-xs"
-                      : "bg-surface-container text-on-surface-variant hover:text-on-surface"
-                  }`}
-                >
-                  Cash on Delivery
-                </button>
-              </div>
-
-              {/* Hidden Inputs for Payment Integration */}
-              <input
-                type="hidden"
-                name="paymentMethod"
-                value={activeTab === "cod" ? "cod" : isIndia ? "razorpay" : "stripe"}
-                data-testid={activeTab === "cod" ? "payment-method-cod" : "payment-method-online"}
-              />
-
-              {/* Pane 1: UPI Apps */}
-              {activeTab === "upi" && (
-                <div className="flex flex-col gap-space-md pt-space-sm" id="pane-upi">
-                  <p className="font-body-sm text-body-sm text-on-surface-variant">
-                    Instant payment via Google Pay, PhonePe, Paytm or any BHIM UPI ID.
-                  </p>
-
-                  <div className="grid grid-cols-3 gap-space-md">
-                    <label
-                      onClick={() => setSelectedUpiApp("gpay")}
-                      className={`flex flex-col items-center justify-center p-space-md rounded-xl cursor-pointer border transition-all ${
-                        selectedUpiApp === "gpay"
-                          ? "bg-surface-container/60 border-primary shadow-xs"
-                          : "bg-surface-container/30 border-transparent hover:bg-surface-container"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="upi_app"
-                        checked={selectedUpiApp === "gpay"}
-                        onChange={() => setSelectedUpiApp("gpay")}
-                        className="mb-space-xs accent-primary"
-                      />
-                      <span className="font-label-sm text-label-sm text-on-surface font-medium">
-                        Google Pay
-                      </span>
-                    </label>
-
-                    <label
-                      onClick={() => setSelectedUpiApp("phonepe")}
-                      className={`flex flex-col items-center justify-center p-space-md rounded-xl cursor-pointer border transition-all ${
-                        selectedUpiApp === "phonepe"
-                          ? "bg-surface-container/60 border-primary shadow-xs"
-                          : "bg-surface-container/30 border-transparent hover:bg-surface-container"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="upi_app"
-                        checked={selectedUpiApp === "phonepe"}
-                        onChange={() => setSelectedUpiApp("phonepe")}
-                        className="mb-space-xs accent-primary"
-                      />
-                      <span className="font-label-sm text-label-sm text-on-surface font-medium">
-                        PhonePe
-                      </span>
-                    </label>
-
-                    <label
-                      onClick={() => setSelectedUpiApp("paytm")}
-                      className={`flex flex-col items-center justify-center p-space-md rounded-xl cursor-pointer border transition-all ${
-                        selectedUpiApp === "paytm"
-                          ? "bg-surface-container/60 border-primary shadow-xs"
-                          : "bg-surface-container/30 border-transparent hover:bg-surface-container"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="upi_app"
-                        checked={selectedUpiApp === "paytm"}
-                        onChange={() => setSelectedUpiApp("paytm")}
-                        className="mb-space-xs accent-primary"
-                      />
-                      <span className="font-label-sm text-label-sm text-on-surface font-medium">
-                        Paytm UPI
-                      </span>
-                    </label>
-                  </div>
-
-                  <div className="flex flex-col gap-1 mt-space-xs">
-                    <div className="flex items-center gap-space-sm">
-                      <input
-                        type="text"
-                        placeholder="Enter UPI ID (e.g. username@okaxis)"
-                        value={upiIdInput}
-                        onChange={(e) => {
-                          setUpiIdInput(e.target.value)
-                          setUpiVerified(false)
-                          setUpiError(null)
-                        }}
-                        className={`flex-1 h-11 px-space-md bg-surface-container/30 rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border ${
-                          upiVerified
-                            ? "border-green-600 bg-green-50/20"
-                            : upiError
-                            ? "border-error"
-                            : "border-surface-container-high/60 focus:border-primary"
-                        }`}
-                      />
+                      <h1 className="font-headline-lg text-headline-lg text-on-surface">Select Delivery Address</h1>
+                    </div>
+                    {savedAddresses.length > 0 && (
                       <button
                         type="button"
-                        onClick={handleVerifyUpi}
-                        className="h-11 px-space-lg bg-surface-container text-on-surface font-label-md text-label-md rounded-lg hover:bg-surface-container-high transition-colors font-medium shrink-0 cursor-pointer"
+                        onClick={() => setShowNewAddressForm((prev) => !prev)}
+                        className="inline-flex items-center gap-space-xs px-space-md py-space-sm bg-surface-container-low text-primary font-label-md text-label-md rounded-lg shadow-sm hover:bg-surface-container transition-colors self-start sm:self-auto cursor-pointer"
                       >
-                        {upiVerified ? "Verified ✓" : "Verify"}
+                        <span aria-hidden className="material-symbols-outlined text-[18px]">
+                          {showNewAddressForm ? "bookmark" : "add"}
+                        </span>
+                        <span>{showNewAddressForm ? "Use Saved Address" : "Add New Address"}</span>
                       </button>
-                    </div>
-                    {upiError && <p className="text-xs text-error mt-0.5">{upiError}</p>}
-                    {upiVerified && (
-                      <p className="text-xs text-green-700 font-medium">
-                        UPI ID verified successfully.
-                      </p>
                     )}
                   </div>
-                </div>
-              )}
 
-              {/* Pane 2: Credit / Debit Card */}
-              {activeTab === "card" && (
-                <div className="flex flex-col gap-space-md pt-space-sm" id="pane-card">
-                  <div className="flex items-center justify-between">
-                    <span className="font-body-sm text-body-sm text-on-surface-variant font-medium">
-                      Saved Card
-                    </span>
-                    <span className="font-label-caps text-label-caps text-secondary font-semibold">
-                      Secured by Razorpay
-                    </span>
-                  </div>
-
-                  <label
-                    onClick={() => setUseNewCard(false)}
-                    className={`flex items-center justify-between p-space-md rounded-xl cursor-pointer border transition-all ${
-                      !useNewCard
-                        ? "bg-surface-container/60 border-primary ring-1 ring-primary/20 shadow-xs"
-                        : "bg-surface-container/30 border-transparent hover:bg-surface-container"
-                    }`}
-                  >
-                    <div className="flex items-center gap-space-md">
-                      <input
-                        type="radio"
-                        name="saved_card"
-                        checked={!useNewCard}
-                        onChange={() => setUseNewCard(false)}
-                        className="accent-primary"
-                      />
-                      <div>
-                        <span className="font-label-md text-label-md text-on-surface font-semibold block">
-                          Visa •••• 4089
-                        </span>
-                        <span className="font-body-sm text-body-sm text-on-surface-variant">
-                          Expires 08/28
-                        </span>
-                      </div>
+                  {/* Address Cards Grid */}
+                  {!showNewAddressForm && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md" role="radiogroup" aria-label="Saved addresses">
+                      {savedAddresses.map((addr, index) => {
+                        const isSelected = selectedAddressIndex === index
+                        return (
+                          <label
+                            key={addr.id ?? index}
+                            onClick={() => setSelectedAddressIndex(index)}
+                            className={`relative flex flex-col justify-between p-space-md rounded-lg shadow-md cursor-pointer transition-all duration-200 ${
+                              isSelected
+                                ? "bg-surface-container-lowest outline-2 outline-primary"
+                                : "bg-surface-container-low hover:bg-surface-container-lowest"
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between mb-space-sm">
+                                <div className="flex items-center gap-space-sm">
+                                  <input
+                                    type="radio"
+                                    name="shipping_address_choice"
+                                    checked={isSelected}
+                                    onChange={() => setSelectedAddressIndex(index)}
+                                    className="w-4 h-4 accent-primary text-primary focus:ring-0 cursor-pointer"
+                                  />
+                                  <span className="font-headline-sm text-headline-sm text-on-surface font-medium">
+                                    {[addr.firstName, addr.lastName].filter(Boolean).join(" ") ||
+                                      [customer?.firstName, customer?.lastName].filter(Boolean).join(" ") ||
+                                      "Client"}
+                                  </span>
+                                </div>
+                                <span className="px-space-xs py-0.5 bg-surface-container-high text-on-surface font-label-caps text-label-caps rounded uppercase">
+                                  {index === 0 ? "PRIMARY HOME" : addr.company || "STUDIO ATELIER"}
+                                </span>
+                              </div>
+                              <p className="font-body-md text-body-md text-on-surface-variant mb-space-xs">
+                                {[addr.address1, addr.address2].filter(Boolean).join(", ")}
+                              </p>
+                              <p className="font-body-sm text-body-sm text-on-surface-variant">
+                                {[addr.city, addr.province].filter(Boolean).join(", ")}
+                                {addr.postalCode ? ` — ${addr.postalCode}` : ""}
+                              </p>
+                              {addr.phone && (
+                                <div className="mt-space-sm flex items-center gap-space-xs text-on-surface font-body-sm text-body-sm">
+                                  <span aria-hidden className="material-symbols-outlined text-[15px] text-outline">call</span>
+                                  <span>{addr.phone}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-space-md pt-space-sm flex items-center justify-between bg-surface-container-low px-space-sm py-space-xs rounded">
+                              <span className="font-label-caps text-label-caps text-on-surface-variant uppercase">
+                                Standard: 3-5 Working Days
+                              </span>
+                              <div className="flex items-center gap-space-sm">
+                                <a
+                                  href={`/${countryCode}/account/addresses`}
+                                  className="font-label-caps text-label-caps text-primary hover:text-secondary uppercase"
+                                >
+                                  Edit
+                                </a>
+                              </div>
+                            </div>
+                          </label>
+                        )
+                      })}
                     </div>
-                    <span className="material-symbols-outlined text-[28px] text-on-surface-variant">
-                      credit_card
-                    </span>
-                  </label>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => setUseNewCard((prev) => !prev)}
-                    className="font-label-md text-label-md text-secondary text-left hover:underline cursor-pointer"
-                  >
-                    {useNewCard ? "Use Saved Card" : "+ Use a new credit or debit card"}
-                  </button>
-
-                  {useNewCard && (
-                    <div className="flex flex-col gap-3 p-space-md rounded-xl bg-surface-container/30 border border-surface-container-high/60">
-                      <div>
-                        <input
-                          type="text"
-                          placeholder="Cardholder Name"
-                          value={cardData.cardholderName}
-                          onChange={(e) =>
-                            setCardData({ ...cardData, cardholderName: e.target.value })
-                          }
-                          className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
-                        />
-                        {cardErrors.cardholderName && (
-                          <p className="text-xs text-error mt-1">
-                            {cardErrors.cardholderName}
-                          </p>
+                  {/* Expandable New Address Panel */}
+                  {showNewAddressForm && (
+                    <div className="p-space-lg bg-surface-container-lowest rounded-lg shadow-sm border border-surface-container-high/60" id="new-address-form">
+                      <div className="flex items-center justify-between mb-space-md">
+                        <span className="font-headline-sm text-headline-sm text-on-surface font-medium">
+                          Enter Custom Archival Delivery Point
+                        </span>
+                        {savedAddresses.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowNewAddressForm(false)}
+                            className="text-on-surface-variant hover:text-primary cursor-pointer"
+                          >
+                            <span aria-hidden className="material-symbols-outlined">close</span>
+                          </button>
                         )}
                       </div>
-
-                      <div>
-                        <input
-                          type="text"
-                          placeholder="Card Number (16 digits)"
-                          maxLength={19}
-                          value={cardData.cardNumber}
-                          onChange={(e) =>
-                            setCardData({ ...cardData, cardNumber: e.target.value })
-                          }
-                          className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
-                        />
-                        {cardErrors.cardNumber && (
-                          <p className="text-xs text-error mt-1">{cardErrors.cardNumber}</p>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-space-md">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
                         <div>
+                          <label className="block font-label-caps text-label-caps text-on-surface uppercase mb-1">First Name</label>
                           <input
                             type="text"
-                            placeholder="MM / YY"
-                            maxLength={5}
-                            value={cardData.expiry}
-                            onChange={(e) =>
-                              setCardData({ ...cardData, expiry: e.target.value })
-                            }
-                            className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
+                            placeholder="e.g. Mozammil"
+                            value={addressData.firstName}
+                            onChange={(e) => setAddressData({ ...addressData, firstName: e.target.value })}
+                            className="w-full h-11 px-space-md bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded focus:bg-surface-container-lowest focus:outline-none border border-surface-container-high/60 focus:border-primary"
+                            data-testid="shipping-first-name-input"
                           />
-                          {cardErrors.expiry && (
-                            <p className="text-xs text-error mt-1">{cardErrors.expiry}</p>
+                          {addressErrors["shipping.firstName"] && (
+                            <p className="text-xs text-error mt-1">{addressErrors["shipping.firstName"]}</p>
                           )}
                         </div>
-
                         <div>
+                          <label className="block font-label-caps text-label-caps text-on-surface uppercase mb-1">Last Name</label>
                           <input
-                            type="password"
-                            placeholder="CVV"
-                            maxLength={4}
-                            value={cardData.cvv}
-                            onChange={(e) =>
-                              setCardData({ ...cardData, cvv: e.target.value })
-                            }
-                            className="w-full h-11 px-space-md bg-surface-container-lowest rounded-lg font-body-sm text-body-sm text-on-surface focus:outline-none border border-surface-container-high/60 focus:border-primary"
+                            type="text"
+                            placeholder="e.g. Raja"
+                            value={addressData.lastName}
+                            onChange={(e) => setAddressData({ ...addressData, lastName: e.target.value })}
+                            className="w-full h-11 px-space-md bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded focus:bg-surface-container-lowest focus:outline-none border border-surface-container-high/60 focus:border-primary"
+                            data-testid="shipping-last-name-input"
                           />
-                          {cardErrors.cvv && (
-                            <p className="text-xs text-error mt-1">{cardErrors.cvv}</p>
+                          {addressErrors["shipping.lastName"] && (
+                            <p className="text-xs text-error mt-1">{addressErrors["shipping.lastName"]}</p>
                           )}
+                        </div>
+                        <div>
+                          <label className="block font-label-caps text-label-caps text-on-surface uppercase mb-1">Phone Number (+91)</label>
+                          <input
+                            type="tel"
+                            placeholder="10-digit mobile number"
+                            value={addressData.phone}
+                            onChange={(e) => setAddressData({ ...addressData, phone: e.target.value })}
+                            className="w-full h-11 px-space-md bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded focus:bg-surface-container-lowest focus:outline-none border border-surface-container-high/60 focus:border-primary"
+                          />
+                          {addressErrors["shipping.phone"] && (
+                            <p className="text-xs text-error mt-1">{addressErrors["shipping.phone"]}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block font-label-caps text-label-caps text-on-surface uppercase mb-1">Email for Dispatch Updates</label>
+                          <input
+                            type="email"
+                            placeholder="client@atelier.com"
+                            value={addressData.email}
+                            onChange={(e) => setAddressData({ ...addressData, email: e.target.value })}
+                            className="w-full h-11 px-space-md bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded focus:bg-surface-container-lowest focus:outline-none border border-surface-container-high/60 focus:border-primary"
+                            data-testid="shipping-email-input"
+                          />
+                          {addressErrors["email"] && (
+                            <p className="text-xs text-error mt-1">{addressErrors["email"]}</p>
+                          )}
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block font-label-caps text-label-caps text-on-surface uppercase mb-1">Address Line 1 (House, Apartment, Suite)</label>
+                          <input
+                            type="text"
+                            placeholder="Street number and building complex"
+                            value={addressData.address1}
+                            onChange={(e) => setAddressData({ ...addressData, address1: e.target.value })}
+                            className="w-full h-11 px-space-md bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded focus:bg-surface-container-lowest focus:outline-none border border-surface-container-high/60 focus:border-primary"
+                            data-testid="shipping-address-input"
+                          />
+                          {addressErrors["shipping.address1"] && (
+                            <p className="text-xs text-error mt-1">{addressErrors["shipping.address1"]}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block font-label-caps text-label-caps text-on-surface uppercase mb-1">Postal Code (PIN)</label>
+                          <input
+                            type="text"
+                            placeholder="6 digits PIN"
+                            value={addressData.postalCode}
+                            onChange={(e) => setAddressData({ ...addressData, postalCode: e.target.value })}
+                            className="w-full h-11 px-space-md bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded focus:bg-surface-container-lowest focus:outline-none border border-surface-container-high/60 focus:border-primary"
+                            data-testid="shipping-postal-code-input"
+                          />
+                          {addressErrors["shipping.postalCode"] && (
+                            <p className="text-xs text-error mt-1">{addressErrors["shipping.postalCode"]}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block font-label-caps text-label-caps text-on-surface uppercase mb-1">City / Region</label>
+                          <input
+                            type="text"
+                            placeholder="City or District"
+                            value={addressData.city}
+                            onChange={(e) => setAddressData({ ...addressData, city: e.target.value })}
+                            className="w-full h-11 px-space-md bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded focus:bg-surface-container-lowest focus:outline-none border border-surface-container-high/60 focus:border-primary"
+                            data-testid="shipping-city-input"
+                          />
+                          {addressErrors["shipping.city"] && (
+                            <p className="text-xs text-error mt-1">{addressErrors["shipping.city"]}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block font-label-caps text-label-caps text-on-surface uppercase mb-1">Country</label>
+                          <select
+                            value={addressData.countryCode}
+                            onChange={(e) => setAddressData({ ...addressData, countryCode: e.target.value })}
+                            className="w-full h-11 px-space-md bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded focus:bg-surface-container-lowest focus:outline-none border border-surface-container-high/60 focus:border-primary"
+                            data-testid="shipping-country-select"
+                          >
+                            {countries.map((c) => (
+                              <option key={c.code} value={c.code}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex items-center">
+                          <label className="flex items-center gap-2 text-xs font-body-sm text-on-surface-variant cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={addressData.sameAsShipping}
+                              onChange={(e) => setAddressData({ ...addressData, sameAsShipping: e.target.checked })}
+                              className="accent-primary"
+                              data-testid="billing-address-checkbox"
+                            />
+                            <span>Billing address matches shipping address</span>
+                          </label>
                         </div>
                       </div>
                     </div>
                   )}
-                </div>
-              )}
 
-              {/* Pane 3: NetBanking */}
-              {activeTab === "netbanking" && (
-                <div className="flex flex-col gap-space-md pt-space-sm" id="pane-netbanking">
-                  <p className="font-body-sm text-body-sm text-on-surface-variant">
-                    Select from popular Indian banking institutions:
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-space-sm">
-                    {["HDFC Bank", "ICICI Bank", "State Bank of India", "Axis Bank"].map(
-                      (bank) => {
-                        const isSelected = selectedBank === bank
-                        return (
-                          <label
-                            key={bank}
-                            onClick={() => setSelectedBank(bank)}
-                            className={`p-space-md rounded-xl cursor-pointer text-center font-label-sm text-label-sm border transition-all ${
-                              isSelected
-                                ? "bg-surface-container/80 text-primary border-primary font-bold shadow-xs"
-                                : "bg-surface-container/40 text-on-surface border-transparent hover:bg-surface-container"
-                            }`}
-                          >
-                            {bank}
-                          </label>
-                        )
-                      }
+                  {/* Business Billing GSTIN Box */}
+                  <div className="p-space-md bg-surface-container-low rounded-lg shadow-sm">
+                    <label className="flex items-center gap-space-sm cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showGstin}
+                        onChange={(e) => setShowGstin(e.target.checked)}
+                        className="w-4 h-4 accent-primary text-primary focus:ring-0 cursor-pointer"
+                      />
+                      <span className="font-body-md text-body-md text-on-surface font-medium">
+                        Use GSTIN for commercial tax invoice (Optional)
+                      </span>
+                    </label>
+                    {showGstin && (
+                      <div className="mt-space-md grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+                        <div>
+                          <label className="block font-label-caps text-label-caps text-on-surface-variant uppercase mb-1">GSTIN Number</label>
+                          <input
+                            type="text"
+                            placeholder="22AAAAA0000A1Z5"
+                            value={gstinNumber}
+                            onChange={(e) => setGstinNumber(e.target.value)}
+                            className="w-full h-11 px-space-md bg-surface-container-lowest text-on-surface font-body-sm text-body-sm rounded uppercase focus:outline-none border border-surface-container-high/60"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-label-caps text-label-caps text-on-surface-variant uppercase mb-1">Registered Entity Name</label>
+                          <input
+                            type="text"
+                            placeholder="Legal registered trade name"
+                            value={gstinEntityName}
+                            onChange={(e) => setGstinEntityName(e.target.value)}
+                            className="w-full h-11 px-space-md bg-surface-container-lowest text-on-surface font-body-sm text-body-sm rounded focus:outline-none border border-surface-container-high/60"
+                          />
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
-              )}
 
-              {/* Pane 4: Cash on Delivery */}
-              {activeTab === "cod" && (
-                <div className="flex flex-col gap-space-md pt-space-sm" id="pane-cod">
-                  <div
-                    className="p-space-md bg-surface-container/40 rounded-xl flex items-start gap-space-md border border-surface-container-high/50"
-                    data-testid="payment-method-summary"
-                  >
-                    <span className="material-symbols-outlined text-on-surface-variant text-[24px]">
-                      info
-                    </span>
-                    <div>
-                      <span className="font-label-md text-label-md text-on-surface font-semibold block">
-                        Cash on Delivery Verification
-                      </span>
-                      <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
-                        Cash on delivery is available for this order. An additional ₹50 handling fee applies. A quick OTP confirmation SMS will be sent before dispatch.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Column (5 cols, sticky top-32): Exact Stitch Order Summary */}
-          <div className="lg:col-span-5 sticky top-32">
-            <div className="bg-surface-container-lowest shadow-[0_1px_4px_rgba(0,0,0,0.02)] rounded-xl p-space-lg flex flex-col gap-space-lg border border-surface-container-high/60">
-              {/* Header Box */}
-              <div className="flex items-center justify-between pb-space-md bg-surface-container/30 -mx-space-lg -mt-space-lg p-space-lg rounded-t-xl border-b border-surface-container-high/60">
-                <h3 className="font-headline-sm text-headline-sm text-primary font-semibold">
-                  Order Summary
-                </h3>
-                <span className="font-label-caps text-label-caps bg-secondary/10 text-secondary px-space-sm py-1 rounded-full font-bold">
-                  {totalItemCount} {totalItemCount === 1 ? "Item" : "Items"}
-                </span>
-              </div>
-
-              {/* Items List */}
-              <div
-                className="flex flex-col gap-space-md divide-y divide-surface-container/60 max-h-72 overflow-y-auto pr-1"
-                data-testid="items-table"
-              >
-                {items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-space-md pt-space-sm first:pt-0"
-                    data-testid="product-row"
-                  >
-                    <div className="w-16 h-20 bg-surface-container-low rounded-lg overflow-hidden flex-shrink-0 relative border border-surface-container-high/60">
-                      {item.thumbnail ? (
-                        <Image
-                          src={item.thumbnail}
-                          alt={item.productTitle}
-                          fill
-                          sizes="64px"
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs text-on-surface-variant">
-                          Piece
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <span className="font-label-caps text-label-caps text-on-surface-variant font-semibold">
-                        Everwear Atelier
-                      </span>
-                      <h4
-                        className="font-body-md text-body-md text-on-surface font-medium truncate"
-                        data-testid="product-title"
-                      >
-                        {item.productTitle}
-                      </h4>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="font-body-sm text-body-sm text-on-surface-variant">
-                          {item.variantTitle ? `Size: ${item.variantTitle} | ` : ""}Qty: {item.quantity}
-                        </span>
-                        <span className="font-label-md text-label-md text-on-surface font-semibold tabular-nums">
-                          {formatMoney(item.total, cart.currency)}
-                        </span>
+                  {/* Dispatch Assurance Card */}
+                  <div className="p-space-md bg-surface-container-lowest rounded-lg shadow-sm flex items-center justify-between gap-space-md border border-surface-container-high/40">
+                    <div className="flex items-center gap-space-md">
+                      <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
+                        <span aria-hidden className="material-symbols-outlined text-[20px]">inventory_2</span>
+                      </div>
+                      <div>
+                        <h2 className="font-label-md text-label-md text-on-surface font-semibold">Climate-Calibrated Packaging</h2>
+                        <p className="font-body-sm text-body-sm text-on-surface-variant">
+                          Garments are layered in unbleached organic linen slips with cedarwood tags.
+                        </p>
                       </div>
                     </div>
+                    <span className="hidden md:inline-block font-label-caps text-label-caps text-secondary font-bold uppercase tracking-wider">
+                      CERTIFIED
+                    </span>
                   </div>
-                ))}
-              </div>
+                </section>
+              )}
 
-              {/* Promo Code Component */}
-              <div className="pt-2 border-t border-surface-container-high/40">
-                <PromoCode cart={cart} />
-              </div>
+              {/* STAGE 02: DELIVERY SPEED SELECTION */}
+              {stage === "delivery" && (
+                <>
+                  {destination(false)}
+                  <section className="bg-surface-container-lowest p-6 md:p-8 rounded-lg shadow-sm border border-surface-container-high/40" data-testid="delivery-step">
+                    <div className="mb-6">
+                      <span className="font-label-caps text-label-caps uppercase tracking-wider text-secondary">Step 02 / 03</span>
+                      <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight mt-1">Choose Delivery Speed</h1>
+                      <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                        Select how quickly and in what presentation style you wish your curated pieces to arrive.
+                      </p>
+                    </div>
 
-              {/* Price Calculation Box */}
-              <div className="flex flex-col gap-space-sm pt-space-md bg-surface-container/20 -mx-space-lg p-space-lg border-y border-surface-container-high/60">
-                <div className="flex items-center justify-between font-body-sm text-body-sm text-on-surface-variant">
-                  <span>Bag Total</span>
-                  <span className="tabular-nums">
-                    {formatMoney(cart.totals.itemSubtotal, cart.currency)}
+                    <div className="flex flex-col gap-3.5" role="radiogroup" aria-label="Delivery speed" data-testid="delivery-options-container">
+                      {options.map((opt, i) => {
+                        const isSelected = selectedDeliveryId === opt.id
+                        const free = opt.amount === 0
+                        return (
+                          <label
+                            key={opt.id}
+                            onClick={() => setSelectedDeliveryId(opt.id)}
+                            className={`delivery-option group relative flex flex-col p-4 md:p-5 rounded-lg cursor-pointer transition-all duration-200 border ${
+                              isSelected
+                                ? "bg-surface-container-low border-primary/40 shadow-xs"
+                                : "bg-surface-container-lowest hover:bg-surface-container-low border-surface-container-high/60"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3.5">
+                                <input
+                                  type="radio"
+                                  name="delivery_method"
+                                  checked={isSelected}
+                                  onChange={() => setSelectedDeliveryId(opt.id)}
+                                  className="mt-1 w-4 h-4 text-primary bg-surface-container-lowest focus:ring-0 focus:outline-none accent-primary cursor-pointer"
+                                  data-testid="delivery-option-radio"
+                                />
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-body-md text-body-md font-medium text-on-surface">
+                                      {opt.name}
+                                    </span>
+                                    <span
+                                      className={`font-label-caps text-label-caps px-2 py-0.5 rounded uppercase font-semibold ${
+                                        free
+                                          ? "bg-surface-container text-on-surface-variant"
+                                          : i === 1
+                                          ? "bg-tertiary-fixed text-on-tertiary-fixed"
+                                          : "bg-secondary text-on-secondary"
+                                      }`}
+                                    >
+                                      {free ? "Complimentary" : "Fast Track"}
+                                    </span>
+                                  </div>
+                                  <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                                    {free
+                                      ? "Estimated arrival in 3–5 business days via Blue Dart Express tracked logistics."
+                                      : "Guaranteed 24–48 hour direct dispatch in major Tier 1 metros with prioritized air routing."}
+                                  </p>
+                                  <div className="flex items-center gap-4 mt-2.5 font-label-sm text-label-sm text-outline">
+                                    <span className="inline-flex items-center gap-1">
+                                      <span aria-hidden className="material-symbols-outlined text-[16px] text-primary">eco</span>
+                                      Recyclable archival box
+                                    </span>
+                                    <span className="inline-flex items-center gap-1">
+                                      <span aria-hidden className="material-symbols-outlined text-[16px] text-primary">pin_drop</span>
+                                      Real-time tracking
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <span className={`font-label-sm text-label-sm font-semibold uppercase tracking-wider ${free ? "text-primary" : "text-on-surface font-body-md"}`}>
+                                  {free ? "FREE" : money(opt.amount)}
+                                </span>
+                              </div>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </section>
+                </>
+              )}
+
+              {/* STAGE 03: PAYMENT SETTLEMENT ENGINE */}
+              {stage === "payment" && (
+                <>
+                  {destination(true)}
+                  <section className="overflow-hidden rounded-lg bg-surface-container-lowest shadow-sm border border-surface-container-high/40" data-testid="review-step">
+                    {/* Section Title Header */}
+                    <div className="px-6 py-5 bg-surface-container-low flex items-center justify-between border-b border-surface-container-high/60">
+                      <div className="flex items-center gap-2.5">
+                        <span aria-hidden className="material-symbols-outlined text-[22px] text-on-surface">verified_user</span>
+                        <h2 className="font-headline-sm text-headline-sm uppercase tracking-wide text-on-surface">Select Payment Method</h2>
+                      </div>
+                      <div className="flex items-center gap-2 font-label-sm text-label-sm text-on-surface-variant">
+                        <span aria-hidden className="material-symbols-outlined text-[16px] text-emerald-600">lock</span>
+                        <span>100% End-to-End Encrypted</span>
+                      </div>
+                    </div>
+
+                    {/* Split Tabs UI: Left Tabs + Right Panel */}
+                    <div className="flex flex-col md:flex-row">
+                      {/* Left Navigation Tab Column */}
+                      <div
+                        role="tablist"
+                        aria-orientation="vertical"
+                        className="w-full md:w-64 bg-surface-container-lowest shrink-0 flex md:flex-col overflow-x-auto md:overflow-visible border-r border-surface-container-high/40"
+                      >
+                        {PAY_MODES.map((mode) => {
+                          const isSelected = activeTab === mode.id
+                          return (
+                            <button
+                              key={mode.id}
+                              type="button"
+                              role="tab"
+                              aria-selected={isSelected}
+                              onClick={() => setActiveTab(mode.id)}
+                              className={`payment-tab group w-full text-left p-4.5 sm:p-5 flex items-center justify-between transition-all relative cursor-pointer ${
+                                isSelected
+                                  ? "bg-surface-container-low text-primary"
+                                  : "text-on-surface-variant hover:bg-surface-container-low/60"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded bg-surface-container flex items-center justify-center text-on-surface group-hover:scale-105 transition-transform">
+                                  <span aria-hidden className="material-symbols-outlined text-[20px]">{mode.icon}</span>
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-body-md text-body-md font-medium text-on-surface">{mode.label}</span>
+                                    {"badge" in mode && (
+                                      <span className="font-label-caps text-[9px] bg-primary text-on-primary px-1.5 py-0.5 rounded uppercase font-semibold">
+                                        {mode.badge}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">{mode.hint}</span>
+                                </div>
+                              </div>
+                              <div
+                                className={`hidden md:block w-1.5 h-6 rounded-full ${
+                                  isSelected ? "bg-primary" : "bg-transparent"
+                                }`}
+                              />
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {/* Right Panel Content Area */}
+                      <div role="tabpanel" className="flex-1 p-6 md:p-8 bg-surface-container-lowest">
+                        <input
+                          type="hidden"
+                          name="paymentMethod"
+                          value={activeTab === "cod" ? "cod" : "razorpay"}
+                          data-testid={activeTab === "cod" ? "payment-method-cod" : "payment-method-online"}
+                        />
+
+                        {/* Pane: Instant UPI */}
+                        {activeTab === "upi" && (
+                          <div className="flex flex-col gap-6" id="pane-upi">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-surface-container-high/40">
+                              <div>
+                                <h3 className="font-headline-sm text-headline-sm text-on-surface">Unified Payments Interface (UPI)</h3>
+                                <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Pay seamlessly with zero payment surcharge</p>
+                              </div>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-surface-container rounded font-label-caps text-label-caps text-on-surface uppercase tracking-wider">
+                                <span aria-hidden className="material-symbols-outlined text-[14px] text-emerald-600">bolt</span>
+                                Instant Confirmation
+                              </span>
+                            </div>
+
+                            {/* Popular UPI Apps */}
+                            <div>
+                              <span className="font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant block mb-3">
+                                Popular UPI Applications
+                              </span>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {[
+                                  { id: "gpay", name: "Google Pay", label1: "G", label2: "P" },
+                                  { id: "phonepe", name: "PhonePe", label1: "Pe" },
+                                  { id: "paytm", name: "Paytm", label1: "Paytm" },
+                                  { id: "cred", name: "CRED Pay", icon: "shield" },
+                                ].map((app) => (
+                                  <label
+                                    key={app.id}
+                                    onClick={() => setSelectedUpiApp(app.id)}
+                                    className={`cursor-pointer p-3 rounded flex flex-col items-center justify-center text-center gap-2 group transition-colors border ${
+                                      selectedUpiApp === app.id
+                                        ? "bg-surface-container border-primary/40 shadow-xs"
+                                        : "bg-surface-container-low border-transparent hover:bg-surface-container"
+                                    }`}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name="upi_app"
+                                      checked={selectedUpiApp === app.id}
+                                      onChange={() => setSelectedUpiApp(app.id)}
+                                      className="sr-only"
+                                    />
+                                    <div className="w-10 h-10 rounded-full bg-surface-container-lowest shadow-sm flex items-center justify-center font-bold text-sm">
+                                      {app.icon ? (
+                                        <span aria-hidden className="material-symbols-outlined text-[20px] text-primary">{app.icon}</span>
+                                      ) : (
+                                        <>
+                                          <span className="text-primary font-headline-sm">{app.label1}</span>
+                                          {app.label2 && <span className="text-secondary font-headline-sm">{app.label2}</span>}
+                                        </>
+                                      )}
+                                    </div>
+                                    <span className="font-label-sm text-label-sm text-on-surface font-medium">{app.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* OR Divider */}
+                            <div className="relative flex items-center justify-center">
+                              <div className="w-full h-[1px] bg-surface-container" />
+                              <span className="absolute bg-surface-container-lowest px-4 font-label-caps text-label-caps uppercase text-outline">
+                                or enter UPI ID / VPA
+                              </span>
+                            </div>
+
+                            {/* UPI ID Field */}
+                            <div className="flex flex-col gap-2">
+                              <label className="font-label-sm text-label-sm text-on-surface font-medium" htmlFor="upi-id-input">
+                                Virtual Payment Address (VPA)
+                              </label>
+                              <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                  <input
+                                    id="upi-id-input"
+                                    type="text"
+                                    placeholder="username@okhdfcbank"
+                                    value={upiIdInput}
+                                    onChange={(e) => {
+                                      setUpiIdInput(e.target.value)
+                                      setUpiError(null)
+                                    }}
+                                    className={`w-full h-11 px-3.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest rounded transition-colors border ${
+                                      upiError ? "border-error" : "border-surface-container-high/60"
+                                    }`}
+                                  />
+                                  {upiIdInput && !upiError && (
+                                    <span aria-hidden className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-emerald-600">
+                                      verified
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (upiIdInput.includes("@")) toast.success("UPI ID verified successfully")
+                                    else toast.error("Please enter a valid handle e.g. name@okaxis")
+                                  }}
+                                  className="h-11 px-5 bg-surface-container hover:bg-surface-container-high text-on-surface font-label-caps text-label-caps uppercase transition-colors rounded cursor-pointer"
+                                >
+                                  Verify
+                                </button>
+                              </div>
+                              {upiError && <p className="text-xs text-error mt-0.5">{upiError}</p>}
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                {["@okaxis", "@oksbi", "@paytm", "@ybl"].map((suffix) => (
+                                  <span
+                                    key={suffix}
+                                    onClick={() => setUpiIdInput((prev) => (prev.includes("@") ? prev.split("@")[0] + suffix : prev + suffix))}
+                                    className="cursor-pointer font-label-sm text-xs bg-surface-container px-2 py-0.5 rounded text-on-surface-variant hover:text-primary transition-colors"
+                                  >
+                                    {suffix}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Dynamic QR Display Toggle Option */}
+                            <div className="p-4 bg-surface-container-low rounded-lg flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-surface-container-lowest rounded p-1.5 flex items-center justify-center shadow-xs">
+                                  <svg className="w-full h-full text-primary" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M2 2h8v8H2V2zm2 2v4h4V4H4zm10-2h8v8h-8V2zm2 2v4h4V4h-4zM2 14h8v8H2v-8zm2 2v4h4v-4H4zm14 0h4v2h-4v-2zm-4 0h2v4h-2v-4zm4 4h4v4h-4v-4zm-4 2h2v2h-2v-2zm-2-6h2v2h-2v-2z" />
+                                  </svg>
+                                </div>
+                                <div>
+                                  <span className="font-body-md text-body-md font-medium text-on-surface block">Dynamic QR Code</span>
+                                  <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
+                                    Scan &amp; Authorize on any mobile banking app
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setShowDynamicQr((prev) => !prev)}
+                                className="h-9 px-3.5 bg-surface-container-lowest hover:bg-surface text-on-surface font-label-caps text-label-caps uppercase rounded transition-colors shadow-xs cursor-pointer"
+                              >
+                                {showDynamicQr ? "Hide QR" : "Generate QR"}
+                              </button>
+                            </div>
+
+                            {showDynamicQr && (
+                              <div className="flex flex-col items-center justify-center p-6 bg-surface-container-low rounded-lg text-center animate-in fade-in duration-200">
+                                <div className="p-3 bg-white rounded-lg shadow-sm">
+                                  <svg className="w-36 h-36 text-primary" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M2 2h8v8H2V2zm2 2v4h4V4H4zm10-2h8v8h-8V2zm2 2v4h4V4h-4zM2 14h8v8H2v-8zm2 2v4h4v-4H4zm14 0h4v2h-4v-2zm-4 0h2v4h-2v-4zm4 4h4v4h-4v-4zm-4 2h2v2h-2v-2zm-2-6h2v2h-2v-2z" />
+                                  </svg>
+                                </div>
+                                <span className="font-label-caps text-label-caps uppercase tracking-wider text-on-surface mt-3">
+                                  Scan to pay {money(cart.totals.total)}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Submit Button */}
+                            <div className="pt-2">
+                              <button
+                                type="button"
+                                onClick={handlePlaceOrderSubmit}
+                                disabled={isSubmitting}
+                                className="w-full h-12 bg-primary hover:bg-primary/90 text-on-primary font-label-caps text-label-caps uppercase tracking-wider rounded transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-70"
+                                data-testid="submit-order-button"
+                              >
+                                <span>{isSubmitting ? "Initiating UPI Gateway…" : `Pay ${money(cart.totals.total)} via UPI`}</span>
+                                {!isSubmitting && <span aria-hidden className="material-symbols-outlined text-[18px]">arrow_forward</span>}
+                              </button>
+                              <p className="text-center font-label-sm text-label-sm text-on-surface-variant mt-2">
+                                An authorization prompt will be dispatched to your selected UPI app
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Pane: Cards */}
+                        {activeTab === "card" && (
+                          <div className="flex flex-col gap-5" id="pane-card">
+                            <div className="flex items-center justify-between pb-3 border-b border-surface-container-high/40">
+                              <div>
+                                <h3 className="font-headline-sm text-headline-sm text-on-surface">Credit / Debit Card</h3>
+                                <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">RBI Compliant Tokenization Guaranteed</p>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-on-surface-variant">
+                                <span className="font-label-caps text-[10px] bg-surface-container px-1.5 py-0.5 rounded font-bold">VISA</span>
+                                <span className="font-label-caps text-[10px] bg-surface-container px-1.5 py-0.5 rounded font-bold">MC</span>
+                                <span className="font-label-caps text-[10px] bg-surface-container px-1.5 py-0.5 rounded font-bold">RUPAY</span>
+                                <span className="font-label-caps text-[10px] bg-surface-container px-1.5 py-0.5 rounded font-bold">AMEX</span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col gap-4">
+                              <div>
+                                <label className="font-label-sm text-label-sm text-on-surface font-medium block mb-1.5">Card Number</label>
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    placeholder="4532 •••• •••• 8920"
+                                    maxLength={19}
+                                    value={cardData.cardNumber}
+                                    onChange={(e) => setCardData({ ...cardData, cardNumber: e.target.value })}
+                                    className="w-full h-11 px-3.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest rounded transition-colors font-mono border border-surface-container-high/60"
+                                  />
+                                  <span aria-hidden className="material-symbols-outlined text-outline text-[20px] absolute right-3 top-1/2 -translate-y-1/2">
+                                    credit_card
+                                  </span>
+                                </div>
+                                {cardErrors.cardNumber && <p className="text-xs text-error mt-1">{cardErrors.cardNumber}</p>}
+                              </div>
+
+                              <div>
+                                <label className="font-label-sm text-label-sm text-on-surface font-medium block mb-1.5">Cardholder Name</label>
+                                <input
+                                  type="text"
+                                  placeholder="NAME ON CARD"
+                                  value={cardData.cardholderName}
+                                  onChange={(e) => setCardData({ ...cardData, cardholderName: e.target.value })}
+                                  className="w-full h-11 px-3.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest rounded uppercase transition-colors border border-surface-container-high/60"
+                                />
+                                {cardErrors.cardholderName && <p className="text-xs text-error mt-1">{cardErrors.cardholderName}</p>}
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="font-label-sm text-label-sm text-on-surface font-medium block mb-1.5">Valid Thru (MM / YY)</label>
+                                  <input
+                                    type="text"
+                                    placeholder="08 / 28"
+                                    maxLength={5}
+                                    value={cardData.expiry}
+                                    onChange={(e) => setCardData({ ...cardData, expiry: e.target.value })}
+                                    className="w-full h-11 px-3.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest rounded transition-colors text-center font-mono border border-surface-container-high/60"
+                                  />
+                                  {cardErrors.expiry && <p className="text-xs text-error mt-1">{cardErrors.expiry}</p>}
+                                </div>
+                                <div>
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <label className="font-label-sm text-label-sm text-on-surface font-medium">CVV / CVC</label>
+                                    <span aria-hidden className="material-symbols-outlined text-[16px] text-outline cursor-pointer" title="3 digits on back of card">
+                                      help
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="password"
+                                    maxLength={4}
+                                    placeholder="•••"
+                                    value={cardData.cvv}
+                                    onChange={(e) => setCardData({ ...cardData, cvv: e.target.value })}
+                                    className="w-full h-11 px-3.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest rounded transition-colors text-center font-mono tracking-widest border border-surface-container-high/60"
+                                  />
+                                  {cardErrors.cvv && <p className="text-xs text-error mt-1">{cardErrors.cvv}</p>}
+                                </div>
+                              </div>
+
+                              <label className="flex items-start gap-2.5 cursor-pointer mt-1">
+                                <input defaultChecked className="mt-1 w-4 h-4 rounded text-primary accent-primary" type="checkbox" />
+                                <span className="font-body-sm text-body-sm text-on-surface-variant">
+                                  Securely tokenize and save this card per latest RBI guidelines. We never save raw CVV data.
+                                </span>
+                              </label>
+
+                              <button
+                                type="button"
+                                onClick={handlePlaceOrderSubmit}
+                                disabled={isSubmitting}
+                                className="w-full h-12 mt-2 bg-primary hover:bg-primary/90 text-on-primary font-label-caps text-label-caps uppercase tracking-wider rounded transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-70"
+                                data-testid="submit-order-button"
+                              >
+                                <span>{isSubmitting ? "Connecting to 3D Secure…" : `Pay ${money(cart.totals.total)}`}</span>
+                                {!isSubmitting && <span aria-hidden className="material-symbols-outlined text-[18px]">lock</span>}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Pane: Net Banking */}
+                        {activeTab === "netbanking" && (
+                          <div className="flex flex-col gap-5" id="pane-netbanking">
+                            <div>
+                              <h3 className="font-headline-sm text-headline-sm text-on-surface">Net Banking</h3>
+                              <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+                                Direct redirection to your accredited banking portal
+                              </p>
+                            </div>
+
+                            <div>
+                              <span className="font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant block mb-3">
+                                Popular Banks
+                              </span>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {[
+                                  { code: "HDFC", name: "HDFC Bank" },
+                                  { code: "ICICI", name: "ICICI Bank" },
+                                  { code: "SBI", name: "State Bank" },
+                                  { code: "AXIS", name: "Axis Bank" },
+                                  { code: "KOTAK", name: "Kotak Bank" },
+                                  { code: "IDFC", name: "IDFC First" },
+                                ].map((bank) => (
+                                  <button
+                                    key={bank.name}
+                                    type="button"
+                                    onClick={() => setSelectedBank(bank.name)}
+                                    className={`p-3 rounded text-left flex items-center gap-3 transition-colors border cursor-pointer ${
+                                      selectedBank === bank.name
+                                        ? "bg-surface-container border-primary/40 shadow-xs"
+                                        : "bg-surface-container-low border-transparent hover:bg-surface-container"
+                                    }`}
+                                  >
+                                    <span className="w-8 h-8 rounded bg-surface-container-lowest flex items-center justify-center font-bold text-xs text-primary">
+                                      {bank.code}
+                                    </span>
+                                    <span className="font-label-sm text-label-sm text-on-surface font-medium">{bank.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="font-label-sm text-label-sm text-on-surface font-medium block mb-1.5">
+                                Select Another Institution
+                              </label>
+                              <select
+                                value={selectedBank}
+                                onChange={(e) => setSelectedBank(e.target.value)}
+                                className="w-full h-11 px-3.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface rounded focus:outline-none focus:bg-surface-container-lowest border border-surface-container-high/60"
+                              >
+                                <option>Choose from 50+ other Indian scheduled banks...</option>
+                                <option>Bank of Baroda</option>
+                                <option>Punjab National Bank</option>
+                                <option>IndusInd Bank</option>
+                                <option>Yes Bank</option>
+                                <option>Federal Bank</option>
+                              </select>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handlePlaceOrderSubmit}
+                              disabled={isSubmitting}
+                              className="w-full h-12 mt-2 bg-primary hover:bg-primary/90 text-on-primary font-label-caps text-label-caps uppercase tracking-wider rounded transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-70"
+                              data-testid="submit-order-button"
+                            >
+                              <span>{isSubmitting ? "Transferring…" : `Proceed to Secure Gateway (${money(cart.totals.total)})`}</span>
+                              {!isSubmitting && <span aria-hidden className="material-symbols-outlined text-[18px]">open_in_new</span>}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Pane: Pay on Delivery */}
+                        {activeTab === "cod" && (
+                          <div className="flex flex-col gap-5" id="pane-cod">
+                            <div>
+                              <h3 className="font-headline-sm text-headline-sm text-on-surface">Pay on Delivery</h3>
+                              <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+                                Settle with physical currency or instant QR scan upon courier handover
+                              </p>
+                            </div>
+
+                            <div className="p-4 bg-surface-container-low rounded-lg flex items-start gap-3">
+                              <span aria-hidden className="material-symbols-outlined text-[20px] text-on-surface mt-0.5">info</span>
+                              <div className="font-body-sm text-body-sm text-on-surface-variant space-y-1">
+                                <p>You can pay via cash or by scanning the courier&apos;s UPI QR code directly on consignment delivery.</p>
+                                <p className="text-xs text-outline">To curtail logistics wastage, please ensure you are available at the destination.</p>
+                              </div>
+                            </div>
+
+                            <div className="p-4 rounded-lg bg-surface-container flex flex-col gap-1.5">
+                              <span className="font-label-caps text-label-caps uppercase text-on-surface font-semibold">
+                                Dispatch Verification
+                              </span>
+                              <p className="font-body-sm text-body-sm text-on-surface-variant">
+                                We will dispatch an SMS verification link prior to courier transit.
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handlePlaceOrderSubmit}
+                              disabled={isSubmitting}
+                              className="w-full h-12 mt-2 bg-primary hover:bg-primary/90 text-on-primary font-label-caps text-label-caps uppercase tracking-wider rounded transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-70"
+                              data-testid="submit-order-button"
+                            >
+                              <span>{isSubmitting ? "Placing Order…" : `Place Order (${money(cart.totals.total)})`}</span>
+                              {!isSubmitting && <span aria-hidden className="material-symbols-outlined text-[18px]">check_circle</span>}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Pane: EMI & Pay Later */}
+                        {activeTab === "emi" && (
+                          <div className="flex flex-col gap-5" id="pane-emi">
+                            <div>
+                              <h3 className="font-headline-sm text-headline-sm text-on-surface">EMI &amp; Pay Later Services</h3>
+                              <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+                                Split payments into frictionless monthly installments
+                              </p>
+                            </div>
+
+                            <div className="space-y-3">
+                              <label className="p-4 bg-surface-container-low hover:bg-surface-container rounded-lg flex items-center justify-between cursor-pointer transition-colors block border border-surface-container-high/40">
+                                <div className="flex items-center gap-3">
+                                  <input defaultChecked className="accent-primary" name="paylater_option" type="radio" />
+                                  <div>
+                                    <span className="font-body-md text-body-md font-medium text-on-surface block">Simpl 1-Click PayLater</span>
+                                    <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
+                                      Pay in 3 parts with 0% interest surcharge
+                                    </span>
+                                  </div>
+                                </div>
+                                <span className="font-label-caps text-label-caps text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded font-semibold">
+                                  Eligible
+                                </span>
+                              </label>
+
+                              <label className="p-4 bg-surface-container-low hover:bg-surface-container rounded-lg flex items-center justify-between cursor-pointer transition-colors block border border-surface-container-high/40">
+                                <div className="flex items-center gap-3">
+                                  <input className="accent-primary" name="paylater_option" type="radio" />
+                                  <div>
+                                    <span className="font-body-md text-body-md font-medium text-on-surface block">Credit Card No-Cost EMI</span>
+                                    <span className="font-body-sm text-body-sm text-on-surface-variant text-xs">
+                                      Plans starting from {money(Math.round(cart.totals.total / 3))}/month for 3 months
+                                    </span>
+                                  </div>
+                                </div>
+                                <span className="font-label-sm text-label-sm text-outline">3–12 Months</span>
+                              </label>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handlePlaceOrderSubmit}
+                              disabled={isSubmitting}
+                              className="w-full h-12 mt-2 bg-primary hover:bg-primary/90 text-on-primary font-label-caps text-label-caps uppercase tracking-wider rounded transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:opacity-70"
+                              data-testid="submit-order-button"
+                            >
+                              <span>{isSubmitting ? "Connecting…" : "Continue with Selected Plan"}</span>
+                              {!isSubmitting && <span aria-hidden className="material-symbols-outlined text-[18px]">arrow_forward</span>}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+                </>
+              )}
+            </div>
+
+            {/* Right Column (5 cols on lg, 4 on xl): Order Summary & Interactive Panel */}
+            <div className="lg:col-span-5 xl:col-span-4 sticky top-28">
+              <div className="flex flex-col gap-space-md bg-surface-container-lowest p-space-lg rounded-lg shadow-md border border-surface-container-high/40">
+                {/* Summary Header */}
+                <div className="flex items-center justify-between pb-space-sm border-b border-surface-container-high/50">
+                  <h2 className="font-headline-sm text-headline-sm text-on-surface font-medium">Order Summary</h2>
+                  <span className="px-space-sm py-0.5 bg-surface-container text-on-surface-variant font-label-caps text-label-caps rounded-full">
+                    {totalItemCount} {totalItemCount === 1 ? "ITEM" : "ITEMS"}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between font-body-sm text-body-sm text-secondary font-medium">
-                  <span>Privilege Gold Discount</span>
-                  <span className="tabular-nums">
-                    {cart.totals.discountTotal > 0
-                      ? `-${formatMoney(cart.totals.discountTotal, cart.currency)}`
-                      : "-₹0"}
-                  </span>
+                {/* Items Presentation List */}
+                <ul className="flex max-h-80 flex-col gap-space-sm overflow-y-auto" data-testid="items-table">
+                  {items.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex gap-space-md p-space-sm bg-surface-container-low rounded-lg"
+                      data-testid="product-row"
+                    >
+                      <div className="w-20 h-24 overflow-hidden rounded bg-surface-container-high flex-shrink-0 relative">
+                        {item.thumbnail ? (
+                          <Image
+                            src={item.thumbnail}
+                            alt={item.productTitle}
+                            fill
+                            sizes="80px"
+                            className="object-cover object-center"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="flex flex-col justify-between flex-1 min-w-0">
+                        <div>
+                          <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block">
+                            EVERWEAR ATELIER
+                          </span>
+                          <h3 className="font-body-md text-body-md text-on-surface font-medium truncate" data-testid="product-title">
+                            {item.productTitle}
+                          </h3>
+                          <p className="font-body-sm text-body-sm text-on-surface-variant">
+                            {item.variantTitle ? `Size: ${item.variantTitle} • ` : ""}Qty: {item.quantity}
+                          </p>
+                        </div>
+                        <div className="flex items-baseline justify-between mt-space-xs">
+                          <span className="font-label-caps text-label-caps text-on-surface-variant">Archival Loom</span>
+                          <span className="font-headline-sm text-headline-sm text-primary font-medium tabular-nums">
+                            {money(item.total)}
+                          </span>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Promotional Voucher Module */}
+                <div className="pt-space-xs">
+                  <PromoCode cart={cart} />
                 </div>
 
-                {cart.promoCodes?.length > 0 && (
-                  <div className="flex items-center justify-between font-body-sm text-body-sm text-on-surface-variant">
-                    <span>Promo Code ({cart.promoCodes.join(", ").toUpperCase()})</span>
-                    <span className="text-secondary font-medium">Applied</span>
+                {/* Detailed Price Breakdown */}
+                <div className="flex flex-col gap-space-xs pt-space-sm border-t border-surface-container-high/40 tabular-nums">
+                  <div className="flex justify-between font-body-sm text-body-sm text-on-surface-variant">
+                    <span>Bag Total</span>
+                    <span className="text-on-surface font-medium">{money(cart.totals.itemSubtotal)}</span>
                   </div>
-                )}
+                  {cart.totals.discountTotal > 0 && (
+                    <div className="flex justify-between font-body-sm text-body-sm text-secondary">
+                      <span>Privilege Member Discount</span>
+                      <span className="font-medium">- {money(cart.totals.discountTotal)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-body-sm text-body-sm text-on-surface-variant">
+                    <span className="flex items-center gap-1">Delivery Fee</span>
+                    <span className={isFreeDelivery ? "text-emerald-700 font-semibold tracking-wide" : "text-on-surface font-medium"}>
+                      {isFreeDelivery ? "FREE" : money(deliveryFee)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-body-sm text-body-sm text-on-surface-variant">
+                    <span>Estimated GST (Inclusive)</span>
+                    <span className="text-on-surface font-medium">
+                      {cart.totals.taxTotal > 0 ? money(cart.totals.taxTotal) : "Included"}
+                    </span>
+                  </div>
 
-                <div className="flex items-center justify-between font-body-sm text-body-sm text-on-surface-variant">
-                  <span>Delivery Fee</span>
-                  {/*
-                    The cart's shippingTotal only catches up once the choice is
-                    persisted at place-order, so read the fee off the option the
-                    shopper has actually selected on this screen.
-                  */}
-                  <span className="text-secondary font-medium uppercase tabular-nums">
-                    {deliveryFee === 0 ? "Free" : formatMoney(deliveryFee, cart.currency)}
-                  </span>
+                  {/* High Contrast Total */}
+                  <div className="mt-space-sm pt-space-sm bg-surface-container-low p-space-md rounded-lg flex items-center justify-between">
+                    <div>
+                      <span className="font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant block">
+                        Total Payable
+                      </span>
+                      <span className="font-label-sm text-label-sm text-outline">Net of luxury duties</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-headline-xl text-headline-xl text-primary font-medium tracking-tight" data-testid="checkout-total">
+                        {money(cart.totals.total)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between font-body-sm text-body-sm text-on-surface-variant">
-                  <span>Estimated GST (Included)</span>
-                  <span className="tabular-nums">
-                    {formatMoney(cart.totals.taxTotal, cart.currency)}
-                  </span>
+                {/* Primary Action Call to Action */}
+                <div className="pt-space-xs">
+                  {stage !== "payment" ? (
+                    <button
+                      type="button"
+                      onClick={handleContinue}
+                      disabled={isSubmitting}
+                      className="w-full h-12 bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider flex items-center justify-center gap-space-sm rounded-lg hover:bg-primary/90 transition-all duration-200 shadow-md group cursor-pointer disabled:opacity-70"
+                      data-testid="checkout-continue-button"
+                    >
+                      <span>
+                        {isSubmitting
+                          ? "Securing…"
+                          : stage === "address"
+                          ? "CONTINUE TO DELIVERY"
+                          : "CONTINUE TO PAYMENT"}
+                      </span>
+                      {!isSubmitting && (
+                        <span aria-hidden className="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">
+                          arrow_forward
+                        </span>
+                      )}
+                    </button>
+                  ) : (
+                    <p className="text-center text-[12px] text-on-surface-variant" data-testid="order-terms">
+                      By placing the order, you agree to our{" "}
+                      <a href={`/${countryCode}/terms`} className="underline underline-offset-2 hover:text-primary">
+                        Terms of Service
+                      </a>{" "}
+                      and{" "}
+                      <a href={`/${countryCode}/privacy`} className="underline underline-offset-2 hover:text-primary">
+                        Privacy Policy
+                      </a>
+                      .
+                    </p>
+                  )}
                 </div>
-              </div>
 
-              {/* Total Amount Row */}
-              <div className="flex items-center justify-between pt-space-sm">
-                <span className="font-headline-sm text-headline-sm text-primary font-bold">
-                  Total Amount
-                </span>
-                <span className="font-headline-lg text-headline-lg text-primary font-light tabular-nums">
-                  {formatMoney(cart.totals.total, cart.currency)}
-                </span>
-              </div>
-
-              {/* Primary Place Secure Order CTA */}
-              <button
-                type="button"
-                onClick={handlePlaceOrderSubmit}
-                disabled={isSubmitting}
-                className="w-full h-12 bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider rounded-lg hover:bg-primary-container transition-colors flex items-center justify-center gap-space-sm shadow-md cursor-pointer disabled:opacity-50"
-                data-testid="submit-order-button"
-              >
-                <span>
-                  {isSubmitting
-                    ? "Securing Order..."
-                    : `Place Secure Order — ${formatMoney(cart.totals.total, cart.currency)}`}
-                </span>
-                <span className="material-symbols-outlined text-[18px]">
-                  arrow_forward
-                </span>
-              </button>
-
-              {/* Security Reassurance Strip */}
-              <div className="flex flex-col gap-space-sm pt-space-xs text-on-surface-variant border-t border-surface-container-high/40">
-                <div className="flex items-center gap-space-sm font-body-sm text-body-sm">
-                  <span className="material-symbols-outlined text-[18px] text-secondary">
-                    verified_user
-                  </span>
-                  <span>256-bit Bank-Grade SSL Secure Encryption</span>
-                </div>
-                <div className="flex items-center gap-space-sm font-body-sm text-body-sm">
-                  <span className="material-symbols-outlined text-[18px] text-secondary">
-                    sync
-                  </span>
-                  <span>14-day hassle-free returns &amp; exchange at your doorstep</span>
-                </div>
-                <div className="flex items-center gap-space-sm font-body-sm text-body-sm">
-                  <span className="material-symbols-outlined text-[18px] text-secondary">
-                    workspace_premium
-                  </span>
-                  <span>100% Genuine Certified Curations</span>
+                {/* Security & Guarantee Artifacts */}
+                <div className="pt-space-sm flex flex-col gap-space-xs text-on-surface-variant">
+                  <div className="flex items-center gap-space-xs font-label-sm text-label-sm">
+                    <span aria-hidden className="material-symbols-outlined text-[16px] text-primary">verified_user</span>
+                    <span>256-bit Bank-Grade SSL Secure Checkout</span>
+                  </div>
+                  <div className="flex items-center gap-space-xs font-label-sm text-label-sm">
+                    <span aria-hidden className="material-symbols-outlined text-[16px] text-primary">inventory_2</span>
+                    <span>100% Genuine Atelier Raw Loom Curation</span>
+                  </div>
+                  <div className="flex items-center gap-space-xs font-label-sm text-label-sm">
+                    <span aria-hidden className="material-symbols-outlined text-[16px] text-primary">published_with_changes</span>
+                    <span>Complimentary 14-day hassle-free door returns</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   )
 }

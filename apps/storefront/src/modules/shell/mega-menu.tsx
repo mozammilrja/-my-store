@@ -1221,23 +1221,6 @@ export function MegaMenu({
             </span>
           </LocalizedClientLink>
         </div>
-
-        {/* Right Shortcuts */}
-        <div className="hidden xl:flex items-center gap-4 text-muted-foreground shrink-0 pl-4 font-body-sm text-xs">
-          <LocalizedClientLink
-            href="/order"
-            className="font-label-caps text-[11px] uppercase tracking-wider hover:text-foreground transition-colors font-bold"
-          >
-            Track Order
-          </LocalizedClientLink>
-          <span className="opacity-20">|</span>
-          <LocalizedClientLink
-            href="/contact"
-            className="font-label-caps text-[11px] uppercase tracking-wider hover:text-foreground transition-colors font-bold"
-          >
-            Find Atelier
-          </LocalizedClientLink>
-        </div>
       </div>
     </nav>
   )

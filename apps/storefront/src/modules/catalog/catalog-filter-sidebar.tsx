@@ -1,773 +1,564 @@
 "use client"
 
-import { useState } from "react"
-import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, SearchIcon, StarIcon, XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Category } from "@lib/api/types"
-import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { formatMoney } from "@lib/money"
-import { listingHref, toggle, type Listing } from "./params"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { CheckIcon, SearchIcon, StarIcon, XIcon } from "lucide-react"
+import { useParams, useRouter } from "next/navigation"
+import { useState } from "react"
+import { GENDER_HANDLES, listingHref, toggle, type Listing } from "./params"
 
-const bucketLabelFor = (min: number | undefined, max: number | undefined, currency: string) =>
-  min !== undefined && max !== undefined
-    ? `${formatMoney(min, currency)} - ${formatMoney(max, currency)}`
-    : max !== undefined
-      ? `Under ${formatMoney(max, currency)}`
-      : `${formatMoney(min ?? 0, currency)} and above`
+/** Myntra's accent, used for checks, radios, the slider and "+ more". */
+const ACCENT = "#ff3f6c"
 
 const SWATCH: Record<string, string> = {
-  black: "#111111",
+  black: "#36454f",
   white: "#ffffff",
   grey: "#9ca3af",
   gray: "#9ca3af",
   navy: "#1e2a4a",
-  blue: "#2440d6",
-  green: "#3f6b47",
-  red: "#c8291d",
-  beige: "#d8c8a8",
-  brown: "#7a5236",
+  blue: "#0074d9",
+  green: "#5eb160",
+  red: "#d34b56",
+  pink: "#f1a9c4",
+  beige: "#e8e6cf",
+  brown: "#915039",
   sand: "#e7e5e4",
   mocha: "#785b4f",
   ivory: "#fbf9f8",
   emerald: "#065f46",
+  olive: "#3d9970",
+  yellow: "#eadd4a",
+  maroon: "#b03060",
+  orange: "#f28d20",
+  purple: "#800080",
+}
+
+const GENDER_LABEL: Record<string, string> = { men: "Men", women: "Women", kids: "Kids" }
+
+/** Whole currency units without ".00", like the product cards. */
+const shortMoney = (amount: number, currency: string) =>
+  formatMoney(amount, currency).replace(/[.,]00(?=\D*$)/, "")
+
+type Facets = {
+  currency: string
+  options: { title: string; values: { value: string; count: number }[] }[]
+  onSaleCount: number
+  priceRange: { min: number; max: number } | null
+  /** Absent while a response cached before these facets shipped is replayed. */
+  brands?: { value: string; count: number }[]
+  discounts?: { value: number; count: number }[]
+  ratings?: { value: number; count: number }[]
 }
 
 /**
- * Round price bands derived from the catalog's own range, so the buckets
- * always bracket real products instead of guessing at a currency.
+ * Myntra-style filter column: FILTERS / CLEAR ALL, a gender radio group,
+ * then always-open sections divided by rules. Long lists show eight entries,
+ * a "+ N more" link and a search toggle; price is a two-handle slider.
+ *
+ * Every option is a real link built by `listingHref`, so the column works
+ * without JavaScript, can be crawled, and writes the shareable `?f=` URL.
  */
-const priceBuckets = (range: { min: number; max: number } | null) => {
-  if (!range || range.max <= range.min) return []
-  const span = range.max - range.min
-  const step = Math.max(1, Math.round(span / 4 / 100000) * 100000 || Math.round(span / 4))
-  const edges = [range.min + step, range.min + step * 2, range.min + step * 3]
-  return [
-    { min: undefined as number | undefined, max: edges[0] as number | undefined },
-    { min: edges[0] as number | undefined, max: edges[1] as number | undefined },
-    { min: edges[1] as number | undefined, max: edges[2] as number | undefined },
-    { min: edges[2] as number | undefined, max: undefined as number | undefined },
-  ]
-}
-
-const GENDERS = [
-  { handle: "men", label: "Men" },
-  { handle: "women", label: "Women" },
-  { handle: "kids", label: "Kids" },
-]
-
 export function CatalogFilterSidebar({
   path,
   listing,
   categories = [],
   facets,
-  currentCategoryHandle,
 }: {
   path: string
   listing: Listing
   categories?: Category[]
-  facets: {
-    currency: string
-    options: { title: string; values: { value: string; count: number }[] }[]
-    onSaleCount: number
-    priceRange: { min: number; max: number } | null
-    /** Absent while a response cached before these facets shipped is replayed. */
-    brands?: { value: string; count: number }[]
-    discounts?: { value: number; count: number }[]
-    ratings?: { value: number; count: number }[]
-  }
+  facets: Facets
   currentCategoryHandle?: string
 }) {
-  // Accordion section states (default open for primary facet dimensions)
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    categories: true,
-    gender: true,
-    brand: true,
-    price: true,
-    color: true,
-    size: true,
-    offers: true,
-    rating: false,
-    availability: false,
-  })
-
-  const [brandSearch, setBrandSearch] = useState("")
-
-  const toggleSection = (id: string) => {
-    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }))
-  }
-
   const href = (change: Partial<Listing>) => listingHref(path, listing, change)
 
-  // Active filter chips
-  const activeChips = [
-    ...listing.categories.map((handle) => ({
-      label: categories?.find((c) => c.handle === handle)?.name ?? handle,
-      href: href({ categories: listing.categories.filter((c) => c !== handle) }),
-    })),
-    ...listing.options.map((o) => {
-      const parts = o.split(":")
+  const genders = listing.categories.filter((c) =>
+    (GENDER_HANDLES as readonly string[]).includes(c)
+  )
+  const nonGender = listing.categories.filter((c) => !genders.includes(c))
+
+  const activeCount =
+    listing.categories.length +
+    listing.brands.length +
+    listing.options.length +
+    (listing.minPrice !== undefined || listing.maxPrice !== undefined ? 1 : 0) +
+    (listing.discount !== undefined ? 1 : 0) +
+    (listing.rating !== undefined ? 1 : 0) +
+    (listing.inStock ? 1 : 0) +
+    (listing.sale ? 1 : 0)
+
+  const categoryItems = categories
+    .filter((c) => !(GENDER_HANDLES as readonly string[]).includes(c.handle))
+    .sort((a, b) => (b.productCount ?? 0) - (a.productCount ?? 0))
+    .map((c) => ({
+      key: c.handle,
+      label: c.name,
+      count: c.productCount,
+      active: listing.categories.includes(c.handle),
+      href: href({ categories: toggle(listing.categories, c.handle) }),
+    }))
+
+  const brandItems = (facets.brands ?? []).map((b) => ({
+    key: b.value,
+    label: b.value,
+    count: b.count,
+    active: listing.brands.includes(b.value),
+    href: href({ brands: toggle(listing.brands, b.value) }),
+  }))
+
+  const optionItems = (group: Facets["options"][number]) =>
+    group.values.map((v) => {
+      const key = `${group.title}:${v.value}`
       return {
-        label: `${parts[0]}: ${parts[1]}`,
-        href: href({ options: listing.options.filter((x) => x !== o) }),
+        key,
+        label: v.value,
+        count: v.count,
+        active: listing.options.includes(key),
+        href: href({ options: toggle(listing.options, key) }),
+        swatch:
+          group.title.toLowerCase() === "color"
+            ? (SWATCH[v.value.toLowerCase()] ?? "#9ca3af")
+            : undefined,
       }
-    }),
-    ...listing.brands.map((brand) => ({
-      label: brand,
-      href: href({ brands: listing.brands.filter((b) => b !== brand) }),
-    })),
-    ...(listing.minPrice !== undefined || listing.maxPrice !== undefined
-      ? [
-          {
-            label: bucketLabelFor(listing.minPrice, listing.maxPrice, facets.currency),
-            href: href({ minPrice: undefined, maxPrice: undefined }),
-          },
-        ]
-      : []),
-    ...(listing.discount !== undefined
-      ? [{ label: `${listing.discount}% off or more`, href: href({ discount: undefined }) }]
-      : []),
-    ...(listing.rating !== undefined
-      ? [{ label: `${listing.rating}\u2605 & above`, href: href({ rating: undefined }) }]
-      : []),
-    ...(listing.inStock ? [{ label: "In Stock", href: href({ inStock: false }) }] : []),
-    ...(listing.sale ? [{ label: "On Sale", href: href({ sale: false }) }] : []),
-  ]
+    })
 
   const colorGroup = facets.options.find((o) => o.title.toLowerCase() === "color")
-  const sizeGroup = facets.options.find((o) => o.title.toLowerCase() === "size")
-  const otherGroups = facets.options.filter(
-    (o) => !["color", "size"].includes(o.title.toLowerCase())
-  )
-
-  // A facets payload cached before these fields existed must not blank the page.
-  const brandFacets = facets.brands ?? []
-  const discountFacets = facets.discounts ?? []
-  const ratingFacets = facets.ratings ?? []
-
-  const filteredBrands = brandFacets.filter((b) =>
-    b.value.toLowerCase().includes(brandSearch.trim().toLowerCase())
-  )
-  const buckets = priceBuckets(facets.priceRange)
-  const money = (amount: number) => formatMoney(amount, facets.currency)
-  const bucketLabel = (min?: number, max?: number) =>
-    min !== undefined && max !== undefined
-      ? `${money(min)} - ${money(max)}`
-      : max !== undefined
-        ? `Under ${money(max)}`
-        : `${money(min ?? 0)} and above`
-  const bucketActive = (min?: number, max?: number) =>
-    listing.minPrice === min && listing.maxPrice === max
+  const otherGroups = facets.options.filter((o) => o.title.toLowerCase() !== "color")
 
   return (
-    <aside
-      className="w-full bg-surface-container-lowest border border-border/80 rounded-xl overflow-hidden shadow-xs divide-y divide-border/60"
-      aria-label="Product Filters"
-    >
-      {/* 1. Header: Filters Title & CLEAR ALL */}
-      <div className="p-4 flex items-center justify-between bg-surface-container-low/40">
-        <div className="flex items-center gap-2">
-          <span className="font-headline-sm text-base font-bold text-foreground">Filters</span>
-          {activeChips.length > 0 && (
-            <span className="font-label-caps text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-bold">
-              {activeChips.length}
-            </span>
-          )}
-        </div>
-        {activeChips.length > 0 && (
+    <aside className="w-full bg-surface-container-lowest" aria-label="Product Filters">
+      {/* FILTERS · CLEAR ALL */}
+      <div className="flex h-[52px] items-center justify-between border-b border-border/70 px-5">
+        <span className="text-[16px] font-bold uppercase text-foreground">Filters</span>
+        {activeCount > 0 && (
           <LocalizedClientLink
-            href={path}
-            className="font-label-caps text-xs uppercase tracking-wider text-secondary font-bold hover:underline"
+            href={listingHref(path, listing, {
+              categories: [],
+              brands: [],
+              options: [],
+              minPrice: undefined,
+              maxPrice: undefined,
+              discount: undefined,
+              rating: undefined,
+              inStock: false,
+              sale: false,
+            })}
+            className="text-[13px] font-bold uppercase"
+            style={{ color: ACCENT }}
+            data-testid="filters-clear-all"
           >
-            CLEAR ALL
+            Clear all
           </LocalizedClientLink>
         )}
       </div>
 
-      {/* 2. Active Filter Pills */}
-      {activeChips.length > 0 && (
-        <div className="p-3 bg-surface-container-lowest flex flex-wrap gap-1.5 border-b border-border/60">
-          {activeChips.map((chip, idx) => (
-            <LocalizedClientLink
-              key={idx}
-              href={chip.href}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container-low hover:bg-surface-container border border-border/50 text-foreground font-body-sm text-xs transition-colors group"
-            >
-              <XIcon className="size-3 text-muted-foreground group-hover:text-destructive transition-colors" />
-              <span>{chip.label}</span>
-            </LocalizedClientLink>
-          ))}
-        </div>
+      {/* Gender: one at a time, like Myntra's radios. */}
+      <ul className="flex flex-col gap-2 border-b border-border/70 px-5 py-4" aria-label="Gender">
+        {GENDER_HANDLES.map((g) => {
+          const active = genders.includes(g)
+          return (
+            <li key={g}>
+              <LocalizedClientLink
+                href={href({ categories: active ? nonGender : [...nonGender, g] })}
+                aria-current={active ? "true" : undefined}
+                className="flex items-center gap-3 text-[14px] font-bold text-foreground"
+                data-testid="gender-refinement"
+              >
+                <Radio checked={active} />
+                {GENDER_LABEL[g]}
+              </LocalizedClientLink>
+            </li>
+          )
+        })}
+      </ul>
+
+      {categoryItems.length > 0 && (
+        <FilterList
+          title="Categories"
+          items={categoryItems}
+          searchPlaceholder="Search for Category"
+          testId="category-refinement"
+        />
       )}
 
-      {/* 3. CATEGORIES Hierarchy Navigation */}
-      <div className="p-4 flex flex-col gap-2">
-        <div className="flex items-center justify-between mb-1">
-          <span className="font-label-caps text-[11px] uppercase tracking-wider text-muted-foreground font-bold">
-            CATEGORIES
-          </span>
-        </div>
+      {brandItems.length > 0 && (
+        <FilterList
+          title="Brand"
+          items={brandItems}
+          searchPlaceholder="Search for Brand"
+          testId="brand-refinement"
+        />
+      )}
 
-        {/* Parent Category Breadcrumb */}
-        <LocalizedClientLink
-          href="/store"
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
-        >
-          <ChevronLeftIcon className="size-3.5" />
-          <span>All Departments</span>
-        </LocalizedClientLink>
+      {facets.priceRange && facets.priceRange.max > facets.priceRange.min && (
+        <section className="border-b border-border/70 px-5 py-4">
+          <h3 className="mb-4 text-[14px] font-bold uppercase text-foreground">Price</h3>
+          <PriceSlider
+            // Remount when the URL's bounds change (back button, clear all).
+            key={`${listing.minPrice ?? ""}_${listing.maxPrice ?? ""}`}
+            range={facets.priceRange}
+            currency={facets.currency}
+            min={listing.minPrice}
+            max={listing.maxPrice}
+            hrefFor={(min, max) => href({ minPrice: min, maxPrice: max })}
+          />
+        </section>
+      )}
 
-        {/* Current Active Category / Department */}
-        <div className="pl-3 flex flex-col gap-1.5 mt-1 border-l-2 border-primary/80">
-          <span className="font-label-sm text-xs font-bold text-foreground flex items-center gap-1">
-            <span className="size-1.5 rounded-full bg-secondary" />
-            <span>
-              {categories.find((c) => c.handle === currentCategoryHandle)?.name || "Current Selection"}
-            </span>
-          </span>
+      {colorGroup && (
+        <FilterList
+          title="Color"
+          items={optionItems(colorGroup)}
+          searchPlaceholder="Search for Color"
+          testId="option-refinement"
+        />
+      )}
 
-          {/* Subcategory list with counts */}
-          <ul className="flex flex-col gap-1 pl-2.5 pt-1">
-            {categories.slice(0, 8).map((cat) => {
-              const active = listing.categories.includes(cat.handle)
+      {otherGroups.map((group) => (
+        <FilterList
+          key={group.title}
+          title={group.title}
+          items={optionItems(group)}
+          searchPlaceholder={`Search for ${group.title}`}
+          testId="option-refinement"
+        />
+      ))}
+
+      {(facets.discounts ?? []).length > 0 && (
+        <section className="border-b border-border/70 px-5 py-4">
+          <h3 className="mb-3 text-[14px] font-bold uppercase text-foreground">
+            Discount Range
+          </h3>
+          <ul className="flex flex-col gap-2">
+            {(facets.discounts ?? []).map((tier) => {
+              const selected = listing.discount === tier.value
               return (
-                <li key={cat.id}>
+                <li key={tier.value}>
                   <LocalizedClientLink
-                    href={href({ categories: toggle(listing.categories, cat.handle) })}
-                    className={cn(
-                      "flex items-center justify-between text-xs py-1 transition-colors hover:text-secondary",
-                      active ? "text-primary font-bold" : "text-muted-foreground"
-                    )}
+                    href={href({ discount: selected ? undefined : tier.value })}
+                    aria-current={selected ? "true" : undefined}
+                    data-testid="discount-refinement"
+                    className="flex items-center gap-3 text-[14px] text-foreground"
                   >
-                    <span className="truncate">{cat.name}</span>
-                    {cat.productCount !== undefined && (
-                      <span className="text-[10px] text-muted-foreground tabular-nums">
-                        ({cat.productCount})
-                      </span>
-                    )}
+                    <Radio checked={selected} />
+                    {tier.value}% and above
                   </LocalizedClientLink>
                 </li>
               )
             })}
           </ul>
-        </div>
-      </div>
-
-      {/* 4. GENDER / IDEAL FOR Accordion */}
-      <div className="p-4 flex flex-col gap-3">
-        <button
-          type="button"
-          onClick={() => toggleSection("gender")}
-          className="flex items-center justify-between w-full text-left"
-        >
-          <span className="font-label-caps text-xs uppercase tracking-wider text-foreground font-bold">
-            GENDER / IDEAL FOR
-          </span>
-          <ChevronDownIcon
-            className={cn(
-              "size-4 text-muted-foreground transition-transform duration-200",
-              openSections.gender && "rotate-180"
-            )}
-          />
-        </button>
-
-        {openSections.gender && (
-          <div className="flex flex-col gap-2 pt-1">
-            {GENDERS.map((g) => {
-              const active = listing.categories.includes(g.handle)
-              return (
-                <LocalizedClientLink
-                  key={g.handle}
-                  href={href({ categories: toggle(listing.categories, g.handle) })}
-                  className="flex items-center gap-2.5 text-xs text-foreground hover:text-secondary transition-colors"
-                >
-                  <span
-                    className={cn(
-                      "size-4 rounded border transition-colors flex items-center justify-center shrink-0",
-                      active
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input bg-surface-container-lowest"
-                    )}
-                  >
-                    {active && <CheckIcon className="size-3" />}
-                  </span>
-                  <span className={cn(active && "font-semibold")}>{g.label}</span>
-                </LocalizedClientLink>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* 5. PRICE Accordion with Quick Range Filters */}
-      <div className="p-4 flex flex-col gap-3">
-        <button
-          type="button"
-          onClick={() => toggleSection("price")}
-          className="flex items-center justify-between w-full text-left"
-        >
-          <span className="font-label-caps text-xs uppercase tracking-wider text-foreground font-bold">
-            PRICE
-          </span>
-          <ChevronDownIcon
-            className={cn(
-              "size-4 text-muted-foreground transition-transform duration-200",
-              openSections.price && "rotate-180"
-            )}
-          />
-        </button>
-
-        {openSections.price && facets.priceRange && (
-          <div className="flex flex-col gap-2 pt-1">
-            <div className="flex items-center justify-between text-xs text-muted-foreground pb-1">
-              <span>Min: {money(facets.priceRange.min)}</span>
-              <span className="h-px w-6 bg-border" />
-              <span>Max: {money(facets.priceRange.max)}</span>
-            </div>
-
-            {buckets.map((b, idx) => {
-              const selected = bucketActive(b.min, b.max)
-              return (
-                <LocalizedClientLink
-                  key={idx}
-                  href={
-                    selected
-                      ? href({ minPrice: undefined, maxPrice: undefined })
-                      : href({ minPrice: b.min, maxPrice: b.max })
-                  }
-                  aria-current={selected ? "true" : undefined}
-                  data-testid="price-refinement"
-                  className="flex items-center gap-2.5 text-xs text-foreground hover:text-secondary transition-colors py-0.5 cursor-pointer"
-                >
-                  <span className="size-3.5 rounded-full border border-input flex items-center justify-center shrink-0">
-                    <span
-                      className={cn(
-                        "size-1.5 rounded-full",
-                        selected ? "bg-secondary" : "bg-transparent"
-                      )}
-                    />
-                  </span>
-                  <span className={cn(selected && "font-semibold text-secondary")}>
-                    {bucketLabel(b.min, b.max)}
-                  </span>
-                </LocalizedClientLink>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* 6. BRAND / ATELIER Accordion with Live Search */}
-      <div className="p-4 flex flex-col gap-3">
-        <button
-          type="button"
-          onClick={() => toggleSection("brand")}
-          className="flex items-center justify-between w-full text-left"
-        >
-          <span className="font-label-caps text-xs uppercase tracking-wider text-foreground font-bold">
-            BRAND / ATELIER
-          </span>
-          <ChevronDownIcon
-            className={cn(
-              "size-4 text-muted-foreground transition-transform duration-200",
-              openSections.brand && "rotate-180"
-            )}
-          />
-        </button>
-
-        {openSections.brand && (
-          <div className="flex flex-col gap-2.5 pt-1">
-            {/* Brand Search Box */}
-            <div className="relative flex items-center">
-              <SearchIcon className="size-3.5 text-muted-foreground absolute left-2.5 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search Brand"
-                value={brandSearch}
-                onChange={(e) => setBrandSearch(e.target.value)}
-                className="w-full h-8 pl-8 pr-2.5 text-xs bg-surface-container-low border border-border rounded focus:outline-none focus:border-primary font-body-sm"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto no-scrollbar">
-              {filteredBrands.length === 0 && (
-                <span className="text-xs text-muted-foreground">No matching brands</span>
-              )}
-              {filteredBrands.map((b) => {
-                const selected = listing.brands.includes(b.value)
-                return (
-                  <LocalizedClientLink
-                    key={b.value}
-                    href={href({ brands: toggle(listing.brands, b.value) })}
-                    aria-current={selected ? "true" : undefined}
-                    data-testid="brand-refinement"
-                    className="flex items-center justify-between text-xs text-foreground hover:text-secondary transition-colors cursor-pointer py-0.5"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "size-4 rounded border flex items-center justify-center shrink-0",
-                          selected
-                            ? "border-secondary bg-secondary text-secondary-foreground"
-                            : "border-input bg-surface-container-lowest"
-                        )}
-                      >
-                        {selected && <CheckIcon className="size-3" />}
-                      </span>
-                      <span className={cn("truncate", selected && "font-semibold text-secondary")}>
-                        {b.value}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
-                      ({b.count})
-                    </span>
-                  </LocalizedClientLink>
-                )
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 7. COLOR Accordion with Swatches */}
-      {colorGroup && (
-        <div className="p-4 flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={() => toggleSection("color")}
-            className="flex items-center justify-between w-full text-left"
-          >
-            <span className="font-label-caps text-xs uppercase tracking-wider text-foreground font-bold">
-              COLOR
-            </span>
-            <ChevronDownIcon
-              className={cn(
-                "size-4 text-muted-foreground transition-transform duration-200",
-                openSections.color && "rotate-180"
-              )}
-            />
-          </button>
-
-          {openSections.color && (
-            <div className="flex flex-col gap-1.5 pt-1">
-              {colorGroup.values.map((v) => {
-                const key = `Color:${v.value}`
-                const active = listing.options.includes(key)
-                const swatch = SWATCH[v.value.toLowerCase()] || "#9ca3af"
-                return (
-                  <LocalizedClientLink
-                    key={v.value}
-                    href={href({ options: toggle(listing.options, key) })}
-                    className="flex items-center justify-between text-xs py-1 text-foreground hover:text-secondary transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={cn(
-                          "size-4 rounded border transition-colors flex items-center justify-center shrink-0",
-                          active
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-input bg-surface-container-lowest"
-                        )}
-                      >
-                        {active && <CheckIcon className="size-3" />}
-                      </span>
-                      <span
-                        className="size-3 rounded-full border border-black/20 shrink-0"
-                        style={{ backgroundColor: swatch }}
-                      />
-                      <span className={cn(active && "font-semibold")}>{v.value}</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
-                      ({v.count})
-                    </span>
-                  </LocalizedClientLink>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        </section>
       )}
 
-      {/* 8. SIZE Accordion (Compact Grid / Checkboxes) */}
-      {sizeGroup && (
-        <div className="p-4 flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={() => toggleSection("size")}
-            className="flex items-center justify-between w-full text-left"
-          >
-            <span className="font-label-caps text-xs uppercase tracking-wider text-foreground font-bold">
-              SIZE
-            </span>
-            <ChevronDownIcon
-              className={cn(
-                "size-4 text-muted-foreground transition-transform duration-200",
-                openSections.size && "rotate-180"
-              )}
-            />
-          </button>
-
-          {openSections.size && (
-            <div className="grid grid-cols-3 gap-1.5 pt-1">
-              {sizeGroup.values.map((v) => {
-                const key = `Size:${v.value}`
-                const active = listing.options.includes(key)
-                return (
-                  <LocalizedClientLink
-                    key={v.value}
-                    href={href({ options: toggle(listing.options, key) })}
-                    className={cn(
-                      "flex items-center justify-center h-8 rounded border font-label-sm text-xs font-semibold transition-all",
-                      active
-                        ? "border-primary bg-primary text-primary-foreground shadow-2xs"
-                        : "border-border bg-surface-container-low hover:border-foreground text-foreground"
-                    )}
-                  >
-                    <span>{v.value}</span>
-                  </LocalizedClientLink>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 9. Other Option Facets (e.g. Fit, Sleeve, Fabric) */}
-      {otherGroups.map((group) => (
-        <div key={group.title} className="p-4 flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={() => toggleSection(group.title.toLowerCase())}
-            className="flex items-center justify-between w-full text-left"
-          >
-            <span className="font-label-caps text-xs uppercase tracking-wider text-foreground font-bold">
-              {group.title}
-            </span>
-            <ChevronDownIcon
-              className={cn(
-                "size-4 text-muted-foreground transition-transform duration-200",
-                openSections[group.title.toLowerCase()] && "rotate-180"
-              )}
-            />
-          </button>
-
-          {openSections[group.title.toLowerCase()] && (
-            <div className="flex flex-col gap-1.5 pt-1">
-              {group.values.map((v) => {
-                const key = `${group.title}:${v.value}`
-                const active = listing.options.includes(key)
-                return (
-                  <LocalizedClientLink
-                    key={v.value}
-                    href={href({ options: toggle(listing.options, key) })}
-                    className="flex items-center justify-between text-xs py-1 text-foreground hover:text-secondary transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={cn(
-                          "size-4 rounded border transition-colors flex items-center justify-center shrink-0",
-                          active
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-input bg-surface-container-lowest"
-                        )}
-                      >
-                        {active && <CheckIcon className="size-3" />}
-                      </span>
-                      <span className={cn(active && "font-semibold")}>{v.value}</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
-                      ({v.count})
-                    </span>
-                  </LocalizedClientLink>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      ))}
-
-      {/* 10. OFFERS / DISCOUNT Accordion */}
-      <div className="p-4 flex flex-col gap-3">
-        <button
-          type="button"
-          onClick={() => toggleSection("offers")}
-          className="flex items-center justify-between w-full text-left"
-        >
-          <span className="font-label-caps text-xs uppercase tracking-wider text-foreground font-bold">
-            DISCOUNT &amp; OFFERS
-          </span>
-          <ChevronDownIcon
-            className={cn(
-              "size-4 text-muted-foreground transition-transform duration-200",
-              openSections.offers && "rotate-180"
-            )}
-          />
-        </button>
-
-        {openSections.offers && (
-          <div className="flex flex-col gap-2 pt-1">
-            <LocalizedClientLink
-              href={href({ sale: !listing.sale })}
-              className="flex items-center justify-between text-xs text-foreground hover:text-secondary transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                <span
-                  className={cn(
-                    "size-4 rounded border transition-colors flex items-center justify-center shrink-0",
-                    listing.sale
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-input bg-surface-container-lowest"
-                  )}
-                >
-                  {listing.sale && <CheckIcon className="size-3" />}
-                </span>
-                <span className={cn(listing.sale && "font-bold text-secondary")}>
-                  Archive Sale (Up to 50% Off)
-                </span>
-              </div>
-              <span className="font-label-caps text-[11px] bg-secondary-container text-on-secondary-fixed px-1.5 py-0.2 rounded font-bold">
-                50%
-              </span>
-            </LocalizedClientLink>
-
-            {discountFacets.map((tier) => {
-              const selected = listing.discount === tier.value
-              return (
-                <LocalizedClientLink
-                  key={tier.value}
-                  href={href({ discount: selected ? undefined : tier.value })}
-                  aria-current={selected ? "true" : undefined}
-                  data-testid="discount-refinement"
-                  className="flex items-center justify-between text-xs text-foreground hover:text-secondary transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className={cn(
-                        "size-4 rounded border transition-colors flex items-center justify-center shrink-0",
-                        selected
-                          ? "border-secondary bg-secondary text-secondary-foreground"
-                          : "border-input bg-surface-container-lowest"
-                      )}
-                    >
-                      {selected && <CheckIcon className="size-3" />}
-                    </span>
-                    <span className={cn(selected && "font-semibold text-secondary")}>
-                      {tier.value}% off or more
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
-                    ({tier.count})
-                  </span>
-                </LocalizedClientLink>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* 11. CUSTOMER RATINGS Accordion */}
-      <div className="p-4 flex flex-col gap-3">
-        <button
-          type="button"
-          onClick={() => toggleSection("rating")}
-          className="flex items-center justify-between w-full text-left"
-        >
-          <span className="font-label-caps text-xs uppercase tracking-wider text-foreground font-bold">
-            CUSTOMER RATINGS
-          </span>
-          <ChevronDownIcon
-            className={cn(
-              "size-4 text-muted-foreground transition-transform duration-200",
-              openSections.rating && "rotate-180"
-            )}
-          />
-        </button>
-
-        {openSections.rating && (
-          <div className="flex flex-col gap-2 pt-1">
-            {ratingFacets.length === 0 && (
-              <span className="text-xs text-muted-foreground">No rated products here yet</span>
-            )}
-            {ratingFacets.map((tier) => {
+      {(facets.ratings ?? []).length > 0 && (
+        <section className="border-b border-border/70 px-5 py-4">
+          <h3 className="mb-3 text-[14px] font-bold uppercase text-foreground">
+            Customer Ratings
+          </h3>
+          <ul className="flex flex-col gap-2">
+            {(facets.ratings ?? []).map((tier) => {
               const selected = listing.rating === tier.value
               return (
-                <LocalizedClientLink
-                  key={tier.value}
-                  href={href({ rating: selected ? undefined : tier.value })}
-                  aria-current={selected ? "true" : undefined}
-                  data-testid="rating-refinement"
-                  className="flex items-center justify-between gap-2 text-xs text-foreground cursor-pointer hover:text-secondary transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "size-4 rounded border transition-colors flex items-center justify-center shrink-0",
-                        selected
-                          ? "border-secondary bg-secondary text-secondary-foreground"
-                          : "border-input bg-surface-container-lowest"
-                      )}
-                    >
-                      {selected && <CheckIcon className="size-3" />}
+                <li key={tier.value}>
+                  <LocalizedClientLink
+                    href={href({ rating: selected ? undefined : tier.value })}
+                    aria-current={selected ? "true" : undefined}
+                    data-testid="rating-refinement"
+                    className="flex items-center gap-3 text-[14px] text-foreground"
+                  >
+                    <Radio checked={selected} />
+                    <span className="inline-flex items-center gap-0.5">
+                      {tier.value}
+                      <StarIcon aria-hidden className="size-3 fill-current" />& above
                     </span>
-                    <span className="flex items-center gap-1 font-semibold">
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-700 text-white font-bold text-[10px]">
-                        {tier.value} <StarIcon aria-hidden className="size-2.5 fill-current" />
-                      </span>
-                      <span>&amp; above</span>
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
-                    ({tier.count})
-                  </span>
-                </LocalizedClientLink>
+                    <Count value={tier.count} />
+                  </LocalizedClientLink>
+                </li>
               )
             })}
-          </div>
-        )}
-      </div>
+          </ul>
+        </section>
+      )}
 
-      {/* 12. AVAILABILITY Accordion */}
-      <div className="p-4 flex flex-col gap-3">
-        <button
-          type="button"
-          onClick={() => toggleSection("availability")}
-          className="flex items-center justify-between w-full text-left"
-        >
-          <span className="font-label-caps text-xs uppercase tracking-wider text-foreground font-bold">
-            AVAILABILITY
-          </span>
-          <ChevronDownIcon
-            className={cn(
-              "size-4 text-muted-foreground transition-transform duration-200",
-              openSections.availability && "rotate-180"
-            )}
-          />
-        </button>
-
-        {openSections.availability && (
-          <div className="flex flex-col gap-2 pt-1">
+      <section className="px-5 py-4">
+        <h3 className="mb-3 text-[14px] font-bold uppercase text-foreground">More Filters</h3>
+        <ul className="flex flex-col gap-2">
+          {facets.onSaleCount > 0 && (
+            <li>
+              <LocalizedClientLink
+                href={href({ sale: !listing.sale })}
+                aria-current={listing.sale ? "true" : undefined}
+                data-testid="sale-refinement"
+                className="flex items-center gap-3 text-[14px] text-foreground"
+              >
+                <Checkbox checked={listing.sale} />
+                On sale
+                <Count value={facets.onSaleCount} />
+              </LocalizedClientLink>
+            </li>
+          )}
+          <li>
             <LocalizedClientLink
               href={href({ inStock: !listing.inStock })}
               aria-current={listing.inStock ? "true" : undefined}
               data-testid="stock-refinement"
-              className="flex items-center gap-2 text-xs text-foreground cursor-pointer hover:text-secondary transition-colors"
+              className="flex items-center gap-3 text-[14px] text-foreground"
             >
-              <span
-                className={cn(
-                  "size-4 rounded border transition-colors flex items-center justify-center shrink-0",
-                  listing.inStock
-                    ? "border-secondary bg-secondary text-secondary-foreground"
-                    : "border-input bg-surface-container-lowest"
-                )}
-              >
-                {listing.inStock && <CheckIcon className="size-3" />}
-              </span>
-              <span className={cn(listing.inStock && "font-semibold text-secondary")}>
-                Exclude Out of Stock
-              </span>
+              <Checkbox checked={listing.inStock} />
+              Exclude out of stock
             </LocalizedClientLink>
+          </li>
+        </ul>
+      </section>
+    </aside>
+  )
+}
+
+type Item = {
+  key: string
+  label: string
+  count?: number
+  active: boolean
+  href: string
+  swatch?: string
+}
+
+/** Rows shown before "+ N more", as on Myntra. */
+const VISIBLE = 8
+
+/**
+ * A checkbox section: title with a round search toggle, eight rows, then
+ * "+ N more". Selected rows always stay visible, even past the first eight.
+ */
+function FilterList({
+  title,
+  items,
+  searchPlaceholder,
+  testId,
+}: {
+  title: string
+  items: Item[]
+  searchPlaceholder: string
+  testId: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [searching, setSearching] = useState(false)
+  const [query, setQuery] = useState("")
+
+  const needle = query.trim().toLowerCase()
+  const matching = needle ? items.filter((i) => i.label.toLowerCase().includes(needle)) : items
+  const shown =
+    expanded || needle
+      ? matching
+      : matching.filter((item, i) => i < VISIBLE || item.active)
+  const hidden = matching.length - shown.length
+  const searchable = items.length > VISIBLE
+
+  return (
+    <section className="border-b border-border/70 px-5 py-4">
+      <div className="mb-3 flex h-8 items-center justify-between gap-2">
+        {searching ? (
+          <div className="flex h-8 flex-1 items-center rounded-full bg-surface-container-low px-3">
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
+              className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+            />
+            <button
+              type="button"
+              aria-label={`Close ${title.toLowerCase()} search`}
+              onClick={() => {
+                setSearching(false)
+                setQuery("")
+              }}
+              className="cursor-pointer text-muted-foreground hover:text-foreground"
+            >
+              <XIcon className="size-4" />
+            </button>
           </div>
+        ) : (
+          <>
+            <h3 className="text-[14px] font-bold uppercase text-foreground">{title}</h3>
+            {searchable && (
+              <button
+                type="button"
+                aria-label={`Search ${title.toLowerCase()}`}
+                onClick={() => setSearching(true)}
+                className="flex size-8 cursor-pointer items-center justify-center rounded-full bg-surface-container-low text-muted-foreground hover:text-foreground"
+              >
+                <SearchIcon className="size-4" />
+              </button>
+            )}
+          </>
         )}
       </div>
-    </aside>
+
+      <ul className="flex flex-col gap-2">
+        {shown.map((item) => (
+          <li key={item.key}>
+            <LocalizedClientLink
+              href={item.href}
+              aria-current={item.active ? "true" : undefined}
+              data-testid={testId}
+              className="flex items-center gap-3 text-[14px] text-foreground"
+            >
+              <Checkbox checked={item.active} />
+              {item.swatch && (
+                <span
+                  aria-hidden
+                  className="size-4 shrink-0 rounded-full border border-black/10"
+                  style={{ backgroundColor: item.swatch }}
+                />
+              )}
+              <span className="min-w-0 truncate">{item.label}</span>
+              {item.count !== undefined && <Count value={item.count} />}
+            </LocalizedClientLink>
+          </li>
+        ))}
+        {needle && matching.length === 0 && (
+          <li className="text-[13px] text-muted-foreground">No matches</li>
+        )}
+      </ul>
+
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="mt-2 cursor-pointer pl-7 text-[14px]"
+          style={{ color: ACCENT }}
+        >
+          + {hidden} more
+        </button>
+      )}
+      {expanded && !needle && matching.length > VISIBLE && (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="mt-2 cursor-pointer pl-7 text-[14px]"
+          style={{ color: ACCENT }}
+        >
+          Show less
+        </button>
+      )}
+    </section>
+  )
+}
+
+function Checkbox({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "flex size-4 shrink-0 items-center justify-center rounded-[2px] border",
+        checked ? "border-transparent text-white" : "border-[#c3c2c9] bg-surface-container-lowest"
+      )}
+      style={checked ? { backgroundColor: ACCENT } : undefined}
+    >
+      {checked && <CheckIcon className="size-3" strokeWidth={3} />}
+    </span>
+  )
+}
+
+function Radio({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className="flex size-4 shrink-0 items-center justify-center rounded-full border"
+      style={{ borderColor: checked ? ACCENT : "#c3c2c9" }}
+    >
+      {checked && <span className="size-2 rounded-full" style={{ backgroundColor: ACCENT }} />}
+    </span>
+  )
+}
+
+function Count({ value }: { value: number }) {
+  return <span className="shrink-0 text-[11px] tabular-nums text-[#94969f]">({value})</span>
+}
+
+const thumb =
+  "pointer-events-none absolute inset-x-0 top-1/2 h-0 w-full -translate-y-1/2 appearance-none bg-transparent " +
+  "[&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-[3px] [&::-webkit-slider-thumb]:border-[#ff3f6c] [&::-webkit-slider-thumb]:bg-white " +
+  "[&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:size-2 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-[3px] [&::-moz-range-thumb]:border-[#ff3f6c] [&::-moz-range-thumb]:bg-white " +
+  "focus-visible:outline-none [&:focus-visible::-webkit-slider-thumb]:ring-2 [&:focus-visible::-webkit-slider-thumb]:ring-[#ff3f6c]/40"
+
+/**
+ * Two-handle price slider. Dragging updates the label live; letting go (or
+ * releasing an arrow key) navigates to the filtered URL. A handle left at an
+ * end of the range means "no bound", shown as "₹8,990+" on the top end.
+ */
+function PriceSlider({
+  range,
+  currency,
+  min,
+  max,
+  hrefFor,
+}: {
+  range: { min: number; max: number }
+  currency: string
+  min?: number
+  max?: number
+  hrefFor: (min: number | undefined, max: number | undefined) => string
+}) {
+  const router = useRouter()
+  const params = useParams()
+  const country = (params?.countryCode as string | undefined) ?? "in"
+
+  const step = Math.max(1, Math.round((range.max - range.min) / 100))
+  const clamp = (v: number) => Math.min(Math.max(v, range.min), range.max)
+  const [low, setLow] = useState(clamp(min ?? range.min))
+  const [high, setHigh] = useState(clamp(max ?? range.max))
+
+  const commit = () => {
+    const nextMin = low <= range.min ? undefined : low
+    const nextMax = high >= range.max ? undefined : high
+    if (nextMin === min && nextMax === max) return
+    router.push(`/${country}${hrefFor(nextMin, nextMax)}`, { scroll: false })
+  }
+
+  const pct = (v: number) => ((v - range.min) / (range.max - range.min)) * 100
+
+  return (
+    <div data-testid="price-slider">
+      <div className="relative mx-1.5 h-4">
+        <div className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 rounded bg-[#d4d5d9]" />
+        <div
+          className="absolute top-1/2 h-[3px] -translate-y-1/2 rounded"
+          style={{ left: `${pct(low)}%`, right: `${100 - pct(high)}%`, backgroundColor: ACCENT }}
+        />
+        <input
+          type="range"
+          aria-label="Minimum price"
+          min={range.min}
+          max={range.max}
+          step={step}
+          value={low}
+          onChange={(e) => setLow(Math.min(Number(e.target.value), high - step))}
+          onPointerUp={commit}
+          onKeyUp={commit}
+          className={thumb}
+        />
+        <input
+          type="range"
+          aria-label="Maximum price"
+          min={range.min}
+          max={range.max}
+          step={step}
+          value={high}
+          onChange={(e) => setHigh(Math.max(Number(e.target.value), low + step))}
+          onPointerUp={commit}
+          onKeyUp={commit}
+          className={thumb}
+        />
+      </div>
+      <p className="mt-3 text-[13px] font-semibold text-foreground" data-testid="price-label">
+        {shortMoney(low, currency)} - {shortMoney(high, currency)}
+        {high >= range.max ? "+" : ""}
+      </p>
+    </div>
   )
 }

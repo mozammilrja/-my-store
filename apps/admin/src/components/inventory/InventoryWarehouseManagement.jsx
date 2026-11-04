@@ -1,40 +1,29 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   Icon,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
   Badge,
   Button,
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
   Input,
+  Textarea,
   Select,
-  Dialog,
-  DialogHeader,
-  DialogTitle,
-  DialogContent,
-  DialogBody,
-  DialogFooter,
   Alert,
   PageContainer,
   PageHeader,
   ContentGrid,
   StatsCard,
   StatusBadge,
+  SectionCard,
   FilterBar,
   SearchInput,
   FilterDropdown,
-  TablePagination,
+  DataTable,
+  TableToolbar,
   DEFAULT_PAGE_SIZE,
-  ErrorState,
+  PageBody,
   SkeletonPage,
   Thumbnail,
+  EmptyState,
+  AppDialog,
 } from '../ui';
 import { useInventoryQuery, useAdjustInventoryMutation } from '../../hooks/useAdminQueries';
 
@@ -79,39 +68,6 @@ const SORT_COLUMNS = {
 
 /** Quotes a CSV field, doubling any quote inside it. */
 const csvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-
-/**
- * A column heading that sorts. The arrow shows the direction of the column in
- * force; the others only show theirs on hover, so the active one is obvious.
- */
-function SortableHead({ column, label, sort, onSort, className, align = 'left' }) {
-  const isActive = sort.key === column;
-  const direction = isActive ? sort.dir : 'asc';
-  return (
-    <TableHead
-      className={className}
-      aria-sort={isActive ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-    >
-      <button
-        type="button"
-        onClick={() => onSort(column)}
-        className={`group flex w-full items-center gap-1 whitespace-nowrap uppercase transition-colors hover:text-primary ${
-          align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'
-        } ${isActive ? 'text-primary' : 'text-secondary'}`}
-        title={`Sort by ${label}`}
-      >
-        <span>{label}</span>
-        <Icon
-          name={direction === 'asc' ? 'arrow_upward' : 'arrow_downward'}
-          aria-hidden="true"
-          className={`material-symbols-outlined text-icon-sm transition-opacity ${
-            isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-40'
-          }`}
-        />
-      </button>
-    </TableHead>
-  );
-}
 
 export default function InventoryWarehouseManagement({ currentHub, onShowToast }) {
   const [inventoryList, setInventoryList] = useState([]);
@@ -377,6 +333,18 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
     setPage(1);
   }, [selectedCategory, stockHealthFilter, searchQuery]);
 
+  // No inventory exists at all: the filters, the ledger and the adjustment
+  // drawer have nothing to work on, so the ledger becomes one empty state.
+  const noInventory = inventoryList.length === 0;
+  const noInventoryMatches = !noInventory && filteredInventory.length === 0;
+  const showDrawer = isDrawerOpen && !noInventory && !noInventoryMatches;
+
+  const clearInventoryFilters = () => {
+    setSelectedCategory('all');
+    setStockHealthFilter('all');
+    setSearchQuery('');
+  };
+
   const pagedInventory = useMemo(
     () => filteredInventory.slice((page - 1) * pageSize, page * pageSize),
     [filteredInventory, page, pageSize]
@@ -406,7 +374,8 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
   };
 
   const getStatusBadge = (status) => {
-    return <StatusBadge status={status} />;
+    const variant = { 'Out of stock': 'destructive', 'Low stock': 'warning', 'In stock': 'success' }[status] ?? 'secondary';
+    return <StatusBadge status={status} variant={variant} />;
   };
 
   const newPhysicalCalculated = selectedItem ? Math.max(0, selectedItem.onHand + adjustmentDelta) : 0;
@@ -415,686 +384,578 @@ export default function InventoryWarehouseManagement({ currentHub, onShowToast }
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={8} label="Loading inventory" />;
   }
 
+  const inventoryColumns = [
+    {
+      key: 'name',
+      header: 'SKU & variant',
+      sortable: true,
+      grow: true,
+      cell: (item) => (
+        <div className="flex min-w-56 items-center gap-space-sm">
+          <Thumbnail src={item.image} alt={item.name} className="h-10 w-10 shrink-0 rounded-lg" />
+          <div className="flex min-w-0 flex-col">
+            <span className="line-clamp-1 text-meta font-semibold text-primary" title={item.name}>
+              {item.name}
+            </span>
+            <span className="truncate text-micro text-muted" title={`${item.sku} - ${item.variant}`}>
+              <span className="font-mono">{item.sku}</span> · {item.variant}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'category',
+      header: 'Category',
+      sortable: true,
+      className: 'whitespace-nowrap text-meta text-secondary',
+      cell: (item) =>
+        item.categories.length > 0 ? (
+          <span title={item.categories.join(', ')}>
+            {item.categories[0]}
+            {item.categories.length > 1 && <span className="text-muted"> +{item.categories.length - 1}</span>}
+          </span>
+        ) : (
+          <span className="text-faint">Uncategorised</span>
+        ),
+    },
+    {
+      key: 'onHand',
+      header: 'On hand',
+      sortable: true,
+      align: 'right',
+      fit: true,
+      className: 'text-meta font-semibold text-primary',
+      cell: (item) => (item.tracked ? item.onHand.toLocaleString('en-IN') : <span className="text-faint">—</span>),
+    },
+    {
+      key: 'tracking',
+      header: 'Tracking',
+      fit: true,
+      className: 'text-meta text-muted',
+      cell: (item) => (item.tracked ? (item.allowBackorder ? 'Backorder allowed' : 'Tracked') : 'Not tracked'),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortable: true,
+      fit: true,
+      cell: (item) => getStatusBadge(item.status),
+    },
+    {
+      key: 'actions',
+      header: <span className="sr-only">Actions</span>,
+      align: 'right',
+      fit: true,
+      cell: (item) => (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="ghost"
+            size="iconXs"
+            onClick={() => openAdjustment(item, { focus: true })}
+            title={`Adjust stock for ${item.sku}`}
+            aria-label={`Adjust stock for ${item.sku}`}
+          >
+            <Icon name="tune" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="iconXs"
+            onClick={() => {
+              setTransferData(prev => ({ ...prev, sku: item.sku }));
+              setIsTransferModalOpen(true);
+            }}
+            title={`Transfer ${item.sku} to another hub`}
+            aria-label={`Transfer ${item.sku} to another hub`}
+          >
+            <Icon name="sync_alt" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <PageContainer>
-      {inventoryError && (
-        <ErrorState
-          title="Inventory could not be loaded"
-          message={inventoryError?.message}
-          onRetry={() => refetchInventory()}
-        />
-      )}
-      {/* Top Breadcrumb & Title Section */}
       <PageHeader
-        breadcrumb={['Everwear Admin', 'Catalog & Inventory', 'Inventory & Warehouses']}
+        kicker="Catalog & inventory"
         title="Inventory & warehouses"
-        badge="4 Nodes Active"
-        badgeVariant="success"
-        description="Real-time stock ledger, multi-hub allocation (BLR-FC1, BOM-FC2, DEL-FC3, CCU-FC4), reserved buffer holds, and automated replenishment alerts."
+        description="Stock on hand for every tracked variant."
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsTransferModalOpen(true)}
-              className="gap-1.5"
-            >
-              <Icon name="sync_alt" className="material-symbols-outlined text-icon text-muted" />
+            <Button variant="outline" size="sm" onClick={() => setIsTransferModalOpen(true)}>
+              <Icon name="sync_alt" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
               <span>Stock Transfer</span>
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsGrnModalOpen(true)}
-              className="gap-1.5"
-            >
-              <Icon name="download" className="material-symbols-outlined text-icon text-muted" />
+            <Button variant="outline" size="sm" onClick={() => setIsGrnModalOpen(true)}>
+              <Icon name="download" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
               <span>Receive Goods (GRN)</span>
             </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setIsDrawerOpen(prev => !prev)}
-              className="gap-1.5 bg-primary-container text-on-accent hover:bg-primary-container-hover shadow-sm"
-            >
-              <Icon name="add_circle" className="material-symbols-outlined text-icon-md" />
-              <span>{isDrawerOpen ? 'Close Adjustment' : '+ Stock Adjustment'}</span>
+            <Button variant="primary" size="sm" onClick={() => setIsDrawerOpen(prev => !prev)}>
+              <Icon name="add_circle" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+              <span>{isDrawerOpen ? 'Close Adjustment' : 'Stock Adjustment'}</span>
             </Button>
           </>
         }
       />
+      <PageBody
+        error={inventoryError}
+        hasData={inventoryData != null}
+        title="Inventory could not be loaded"
+        onRetry={refetchInventory}
+      >
 
-      {/* Counted from the variants the API returned. Valuation, available to
-          sell, reserved stock and cycle accuracy are not derivable from what a
-          variant carries, so they are no longer claimed. */}
-      <ContentGrid columns={4}>
-        <StatsCard
-          title="Tracked SKUs"
-          value={stockTotals.tracked}
-          icon="qr_code_2"
-          subtitle={`${stockTotals.untracked} not tracked`}
-        />
-        <StatsCard
-          title="Units on hand"
-          value={stockTotals.units.toLocaleString('en-IN')}
-          icon="inventory_2"
-          subtitle="Across tracked variants"
-        />
-        <StatsCard
-          title="Low stock"
-          value={stockTotals.low}
-          icon="warning"
-          iconColor="text-warning"
-          subtitle={`${lowStockThreshold} units or fewer`}
-        />
-        <StatsCard
-          title="Out of stock"
-          value={stockTotals.out}
-          icon="production_quantity_limits"
-          iconColor="text-danger"
-          subtitle={`${stockTotals.backorder} allow backorder`}
-        />
-      </ContentGrid>
-
-      {/* Operational Filter & Control Bar */}
-      <FilterBar
-        tabs={[
-          { id: 'all', label: 'ALL', count: statusCounts.all },
-          { id: 'out', label: 'OUT OF STOCK', count: statusCounts.out },
-          { id: 'low', label: `LOW (<=${lowStockThreshold})`, count: statusCounts.low },
-          { id: 'in', label: 'IN STOCK', count: statusCounts.in },
-          { id: 'untracked', label: 'NOT TRACKED', count: statusCounts.untracked },
-        ]}
-        activeTab={stockHealthFilter}
-        onTabChange={setStockHealthFilter}
-        search={
-          <SearchInput
-            value={searchQuery}
-            onChange={(val) => setSearchQuery(val)}
-            onClear={() => setSearchQuery('')}
-            placeholder="Filter SKU, garment, category..."
-            className="w-full sm:w-64"
+        {/* Counted from the variants the API returned. Valuation, available to
+            sell, reserved stock and cycle accuracy are not derivable from what a
+            variant carries, so they are no longer claimed. */}
+        <ContentGrid columns={4}>
+          <StatsCard
+            title="Tracked SKUs"
+            value={stockTotals.tracked}
+            icon="qr_code_2"
+            subtitle={`${stockTotals.untracked} not tracked`}
           />
-        }
-        filters={
-          /* The warehouse filter that stood here listed four hubs the data has
-             no field for, so every choice but "all" emptied the table. The
-             categories below are the ones the listed products are really in. */
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterDropdown
-              value={selectedCategory}
-              onChange={setSelectedCategory}
-              label="Category"
-              options={categoryOptions}
-            />
+          <StatsCard
+            title="Units on hand"
+            value={stockTotals.units.toLocaleString('en-IN')}
+            icon="inventory_2"
+            subtitle="Across tracked variants"
+          />
+          <StatsCard
+            title="Low stock"
+            value={stockTotals.low}
+            icon="warning"
+            iconColor="text-warning"
+            subtitle={`${lowStockThreshold} units or fewer`}
+          />
+          <StatsCard
+            title="Out of stock"
+            value={stockTotals.out}
+            icon="production_quantity_limits"
+            iconColor="text-danger"
+            subtitle={`${stockTotals.backorder} allow backorder`}
+          />
+        </ContentGrid>
+
+        {/* With no inventory at all there is nothing to filter, so the bar goes too. */}
+        {!noInventory && (
+          <FilterBar
+            tabs={[
+              { id: 'all', label: 'All', count: statusCounts.all },
+              { id: 'out', label: 'Out of stock', count: statusCounts.out },
+              { id: 'low', label: `Low (≤${lowStockThreshold})`, count: statusCounts.low },
+              { id: 'in', label: 'In stock', count: statusCounts.in },
+              { id: 'untracked', label: 'Not tracked', count: statusCounts.untracked },
+            ]}
+            activeTab={stockHealthFilter}
+            onTabChange={setStockHealthFilter}
+            search={
+              <SearchInput
+                value={searchQuery}
+                onChange={(val) => setSearchQuery(val)}
+                onClear={() => setSearchQuery('')}
+                placeholder="Filter SKU, garment, category..."
+                className="w-full sm:w-64"
+              />
+            }
+            /* The warehouse filter that stood here listed four hubs the data has
+               no field for, so every choice but "all" emptied the table. The
+               categories below are the ones the listed products are really in. */
+            filters={
+              <FilterDropdown
+                value={selectedCategory}
+                onChange={setSelectedCategory}
+                label="Category"
+                options={categoryOptions}
+              />
+            }
+            actions={
+              <Button variant="outline" size="sm" onClick={handleExportCsv} title="Export CSV">
+                <Icon name="file_download" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+            }
+          />
+        )}
+
+        {/* Ledger, with the adjustment panel beside it on wide screens */}
+        <div className="grid grid-cols-1 items-start gap-space-lg xl:grid-cols-12">
+          <div className={`${showDrawer ? 'xl:col-span-8' : 'xl:col-span-12'} flex min-w-0 flex-col`}>
+            {noInventory ? (
+              <EmptyState
+                icon="inventory_2"
+                title="No inventory yet"
+                description="Stock on hand appears here for every product variant once products are added to the catalog."
+                className="py-16"
+              />
+            ) : noInventoryMatches ? (
+              <EmptyState
+                icon="search"
+                title="No inventory items match these filters"
+                description="Clear the search, the stock status and the category to see every SKU."
+                action={
+                  <Button variant="outline" size="sm" onClick={clearInventoryFilters}>
+                    Clear filters
+                  </Button>
+                }
+              />
+            ) : (
+              <DataTable
+                columns={inventoryColumns}
+                data={pagedInventory}
+                keyField="id"
+                activeRowId={selectedItem?.id}
+                onRowClick={(item) => openAdjustment(item)}
+                sortKey={sort.key}
+                sortDirection={sort.dir}
+                onSort={handleSort}
+                caption="Inventory ledger"
+                toolbar={
+                  <TableToolbar
+                    left={
+                      <>
+                        <h3 className="text-subheading text-primary">Inventory ledger</h3>
+                        <Badge variant="secondary" className="tabular-nums">
+                          {filteredInventory.length} SKUs
+                        </Badge>
+                      </>
+                    }
+                  />
+                }
+                pagination={{
+                  page,
+                  pageSize,
+                  totalItems: filteredInventory.length,
+                  onPageChange: setPage,
+                  onPageSizeChange: (size) => {
+                    setPageSize(size);
+                    setPage(1);
+                  },
+                }}
+              />
+            )}
           </div>
-        }
-        actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCsv}
-            className="gap-1 h-8.5"
-            title="Export CSV"
-            type="button"
-          >
-            <Icon name="file_download" className="material-symbols-outlined text-icon" />
-            <span className="hidden sm:inline">Export</span>
-          </Button>
-        }
-      />
 
-      {/* Primary Two-Column Workbench (Main Table + Stock Adjustment Drawer) */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-        {/* Main Inventory Data Table */}
-        <div className={`${isDrawerOpen ? 'xl:col-span-8' : 'xl:col-span-12'} flex flex-col transition-all duration-300`}>
-          <Card className="border border-subtle bg-surface-container-lowest overflow-hidden">
-            <CardHeader className="p-4 bg-surface-subtle/50 border-b border-subtle flex flex-row items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-body font-semibold text-primary">Live Inventory Ledger</CardTitle>
-                <Badge variant="secondary" className="text-micro">
-                  {filteredInventory.length} SKUs Listed
-                </Badge>
-              </div>
-              <div className="flex items-center gap-2 text-meta text-muted">
-                <span>
-                  Sorted by:{' '}
-                  <strong className="text-primary">
-                    {SORT_COLUMNS[sort.key].label} ({sort.dir === 'asc' ? 'ascending' : 'descending'})
-                  </strong>
-                </span>
-              </div>
-            </CardHeader>
-            <div className="overflow-x-auto scrollbar-thin">
-              {/* Fixed layout: the columns then keep the widths below and a
-                  long garment title truncates instead of shouldering the
-                  actions off the right edge of the panel. */}
-              <Table className="w-full min-w-[760px] table-fixed border-collapse">
-                <TableHeader sticky>
-                  <TableRow className="hover:bg-transparent">
-                    <SortableHead
-                      column="name"
-                      label="SKU & garment variant"
-                      sort={sort}
-                      onSort={handleSort}
-                      className="w-[36%]"
-                    />
-                    <SortableHead
-                      column="category"
-                      label="Category"
-                      sort={sort}
-                      onSort={handleSort}
-                      className="w-[16%]"
-                    />
-                    <SortableHead
-                      column="onHand"
-                      label="On hand"
-                      sort={sort}
-                      onSort={handleSort}
-                      align="right"
-                      className="w-[11%]"
-                    />
-                    <TableHead className="w-[14%] whitespace-nowrap text-center">
-                      Tracking
-                    </TableHead>
-                    <SortableHead
-                      column="status"
-                      label="Status"
-                      sort={sort}
-                      onSort={handleSort}
-                      align="center"
-                      className="w-[14%]"
-                    />
-                    <TableHead className="w-[9%] whitespace-nowrap text-right">
-                      Actions
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-border-subtle/60">
-                  {filteredInventory.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="py-12 text-center text-body text-secondary">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Icon name="inventory_2" className="material-symbols-outlined text-icon-2xl text-muted/50" />
-                          <span>No inventory items matching your selected criteria.</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedCategory('all');
-                              setStockHealthFilter('all');
-                              setSearchQuery('');
-                            }}
-                            className="text-meta text-accent font-semibold hover:underline mt-1"
-                          >
-                            Reset filters
-                          </button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    pagedInventory.map(item => {
-                      const isSelected = selectedItem?.id === item.id;
-                      return (
-                        <TableRow
-                          key={item.id}
-                          onClick={() => openAdjustment(item)}
-                          className={`cursor-pointer transition-colors ${
- isSelected
- ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30 border-l-4 border-l-primary-container'
- : 'hover:bg-surface-subtle'
- }`}
-                        >
-                          {/* SKU & Garment Variant */}
-                          <TableCell className="py-3 px-3">
-                            <div className="flex items-center gap-3">
-                              <Thumbnail
-                                src={item.image}
-                                alt={item.name}
-                                className="h-11 w-11 rounded-lg shadow-xs"
-                              />
-                              <div className="flex min-w-0 flex-col">
-                                <span className="truncate text-meta font-semibold text-primary" title={item.name}>
-                                  {item.name}
-                                </span>
-                                <span
-                                  className="mt-0.5 truncate font-mono text-micro text-muted"
-                                  title={`${item.sku} - ${item.variant}`}
-                                >
-                                  {item.sku} • {item.variant}
-                                </span>
-                              </div>
-                            </div>
-                          </TableCell>
-
-                          {/* Category */}
-                          <TableCell className="px-3 py-3 text-meta text-secondary">
-                            {item.categories.length > 0 ? (
-                              <span className="block truncate" title={item.categories.join(', ')}>
-                                {item.categories[0]}
-                                {item.categories.length > 1 && (
-                                  <span className="text-muted"> +{item.categories.length - 1}</span>
-                                )}
-                              </span>
-                            ) : (
-                              <span className="text-faint">Uncategorised</span>
-                            )}
-                          </TableCell>
-
-                          {/* On-Hand */}
-                          <TableCell className="whitespace-nowrap px-3 py-3 text-right font-mono text-meta font-semibold text-primary">
-                            {item.tracked ? item.onHand.toLocaleString('en-IN') : '—'}
-                          </TableCell>
-
-                          <TableCell className="whitespace-nowrap px-3 py-3 text-center text-meta text-muted">
-                            {item.tracked
-                              ? item.allowBackorder
-                                ? 'Backorder allowed'
-                                : 'Tracked'
-                              : 'Not tracked'}
-                          </TableCell>
-
-                          {/* Status */}
-                          <TableCell className="py-3 px-3 text-center whitespace-nowrap">
-                            {getStatusBadge(item.status)}
-                          </TableCell>
-
-                          {/* Actions */}
-                          <TableCell className="py-3 px-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                              <button
-                                type="button"
-                                onClick={() => openAdjustment(item, { focus: true })}
-                                className="p-1.5 rounded-lg text-muted hover:text-accent hover:bg-surface-subtle transition-all cursor-pointer"
-                                title={`Adjust stock for ${item.sku}`}
-                                aria-label={`Adjust stock for ${item.sku}`}
-                              >
-                                <Icon name="tune" className="material-symbols-outlined text-icon" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setTransferData(prev => ({ ...prev, sku: item.sku }));
-                                  setIsTransferModalOpen(true);
-                                }}
-                                className="p-1.5 rounded-lg text-muted hover:text-accent hover:bg-surface-subtle transition-all cursor-pointer"
-                                title={`Transfer ${item.sku} to another hub`}
-                                aria-label={`Transfer ${item.sku} to another hub`}
-                              >
-                                <Icon name="sync_alt" className="material-symbols-outlined text-icon" />
-                              </button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            <TablePagination
-              currentPage={page}
-              pageSize={pageSize}
-              totalItems={filteredInventory.length}
-              onPageChange={setPage}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setPage(1);
-              }}
-            />
-          </Card>
-        </div>
-
-        {/* Right Side Drawer: Quick Stock Adjustment & Bin Audit */}
-        {isDrawerOpen && selectedItem && (
-          <div
-            ref={drawerRef}
-            tabIndex={-1}
-            className="xl:col-span-4 flex flex-col space-y-4 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Card className="border border-subtle bg-surface-container-lowest shadow-sm">
-              <CardHeader className="p-4 pb-2 border-b border-subtle flex flex-row items-start justify-between">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <Icon name="tune" className="p-1 rounded-md bg-primary-fixed text-on-primary-fixed material-symbols-outlined text-icon" />
-                    <CardTitle className="text-heading font-semibold text-primary">Stock Adjustment &amp; Audit</CardTitle>
+          {/* Stock adjustment panel */}
+          {showDrawer && selectedItem && (
+            <div
+              ref={drawerRef}
+              tabIndex={-1}
+              className="flex min-w-0 flex-col rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:col-span-4"
+            >
+              <SectionCard
+                title="Stock adjustment"
+                description={
+                  <>
+                    <span className="font-mono">{selectedItem.sku}</span> · {selectedItem.variant}
+                  </>
+                }
+                action={
+                  <div className="flex items-center gap-1">
+                    {getStatusBadge(selectedItem.status)}
+                    <Button
+                      variant="ghost"
+                      size="iconXs"
+                      onClick={() => setIsDrawerOpen(false)}
+                      title="Close"
+                      aria-label="Close adjustment panel"
+                    >
+                      <Icon name="close" aria-hidden="true" className="material-symbols-outlined text-icon-md" />
+                    </Button>
                   </div>
-                  <p className="text-caption text-muted uppercase">SKU: {selectedItem.sku} ({selectedItem.variant})</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  {getStatusBadge(selectedItem.status)}
-                  <button
-                    type="button"
-                    onClick={() => setIsDrawerOpen(false)}
-                    className="p-1 text-muted hover:text-primary rounded-lg transition-colors" title="Close" aria-label="Close"
-                  >
-                    <Icon name="close" className="material-symbols-outlined text-icon-md" />
-                  </button>
-                </div>
-              </CardHeader>
-
-              <CardContent className="p-4 space-y-4">
-                {/* Item Preview Snippet */}
-                <div className="p-3 rounded-xl bg-surface-subtle flex items-center gap-3">
-                  <div className="w-12 h-14 rounded-lg bg-surface-container overflow-hidden shrink-0 shadow-sm">
-                    <Thumbnail src={selectedItem.image} alt={selectedItem.name} className="w-full h-full" imgClassName="object-cover" />
-                  </div>
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <div className="text-meta font-semibold text-primary truncate">{selectedItem.name}</div>
-                    <div className="text-micro text-muted font-mono truncate">{selectedItem.sku}</div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-micro text-muted">
-                        On-Hand:{' '}
-                        <strong className={selectedItem.onHand <= lowStockThreshold ? 'text-danger' : 'text-primary'}>
+                }
+                contentClassName="flex flex-col gap-space-md"
+              >
+                {/* Item preview */}
+                <div className="flex items-center gap-space-sm rounded-lg bg-surface-subtle p-space-sm">
+                  <Thumbnail src={selectedItem.image} alt={selectedItem.name} className="h-14 w-12 shrink-0 rounded-lg" imgClassName="object-cover" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="truncate text-meta font-semibold text-primary">{selectedItem.name}</div>
+                    <div className="flex flex-wrap items-center gap-x-2 text-micro text-muted">
+                      <span>
+                        On hand{' '}
+                        <strong className={`tabular-nums ${selectedItem.onHand <= lowStockThreshold ? 'text-danger' : 'text-primary'}`}>
                           {selectedItem.tracked ? selectedItem.onHand.toLocaleString('en-IN') : 'not tracked'}
                         </strong>
                       </span>
                       {selectedItem.category && (
                         <>
-                          <span className="text-faint">•</span>
-                          <span className="text-micro text-muted truncate">{selectedItem.category}</span>
+                          <span className="text-faint">·</span>
+                          <span className="truncate">{selectedItem.category}</span>
                         </>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Adjustment Form Inputs */}
-                <div className="space-y-3">
-                  {/* A hub picker and a bin box stood here. Stock is held per
-                      variant, not per location, so whatever was typed went
-                      into the toast and nowhere else. */}
+                {/* A hub picker and a bin box stood here. Stock is held per
+                    variant, not per location, so whatever was typed went
+                    into the toast and nowhere else. */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-label text-secondary">Reason</label>
+                  <Select
+                    value={adjustmentReason}
+                    onChange={(e) => setAdjustmentReason(e.target.value)}
+                    aria-label="Adjustment reason"
+                  >
+                    <option value="damage">Damaged in QC Inspection (-)</option>
+                    <option value="cycle">Cycle Count Physical Variance (+/-)</option>
+                    <option value="return">Returned Garment Restock (+)</option>
+                    <option value="sample">Marketing / Fashion Sample Pull (-)</option>
+                    <option value="shrinkage">Inventory Shrinkage / Theft (-)</option>
+                  </Select>
+                </div>
 
-                  {/* Reason Code Selector */}
-                  <div className="space-y-1">
-                    <label className="text-caption text-muted uppercase">Variance Reason Code</label>
-                    <Select
-                      value={adjustmentReason}
-                      onChange={(e) => setAdjustmentReason(e.target.value)}
-                      className="h-9 text-meta"
-                    >
-                      <option value="damage">Damaged in QC Inspection (-)</option>
-                      <option value="cycle">Cycle Count Physical Variance (+/-)</option>
-                      <option value="return">Returned Garment Restock (+)</option>
-                      <option value="sample">Marketing / Fashion Sample Pull (-)</option>
-                      <option value="shrinkage">Inventory Shrinkage / Theft (-)</option>
-                    </Select>
-                  </div>
-
-                  {/* Quantity Stepper & Direct Delta */}
-                  <div className="space-y-1">
-                    <label className="text-caption text-muted uppercase">Adjustment Quantity (Pcs)</label>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center bg-surface-subtle rounded-xl p-1 flex-1 justify-between">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          type="button"
-                          onClick={() => handleAdjustCount(-1)}
-                          className="w-8 h-8 font-semibold text-heading bg-surface-container-lowest hover:bg-surface-subtle"
-                        >
-                          -
-                        </Button>
-                        <span className={`font-mono font-semibold text-body ${
- adjustmentDelta > 0 ? 'text-success' : adjustmentDelta < 0 ? 'text-danger' : 'text-primary'
- }`}>
-                          {adjustmentDelta > 0 ? `+${adjustmentDelta}` : adjustmentDelta} pcs
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          type="button"
-                          onClick={() => handleAdjustCount(1)}
-                          className="w-8 h-8 font-semibold text-heading bg-surface-container-lowest hover:bg-surface-subtle"
-                        >
-                          +
-                        </Button>
-                      </div>
-                      <div className="text-right px-2">
-                        <span className="text-micro text-muted block">New Physical:</span>
-                        <span className="text-meta font-semibold text-primary">
-                          {newPhysicalCalculated.toLocaleString('en-IN')} pcs
-                        </span>
-                      </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-label text-secondary">Adjustment (pcs)</span>
+                  <div className="flex items-center gap-space-sm">
+                    <div className="flex flex-1 items-center justify-between rounded-lg border border-subtle bg-surface-subtle p-1">
+                      <Button
+                        variant="outline"
+                        size="iconXs"
+                        onClick={() => handleAdjustCount(-1)}
+                        aria-label="Decrease adjustment by one"
+                      >
+                        <span aria-hidden="true" className="text-body font-semibold">−</span>
+                      </Button>
+                      <span className={`text-body font-semibold tabular-nums ${
+                        adjustmentDelta > 0 ? 'text-success' : adjustmentDelta < 0 ? 'text-danger' : 'text-primary'
+                      }`}>
+                        {adjustmentDelta > 0 ? `+${adjustmentDelta}` : adjustmentDelta} pcs
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="iconXs"
+                        onClick={() => handleAdjustCount(1)}
+                        aria-label="Increase adjustment by one"
+                      >
+                        <span aria-hidden="true" className="text-body font-semibold">+</span>
+                      </Button>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="block text-micro text-muted">New on hand</span>
+                      <span className="text-meta font-semibold tabular-nums text-primary">
+                        {newPhysicalCalculated.toLocaleString('en-IN')} pcs
+                      </span>
                     </div>
                   </div>
+                </div>
 
-                  {/* Auditor Memo */}
-                  <div className="space-y-1">
-                    <label className="text-caption text-muted uppercase">Auditor Memo / Barcode Tag</label>
-                    <textarea
-                      value={auditorMemo}
-                      onChange={(e) => setAuditorMemo(e.target.value)}
-                      className="w-full p-2.5 bg-surface-subtle rounded-xl text-meta text-primary placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-primary-container resize-none"
-                      rows={2}
-                      placeholder="Enter verification notes..."
-                    />
-                  </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-label text-secondary" htmlFor="auditor-memo">Auditor memo</label>
+                  <Textarea
+                    id="auditor-memo"
+                    value={auditorMemo}
+                    onChange={(e) => setAuditorMemo(e.target.value)}
+                    rows={2}
+                    className="resize-none"
+                    placeholder="Enter verification notes..."
+                  />
+                </div>
 
-                  {/* SLA Alert Banner */}
-                  {selectedItem.tracked && newPhysicalCalculated <= lowStockThreshold && (
-                    <Alert variant="warning" className="p-2.5 text-meta">
-                      <div className="flex items-start gap-2">
-                        <Icon name="info" className="material-symbols-outlined text-icon text-warning shrink-0 mt-0.5" />
-                        <p className="text-micro text-warning leading-relaxed">
-                          {newPhysicalCalculated} pcs is at or under the store's low stock mark of {lowStockThreshold}.
-                        </p>
-                      </div>
-                    </Alert>
-                  )}
+                {selectedItem.tracked && newPhysicalCalculated <= lowStockThreshold && (
+                  <Alert variant="warning" className="flex items-start gap-space-sm p-space-sm">
+                    <Icon name="info" aria-hidden="true" className="material-symbols-outlined mt-px shrink-0 text-icon-sm text-warning" />
+                    <p className="text-meta text-warning">
+                      {newPhysicalCalculated} pcs is at or under the store's low stock mark of {lowStockThreshold}.
+                    </p>
+                  </Alert>
+                )}
 
-                  {/* Action CTAs */}
-                  <div className="flex items-center gap-2 pt-2">
-                    <Button
-                      type="button"
-                      onClick={handleApplyAdjustment}
-                      className="flex-1 bg-primary-container text-on-accent hover:bg-primary-container-hover text-meta font-semibold h-10 gap-1.5"
-                    >
-                      <Icon name="check_circle" className="material-symbols-outlined text-icon" />
-                      Confirm Stock Movement
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsDrawerOpen(false)}
-                      className="text-meta h-10"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
+                <div className="flex items-center gap-space-sm">
+                  <Button variant="primary" onClick={handleApplyAdjustment} className="flex-1">
+                    <Icon name="check_circle" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                    Confirm Stock Movement
+                  </Button>
+                  <Button variant="outline" onClick={() => setIsDrawerOpen(false)}>
+                    Cancel
+                  </Button>
                 </div>
 
                 {/* "Recent ledger activity" listed two movements that never
                     happened, the same two for every SKU. The API keeps no
                     record of an adjustment beyond the new stock count, so
                     there is nothing to list until it does. */}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </div>
+              </SectionCard>
+            </div>
+          )}
+        </div>
 
-      {/* Stock Transfer Modal */}
-      <Dialog
-        open={isTransferModalOpen}
-        onOpenChange={(open) => !open && setIsTransferModalOpen(false)}
-        labelledBy="stock-transfer-title"
-      >
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle id="stock-transfer-title" className="flex items-center gap-2">
-              <Icon name="sync_alt" className="material-symbols-outlined text-accent" />
-              <span>Inter-Hub Stock Transfer Manifest</span>
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleConfirmTransfer} className="flex min-h-0 flex-1 flex-col">
-            <DialogBody className="space-y-4 pb-space-md">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Source Origin Hub</label>
-                  <Select
-                    value={transferData.fromHub}
-                    onChange={(e) => setTransferData(prev => ({ ...prev, fromHub: e.target.value }))}
-                  >
-                    <option value="BLR-FC1">BLR-FC1 (Bengaluru)</option>
-                    <option value="BOM-FC2">BOM-FC2 (Mumbai)</option>
-                    <option value="DEL-FC3">DEL-FC3 (Delhi NCR)</option>
-                    <option value="CCU-FC4">CCU-FC4 (Kolkata)</option>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Destination Target Hub</label>
-                  <Select
-                    value={transferData.toHub}
-                    onChange={(e) => setTransferData(prev => ({ ...prev, toHub: e.target.value }))}
-                  >
-                    <option value="DEL-FC3">DEL-FC3 (Delhi NCR)</option>
-                    <option value="BLR-FC1">BLR-FC1 (Bengaluru)</option>
-                    <option value="BOM-FC2">BOM-FC2 (Mumbai)</option>
-                    <option value="CCU-FC4">CCU-FC4 (Kolkata)</option>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted" htmlFor="transfer-sku">Garment SKU</label>
+        {/* Stock transfer */}
+        <AppDialog
+          isOpen={isTransferModalOpen}
+          onClose={() => setIsTransferModalOpen(false)}
+          title="Inter-hub stock transfer"
+          maxWidth="max-w-xl"
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setIsTransferModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" form="stock-transfer-form" variant="primary">
+                Dispatch Transfer Manifest
+              </Button>
+            </>
+          }
+        >
+          <form id="stock-transfer-form" onSubmit={handleConfirmTransfer} className="flex flex-col gap-space-md pb-space-md">
+            <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary">Source hub</label>
                 <Select
-                  id="transfer-sku"
-                  value={transferData.sku}
-                  onChange={(e) => setTransferData(prev => ({ ...prev, sku: e.target.value }))}
-                  aria-label="Garment SKU"
+                  value={transferData.fromHub}
+                  onChange={(e) => setTransferData(prev => ({ ...prev, fromHub: e.target.value }))}
+                  aria-label="Source hub"
+                >
+                  <option value="BLR-FC1">BLR-FC1 (Bengaluru)</option>
+                  <option value="BOM-FC2">BOM-FC2 (Mumbai)</option>
+                  <option value="DEL-FC3">DEL-FC3 (Delhi NCR)</option>
+                  <option value="CCU-FC4">CCU-FC4 (Kolkata)</option>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary">Destination hub</label>
+                <Select
+                  value={transferData.toHub}
+                  onChange={(e) => setTransferData(prev => ({ ...prev, toHub: e.target.value }))}
+                  aria-label="Destination hub"
+                >
+                  <option value="DEL-FC3">DEL-FC3 (Delhi NCR)</option>
+                  <option value="BLR-FC1">BLR-FC1 (Bengaluru)</option>
+                  <option value="BOM-FC2">BOM-FC2 (Mumbai)</option>
+                  <option value="CCU-FC4">CCU-FC4 (Kolkata)</option>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-label text-secondary" htmlFor="transfer-sku">Garment SKU</label>
+              <Select
+                id="transfer-sku"
+                value={transferData.sku}
+                onChange={(e) => setTransferData(prev => ({ ...prev, sku: e.target.value }))}
+                aria-label="Garment SKU"
+                searchPlaceholder="Filter by SKU or garment..."
+                options={skuOptions}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary" htmlFor="transfer-qty">Quantity (units)</label>
+                <Input
+                  id="transfer-qty"
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={transferData.qty}
+                  onChange={(e) => setTransferData(prev => ({ ...prev, qty: Number(e.target.value) }))}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary" htmlFor="transfer-carrier">Carrier mode</label>
+                <Input
+                  id="transfer-carrier"
+                  value={transferData.vehicleNote}
+                  onChange={(e) => setTransferData(prev => ({ ...prev, vehicleNote: e.target.value }))}
+                  placeholder="e.g. Dedicated Air Freight"
+                />
+              </div>
+            </div>
+
+            <Alert variant="info" className="p-space-sm text-meta">
+              Inter-state transfers worth more than ₹50,000 need an e-way bill (Form GST EWB-01).
+            </Alert>
+          </form>
+        </AppDialog>
+
+        {/* Goods receipt */}
+        <AppDialog
+          isOpen={isGrnModalOpen}
+          onClose={() => setIsGrnModalOpen(false)}
+          title="Goods receipt note (GRN)"
+          maxWidth="max-w-xl"
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setIsGrnModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" form="grn-entry-form" variant="primary">
+                Book to Active Inventory
+              </Button>
+            </>
+          }
+        >
+          <form id="grn-entry-form" onSubmit={handleConfirmGrn} className="flex flex-col gap-space-md pb-space-md">
+            <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary" htmlFor="grn-po">PO reference</label>
+                <Input
+                  id="grn-po"
+                  value={grnData.poRef}
+                  onChange={(e) => setGrnData(prev => ({ ...prev, poRef: e.target.value }))}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary" htmlFor="grn-supplier">Supplier</label>
+                <Input
+                  id="grn-supplier"
+                  value={grnData.supplier}
+                  onChange={(e) => setGrnData(prev => ({ ...prev, supplier: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary">Receiving hub</label>
+                <Select
+                  value={grnData.hub}
+                  onChange={(e) => setGrnData(prev => ({ ...prev, hub: e.target.value }))}
+                  aria-label="Receiving hub"
+                >
+                  <option value="BLR-FC1">BLR-FC1 (Bengaluru Hub)</option>
+                  <option value="BOM-FC2">BOM-FC2 (Mumbai DC)</option>
+                  <option value="DEL-FC3">DEL-FC3 (Delhi NCR)</option>
+                  <option value="CCU-FC4">CCU-FC4 (Kolkata)</option>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary" htmlFor="grn-bin">Staging bin</label>
+                <Input
+                  id="grn-bin"
+                  value={grnData.binLocation}
+                  onChange={(e) => setGrnData(prev => ({ ...prev, binLocation: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary" htmlFor="grn-sku">SKU</label>
+                <Select
+                  id="grn-sku"
+                  value={grnData.sku}
+                  onChange={(e) => setGrnData(prev => ({ ...prev, sku: e.target.value }))}
+                  aria-label="Target SKU"
                   searchPlaceholder="Filter by SKU or garment..."
                   options={skuOptions}
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Transfer Quantity (Units)</label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="500"
-                    value={transferData.qty}
-                    onChange={(e) => setTransferData(prev => ({ ...prev, qty: Number(e.target.value) }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Logistics Carrier Mode</label>
-                  <Input
-                    value={transferData.vehicleNote}
-                    onChange={(e) => setTransferData(prev => ({ ...prev, vehicleNote: e.target.value }))}
-                    placeholder="e.g. Dedicated Air Freight"
-                  />
-                </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary" htmlFor="grn-units">Units received</label>
+                <Input
+                  id="grn-units"
+                  type="number"
+                  min="1"
+                  value={grnData.unitsReceived}
+                  onChange={(e) => setGrnData(prev => ({ ...prev, unitsReceived: Number(e.target.value) }))}
+                />
               </div>
-
-              <Alert variant="info" className="text-meta">
-                E-Way Bill requirement: Inter-state transfers exceeding ₹50,000 threshold will trigger auto-generation of Form GST EWB-01.
-              </Alert>
-            </DialogBody>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsTransferModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="default" className="bg-primary-container text-on-accent hover:bg-primary-container-hover">
-                Dispatch Transfer Manifest
-              </Button>
-            </DialogFooter>
+            </div>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Receive Goods GRN Modal */}
-      <Dialog
-        open={isGrnModalOpen}
-        onOpenChange={(open) => !open && setIsGrnModalOpen(false)}
-        labelledBy="grn-entry-title"
-      >
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle id="grn-entry-title" className="flex items-center gap-2">
-              <Icon name="download" className="material-symbols-outlined text-accent" />
-              <span>Goods Receipt Note (GRN) Inbound Entry</span>
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleConfirmGrn} className="flex min-h-0 flex-1 flex-col">
-            <DialogBody className="space-y-4 pb-space-md">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">PO Reference Number</label>
-                  <Input
-                    value={grnData.poRef}
-                    onChange={(e) => setGrnData(prev => ({ ...prev, poRef: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Supplier Name</label>
-                  <Input
-                    value={grnData.supplier}
-                    onChange={(e) => setGrnData(prev => ({ ...prev, supplier: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Target Receiving Hub</label>
-                  <Select
-                    value={grnData.hub}
-                    onChange={(e) => setGrnData(prev => ({ ...prev, hub: e.target.value }))}
-                  >
-                    <option value="BLR-FC1">BLR-FC1 (Bengaluru Hub)</option>
-                    <option value="BOM-FC2">BOM-FC2 (Mumbai DC)</option>
-                    <option value="DEL-FC3">DEL-FC3 (Delhi NCR)</option>
-                    <option value="CCU-FC4">CCU-FC4 (Kolkata)</option>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Staging Bin</label>
-                  <Input
-                    value={grnData.binLocation}
-                    onChange={(e) => setGrnData(prev => ({ ...prev, binLocation: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted" htmlFor="grn-sku">Target SKU</label>
-                  <Select
-                    id="grn-sku"
-                    value={grnData.sku}
-                    onChange={(e) => setGrnData(prev => ({ ...prev, sku: e.target.value }))}
-                    aria-label="Target SKU"
-                    searchPlaceholder="Filter by SKU or garment..."
-                    options={skuOptions}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Units Verified &amp; Received</label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={grnData.unitsReceived}
-                    onChange={(e) => setGrnData(prev => ({ ...prev, unitsReceived: Number(e.target.value) }))}
-                  />
-                </div>
-              </div>
-            </DialogBody>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsGrnModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="default" className="bg-primary-container text-on-accent hover:bg-primary-container-hover">
-                Book to Active Inventory
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        </AppDialog>
+      </PageBody>
     </PageContainer>
   );
 }

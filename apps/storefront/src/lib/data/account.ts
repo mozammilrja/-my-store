@@ -1,11 +1,11 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { redirect } from "next/navigation"
 import { api, ApiError } from "../api/client"
-import type { Address, Customer, Order, OrderSummary } from "../api/types"
-import { getOrderAccess, getToken, removeToken, setToken } from "./session"
+import type { Address, Customer, Invoice, Order, OrderSummary } from "../api/types"
+import { getOrderAccess, getToken, removeCartId, removeToken, setToken } from "./session"
 import { linkCartToCustomer, type ActionResult } from "./shop"
+import { fieldErrorsFrom, savedAddressSchema, type FieldErrors } from "../validation/checkout-schemas"
 
 const message = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong. Please try again.")
 const text = (form: FormData, key: string) => form.get(key)?.toString().trim() ?? ""
@@ -29,10 +29,10 @@ export async function login(_: ActionResult, form: FormData): Promise<ActionResu
       body: { email: text(form, "email"), password: form.get("password")?.toString() ?? "" },
     })
     await setToken(token)
+    await linkCartToCustomer(token)
   } catch (e) {
     return { error: message(e) }
   }
-  await linkCartToCustomer()
   revalidatePath("/", "layout")
   return { error: null }
 }
@@ -50,18 +50,21 @@ export async function signup(_: ActionResult, form: FormData): Promise<ActionRes
       },
     })
     await setToken(token)
+    await linkCartToCustomer(token)
   } catch (e) {
     return { error: message(e) }
   }
-  await linkCartToCustomer()
   revalidatePath("/", "layout")
   return { error: null }
 }
 
 export async function signout(countryCode: string) {
-  await removeToken()
+  // The bag belongs to the account: signing out leaves this browser with an
+  // empty bag, and signing back in restores it (see linkCartToCustomer).
+  await Promise.all([removeToken(), removeCartId()])
   revalidatePath("/", "layout")
-  redirect(`/${countryCode}/account`)
+  // The caller navigates, so it can also refresh client state (the bag count).
+  return `/${countryCode}/account`
 }
 
 const authed = async () => {
@@ -97,8 +100,23 @@ const readAddress = (form: FormData): Address => ({
   phone: text(form, "phone") || undefined,
 })
 
-export async function saveAddress(_: ActionResult, form: FormData): Promise<ActionResult> {
+export type AddressActionResult = ActionResult & { fieldErrors?: FieldErrors }
+
+export async function saveAddress(_: AddressActionResult, form: FormData): Promise<AddressActionResult> {
   const id = text(form, "addressId")
+  // Same Zod schema as the form in the browser; checked again here because
+  // a server action can be called directly.
+  const parsed = savedAddressSchema.safeParse({
+    ...Object.fromEntries(
+      ["firstName", "lastName", "company", "address1", "address2", "city", "postalCode", "province", "phone"].map(
+        (k) => [k, text(form, k)]
+      )
+    ),
+    countryCode: text(form, "countryCode").toLowerCase(),
+  })
+  if (!parsed.success) {
+    return { error: "Please check the highlighted fields.", fieldErrors: fieldErrorsFrom(parsed.error) }
+  }
   try {
     await api(id ? `/store/customers/me/addresses/${encodeURIComponent(id)}` : "/store/customers/me/addresses", {
       method: id ? "PATCH" : "POST",
@@ -136,6 +154,19 @@ export async function requestReturn(orderId: string, reason: string, items?: { i
 }
 
 /** An order the visitor may see: their own (signed in) or the one this browser just placed. */
+/** The order's GST invoice, under the same access rule as the order; null if not visible. */
+export async function retrieveInvoice(orderId: string): Promise<Invoice | null> {
+  try {
+    const [token, cartId] = await Promise.all([getToken(), getOrderAccess()])
+    return (
+      await api<{ invoice: Invoice }>(`/store/orders/${encodeURIComponent(orderId)}/invoice`, { token, cartId })
+    ).invoice
+  } catch (e) {
+    if (e instanceof ApiError && [400, 403, 404].includes(e.status)) return null
+    throw e
+  }
+}
+
 export async function retrieveOrder(id: string): Promise<Order | null> {
   try {
     const [token, cartId] = await Promise.all([getToken(), getOrderAccess()])

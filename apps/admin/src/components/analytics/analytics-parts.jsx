@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Icon, Button, Card, Badge, Input } from '../ui';
+import { Icon, Button, Card, Badge, Input, Tabs, TabsList, TabsTrigger } from '../ui';
 import { Sparkline } from '../shared';
 import { cn } from '../../lib/utils';
 import { RANGES, CUSTOM_RANGE, VIEWS, toDateInput } from './analytics-data';
@@ -31,8 +31,8 @@ export function Delta({ current, previous, invert = false, periodLabel }) {
   const variant = flat ? 'secondary' : good ? 'success' : 'destructive';
 
   return (
-    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-      <Badge variant={variant} size="sm" className="shrink-0 gap-1">
+    <span className="flex min-w-0 flex-wrap items-center gap-x-space-sm gap-y-space-xs">
+      <Badge variant={variant} size="sm" className="shrink-0 gap-space-xs">
         {!flat && (
           <Icon
             name={change > 0 ? 'trending_up' : 'trending_down'}
@@ -64,14 +64,14 @@ export function Delta({ current, previous, invert = false, periodLabel }) {
  */
 export function KpiCard({ label, value, note, icon, delta, spark, sparkLabel }) {
   return (
-    <Card className="flex min-w-0 flex-col justify-between gap-space-lg p-space-lg">
-      <div className="flex min-w-0 flex-col gap-2">
+    <Card className="flex min-w-0 flex-col justify-between gap-space-md p-space-md">
+      <div className="flex min-w-0 flex-col gap-space-sm">
         <div className="flex items-start justify-between gap-space-sm">
           {/* Two lines are always reserved for the name. A five-across row on
               a 1280px screen is narrower than "Average order value", and a
               label that wraps on one tile would drop that tile's figure out
               of line with the other four. */}
-          <span className="line-clamp-2 min-h-[2rem] min-w-0 text-label text-muted" title={label}>
+          <span className="line-clamp-2 min-h-8 min-w-0 text-label text-muted" title={label}>
             {label}
           </span>
           {icon && (
@@ -81,12 +81,12 @@ export function KpiCard({ label, value, note, icon, delta, spark, sparkLabel }) 
           )}
         </div>
 
-        <span className="block text-display text-primary">{value}</span>
+        <span className="block text-kpi tabular-nums text-primary">{value}</span>
 
-        {delta && <div className="flex min-w-0 flex-wrap items-center gap-2">{delta}</div>}
+        {delta && <div className="flex min-w-0 flex-wrap items-center gap-space-sm">{delta}</div>}
       </div>
 
-      <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex min-w-0 flex-col gap-space-xs">
         {spark && spark.length > 1 && (
           <Sparkline points={spark} height={34} label={sparkLabel} />
         )}
@@ -105,13 +105,13 @@ export function Region({ title, hint, action, children, className }) {
   return (
     <section
       className={cn(
-        'flex min-w-0 flex-col gap-space-lg bg-surface-container-lowest p-space-lg',
+        'flex min-w-0 flex-col gap-space-md bg-surface-container-lowest p-space-md',
         className
       )}
     >
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-space-sm">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h3 className="text-heading text-primary">{title}</h3>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h3 className="text-subheading text-primary">{title}</h3>
           {hint && <p className="text-meta text-muted">{hint}</p>}
         </div>
         {action && <div className="shrink-0">{action}</div>}
@@ -156,9 +156,9 @@ export function RegionStack({ children, className }) {
  */
 export function SummaryStat({ label, value, note }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1 bg-surface-container-lowest p-space-lg">
+    <div className="flex min-w-0 flex-col gap-space-xs bg-surface-container-lowest p-space-md">
       <span className="truncate text-label text-muted">{label}</span>
-      <span className="text-kpi text-primary">{value}</span>
+      <span className="text-kpi-sm tabular-nums text-primary">{value}</span>
       {note && <span className="text-meta leading-snug text-faint">{note}</span>}
     </div>
   );
@@ -218,7 +218,7 @@ function CustomRangePopover({ from, to, onApply, onClose }) {
     <div
       role="dialog"
       aria-label="Custom date range"
-      className="absolute right-0 top-full z-overlay mt-2 w-[19rem] animate-zoom-in rounded-xl border border-subtle bg-overlay p-space-md shadow-lg"
+      className="absolute right-0 top-full z-overlay mt-space-sm w-80 animate-zoom-in rounded-xl border border-subtle bg-overlay p-space-md shadow-lg"
     >
       <div className="flex flex-col gap-space-md">
         <div className="grid grid-cols-2 gap-space-sm">
@@ -234,7 +234,7 @@ function CustomRangePopover({ from, to, onApply, onClose }) {
         {invalid && (
           <p className="text-meta text-danger">Pick a start date on or before the end date.</p>
         )}
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-space-sm">
           <Button variant="ghost" size="sm" onClick={onClose}>
             Cancel
           </Button>
@@ -286,7 +286,7 @@ export function RangeControls({
   const isCustom = rangeId === CUSTOM_RANGE.id;
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <div className="flex min-w-0 flex-wrap items-center gap-space-sm">
       <div
         role="group"
         aria-label="Date range"
@@ -385,44 +385,31 @@ export function RangeControls({
  */
 export function ReportTabs({ view, onViewChange, caption }) {
   return (
-    <div className="flex flex-col gap-space-sm border-b border-subtle pb-space-sm xl:flex-row xl:items-center xl:justify-between xl:gap-space-lg">
-      <div
-        role="tablist"
-        aria-label="Report sections"
-        className="scrollbar-thin -mb-px flex min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden pb-px"
-      >
-        {VIEWS.map((v) => {
-          const isActive = v.id === view;
-          return (
-            <button
+    <div className="flex flex-col gap-space-sm border-b border-subtle xl:flex-row xl:items-end xl:justify-between xl:gap-space-lg">
+      <Tabs value={view} onValueChange={onViewChange} className="w-auto min-w-0">
+        <TabsList aria-label="Report sections" className="border-b-0">
+          {VIEWS.map((v) => (
+            <TabsTrigger
               key={v.id}
-              type="button"
-              role="tab"
+              value={v.id}
               id={`report-tab-${v.id}`}
-              aria-selected={isActive}
               aria-controls={`report-panel-${v.id}`}
-              onClick={() => onViewChange(v.id)}
-              className={cn(
-                'inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-body-lg transition-colors',
-                isActive
-                  ? 'bg-surface-container font-semibold text-primary'
-                  : 'text-muted hover:bg-surface-subtle hover:text-primary'
-              )}
+              className="shrink-0 gap-space-sm"
             >
               <Icon
                 name={v.icon}
                 aria-hidden="true"
                 size={16}
-                className={isActive ? 'text-accent' : 'text-faint'}
+                className={v.id === view ? 'text-accent' : 'text-faint'}
               />
               {v.label}
-            </button>
-          );
-        })}
-      </div>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       {caption && (
-        <p className="shrink-0 text-meta text-muted xl:text-right">{caption}</p>
+        <p className="shrink-0 pb-space-sm text-meta text-muted xl:text-right">{caption}</p>
       )}
     </div>
   );
@@ -436,7 +423,7 @@ export function ReportPanel({ id, children }) {
       id={`report-panel-${id}`}
       aria-labelledby={`report-tab-${id}`}
       tabIndex={-1}
-      className="flex min-w-0 flex-col gap-space-xl focus-visible:outline-none"
+      className="flex min-w-0 flex-col gap-space-lg focus-visible:outline-none"
     >
       {children}
     </div>

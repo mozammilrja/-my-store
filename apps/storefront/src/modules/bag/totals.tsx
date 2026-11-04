@@ -25,12 +25,12 @@ export function Totals({
           Order Summary
         </span>
 
-        <div className="flex flex-col gap-space-sm text-body-md">
+        <div className="flex flex-col gap-2.5 text-[14px]">
           {/* Bag Subtotal */}
           <div className="flex justify-between text-on-surface-variant">
             <span>Bag Total</span>
             <span
-              className="text-on-surface font-semibold tabular-nums"
+              className="text-on-surface font-medium tabular-nums"
               data-testid="cart-subtotal"
               data-value={totals.itemSubtotal}
             >
@@ -54,9 +54,9 @@ export function Totals({
 
           {/* Promo Code line if applied */}
           {promoCodes.length > 0 && (
-            <div className="flex justify-between text-on-surface-variant text-xs">
+            <div className="flex justify-between text-on-surface-variant">
               <span>Applied Promo ({promoCodes.join(", ")})</span>
-              <span className="text-secondary font-semibold uppercase tracking-wider">Applied</span>
+              <span className="text-secondary font-medium">Applied</span>
             </div>
           )}
 
@@ -64,14 +64,18 @@ export function Totals({
           <div className="flex justify-between text-on-surface-variant">
             <span>Delivery (Standard Logistics)</span>
             <span
-              className={`font-semibold tabular-nums uppercase text-label-sm ${
-                isFreeDelivery ? "text-secondary font-bold tracking-wider" : "text-on-surface"
+              className={`tabular-nums ${
+                isFreeDelivery
+                  ? "font-semibold text-secondary"
+                  : shippingChosen
+                    ? "font-medium text-on-surface"
+                    : "text-on-surface-variant"
               }`}
               data-testid="cart-shipping"
               data-value={totals.shippingTotal}
             >
               {isFreeDelivery
-                ? "FREE"
+                ? "Free"
                 : shippingChosen
                 ? formatMoney(totals.shippingTotal, currency)
                 : "Calculated at checkout"}
@@ -79,10 +83,10 @@ export function Totals({
           </div>
 
           {/* Taxes */}
-          <div className="flex justify-between text-on-surface-variant text-xs">
+          <div className="flex justify-between text-on-surface-variant">
             <span>Estimated Taxes</span>
             <span
-              className="text-on-surface font-semibold tabular-nums"
+              className="text-on-surface font-medium tabular-nums"
               data-testid="cart-taxes"
               data-value={totals.taxTotal}
             >
@@ -92,16 +96,16 @@ export function Totals({
         </div>
 
         {/* Divider & Total Amount to Pay */}
-        <div className="pt-space-md border-t border-surface-container-highest flex items-baseline justify-between">
+        <div className="pt-space-md border-t border-surface-container-highest flex items-end justify-between gap-4">
           <div>
-            <span className="font-headline-sm text-headline-sm text-primary font-semibold">Total Amount</span>
-            <span className="block font-label-sm text-label-sm text-on-surface-variant">
+            <span className="block text-[16px] font-semibold text-primary">Total Amount</span>
+            <span className="mt-0.5 block text-[12px] text-on-surface-variant">
               Inclusive of all applicable taxes
             </span>
           </div>
           <div className="text-right">
             <span
-              className="font-headline-xl text-headline-xl text-primary font-light tabular-nums"
+              className="text-[24px] font-semibold leading-none text-primary tabular-nums"
               data-testid="cart-total"
               data-value={totals.total}
             >

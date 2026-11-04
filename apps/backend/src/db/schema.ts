@@ -177,9 +177,8 @@ export type OrderTotals = {
 }
 
 export type PaymentDetails = {
-  provider: "cod" | "razorpay" | "stripe"
+  provider: "cod" | "razorpay"
   transactionId?: string
-  paymentIntentId?: string
   razorpayOrderId?: string
   razorpayPaymentId?: string
   razorpaySignature?: string
@@ -209,7 +208,7 @@ export type OrderDoc = {
   shippingOption: { _id: string; name: string; amount: number }
   promoCodes: string[]
   totals: OrderTotals
-  paymentMethod: "cod" | "razorpay" | "stripe"
+  paymentMethod: "cod" | "razorpay"
   paymentStatus: "awaiting" | "paid" | "refunded"
   paymentDetails?: PaymentDetails
   fulfillmentStatus: "unfulfilled" | "shipped" | "delivered" | "returned"
@@ -438,7 +437,7 @@ export type CouponRedemptionDoc = {
 
 export type PaymentWebhookEventDoc = {
   _id: string
-  provider: "razorpay" | "stripe"
+  provider: "razorpay"
   eventId: string
   event: string
   payload: any
@@ -478,6 +477,28 @@ export type SupportMessage = {
   message: string
   attachments?: string[]
   createdAt: Date
+}
+
+/** A request for a concierge styling appointment, made from the storefront's /concierge page. */
+export type ConciergeBookingDoc = {
+  _id: string
+  /** Shown to the shopper, e.g. CNC-2026-1001. */
+  reference: string
+  service: "virtual" | "home" | "flagship"
+  location: string
+  name: string
+  phone: string
+  /** Requested day, YYYY-MM-DD. */
+  date: string
+  slot: string
+  occasions: string[]
+  stylist: string | null
+  notes: string
+  /** Set when a signed-in customer books. */
+  customerId: string | null
+  status: "requested" | "confirmed" | "cancelled" | "completed"
+  createdAt: Date
+  updatedAt: Date
 }
 
 export type SupportTicketDoc = {
@@ -580,10 +601,23 @@ export const db = {
   idempotencyRecords: (): Collection<IdempotencyRecordDoc> => getDb().collection("idempotency_records"),
   outboxEvents: (): Collection<OutboxEventDoc> => getDb().collection("outbox_events"),
   supportTickets: (): Collection<SupportTicketDoc> => getDb().collection("support_tickets"),
+  conciergeBookings: (): Collection<ConciergeBookingDoc> => getDb().collection("concierge_bookings"),
   loyaltyAccounts: (): Collection<LoyaltyAccountDoc> => getDb().collection("loyalty_accounts"),
   notifications: (): Collection<NotificationDoc> => getDb().collection("notifications"),
   auditLogs: (): Collection<AuditLogDoc> => getDb().collection("audit_logs"),
   productReviews: (): Collection<ProductReviewDoc> => getDb().collection("product_reviews"),
+}
+
+/**
+ * Order numbers are 1000 + the "order" counter. Raises the counter to cover
+ * every existing order (never lowers it), so orders inserted some other way,
+ * such as by the seed script, can't make the next checkout reuse a number and
+ * fail on the unique displayId index. Safe to run on each start.
+ */
+export async function syncOrderCounter() {
+  const [top] = await db.orders().find({}, { sort: { displayId: -1 }, limit: 1, projection: { displayId: 1 } }).toArray()
+  if (!top) return
+  await db.counters().updateOne({ _id: "order" }, { $max: { seq: top.displayId - 1000 } }, { upsert: true })
 }
 
 /** Creates every index the API relies on. Safe to run on each start. */
@@ -606,6 +640,7 @@ export async function ensureIndexes() {
     db.customers().createIndex({ email: 1 }, { unique: true }),
     db.adminUsers().createIndex({ email: 1 }, { unique: true }),
     db.carts().createIndex({ updatedAt: 1 }),
+    db.carts().createIndex({ customerId: 1, completedAt: 1, updatedAt: -1 }),
     db.orders().createIndex({ displayId: 1 }, { unique: true }),
     db.orders().createIndex({ customerId: 1, createdAt: -1 }),
     db.orders().createIndex({ status: 1, createdAt: -1 }),
@@ -636,6 +671,8 @@ export async function ensureIndexes() {
     db.supportTickets().createIndex({ ticketNumber: 1 }, { unique: true }),
     db.supportTickets().createIndex({ customerId: 1, createdAt: -1 }),
     db.supportTickets().createIndex({ status: 1 }),
+    db.conciergeBookings().createIndex({ reference: 1 }, { unique: true }),
+    db.conciergeBookings().createIndex({ status: 1, date: 1 }),
     db.loyaltyAccounts().createIndex({ customerId: 1 }, { unique: true }),
     db.notifications().createIndex({ recipientId: 1, status: 1, createdAt: -1 }),
     db.auditLogs().createIndex({ adminId: 1, createdAt: -1 }),

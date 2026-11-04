@@ -2,7 +2,7 @@ import { listingHref, parseListing } from "@modules/catalog/params"
 import { NextRequest, NextResponse } from "next/server"
 
 const API_URL = process.env.EVERWEAR_API_URL ?? (process.env.NODE_ENV === "production" ? "http://backend:9100" : "http://localhost:9100")
-const DEFAULT_REGION = (process.env.NEXT_PUBLIC_DEFAULT_REGION || "dk").toLowerCase()
+const DEFAULT_REGION = (process.env.NEXT_PUBLIC_DEFAULT_REGION || "in").toLowerCase()
 const REFRESH_MS = 60 * 60 * 1000
 
 /** Country codes the store ships to, refreshed hourly; the last good list survives outages. */
@@ -45,19 +45,24 @@ function searchRedirect(request: NextRequest, country: string) {
 /**
  * Region routing: every storefront URL starts with a country code.
  * Not IP-based, so crawlers and AI agents get a stable result.
+ * The store sells only in India, so a URL with any other two-letter country
+ * code (an old /dk/... or /de/... link) is redirected to the same page under /in.
  */
 export async function proxy(request: NextRequest) {
   const { pathname, search, origin } = request.nextUrl
   if (pathname.includes(".")) return NextResponse.next()
 
   const codes = await countryCodes()
+  // The default country always routes, even while the region list is unavailable.
+  const known = new Set([...codes, DEFAULT_REGION])
   const first = pathname.split("/")[1]?.toLowerCase()
-  if (first && codes.has(first)) return searchRedirect(request, first) ?? NextResponse.next()
+  if (first && known.has(first)) return searchRedirect(request, first) ?? NextResponse.next()
 
-  const country = codes.has(DEFAULT_REGION) ? DEFAULT_REGION : (codes.values().next().value ?? DEFAULT_REGION)
   // Serve the default country at "/" directly so the root URL has content.
-  if (pathname === "/") return NextResponse.rewrite(new URL(`/${country}`, request.url))
-  return NextResponse.redirect(`${origin}/${country}${pathname}${search}`, 307)
+  if (pathname === "/") return NextResponse.rewrite(new URL(`/${DEFAULT_REGION}`, request.url))
+  // Swap an unsupported country code for the default; otherwise prefix it.
+  const rest = first && /^[a-z]{2}$/.test(first) ? pathname.slice(first.length + 1) : pathname
+  return NextResponse.redirect(`${origin}/${DEFAULT_REGION}${rest}${search}`, 308)
 }
 
 export const config = {

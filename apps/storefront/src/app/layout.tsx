@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     template: `%s | ${STORE_NAME}`,
   },
   description:
-    "AVELIQ: A premium fashion and lifestyle marketplace for Europe and India.",
+    "AVELIQ: A premium fashion and lifestyle marketplace for India.",
   applicationName: STORE_NAME,
   icons: {
     icon: [

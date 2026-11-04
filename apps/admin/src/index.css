@@ -347,6 +347,13 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  /* Fades the right edge of a horizontal scroller so a clipped item reads as
+     "there is more" rather than as broken. */
+  .scroll-fade-x {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+  }
 }
 
 /* Honour the viewer's motion preference everywhere, including the

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-const COUNTRY = "dk"
+const COUNTRY = "in"
 const PRODUCT = `/${COUNTRY}/products/t-shirt`
 
 const bagCount = async (page: import("@playwright/test").Page) => {
@@ -68,8 +68,8 @@ test.describe("shopping journey", () => {
   test("store listing filters and sorts", async ({ page }) => {
     await page.goto(`/${COUNTRY}/store`, { waitUntil: "domcontentloaded" })
     await expect(page.getByTestId("products-list")).toBeVisible()
-    await page.getByTestId("option-refinement").filter({ hasText: /^M\d+$/ }).first().click()
-    await expect(page).toHaveURL(/option=Size%3AM/)
+    await page.getByTestId("option-refinement").filter({ hasText: /^M\s*\(\d+\)$/ }).first().click()
+    await expect(page).toHaveURL(/[?&]f=Size%3AM(&|$)/)
     await expect(page.getByTestId("products-list")).toBeVisible()
   })
 

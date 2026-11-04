@@ -11,10 +11,11 @@ import {
 } from 'react-router-dom';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { HUBS } from './data/mockData';
-import { ensureAdminAuth } from './lib/api';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { NotFound } from './components/layout/NotFound';
+import { LoginPage } from './components/layout/LoginPage';
+import { useSession } from './lib/session';
 import { CommandPalette } from './components/common/CommandPalette';
 import { NotificationsModal } from './components/common/NotificationsModal';
 import { Toast } from './components/common/Toast';
@@ -75,11 +76,16 @@ function AdminLayout() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Initial Auth Check with Everwear API
+  // Cmd/Ctrl+K opens the command palette from anywhere, as the search hint says.
   useEffect(() => {
-    ensureAdminAuth().catch((err) => {
-      console.warn('API authentication init notice:', err?.message);
-    });
+    const onKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   const currentPath = location.pathname.replace(/^\//, '').split('/')[0] || 'overview';
@@ -163,7 +169,7 @@ function AdminLayout() {
           currentHub={currentHub}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          unreadCount={3}
+          unreadCount={0}
           onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
         />
 
@@ -192,10 +198,38 @@ function AdminLayout() {
   );
 }
 
+/**
+ * Only a signed-in admin gets past here. Anyone else lands on /login, carrying
+ * the page they asked for so signing in takes them back to it. Losing the
+ * token mid-session (sign-out, or the API refusing it) re-renders this and
+ * sends the viewer to the login the same way.
+ */
+function RequireAuth({ children }) {
+  const { isSignedIn, endedBy } = useSession();
+  const location = useLocation();
+  if (!isSignedIn) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location, reason: endedBy === 'expired' ? 'expired' : undefined }}
+      />
+    );
+  }
+  return children;
+}
+
 export function App() {
   return (
     <Routes>
-      <Route element={<AdminLayout />}>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        element={
+          <RequireAuth>
+            <AdminLayout />
+          </RequireAuth>
+        }
+      >
         <Route index element={<Navigate to="/overview" replace />} />
         {MODULE_ROUTES.map(({ path, element, detail }) => (
           <React.Fragment key={path}>

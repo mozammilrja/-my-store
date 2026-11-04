@@ -95,11 +95,7 @@ export function OrderView({ order }: { order: Order }) {
         <div className="bg-surface-container-lowest p-space-md rounded-xl border border-surface-container-high/60">
           <span className="font-label-caps text-xs text-on-surface-variant uppercase block">Payment Mode</span>
           <p className="mt-1 font-label-md font-semibold text-on-surface" data-testid="payment-method">
-            {order.paymentMethod === "razorpay"
-              ? "Razorpay UPI"
-              : order.paymentMethod === "stripe"
-              ? "Credit/Debit Card"
-              : "Cash on Delivery"}
+            {order.paymentMethod === "razorpay" ? "Paid online (Razorpay)" : "Cash on Delivery"}
           </p>
         </div>
 

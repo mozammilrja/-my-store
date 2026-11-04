@@ -3,10 +3,11 @@
 import { cn } from "@/lib/utils"
 import type { Customer } from "@lib/api/types"
 import { signout } from "@lib/data/account"
+import { notifyCartUpdated } from "@lib/util/cart-events"
 import { useWishlist } from "@lib/util/wishlist"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
-import { useParams, usePathname } from "next/navigation"
+import { useParams, usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 const NAV_ITEMS = [
@@ -24,6 +25,14 @@ const NAV_ITEMS = [
 
 export function AccountNav({ customer }: { customer?: Customer | null }) {
   const { countryCode } = useParams<{ countryCode: string }>()
+  const router = useRouter()
+  const signOut = async () => {
+    const next = await signout(countryCode)
+    // The bag cookie is gone; tell the header's bag count to reload.
+    notifyCartUpdated()
+    router.replace(next)
+    router.refresh()
+  }
   const pathname = usePathname()
   const path = pathname.replace(`/${countryCode}`, "") || "/"
   const { count: wishlistCount } = useWishlist()
@@ -149,7 +158,7 @@ export function AccountNav({ customer }: { customer?: Customer | null }) {
             <div className="pt-2 mt-2 border-t border-surface-container-high">
               <button
                 type="button"
-                onClick={() => signout(countryCode)}
+                onClick={signOut}
                 className="flex items-center gap-3 px-3.5 py-2 rounded-lg text-error hover:bg-error-container hover:text-on-error-container transition-all font-label-md text-label-md w-full"
                 data-testid="logout-button"
               >
@@ -249,7 +258,7 @@ export function AccountNav({ customer }: { customer?: Customer | null }) {
         <div className="pt-space-md border-t border-surface-container-high mt-space-md">
           <button
             type="button"
-            onClick={() => signout(countryCode)}
+            onClick={signOut}
             className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-error hover:bg-error-container hover:text-on-error-container transition-all font-label-md text-label-md w-full cursor-pointer text-left"
             data-testid="logout-button"
           >

@@ -1,4 +1,5 @@
 import { Router } from "express"
+import { buildInvoiceLines } from "../../lib/invoice.js"
 import { z } from "zod"
 import { db, type CartDoc, type LineItem, type OrderDoc, type RegionDoc } from "../../db/schema.js"
 import { withTransaction } from "../../db/client.js"
@@ -14,11 +15,6 @@ import {
   verifyRazorpayWebhook,
   isRazorpayConfigured,
 } from "../../lib/payments/razorpay.js"
-import {
-  createStripePaymentIntent,
-  verifyStripeWebhook,
-  isStripeConfigured,
-} from "../../lib/payments/stripe.js"
 
 export const storePaymentRoutes = Router()
 
@@ -45,14 +41,12 @@ async function getValidCartAndTotals(id: string) {
 }
 
 /**
- * Initializes a payment intent on the appropriate payment gateway:
- * - Razorpay for INR / India
- * - Stripe for EUR / GBP / Europe
+ * Initializes a payment for the cart: Razorpay for prepaid orders, or cash on delivery.
  */
 storePaymentRoutes.post("/carts/:id/payment-intent", async (req, res) => {
   const body = z
     .object({
-      provider: z.enum(["razorpay", "stripe", "cod"]),
+      provider: z.enum(["razorpay", "cod"]),
     })
     .parse(req.body)
 
@@ -96,33 +90,6 @@ storePaymentRoutes.post("/carts/:id/payment-intent", async (req, res) => {
     }
     return
   }
-
-  if (body.provider === "stripe") {
-    if (isStripeConfigured()) {
-      const intent = await createStripePaymentIntent({
-        amount: totals.total,
-        currency: cart.currency,
-        metadata: { cartId: cart._id, email: cart.email! },
-      })
-      res.json({
-        provider: "stripe",
-        amount: intent.amount,
-        currency: intent.currency,
-        clientSecret: intent.client_secret,
-        paymentIntentId: intent.id,
-      })
-    } else {
-      res.json({
-        provider: "stripe",
-        amount: totals.total,
-        currency: cart.currency,
-        clientSecret: `pi_test_secret_${cart._id.slice(-8)}`,
-        paymentIntentId: `pi_mock_${cart._id.slice(-8)}`,
-        isStagingSimulated: true,
-      })
-    }
-    return
-  }
 })
 
 /**
@@ -131,17 +98,27 @@ storePaymentRoutes.post("/carts/:id/payment-intent", async (req, res) => {
 storePaymentRoutes.post("/carts/:id/confirm-payment", async (req, res) => {
   const body = z
     .object({
-      provider: z.enum(["razorpay", "stripe", "cod"]),
+      provider: z.enum(["razorpay", "cod"]),
       razorpayOrderId: z.string().optional(),
       razorpayPaymentId: z.string().optional(),
       razorpaySignature: z.string().optional(),
-      paymentIntentId: z.string().optional(),
       idempotencyKey: z.string().optional(),
     })
     .parse(req.body)
 
   const id = cartId.parse(req.params.id)
   const idempotencyKey = (req.headers["idempotency-key"] as string) || body.idempotencyKey
+
+  // An online order is only ever marked "paid" after the gateway proves it.
+  // Without Razorpay keys there is nothing to verify against, so refuse rather
+  // than create a "paid" order nobody paid for. The test suite (NODE_ENV=test)
+  // runs without keys and keeps the old path.
+  if (body.provider === "razorpay" && !isRazorpayConfigured() && env.NODE_ENV !== "test") {
+    throw badRequest(
+      "Online payment isn't available right now. Please choose Cash on Delivery.",
+      "payment_unavailable"
+    )
+  }
 
   // Signature verification for Razorpay
   if (body.provider === "razorpay" && isRazorpayConfigured()) {
@@ -233,11 +210,10 @@ storePaymentRoutes.post("/carts/:id/confirm-payment", async (req, res) => {
         paymentStatus: body.provider === "cod" ? "awaiting" : "paid",
         paymentDetails: {
           provider: body.provider,
-          transactionId: body.razorpayPaymentId ?? body.paymentIntentId ?? `cod_${Date.now()}`,
+          transactionId: body.razorpayPaymentId ?? `cod_${Date.now()}`,
           razorpayOrderId: body.razorpayOrderId,
           razorpayPaymentId: body.razorpayPaymentId,
           razorpaySignature: body.razorpaySignature,
-          paymentIntentId: body.paymentIntentId,
           paidAt: body.provider === "cod" ? undefined : now,
         },
         fulfillmentStatus: "unfulfilled",
@@ -301,23 +277,8 @@ storePaymentRoutes.post("/carts/:id/confirm-payment", async (req, res) => {
           customerName: `${doc.shippingAddress.firstName} ${doc.shippingAddress.lastName}`,
           shippingAddress: doc.shippingAddress,
           billingAddress: doc.billingAddress,
-          items: doc.items.map((i) => ({
-            name: i.productTitle,
-            sku: `SKU-${i.variantId.slice(-6)}`,
-            hsn: "6204",
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-            taxableValue: Math.round((i.unitPrice * i.quantity) / 1.12),
-            gstRate: 12,
-            cgst: Math.round((i.unitPrice * i.quantity * 0.06) / 1.12),
-            sgst: Math.round((i.unitPrice * i.quantity * 0.06) / 1.12),
-            igst: 0,
-          })),
-          subtotal: doc.totals.itemSubtotal,
-          cgstTotal: Math.round((doc.totals.taxTotal || 0) / 2),
-          sgstTotal: Math.round((doc.totals.taxTotal || 0) / 2),
-          igstTotal: 0,
-          grandTotal: doc.totals.total,
+          // Lines and totals that add up to what the order charged.
+          ...buildInvoiceLines(doc, region),
           currency: doc.currency,
           status: doc.paymentStatus === "paid" ? "paid" : "issued",
           issuedAt: now,
@@ -427,74 +388,6 @@ storePaymentRoutes.post("/webhooks/razorpay", async (req, res) => {
             paymentStatus: "paid",
             "paymentDetails.paidAt": new Date(),
             "paymentDetails.transactionId": payment.id,
-            updatedAt: new Date(),
-          },
-        }
-      )
-      if (result.matchedCount === 0) {
-        // Already processed earlier or order not found
-        res.json({ status: "ok", duplicate: true })
-        return
-      }
-    }
-  }
-
-  res.json({ status: "ok" })
-})
-
-/**
- * Stripe Webhook endpoint
- */
-storePaymentRoutes.post("/webhooks/stripe", async (req, res) => {
-  const signature = req.headers["stripe-signature"] as string
-  if (!signature) {
-    res.status(400).send("Missing signature")
-    return
-  }
-
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? env.STRIPE_WEBHOOK_SECRET
-  if (webhookSecret) {
-    const rawBody = (req as any).rawBody || JSON.stringify(req.body)
-    const valid = verifyStripeWebhook(rawBody, signature, 300, webhookSecret)
-    if (!valid) {
-      res.status(400).send("Invalid signature")
-      return
-    }
-  }
-
-  const event = req.body
-  const eventId = (event.id ?? req.headers["stripe-event-id"]) as string
-  if (eventId) {
-    const existing = await db.paymentWebhookEvents().findOne({ provider: "stripe", eventId })
-    if (existing) {
-      res.json({ status: "ok", duplicate: true })
-      return
-    }
-    await db.paymentWebhookEvents().insertOne({
-      _id: newId("pwe"),
-      provider: "stripe",
-      eventId,
-      event: event.type ?? "payment_intent.succeeded",
-      payload: event,
-      signature: signature ?? "",
-      status: "processed",
-      processedAt: new Date(),
-      createdAt: new Date(),
-    }).catch(() => {})
-  }
-
-  if (event.type === "payment_intent.succeeded") {
-    const intent = event.data?.object
-    const cartId = intent?.metadata?.cartId
-    if (cartId) {
-      // Idempotent: only update if order is not already marked paid
-      const result = await db.orders().updateOne(
-        { cartId, paymentStatus: { $ne: "paid" } },
-        {
-          $set: {
-            paymentStatus: "paid",
-            "paymentDetails.paidAt": new Date(),
-            "paymentDetails.paymentIntentId": intent.id,
             updatedAt: new Date(),
           },
         }

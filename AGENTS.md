@@ -2,7 +2,7 @@
 
 ## Overview
 
-Everwear: an online clothing store for Europe and India. A Turborepo monorepo (npm workspaces) with three apps:
+Everwear: an online clothing store for India (one region, prices in INR). A Turborepo monorepo (npm workspaces) with three apps:
 
 | App | Package | What it is | Dev URL |
 | --- | --- | --- | --- |

@@ -2,7 +2,6 @@ import assert from "node:assert/strict"
 import crypto from "node:crypto"
 import { test } from "node:test"
 import { verifyRazorpaySignature, verifyRazorpayWebhook } from "../src/lib/payments/razorpay.js"
-import { verifyStripeWebhook } from "../src/lib/payments/stripe.js"
 import { createDelhiveryShipment } from "../src/lib/logistics/delhivery.js"
 import { createBlueDartShipment } from "../src/lib/logistics/bluedart.js"
 import type { OrderDoc } from "../src/db/schema.js"
@@ -35,23 +34,16 @@ test("payments: razorpay cryptographic verification", async () => {
   assert.equal(invalidTampered, false, "Tampered payload must fail signature verification")
 })
 
-test("payments: stripe webhook verification", async () => {
-  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_stripe_secret_67890"
-  const payload = JSON.stringify({ type: "payment_intent.succeeded", id: "evt_123" })
-  const now = Math.floor(Date.now() / 1000)
-  const signature = crypto
-    .createHmac("sha256", process.env.STRIPE_WEBHOOK_SECRET)
-    .update(`${now}.${payload}`)
-    .digest("hex")
-  const header = `t=${now},v1=${signature}`
+test("payments: razorpay webhook verification", async () => {
+  const secret = "whsec_test_razorpay_secret_67890"
+  const payload = JSON.stringify({ event: "payment.captured", id: "evt_123" })
+  const signature = crypto.createHmac("sha256", secret).update(payload).digest("hex")
 
-  const valid = verifyStripeWebhook(payload, header)
-  assert.equal(valid, true, "Valid Stripe webhook signature within tolerance window must be accepted")
+  const valid = verifyRazorpayWebhook(payload, signature, secret)
+  assert.equal(valid, true, "Valid Razorpay webhook signature must be accepted")
 
-  // Expired timestamp (>300s) is rejected
-  const expiredHeader = `t=${now - 500},v1=${signature}`
-  const invalid = verifyStripeWebhook(payload, expiredHeader)
-  assert.equal(invalid, false, "Stripe webhook older than tolerance window must be rejected")
+  const tampered = verifyRazorpayWebhook(payload.replace("evt_123", "evt_999"), signature, secret)
+  assert.equal(tampered, false, "Tampered Razorpay webhook payload must be rejected")
 })
 
 test("logistics: delhivery & bluedart carrier waybill generation", async () => {

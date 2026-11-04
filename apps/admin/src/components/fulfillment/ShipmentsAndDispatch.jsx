@@ -15,6 +15,7 @@ import {
   StatusBadge,
   AppDrawer,
   EmptyState,
+  PageBody,
 } from '../shared';
 import { useShipmentsQuery } from '../../hooks/useAdminQueries';
 import { useClientTable } from '../../hooks/useClientTable';
@@ -37,7 +38,7 @@ const CARRIER_LABELS = {
 
 /** The shipment statuses the API can return, in lifecycle order. */
 const STATUS_META = {
-  manifested: { label: 'Manifested', variant: 'neutral' },
+  manifested: { label: 'Manifested', variant: 'secondary' },
   pickup_scheduled: { label: 'Pickup scheduled', variant: 'info' },
   in_transit: { label: 'In transit', variant: 'info' },
   out_for_delivery: { label: 'Out for delivery', variant: 'warning' },
@@ -158,6 +159,7 @@ export function ShipmentsAndDispatch({ onShowToast }) {
         const haystack = [
           s.awb,
           `EVR-${s.displayId}`,
+          `#${s.displayId}`,
           s.customer?.name,
           s.customer?.city,
           s.customer?.postalCode,
@@ -201,7 +203,7 @@ export function ShipmentsAndDispatch({ onShowToast }) {
       header: 'Order & destination',
       accessor: (s) => (
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-body text-primary">EVR-{s.displayId}</span>
+          <span className="truncate font-mono text-meta text-primary">#{s.displayId}</span>
           <span className="truncate text-meta text-muted">
             {[s.customer?.city, s.customer?.postalCode].filter(Boolean).join(' ') || 'No address on file'}
           </span>
@@ -228,7 +230,7 @@ export function ShipmentsAndDispatch({ onShowToast }) {
       fit: true,
       header: 'Status',
       accessor: (s) => {
-        const meta = STATUS_META[s.status] ?? { label: s.status, variant: 'neutral' };
+        const meta = STATUS_META[s.status] ?? { label: s.status, variant: 'secondary' };
         return <StatusBadge status={meta.label} variant={meta.variant} />;
       },
     },
@@ -277,8 +279,7 @@ export function ShipmentsAndDispatch({ onShowToast }) {
       <PageHeader
         kicker="Fulfillment & orders"
         title="Shipments & dispatch"
-        description="Every parcel handed to a carrier, with its live tracking history."
-        breadcrumb="Fulfillment & Orders / Shipments & Dispatch"
+        description="Parcels handed to carriers and their tracking."
         actions={
           <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <Icon
@@ -290,199 +291,206 @@ export function ShipmentsAndDispatch({ onShowToast }) {
           </Button>
         }
       />
+      <PageBody
+        error={error}
+        hasData={data != null}
+        title="Shipments could not be loaded"
+        onRetry={refetch}
+      >
 
-      <ContentGrid columns={4}>
-        <StatsCard
-          title="Shipments"
-          value={counts.all}
-          icon="local_shipping"
-          subtitle={`${counts.delivered} delivered so far`}
-        />
-        <StatsCard
-          title="In flight"
-          value={counts.open}
-          icon="flight_takeoff"
-          iconColor="text-info"
-          subtitle={`${counts.awaitingPickup} still awaiting pickup`}
-        />
-        <StatsCard
-          title="Out for delivery"
-          value={counts.outForDelivery}
-          icon="electric_moped"
-          iconColor="text-warning"
-          subtitle="With a delivery associate today"
-        />
-        <StatsCard
-          title="Exceptions"
-          value={counts.exceptions}
-          icon="report_problem"
-          iconColor="text-danger"
-          subtitle="Returned to origin or cancelled"
-        />
-      </ContentGrid>
-
-      <FilterBar
-        tabs={STATUS_TABS.map((t) => ({ ...t, count: counts[t.id] }))}
-        activeTab={activeTab}
-        onTabChange={(tab) => setParam('tab', tab)}
-        search={
-          <SearchInput
-            value={searchQuery}
-            onChange={(value) => setParam('q', value)}
-            onClear={() => setParam('q', '')}
-            label="Search shipments"
-            placeholder="AWB, order, city or PIN"
+        <ContentGrid columns={4}>
+          <StatsCard
+            title="Shipments"
+            value={counts.all}
+            icon="local_shipping"
+            subtitle={`${counts.delivered} delivered so far`}
           />
-        }
-        filters={
-          <>
-            <FilterDropdown
-              value={carrierFilter}
-              onChange={(value) => setParam('carrier', value)}
-              options={CARRIER_OPTIONS}
-              label="Carrier"
+          <StatsCard
+            title="In flight"
+            value={counts.open}
+            icon="flight_takeoff"
+            iconColor="text-info"
+            subtitle={`${counts.awaitingPickup} still awaiting pickup`}
+          />
+          <StatsCard
+            title="Out for delivery"
+            value={counts.outForDelivery}
+            icon="electric_moped"
+            iconColor="text-warning"
+            subtitle="On the last leg to the customer"
+          />
+          <StatsCard
+            title="Exceptions"
+            value={counts.exceptions}
+            icon="report_problem"
+            iconColor="text-danger"
+            subtitle="Returned to origin or cancelled"
+          />
+        </ContentGrid>
+
+        <FilterBar
+          tabs={STATUS_TABS.map((t) => ({ ...t, count: counts[t.id] }))}
+          activeTab={activeTab}
+          onTabChange={(tab) => setParam('tab', tab)}
+          search={
+            <SearchInput
+              value={searchQuery}
+              onChange={(value) => setParam('q', value)}
+              onClear={() => setParam('q', '')}
+              label="Search shipments"
+              placeholder="AWB, order, city or PIN"
             />
-            <FilterDropdown
-              value={statusFilter}
-              onChange={(value) => setParam('status', value)}
-              options={STATUS_OPTIONS}
-              label="Status"
-            />
-            {activeFilterCount > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
+          }
+          filters={
+            <>
+              <FilterDropdown
+                value={carrierFilter}
+                onChange={(value) => setParam('carrier', value)}
+                options={CARRIER_OPTIONS}
+                label="Carrier"
+              />
+              <FilterDropdown
+                value={statusFilter}
+                onChange={(value) => setParam('status', value)}
+                options={STATUS_OPTIONS}
+                label="Status"
+              />
+              {activeFilterCount > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              )}
+            </>
+          }
+        />
+
+        <DataTable
+          columns={columns}
+          data={pager.pageRows}
+          keyField="awb"
+          isLoading={isLoading}
+          isError={isError}
+          errorTitle="Shipments could not be loaded"
+          errorMessage={error?.message}
+          onRetry={() => refetch()}
+          activeRowId={selectedAwb}
+          onRowClick={(s) => setSelectedAwb(s.awb)}
+          emptyIcon="local_shipping"
+          emptyTitle={activeFilterCount ? 'No shipments match these filters' : 'No shipments yet'}
+          emptyMessage={
+            activeFilterCount
+              ? 'Clear the filters to see the full dispatch board.'
+              : 'A shipment appears here once an order is handed to a carrier.'
+          }
+          emptyAction={
+            activeFilterCount ? (
+              <Button variant="outline" size="sm" onClick={clearFilters}>
                 Clear filters
               </Button>
-            )}
-          </>
-        }
-      />
+            ) : null
+          }
+          caption="Shipments and their latest carrier scan"
+          pagination={{
+            page: pager.page,
+            pageSize: pager.limit,
+            totalItems: pager.total,
+            onPageChange: pager.setPage,
+            onPageSizeChange: pager.setLimit,
+          }}
+        />
 
-      <DataTable
-        columns={columns}
-        data={pager.pageRows}
-        keyField="awb"
-        isLoading={isLoading}
-        isError={isError}
-        errorTitle="Shipments could not be loaded"
-        errorMessage={error?.message}
-        onRetry={() => refetch()}
-        activeRowId={selectedAwb}
-        onRowClick={(s) => setSelectedAwb(s.awb)}
-        emptyIcon="local_shipping"
-        emptyTitle={activeFilterCount ? 'No shipments match these filters' : 'No shipments yet'}
-        emptyMessage={
-          activeFilterCount
-            ? 'Clear the filters to see the full dispatch board.'
-            : 'A shipment appears here once an order is handed to a carrier.'
-        }
-        emptyAction={
-          activeFilterCount ? (
-            <Button variant="outline" size="sm" onClick={clearFilters}>
-              Clear filters
-            </Button>
-          ) : null
-        }
-        caption="Shipments and their latest carrier scan"
-        pagination={{
-          page: pager.page,
-          pageSize: pager.limit,
-          totalItems: pager.total,
-          onPageChange: pager.setPage,
-          onPageSizeChange: pager.setLimit,
-        }}
-      />
+        <AppDrawer
+          isOpen={Boolean(selected)}
+          onClose={() => setSelectedAwb(null)}
+          title={selected ? `AWB ${selected.awb}` : 'Shipment'}
+          subtitle={
+            selected
+              ? `${CARRIER_LABELS[selected.carrier] ?? selected.carrier} / order #${selected.displayId}`
+              : undefined
+          }
+        >
+          {selected && (
+            <div className="flex flex-col gap-space-md">
+              <SectionCard title="Delivery">
+                <dl className="grid grid-cols-2 gap-space-sm text-body">
+                  <div className="flex flex-col">
+                    <dt className="text-meta text-muted">Recipient</dt>
+                    <dd className="text-primary">{selected.customer?.name ?? 'Not recorded'}</dd>
+                  </div>
+                  <div className="flex flex-col">
+                    <dt className="text-meta text-muted">Phone</dt>
+                    <dd className="text-primary">{selected.customer?.phone ?? 'Not recorded'}</dd>
+                  </div>
+                  <div className="flex flex-col">
+                    <dt className="text-meta text-muted">City</dt>
+                    <dd className="text-primary">{selected.customer?.city ?? 'Not recorded'}</dd>
+                  </div>
+                  <div className="flex flex-col">
+                    <dt className="text-meta text-muted">PIN</dt>
+                    <dd className="font-mono text-num text-primary">
+                      {selected.customer?.postalCode ?? '-'}
+                    </dd>
+                  </div>
+                  <div className="flex flex-col">
+                    <dt className="text-meta text-muted">Items</dt>
+                    <dd className="text-primary tabular-nums">{selected.itemsCount ?? 0}</dd>
+                  </div>
+                  <div className="flex flex-col">
+                    <dt className="text-meta text-muted">Pickup</dt>
+                    <dd className="text-primary">{formatDate(selected.pickupDate) ?? 'Not scheduled'}</dd>
+                  </div>
+                </dl>
+              </SectionCard>
 
-      <AppDrawer
-        isOpen={Boolean(selected)}
-        onClose={() => setSelectedAwb(null)}
-        title={selected ? `AWB ${selected.awb}` : 'Shipment'}
-        subtitle={
-          selected
-            ? `${CARRIER_LABELS[selected.carrier] ?? selected.carrier} / order EVR-${selected.displayId}`
-            : undefined
-        }
-      >
-        {selected && (
-          <div className="flex flex-col gap-space-md">
-            <SectionCard title="Delivery">
-              <dl className="grid grid-cols-2 gap-space-sm text-body">
-                <div className="flex flex-col">
-                  <dt className="text-meta text-muted">Recipient</dt>
-                  <dd className="text-primary">{selected.customer?.name ?? 'Not recorded'}</dd>
-                </div>
-                <div className="flex flex-col">
-                  <dt className="text-meta text-muted">Phone</dt>
-                  <dd className="text-primary">{selected.customer?.phone ?? 'Not recorded'}</dd>
-                </div>
-                <div className="flex flex-col">
-                  <dt className="text-meta text-muted">City</dt>
-                  <dd className="text-primary">{selected.customer?.city ?? 'Not recorded'}</dd>
-                </div>
-                <div className="flex flex-col">
-                  <dt className="text-meta text-muted">PIN</dt>
-                  <dd className="font-mono text-num text-primary">
-                    {selected.customer?.postalCode ?? '-'}
-                  </dd>
-                </div>
-                <div className="flex flex-col">
-                  <dt className="text-meta text-muted">Items</dt>
-                  <dd className="text-primary tabular-nums">{selected.itemsCount ?? 0}</dd>
-                </div>
-                <div className="flex flex-col">
-                  <dt className="text-meta text-muted">Pickup</dt>
-                  <dd className="text-primary">{formatDate(selected.pickupDate) ?? 'Not scheduled'}</dd>
-                </div>
-              </dl>
-            </SectionCard>
+              <SectionCard title="Tracking history">
+                {(selected.trackingEvents ?? []).length === 0 ? (
+                  <EmptyState
+                    icon="pin_drop"
+                    title="No scans yet"
+                    description="The carrier has not reported movement for this parcel."
+                  />
+                ) : (
+                  <ol className="flex flex-col gap-space-sm">
+                    {[...selected.trackingEvents]
+                      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+                      .map((event, idx) => (
+                        <li key={`${event.timestamp}-${idx}`} className="flex gap-space-sm">
+                          <span
+                            aria-hidden="true"
+                            className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-status-info-solid"
+                          />
+                          <div className="flex min-w-0 flex-col">
+                            <span className="text-body text-primary">{event.status}</span>
+                            <span className="text-meta text-muted">
+                              {[event.location, formatDateTime(event.timestamp)]
+                                .filter(Boolean)
+                                .join(' / ')}
+                            </span>
+                            {event.note && <span className="text-meta text-faint">{event.note}</span>}
+                          </div>
+                        </li>
+                      ))}
+                  </ol>
+                )}
+              </SectionCard>
 
-            <SectionCard title="Tracking history">
-              {(selected.trackingEvents ?? []).length === 0 ? (
-                <EmptyState
-                  icon="pin_drop"
-                  title="No scans yet"
-                  description="The carrier has not reported movement for this parcel."
-                />
-              ) : (
-                <ol className="flex flex-col gap-space-sm">
-                  {[...selected.trackingEvents]
-                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-                    .map((event, idx) => (
-                      <li key={`${event.timestamp}-${idx}`} className="flex gap-space-sm">
-                        <span
-                          aria-hidden="true"
-                          className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-status-info-solid"
-                        />
-                        <div className="flex min-w-0 flex-col">
-                          <span className="text-body text-primary">{event.status}</span>
-                          <span className="text-meta text-muted">
-                            {[event.location, formatDateTime(event.timestamp)]
-                              .filter(Boolean)
-                              .join(' / ')}
-                          </span>
-                          {event.note && <span className="text-meta text-faint">{event.note}</span>}
-                        </div>
-                      </li>
-                    ))}
-                </ol>
+              {selected.labelUrl && (
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(selected.labelUrl, '_blank', 'noopener')}
+                >
+                  <Icon
+                    name="download"
+                    aria-hidden="true"
+                    className="material-symbols-outlined text-icon-sm"
+                  />
+                  <span>Open carrier label</span>
+                </Button>
               )}
-            </SectionCard>
-
-            {selected.labelUrl && (
-              <Button
-                variant="outline"
-                onClick={() => window.open(selected.labelUrl, '_blank', 'noopener')}
-              >
-                <Icon
-                  name="download"
-                  aria-hidden="true"
-                  className="material-symbols-outlined text-icon-sm"
-                />
-                <span>Open carrier label</span>
-              </Button>
-            )}
-          </div>
-        )}
-      </AppDrawer>
+            </div>
+          )}
+        </AppDrawer>
+      </PageBody>
     </PageContainer>
   );
 }

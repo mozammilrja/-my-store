@@ -117,7 +117,7 @@ test("overlays and portals follow the theme", async ({ page, context, request })
   await gotoModule(page, "overview")
 
   // Profile menu
-  await page.getByRole("button", { name: /Ananya Sharma|VP Operations/ }).first().click()
+  await page.getByRole("button", { name: /Owner|Staff|Admin/ }).first().click()
   const menu = page.getByRole("menu")
   await expect(menu).toBeVisible()
   const menuLum = await menu.evaluate((el) => {

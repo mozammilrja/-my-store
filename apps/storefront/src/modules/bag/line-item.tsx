@@ -1,5 +1,6 @@
 "use client"
 
+import { ensureOk } from "@lib/util/cart-action"
 import { formatMoney } from "@lib/money"
 import { cn } from "@/lib/utils"
 import { deleteLineItem, updateLineItem } from "@lib/data/shop"
@@ -41,8 +42,14 @@ export function LineItem({
     }
   }
 
+  // What the shop can supply right now (null when the API didn't say).
+  const available = item.available ?? null
+  const soldOut = available === 0
+  const overStock = available !== null && item.quantity > available
+  const maxQuantity = Math.min(MAX_PER_LINE, available ?? MAX_PER_LINE)
+
   const setQuantity = (quantity: number) =>
-    run("update", () => updateLineItem({ lineId: item.id, quantity }))
+    run("update", async () => ensureOk(await updateLineItem({ lineId: item.id, quantity })))
 
   const handleSaveToWishlist = async () => {
     try {
@@ -53,7 +60,7 @@ export function LineItem({
       toast.error(e instanceof Error ? e.message : "We couldn't save this to your wishlist.")
       return
     }
-    run("remove", () => deleteLineItem(item.id))
+    run("remove", async () => ensureOk(await deleteLineItem(item.id)))
     toast.success("Moved to your wishlist")
   }
 
@@ -117,7 +124,7 @@ export function LineItem({
             {editable && (
               <button
                 type="button"
-                onClick={() => run("remove", () => deleteLineItem(item.id))}
+                onClick={() => run("remove", async () => ensureOk(await deleteLineItem(item.id)))}
                 disabled={!!pending}
                 aria-label="Remove item"
                 className="text-on-surface-variant hover:text-error transition-colors p-1 cursor-pointer disabled:opacity-40"
@@ -147,6 +154,23 @@ export function LineItem({
               </span>
             )}
           </div>
+
+          {editable && (soldOut || overStock) && (
+            <p
+              role="status"
+              className="mt-space-sm inline-flex rounded-md bg-error-container px-2.5 py-1 text-[13px] font-medium text-on-error-container"
+              data-testid="line-stock-notice"
+            >
+              {soldOut
+                ? "This size is out of stock. Remove it to check out."
+                : `Only ${available} left. Lower the quantity to check out.`}
+            </p>
+          )}
+          {editable && !soldOut && !overStock && available !== null && available <= 3 && (
+            <p className="mt-space-sm text-[13px] font-medium text-[#ff905a]" data-testid="line-stock-notice">
+              Only {available} left
+            </p>
+          )}
         </div>
 
         {/* Bottom bar: Stepper, Wishlist, Price */}
@@ -161,8 +185,8 @@ export function LineItem({
               >
                 <button
                   type="button"
-                  onClick={() => setQuantity(item.quantity - 1)}
-                  disabled={item.quantity <= 1 || !!pending}
+                  onClick={() => setQuantity(overStock ? Math.max(available!, 1) : item.quantity - 1)}
+                  disabled={item.quantity <= 1 || soldOut || !!pending}
                   className="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer"
                   aria-label="Decrease quantity"
                 >
@@ -177,7 +201,7 @@ export function LineItem({
                 <button
                   type="button"
                   onClick={() => setQuantity(item.quantity + 1)}
-                  disabled={item.quantity >= MAX_PER_LINE || !!pending}
+                  disabled={item.quantity >= maxQuantity || !!pending}
                   className="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer"
                   aria-label="Increase quantity"
                 >

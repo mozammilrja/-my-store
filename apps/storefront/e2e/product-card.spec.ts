@@ -1,10 +1,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
-const COUNTRY = "dk"
+const COUNTRY = "in"
 const LISTING = `/${COUNTRY}/store`
 
 /** The header badge is omitted entirely when the bag is empty. */
-const bagCount = async (page: Page) => {
+const _bagCount = async (page: Page) => {
   const badge = page.getByTestId("nav-cart-count").first()
   if ((await badge.count()) === 0) return 0
   return Number((await badge.textContent())?.replace(/\D/g, "") ?? 0)
@@ -349,7 +349,7 @@ test.describe("navigation and keyboard", () => {
   })
 
   test("a touch tap opens the product page without swapping the text block", async ({
-    page,
+    page: _page,
     browser,
   }) => {
     const ctx = await browser.newContext({

@@ -15,10 +15,6 @@ interface FeaturedSeed {
   tags: string[]
   priceInr: number
   compareAtPriceInr?: number
-  priceEur: number
-  compareAtPriceEur?: number
-  priceUsd: number
-  compareAtPriceUsd?: number
   reviews?: { customerName: string; rating: number; title: string; comment: string }[]
   /** Sizes stocked at zero, so the card can show a genuinely unavailable size. */
   soldOutSizes?: string[]
@@ -104,10 +100,6 @@ async function seed() {
       tags: ["new-arrival", "bestseller", "tailoring", "linen"],
       priceInr: 549000,
       compareAtPriceInr: 749000,
-      priceEur: 6500,
-      compareAtPriceEur: 8900,
-      priceUsd: 7500,
-      compareAtPriceUsd: 9900,
       reviews: [
         { customerName: "Ananya S.", rating: 5, title: "Architectural perfection", comment: "The cut of this blazer is stunning. Beautiful linen texture." },
         { customerName: "Priya M.", rating: 4, title: "Great tailored fit", comment: "Slightly oversized boyfriend cut, exactly as photographed." },
@@ -131,10 +123,6 @@ async function seed() {
       tags: ["festive", "ethnic", "silk", "handloom", "new-arrival"],
       priceInr: 899000,
       compareAtPriceInr: 1199000,
-      priceEur: 9900,
-      compareAtPriceEur: 13900,
-      priceUsd: 11500,
-      compareAtPriceUsd: 15500,
       reviews: [
         { customerName: "Meera D.", rating: 5, title: "Gorgeous Festive Set", comment: "The gold zari borders on Chanderi silk feel opulent and weightless." },
         { customerName: "Ishita R.", rating: 5, title: "Heirloom Quality", comment: "The scalloped organza dupatta completes this look wonderfully." },
@@ -161,10 +149,6 @@ async function seed() {
       tags: ["footwear", "leather", "handmade"],
       priceInr: 385000,
       compareAtPriceInr: 499000,
-      priceEur: 4500,
-      compareAtPriceEur: 5900,
-      priceUsd: 5000,
-      compareAtPriceUsd: 6500,
       reviews: [
         { customerName: "Diya K.", rating: 4, title: "Very comfortable block heel", comment: "Wore these all evening with zero break-in discomfort. 10/10." },
       ],
@@ -187,10 +171,6 @@ async function seed() {
       tags: ["jewellery", "silver", "limited-edition"],
       priceInr: 720000,
       compareAtPriceInr: 899000,
-      priceEur: 8000,
-      compareAtPriceEur: 9900,
-      priceUsd: 9000,
-      compareAtPriceUsd: 11000,
       reviews: [
         { customerName: "Tara N.", rating: 5, title: "True Wearable Art", comment: "Hand-beaten sterling silver filigree with genuine raw tourmaline." },
       ],
@@ -213,10 +193,6 @@ async function seed() {
       tags: ["bestseller", "linen", "summer", "new-arrival"],
       priceInr: 249000,
       compareAtPriceInr: 349000,
-      priceEur: 3200,
-      compareAtPriceEur: 4500,
-      priceUsd: 3500,
-      compareAtPriceUsd: 4900,
       reviews: [
         { customerName: "Aarav S.", rating: 5, title: "Best summer shirt", comment: "Airy, soft, drape is effortless. Wore it throughout Goa." },
         { customerName: "Vikram R.", rating: 4, title: "Quality linen", comment: "Genuine breathable flax linen that gets softer with every wash." },
@@ -238,10 +214,6 @@ async function seed() {
       tags: ["tailoring", "bestseller", "formal"],
       priceInr: 289000,
       compareAtPriceInr: 399000,
-      priceEur: 3600,
-      compareAtPriceEur: 4900,
-      priceUsd: 4200,
-      compareAtPriceUsd: 5500,
       reviews: [
         { customerName: "Karan M.", rating: 5, title: "Sharply tailored", comment: "The double pleat drape sits perfectly over loafers." },
       ],
@@ -265,10 +237,6 @@ async function seed() {
       tags: ["tshirt", "casual", "heavyweight", "bestseller", "new-arrival"],
       priceInr: 149000,
       compareAtPriceInr: 249000,
-      priceEur: 1900,
-      compareAtPriceEur: 3200,
-      priceUsd: 2200,
-      compareAtPriceUsd: 3500,
       reviews: [
         { customerName: "Rohan P.", rating: 5, title: "Substantial 280 GSM weight", comment: "Holds its boxy shape wash after wash. Doesn't cling." },
         { customerName: "Arjun N.", rating: 4, title: "Clean minimalist silhouette", comment: "Best daily tee in this price bracket." },
@@ -292,10 +260,6 @@ async function seed() {
       tags: ["tshirt", "polo", "knitwear", "summer"],
       priceInr: 189000,
       compareAtPriceInr: 299000,
-      priceEur: 2400,
-      compareAtPriceEur: 3800,
-      priceUsd: 2800,
-      compareAtPriceUsd: 4200,
       reviews: [
         { customerName: "Siddharth V.", rating: 5, title: "Unreal texture", comment: "The honeycomb waffle knit is breathable and looks elevated." },
       ],
@@ -316,10 +280,6 @@ async function seed() {
       tags: ["ethnic", "kurta", "linen", "festive"],
       priceInr: 329000,
       compareAtPriceInr: 449000,
-      priceEur: 4200,
-      compareAtPriceEur: 5500,
-      priceUsd: 4800,
-      compareAtPriceUsd: 6200,
       reviews: [
         { customerName: "Aditya G.", rating: 5, title: "Graceful elegance", comment: "Comfortable organic handloom linen with a clean bandhgala collar." },
       ],
@@ -340,10 +300,6 @@ async function seed() {
       tags: ["footwear", "shoes", "leather", "handmade"],
       priceInr: 449000,
       compareAtPriceInr: 599000,
-      priceEur: 5800,
-      compareAtPriceEur: 7500,
-      priceUsd: 6500,
-      compareAtPriceUsd: 8500,
       reviews: [
         { customerName: "Nikhil K.", rating: 4, title: "Incredibly soft suede", comment: "Blake stitched sole and cushioned arch support make this comfortable all day." },
       ],
@@ -366,10 +322,6 @@ async function seed() {
       tags: ["tshirt", "cotton", "essentials", "new-arrival"],
       priceInr: 129000,
       compareAtPriceInr: 199000,
-      priceEur: 1600,
-      compareAtPriceEur: 2600,
-      priceUsd: 1900,
-      compareAtPriceUsd: 2900,
       reviews: [
         { customerName: "Shreya T.", rating: 5, title: "Silky soft feel", comment: "Mercerised Supima cotton feels like silk. Doesn't lose shape in the wash." },
       ],
@@ -390,10 +342,6 @@ async function seed() {
       tags: ["sweatshirt", "hoodie", "winter", "casual"],
       priceInr: 279000,
       compareAtPriceInr: 399000,
-      priceEur: 3500,
-      compareAtPriceEur: 4900,
-      priceUsd: 3900,
-      compareAtPriceUsd: 5500,
       reviews: [
         { customerName: "Kabir S.", rating: 5, title: "Dense, cozy fleece", comment: "True 450 GSM weight. The hood stands structured." },
       ],
@@ -409,12 +357,10 @@ async function seed() {
       sku: `${sp.handle.toUpperCase().substring(0, 10)}-${sz}`,
       title: sz,
       options: { Size: sz },
-      prices: { inr: sp.priceInr, eur: sp.priceEur, usd: sp.priceUsd },
+      prices: { inr: sp.priceInr },
       compareAtPrices: sp.compareAtPriceInr
         ? {
             inr: sp.compareAtPriceInr,
-            ...(sp.compareAtPriceEur ? { eur: sp.compareAtPriceEur } : {}),
-            ...(sp.compareAtPriceUsd ? { usd: sp.compareAtPriceUsd } : {}),
           }
         : undefined,
       manageInventory: true,

@@ -12,6 +12,7 @@ import {
   type PurchaseOrderDoc,
   type ShipmentDoc,
   type SupplierDoc,
+  syncOrderCounter,
 } from "../src/db/schema.js"
 import { hashPassword } from "../src/lib/auth.js"
 
@@ -607,6 +608,9 @@ async function seed() {
   // Customers and orders go in first; shipments and invoices below reference them.
   await upsertAll(db.customers(), customers)
   await upsertAll(db.orders(), seededOrders)
+  // New orders are numbered 1000 + the "order" counter; move it past the
+  // seeded numbers, or the next checkout collides with order #1001.
+  await syncOrderCounter()
 
   const written = {
     customers: customers.length,

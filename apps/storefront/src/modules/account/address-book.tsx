@@ -2,12 +2,57 @@
 
 import { Button } from "@/components/ui/button"
 import type { Address, Customer } from "@lib/api/types"
-import { deleteAddress, saveAddress } from "@lib/data/account"
+import { deleteAddress, saveAddress, type AddressActionResult } from "@lib/data/account"
+import { fieldErrorsFrom, savedAddressSchema, type FieldErrors } from "@lib/validation/checkout-schemas"
 import { useActionState, useEffect, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 type Country = { code: string; name: string }
 type Saved = Address & { id: string }
+
+/** Form order, so validation focuses the first problem a shopper would reach. */
+const FIELD_ORDER = ["firstName", "lastName", "phone", "address1", "address2", "city", "province", "postalCode", "countryCode"]
+
+/** Label + input + error, with the label and message tied to the input for screen readers. */
+function Field({
+  name,
+  label,
+  required = false,
+  hint,
+  prefix,
+  error,
+  children,
+}: {
+  name: string
+  label: string
+  required?: boolean
+  hint?: string
+  prefix: string
+  error?: string
+  children: (props: { id: string; "aria-invalid": boolean; "aria-describedby"?: string }) => React.ReactNode
+}) {
+  const id = `${prefix}-${name}`
+  const describedBy = [error ? `${id}-error` : null, hint ? `${id}-hint` : null].filter(Boolean).join(" ")
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
+        {label} {required && <span className="text-error">*</span>}
+      </label>
+      {children({ id, "aria-invalid": !!error, ...(describedBy ? { "aria-describedby": describedBy } : {}) })}
+      {error ? (
+        <p id={`${id}-error`} className="text-[12px] font-medium text-error" data-testid={`address-error-${name}`}>
+          {error}
+        </p>
+      ) : (
+        hint && (
+          <p id={`${id}-hint`} className="font-body-sm text-[11px] text-on-surface-variant">
+            {hint}
+          </p>
+        )
+      )}
+    </div>
+  )
+}
 
 export function AddressBook({
   customer,
@@ -26,7 +71,8 @@ export function AddressBook({
   )
 
   const [addressType, setAddressType] = useState<"Home" | "Work" | "Studio" | "Other">("Home")
-  const [state, formAction, pending] = useActionState(saveAddress, { error: null })
+  const [state, formAction, pending] = useActionState(saveAddress, { error: null } as AddressActionResult)
+  const [errors, setErrors] = useState<FieldErrors>({})
   const [formSent, setFormSent] = useState(false)
   const [, startTransition] = useTransition()
   const formRef = useRef<HTMLDivElement>(null)
@@ -38,13 +84,16 @@ export function AddressBook({
         setFormOpen(false)
         setEditingAddress(null)
       } else {
-        toast.error(state.error)
+        // The server re-checks with the same schema; show its field errors inline.
+        if (state.fieldErrors) setErrors(state.fieldErrors)
+        else toast.error(state.error)
       }
       setFormSent(false)
     }
-  }, [formSent, pending, state.error, editingAddress])
+  }, [formSent, pending, state.error, state.fieldErrors, editingAddress])
 
   const openAddForm = () => {
+    setErrors({})
     setEditingAddress(null)
     setAddressType("Home")
     setFormOpen(true)
@@ -56,6 +105,7 @@ export function AddressBook({
   }
 
   const openEditForm = (addr: Saved) => {
+    setErrors({})
     setEditingAddress(addr)
     setAddressType((addr.company ? addr.company : "Home") as "Home" | "Work" | "Studio" | "Other")
     setFormOpen(true)
@@ -67,6 +117,7 @@ export function AddressBook({
   }
 
   const closeForm = () => {
+    setErrors({})
     setFormOpen(false)
     setEditingAddress(null)
   }
@@ -93,11 +144,54 @@ export function AddressBook({
 
   const activeAddresses = customer.addresses
 
+  const fieldClass = (name: string, extra = "") =>
+    `h-11 w-full px-3.5 bg-surface text-on-surface font-body-sm text-body-sm rounded-lg border transition-colors focus:outline-none ${
+      errors[name]
+        ? "border-error focus:border-error focus:ring-2 focus:ring-error/20"
+        : "border-outline-variant focus:border-primary"
+    } ${extra}`
+
+  /** Validates with the shared Zod schema before the server action runs. */
+  const validate = (event: React.FormEvent<HTMLFormElement>) => {
+    const data = new FormData(event.currentTarget)
+    const value = (k: string) => String(data.get(k) ?? "").trim()
+    const result = savedAddressSchema.safeParse({
+      firstName: value("firstName"),
+      lastName: value("lastName"),
+      company: value("company"),
+      address1: value("address1"),
+      address2: value("address2"),
+      city: value("city"),
+      province: value("province"),
+      postalCode: value("postalCode"),
+      countryCode: value("countryCode").toLowerCase(),
+      phone: value("phone"),
+    })
+    if (!result.success) {
+      event.preventDefault()
+      const next = fieldErrorsFrom(result.error)
+      setErrors(next)
+      // Take the shopper to the first problem, in form order.
+      const first = FIELD_ORDER.find((k) => next[k])
+      event.currentTarget.querySelector<HTMLElement>(`[name="${first}"]`)?.focus()
+      return
+    }
+    setErrors({})
+    setFormSent(true)
+  }
+
   // Shared Address Form Content
-  const renderFormContent = (isDrawer = false) => (
+  const renderFormContent = (isDrawer = false) => {
+    const prefix = isDrawer ? "addr-drawer" : "addr-inline"
+    return (
     <form
       action={formAction}
-      onSubmit={() => setFormSent(true)}
+      onSubmit={validate}
+      onInput={(e) => {
+        const name = (e.target as HTMLInputElement).name
+        if (errors[name]) setErrors(({ [name]: _gone, ...rest }) => rest)
+      }}
+      noValidate
       className="space-y-space-md"
       data-testid="address-form"
     >
@@ -105,149 +199,88 @@ export function AddressBook({
 
       {/* Recipient Names */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
-        <div className="flex flex-col gap-1.5">
-          <label className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
-            First Name <span className="text-error">*</span>
-          </label>
-          <input
-            required
-            name="firstName"
-            defaultValue={editingAddress?.firstName ?? ""}
-            placeholder="e.g. Sarah"
-            className="h-11 px-3.5 bg-surface text-on-surface font-body-sm text-body-sm rounded-lg border border-outline-variant focus:border-primary focus:outline-none transition-colors"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
-            Last Name <span className="text-error">*</span>
-          </label>
-          <input
-            required
-            name="lastName"
-            defaultValue={editingAddress?.lastName ?? ""}
-            placeholder="e.g. Jenkins"
-            className="h-11 px-3.5 bg-surface text-on-surface font-body-sm text-body-sm rounded-lg border border-outline-variant focus:border-primary focus:outline-none transition-colors"
-          />
-        </div>
+        <Field name="firstName" error={errors.firstName} label="First Name" required prefix={prefix}>
+          {(p) => (
+            <input {...p} name="firstName" autoComplete="given-name" defaultValue={editingAddress?.firstName ?? ""} placeholder="e.g. Sarah" className={fieldClass("firstName")} />
+          )}
+        </Field>
+        <Field name="lastName" error={errors.lastName} label="Last Name" required prefix={prefix}>
+          {(p) => (
+            <input {...p} name="lastName" autoComplete="family-name" defaultValue={editingAddress?.lastName ?? ""} placeholder="e.g. Jenkins" className={fieldClass("lastName")} />
+          )}
+        </Field>
       </div>
 
       {/* Contact Phone */}
-      <div className="flex flex-col gap-1.5">
-        <label className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
-          Phone Number <span className="text-error">*</span>
-        </label>
-        <div className="relative">
-          <span className="material-symbols-outlined absolute left-3.5 top-3 text-on-surface-variant text-[18px]">
-            call
-          </span>
-          <input
-            required
-            name="phone"
-            type="tel"
-            defaultValue={editingAddress?.phone ?? ""}
-            placeholder="+91 98765 43210"
-            className="w-full h-11 pl-11 pr-3.5 bg-surface text-on-surface font-body-sm text-body-sm rounded-lg border border-outline-variant focus:border-primary focus:outline-none transition-colors"
-          />
-        </div>
-        <p className="font-body-sm text-[11px] text-on-surface-variant">
-          Required for courier delivery updates and dispatch OTP verification.
-        </p>
-      </div>
+      <Field
+        name="phone" error={errors.phone}
+        label="Phone Number"
+        required
+        prefix={prefix}
+        hint="Required for courier delivery updates and dispatch OTP verification."
+      >
+        {(p) => (
+          <div className="relative">
+            <span className="material-symbols-outlined pointer-events-none absolute left-3.5 top-3 text-on-surface-variant text-[18px]">
+              call
+            </span>
+            <input {...p} name="phone" type="tel" autoComplete="tel" defaultValue={editingAddress?.phone ?? ""} placeholder="+91 98765 43210" className={fieldClass("phone", "pl-11")} />
+          </div>
+        )}
+      </Field>
 
       {/* Street Address */}
-      <div className="flex flex-col gap-1.5">
-        <label className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
-          Flat / House No. &amp; Street Address <span className="text-error">*</span>
-        </label>
-        <input
-          required
-          name="address1"
-          defaultValue={editingAddress?.address1 ?? ""}
-          placeholder="House/Flat no., Building or Villa name, Street coordinates"
-          className="h-11 px-3.5 bg-surface text-on-surface font-body-sm text-body-sm rounded-lg border border-outline-variant focus:border-primary focus:outline-none transition-colors"
-        />
-      </div>
+      <Field name="address1" error={errors.address1} label="Flat / House No. & Street Address" required prefix={prefix}>
+        {(p) => (
+          <input {...p} name="address1" autoComplete="address-line1" defaultValue={editingAddress?.address1 ?? ""} placeholder="House/Flat no., Building or Villa name, Street" className={fieldClass("address1")} />
+        )}
+      </Field>
 
       {/* Landmark / Area */}
-      <div className="flex flex-col gap-1.5">
-        <label className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
-          Landmark / Area / Suite (Optional)
-        </label>
-        <input
-          name="address2"
-          defaultValue={editingAddress?.address2 ?? ""}
-          placeholder="e.g. Near Indiranagar Metro Station or 4th Block"
-          className="h-11 px-3.5 bg-surface text-on-surface font-body-sm text-body-sm rounded-lg border border-outline-variant focus:border-primary focus:outline-none transition-colors"
-        />
-      </div>
+      <Field name="address2" error={errors.address2} label="Landmark / Area / Suite (Optional)" prefix={prefix}>
+        {(p) => (
+          <input {...p} name="address2" autoComplete="address-line2" defaultValue={editingAddress?.address2 ?? ""} placeholder="e.g. Near Indiranagar Metro Station or 4th Block" className={fieldClass("address2")} />
+        )}
+      </Field>
 
       {/* City, State, PIN */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-md">
-        <div className="flex flex-col gap-1.5">
-          <label className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
-            City <span className="text-error">*</span>
-          </label>
-          <input
-            required
-            name="city"
-            defaultValue={editingAddress?.city ?? ""}
-            placeholder="Bengaluru"
-            className="h-11 px-3.5 bg-surface text-on-surface font-body-sm text-body-sm rounded-lg border border-outline-variant focus:border-primary focus:outline-none transition-colors"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
-            State / Province
-          </label>
-          <input
-            name="province"
-            defaultValue={editingAddress?.province ?? ""}
-            placeholder="Karnataka"
-            className="h-11 px-3.5 bg-surface text-on-surface font-body-sm text-body-sm rounded-lg border border-outline-variant focus:border-primary focus:outline-none transition-colors"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
-            PIN / Postal Code <span className="text-error">*</span>
-          </label>
-          <input
-            required
-            name="postalCode"
-            defaultValue={editingAddress?.postalCode ?? ""}
-            placeholder="560034"
-            className="h-11 px-3.5 bg-surface text-on-surface font-body-sm text-body-sm rounded-lg border border-outline-variant focus:border-primary focus:outline-none transition-colors"
-          />
-        </div>
+        <Field name="city" error={errors.city} label="City" required prefix={prefix}>
+          {(p) => (
+            <input {...p} name="city" autoComplete="address-level2" defaultValue={editingAddress?.city ?? ""} placeholder="Bengaluru" className={fieldClass("city")} />
+          )}
+        </Field>
+        <Field name="province" error={errors.province} label="State / Province" prefix={prefix}>
+          {(p) => (
+            <input {...p} name="province" autoComplete="address-level1" defaultValue={editingAddress?.province ?? ""} placeholder="Karnataka" className={fieldClass("province")} />
+          )}
+        </Field>
+        <Field name="postalCode" error={errors.postalCode} label="PIN / Postal Code" required prefix={prefix}>
+          {(p) => (
+            <input {...p} name="postalCode" inputMode="numeric" autoComplete="postal-code" defaultValue={editingAddress?.postalCode ?? ""} placeholder="560034" className={fieldClass("postalCode")} />
+          )}
+        </Field>
       </div>
 
       {/* Country & Address Type */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md pt-1">
-        <div className="flex flex-col gap-1.5">
-          <label className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
-            Country <span className="text-error">*</span>
-          </label>
-          <select
-            required
-            name="countryCode"
-            defaultValue={editingAddress?.countryCode ?? "in"}
-            className="h-11 px-3.5 bg-surface text-on-surface font-body-sm text-body-sm rounded-lg border border-outline-variant focus:border-primary focus:outline-none transition-colors"
-          >
-            {countries.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Field name="countryCode" error={errors.countryCode} label="Country" required prefix={prefix}>
+          {(p) => (
+            <select {...p} name="countryCode" autoComplete="country" defaultValue={editingAddress?.countryCode ?? "in"} className={fieldClass("countryCode")}>
+              {countries.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
 
         <div className="flex flex-col gap-1.5">
-          <label className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
-            Address Classification
-          </label>
-          <div className="grid grid-cols-4 gap-1.5">
+          <span id={`${prefix}-type`} className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
+            Address Type
+          </span>
+          <div role="radiogroup" aria-labelledby={`${prefix}-type`} className="grid grid-cols-4 gap-1.5">
             {[
               { type: "Home" as const, icon: "home" },
               { type: "Work" as const, icon: "business" },
@@ -257,6 +290,8 @@ export function AddressBook({
               <button
                 key={type}
                 type="button"
+                role="radio"
+                aria-checked={addressType === type}
                 onClick={() => setAddressType(type)}
                 className={`h-11 rounded-lg border text-[11px] font-label-caps uppercase font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                   addressType === type
@@ -273,9 +308,9 @@ export function AddressBook({
         </div>
       </div>
 
-      {state.error && (
+      {state.error && !Object.keys(errors).length && (
         <div
-          className="p-3 bg-error-container/40 border border-error/30 rounded-lg text-error font-body-sm text-xs"
+          className="p-3 bg-error-container border border-error/30 rounded-lg text-on-error-container font-body-sm text-sm"
           role="alert"
         >
           {state.error}
@@ -301,11 +336,12 @@ export function AddressBook({
           disabled={pending}
           className="h-11 px-6 bg-primary text-on-primary hover:bg-inverse-surface rounded-lg uppercase font-label-sm font-semibold shadow-xs cursor-pointer"
         >
-          {pending ? "Saving..." : editingAddress ? "Update Destination" : "Save Destination"}
+          {pending ? "Saving..." : editingAddress ? "Update Address" : "Save Address"}
         </Button>
       </div>
     </form>
-  )
+    )
+  }
 
   return (
     <div className="flex flex-col gap-space-lg w-full" data-testid="address-book">
@@ -461,8 +497,9 @@ export function AddressBook({
                     {addr.city}, {addr.province ? `${addr.province} - ` : ""}
                     {addr.postalCode}
                   </p>
-                  <p className="uppercase font-label-caps text-[10px] text-outline tracking-wider">
-                    {addr.countryCode}
+                  <p>
+                    {countries.find((c) => c.code.toLowerCase() === addr.countryCode.toLowerCase())?.name ??
+                      addr.countryCode.toUpperCase()}
                   </p>
                   {addr.phone && (
                     <div className="pt-2 flex items-center gap-2 text-on-surface font-medium text-sm">

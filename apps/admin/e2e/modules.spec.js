@@ -56,7 +56,7 @@ test("sidebar navigation moves between modules and marks the current one", async
   )
 
   await page.getByRole("link", { name: /^Order Management/ }).click()
-  await expect(page.locator("main h1")).toHaveText(/order management/i)
+  await expect(page.locator("main h1")).toHaveText(/^orders$/i)
   expect(new URL(page.url()).pathname).toBe("/order-management")
   await expect(page.getByRole("link", { name: /^Order Management/ })).toHaveAttribute(
     "aria-current",
@@ -64,7 +64,7 @@ test("sidebar navigation moves between modules and marks the current one", async
   )
 
   await page.getByRole("link", { name: /^Products/ }).click()
-  await expect(page.locator("main h1")).toHaveText(/catalog/i)
+  await expect(page.locator("main h1")).toHaveText(/^products$/i)
   await expect(page.getByRole("link", { name: /^Overview/ })).not.toHaveAttribute(
     "aria-current",
     "page"

@@ -270,12 +270,12 @@ export function StatsCard({
     <>
       <div className="flex min-w-0 flex-col gap-1.5">
         <div className="flex items-start justify-between gap-2">
-          <span className="min-w-0 text-caption uppercase tracking-wider text-muted [overflow-wrap:anywhere]">
+          <span className="min-w-0 text-label text-muted [overflow-wrap:anywhere]">
             {heading}
           </span>
           {icon && (
-            <span className={cn("shrink-0 rounded-lg bg-surface-subtle p-1.5", iconColor)}>
-              <Icon name={icon} className="material-symbols-outlined text-icon-md" />
+            <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-subtle bg-surface-subtle", iconColor)}>
+              <Icon name={icon} aria-hidden="true" className="material-symbols-outlined text-icon" />
             </span>
           )}
         </div>
@@ -304,14 +304,14 @@ export function StatsCard({
         </div>
 
         {trendLabel && (
-          <p className="truncate text-micro text-muted">{trendLabel}</p>
+          <p className="truncate text-micro text-faint">{trendLabel}</p>
         )}
 
         {visual && <div className="mt-0.5 min-w-0">{visual}</div>}
       </div>
 
       {hasFooter && (
-        <div className="mt-space-sm flex flex-col gap-1 border-t border-subtle pt-2">
+        <div className="mt-space-sm flex flex-col gap-1">
           {progress !== undefined && (
             <>
               <div className="flex items-center justify-between gap-2 text-micro text-muted">

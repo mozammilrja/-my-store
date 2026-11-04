@@ -9,6 +9,7 @@ import { env } from "./env.js"
 import { ApiError } from "./lib/errors.js"
 import { cartRoutes } from "./routes/store/carts.js"
 import { catalogRoutes } from "./routes/store/catalog.js"
+import { conciergeRoutes } from "./routes/store/concierge.js"
 import { customerRoutes } from "./routes/store/customers.js"
 import { storePaymentRoutes } from "./routes/store/payments.js"
 import { adminAuthRoutes, requireAdmin } from "./routes/admin/auth.js"
@@ -90,7 +91,7 @@ export function createApp(): Express {
     res.json({ status: "ok" })
   })
 
-  app.use("/store", catalogRoutes, customerRoutes, cartRoutes, storePaymentRoutes)
+  app.use("/store", catalogRoutes, customerRoutes, cartRoutes, storePaymentRoutes, conciergeRoutes)
 
   app.use("/admin", adminAuthRoutes)
   // Everything past the login route needs a signed-in admin.

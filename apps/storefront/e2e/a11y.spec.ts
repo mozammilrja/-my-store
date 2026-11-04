@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test"
 type AxePage = ConstructorParameters<typeof AxeBuilder>[0]["page"]
 const axe = (page: Page) => new AxeBuilder({ page: page as unknown as AxePage })
 
-const COUNTRY = "dk"
+const COUNTRY = "in"
 const PAGES = ["", "/store", "/categories/shirts", "/collections/winter-layers", "/products/t-shirt", "/cart", "/account", "/search?q=tee", "/shipping", "/returns"]
 
 for (const path of PAGES) {

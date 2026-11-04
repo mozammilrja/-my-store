@@ -28,18 +28,11 @@ test("a module that throws while rendering is contained, not fatal", async ({ pa
   await expect(page.getByRole("button", { name: /retry/i })).toBeVisible()
 })
 
-test("an expired session resolves to an error with retry, never an endless skeleton", async ({
+test("an expired session sends the viewer to the login page with a notice, never an endless skeleton", async ({
   page,
   context,
 }) => {
   await context.addInitScript(() => localStorage.setItem("everwear_admin_token", "expired.or.revoked"))
-  await page.route("**/admin/auth/login", (route) =>
-    route.fulfill({
-      status: 429,
-      contentType: "application/json",
-      body: JSON.stringify({ error: { code: "rate_limited", message: "Too many attempts" } }),
-    })
-  )
   await page.route("**/admin/me", (route) =>
     route.fulfill({
       status: 401,
@@ -49,10 +42,10 @@ test("an expired session resolves to an error with retry, never an endless skele
   )
 
   for (const path of ["returns-and-exchanges", "order-management", "customers-and-loyalty"]) {
-    await gotoModule(page, path)
-    const alert = page.locator('main [role="alert"]').first()
-    await expect(alert, path).toContainText(/session has expired/i)
-    await expect(page.locator("main").getByRole("button", { name: /retry/i }).first(), path).toBeVisible()
+    await page.goto(`/${path}`)
+    await expect(page, path).toHaveURL(/\/login$/)
+    await expect(page.getByRole("status"), path).toContainText(/session has ended/i)
+    await expect(page.getByLabel(/email/i), path).toBeVisible()
   }
 })
 

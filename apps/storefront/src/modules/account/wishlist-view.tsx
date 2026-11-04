@@ -1,5 +1,6 @@
 "use client"
 
+import { ensureOk } from "@lib/util/cart-action"
 import type { Product } from "@lib/api/types"
 import { addToCart } from "@lib/data/shop"
 import { formatMoney } from "@lib/money"
@@ -70,7 +71,7 @@ export function WishlistView({ catalogProducts }: { catalogProducts: Product[] }
 
     startTransition(async () => {
       try {
-        await addToCart({ variantId, quantity: 1, countryCode })
+        ensureOk(await addToCart({ variantId, quantity: 1, countryCode }))
         toast.success(`Added ${product.title} to your bag`)
       } catch (err: unknown) {
         toast.error(err instanceof Error ? err.message : "Failed to add to bag")

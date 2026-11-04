@@ -90,7 +90,7 @@ export function CatalogReport({ data, totals, productSearch, onProductSearch, mo
               grow: true,
               // Long garment names wrapped to four lines on a phone and broke
               // the row rhythm; the full name stays available on hover.
-              className: 'max-w-[26rem]',
+              className: 'max-w-md',
               accessor: (p) => (
                 <span className="block truncate text-body-lg text-primary" title={p.title ?? 'Unknown product'}>
                   {p.title ?? 'Unknown product'}
@@ -101,7 +101,7 @@ export function CatalogReport({ data, totals, productSearch, onProductSearch, mo
               key: 'share',
               header: 'Share',
               sortable: true,
-              className: 'w-[26%] min-w-[10rem]',
+              className: 'w-1/4 min-w-40',
               accessor: (p) => (
                 <BarCell
                   value={p.revenue}
@@ -168,7 +168,7 @@ export function CatalogReport({ data, totals, productSearch, onProductSearch, mo
               header: 'Category',
               sortable: true,
               grow: true,
-              className: 'max-w-[26rem]',
+              className: 'max-w-md',
               accessor: (c) => (
                 <span className="block truncate text-body-lg text-primary" title={c.name}>
                   {c.name}
@@ -179,7 +179,7 @@ export function CatalogReport({ data, totals, productSearch, onProductSearch, mo
               key: 'share',
               header: 'Revenue share',
               sortable: true,
-              className: 'w-[26%] min-w-[10rem]',
+              className: 'w-1/4 min-w-40',
               accessor: (c) => (
                 <BarCell
                   value={c.revenue}

@@ -1,22 +1,39 @@
 "use client"
 
+import { ensureOk } from "@lib/util/cart-action"
 import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/ui/icon"
 import { cn } from "@/lib/utils"
 import type { Product, Variant } from "@lib/api/types"
-import { addToCart } from "@lib/data/shop"
+import { addToCart, retrieveCart } from "@lib/data/shop"
 import { formatMoney } from "@lib/money"
-import { notifyCartUpdated } from "@lib/util/cart-events"
+import { CART_UPDATED_EVENT, notifyCartUpdated } from "@lib/util/cart-events"
 import { useWishlist } from "@lib/util/wishlist"
-import { CheckIcon, HeartIcon, Loader2Icon, ShoppingBagIcon, TruckIcon } from "lucide-react"
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation"
-import { FormEvent, useMemo, useRef, useState } from "react"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import {
+  ArrowRightIcon,
+  CheckIcon,
+  HeartIcon,
+  Loader2Icon,
+  ShoppingBagIcon,
+  TruckIcon,
+} from "lucide-react"
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation"
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 type Options = Record<string, string | undefined>
 
 const matches = (variant: Variant, options: Options) => {
-  const keys = new Set([...Object.keys(variant.options), ...Object.keys(options)])
+  const keys = new Set([
+    ...Object.keys(variant.options),
+    ...Object.keys(options),
+  ])
   return [...keys].every((k) => variant.options[k] === options[k])
 }
 
@@ -43,9 +60,13 @@ export function PurchasePanel({ product }: { product: Product }) {
     // `?size=M` from a listing card's size chip: preselect that size, on a
     // variant that can be bought if one exists.
     const sizeFromUrl = searchParams.get("size")
-    const sizeTitle = product.options.find((o) => o.title.trim().toLowerCase().includes("size"))?.title
+    const sizeTitle = product.options.find((o) =>
+      o.title.trim().toLowerCase().includes("size")
+    )?.title
     if (sizeFromUrl && sizeTitle) {
-      const forSize = variants.filter((v) => v.options[sizeTitle] === sizeFromUrl)
+      const forSize = variants.filter(
+        (v) => v.options[sizeTitle] === sizeFromUrl
+      )
       const match = forSize.find(buyable) ?? forSize[0]
       if (match) return { ...match.options }
     }
@@ -53,6 +74,20 @@ export function PurchasePanel({ product }: { product: Product }) {
   })
   const [adding, setAdding] = useState(false)
   const [added, setAdded] = useState(false)
+  // Variants already in the bag: their button becomes "Go to bag", like Myntra.
+  const [inBag, setInBag] = useState<ReadonlySet<string>>(new Set())
+
+  useEffect(() => {
+    const load = () =>
+      retrieveCart()
+        .then((cart) =>
+          setInBag(new Set(cart?.items.map((i) => i.variantId) ?? []))
+        )
+        .catch(() => {})
+    load()
+    window.addEventListener(CART_UPDATED_EVENT, load)
+    return () => window.removeEventListener(CART_UPDATED_EVENT, load)
+  }, [])
   const lock = useRef(false)
   const { isSaved, toggle: toggleWishlist } = useWishlist()
   const saved = isSaved(product.id)
@@ -66,11 +101,16 @@ export function PurchasePanel({ product }: { product: Product }) {
         toast.info(`Removed ${product.title} from wishlist`)
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "We couldn't update your wishlist.")
+      toast.error(
+        e instanceof Error ? e.message : "We couldn't update your wishlist."
+      )
     }
   }
 
-  const selected = useMemo(() => variants.find((v) => matches(v, options)), [variants, options])
+  const selected = useMemo(
+    () => variants.find((v) => matches(v, options)),
+    [variants, options]
+  )
   const inStock = !!selected && buyable(selected)
 
   const selectOption = (title: string, value: string) => {
@@ -87,7 +127,9 @@ export function PurchasePanel({ product }: { product: Product }) {
   }
 
   const valueAvailable = (title: string, value: string) =>
-    variants.some((v) => matches(v, { ...options, [title]: value }) && buyable(v))
+    variants.some(
+      (v) => matches(v, { ...options, [title]: value }) && buyable(v)
+    )
 
   const price = selected?.price ?? null
   const onSale = selected?.compareAtPrice != null
@@ -99,13 +141,20 @@ export function PurchasePanel({ product }: { product: Product }) {
     lock.current = true
     setAdding(true)
     try {
-      await addToCart({ variantId: selected.id, quantity: 1, countryCode })
+      ensureOk(
+        await addToCart({ variantId: selected.id, quantity: 1, countryCode })
+      )
+      setInBag((ids) => new Set(ids).add(selected.id))
       notifyCartUpdated()
       setAdded(true)
       setTimeout(() => setAdded(false), 2000)
       toast.success(`${product.title} added to your bag`)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "We couldn't add this to your bag. Please try again.")
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : "We couldn't add this to your bag. Please try again."
+      )
     } finally {
       lock.current = false
       setAdding(false)
@@ -118,16 +167,20 @@ export function PurchasePanel({ product }: { product: Product }) {
   const label = adding
     ? "Adding..."
     : added
-      ? "Added to bag"
-      : !selected
-        ? "Unavailable"
-        : inStock
-          ? "Add to bag"
-          : "Out of stock"
+    ? "Added to bag"
+    : !selected
+    ? "Unavailable"
+    : inStock
+    ? "Add to bag"
+    : "Out of stock"
 
   const discountPercent =
-    selected?.compareAtPrice != null && price !== null && selected.compareAtPrice > price
-      ? Math.round(((selected.compareAtPrice - price) / selected.compareAtPrice) * 100)
+    selected?.compareAtPrice != null &&
+    price !== null &&
+    selected.compareAtPrice > price
+      ? Math.round(
+          ((selected.compareAtPrice - price) / selected.compareAtPrice) * 100
+        )
       : null
 
   return (
@@ -147,36 +200,60 @@ export function PurchasePanel({ product }: { product: Product }) {
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex items-center gap-1 border border-border px-2 py-1 text-xs font-semibold">
           <span>4.3</span>
-          <Icon name="star" size={11} fill="currentColor" strokeWidth={0} aria-hidden className="text-success" />
+          <Icon
+            name="star"
+            size={11}
+            fill="currentColor"
+            strokeWidth={0}
+            aria-hidden
+            className="text-success"
+          />
           <span className="text-muted-foreground font-normal">|</span>
-          <span className="text-muted-foreground font-medium">1.2k Ratings</span>
+          <span className="text-muted-foreground font-medium">
+            1.2k Ratings
+          </span>
         </div>
       </div>
 
       {/* Price */}
-      <div className="flex flex-col gap-1 border-b border-border/60 pb-4" data-testid="product-price">
+      <div
+        className="flex flex-col gap-1 border-b border-border/60 pb-4"
+        data-testid="product-price"
+      >
         <div className="flex flex-wrap items-baseline gap-2 tabular-nums">
           {price !== null ? (
             <>
-              <span className="text-2xl font-bold tracking-tight" data-testid="product-price-value">
+              <span
+                className="text-2xl font-bold tracking-tight"
+                data-testid="product-price-value"
+              >
                 {formatMoney(price, currency)}
               </span>
               {onSale && (
-                <span className="text-sm text-muted-foreground line-through" data-testid="original-product-price">
+                <span
+                  className="text-sm text-muted-foreground line-through"
+                  data-testid="original-product-price"
+                >
                   MRP {formatMoney(selected!.compareAtPrice, currency)}
                 </span>
               )}
               {discountPercent && (
-                <span className="text-sm font-semibold text-success">({discountPercent}% OFF)</span>
+                <span className="text-sm font-semibold text-success">
+                  ({discountPercent}% OFF)
+                </span>
               )}
             </>
           ) : product.priceRange ? (
             <span className="text-2xl font-bold tracking-tight">
-              <span className="text-sm font-normal text-muted-foreground">From </span>
+              <span className="text-sm font-normal text-muted-foreground">
+                From{" "}
+              </span>
               {formatMoney(product.priceRange.min, currency)}
             </span>
           ) : (
-            <span className="text-sm text-muted-foreground">Price unavailable in your region</span>
+            <span className="text-sm text-muted-foreground">
+              Price unavailable in your region
+            </span>
           )}
         </div>
         <p className="text-xs text-muted-foreground">Inclusive of all taxes</p>
@@ -185,16 +262,25 @@ export function PurchasePanel({ product }: { product: Product }) {
       {/* Size / options */}
       {variants.length > 1 &&
         product.options.map((option) => (
-          <fieldset key={option.title} className="flex flex-col gap-3" data-testid="product-options">
+          <fieldset
+            key={option.title}
+            className="flex flex-col gap-3"
+            data-testid="product-options"
+          >
             <legend className="flex w-full items-center justify-between text-sm font-bold">
               <span>
                 Select {option.title}
                 {options[option.title] ? (
-                  <span className="font-normal text-muted-foreground"> {options[option.title]}</span>
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    {options[option.title]}
+                  </span>
                 ) : null}
               </span>
               {option.title.toLowerCase() === "size" && (
-                <span className="text-xs font-semibold uppercase tracking-wide text-secondary">SIZE CHART</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-secondary">
+                  SIZE CHART
+                </span>
               )}
             </legend>
             <div className="flex flex-wrap gap-2">
@@ -223,7 +309,9 @@ export function PurchasePanel({ product }: { product: Product }) {
                       data-testid="option-button"
                     />
                     {value}
-                    {!available && <span className="sr-only"> (out of stock)</span>}
+                    {!available && (
+                      <span className="sr-only"> (out of stock)</span>
+                    )}
                   </label>
                 )
               })}
@@ -231,9 +319,15 @@ export function PurchasePanel({ product }: { product: Product }) {
           </fieldset>
         ))}
 
-      <p className="text-xs" aria-live="polite" data-testid="product-availability">
+      <p
+        className="text-xs"
+        aria-live="polite"
+        data-testid="product-availability"
+      >
         {!selected ? (
-          <span className="text-muted-foreground">This combination isn&apos;t available.</span>
+          <span className="text-muted-foreground">
+            This combination isn&apos;t available.
+          </span>
         ) : inStock ? (
           <span className="font-medium text-success">In stock</span>
         ) : (
@@ -243,23 +337,34 @@ export function PurchasePanel({ product }: { product: Product }) {
 
       {/* CTAs — immediately after size, like Myntra */}
       <div className="grid grid-cols-2 gap-3">
-        <Button
-          type="submit"
-          size="lg"
-          className="h-12 gap-2"
-          disabled={!inStock || adding}
-          aria-busy={adding}
-          data-testid="add-product-button"
-        >
-          {adding ? (
-            <Loader2Icon className="animate-spin" aria-hidden />
-          ) : added ? (
-            <CheckIcon aria-hidden />
-          ) : (
-            <ShoppingBagIcon aria-hidden />
-          )}
-          {label}
-        </Button>
+        {selected && inBag.has(selected.id) && !adding ? (
+          <LocalizedClientLink
+            href="/cart"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-[#ff3f6c] px-4 text-sm font-semibold uppercase tracking-wider text-white transition-colors hover:bg-[#e8355f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff3f6c]/40"
+            data-testid="go-to-bag-button"
+          >
+            Go to bag
+            <ArrowRightIcon aria-hidden className="size-4" />
+          </LocalizedClientLink>
+        ) : (
+          <Button
+            type="submit"
+            size="lg"
+            className="h-12 gap-2"
+            disabled={!inStock || adding}
+            aria-busy={adding}
+            data-testid="add-product-button"
+          >
+            {adding ? (
+              <Loader2Icon className="animate-spin" aria-hidden />
+            ) : added ? (
+              <CheckIcon aria-hidden />
+            ) : (
+              <ShoppingBagIcon aria-hidden />
+            )}
+            {label}
+          </Button>
+        )}
 
         <Button
           type="button"
@@ -270,10 +375,14 @@ export function PurchasePanel({ product }: { product: Product }) {
           data-testid="product-wishlist-button"
           className={cn(
             "h-12 gap-2 border-border bg-surface-container-lowest",
-            saved && "border-[#913b94]/50 text-[#913b94] hover:bg-[#913b94]/5 hover:text-[#913b94]"
+            saved &&
+              "border-[#913b94]/50 text-[#913b94] hover:bg-[#913b94]/5 hover:text-[#913b94]"
           )}
         >
-          <HeartIcon className={cn(saved && "fill-[#913b94] text-[#913b94]")} aria-hidden />
+          <HeartIcon
+            className={cn(saved && "fill-[#913b94] text-[#913b94]")}
+            aria-hidden
+          />
           {saved ? "Wishlisted" : "Wishlist"}
         </Button>
       </div>
@@ -291,7 +400,9 @@ export function PurchasePanel({ product }: { product: Product }) {
             inputMode="numeric"
             placeholder="Enter pincode"
             value={pincode}
-            onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(e) =>
+              setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
             className="h-11 flex-1 bg-transparent px-3 text-sm outline-none"
           />
           <button
@@ -312,7 +423,10 @@ export function PurchasePanel({ product }: { product: Product }) {
         {pincodeChecked && (
           <ul className="flex flex-col gap-1.5 text-xs text-muted-foreground">
             <li>
-              <span className="font-semibold text-foreground">Get it by Tomorrow</span> — Order within 4 hrs
+              <span className="font-semibold text-foreground">
+                Get it by Tomorrow
+              </span>{" "}
+              — Order within 4 hrs
             </li>
             <li>Pay on delivery available</li>
             <li>Easy 14 days return &amp; exchange</li>
@@ -325,13 +439,16 @@ export function PurchasePanel({ product }: { product: Product }) {
         <span className="text-sm font-bold">Best Offers</span>
         <ul className="flex flex-col gap-2 text-xs text-muted-foreground">
           <li>
-            <span className="font-semibold text-foreground">Bank Offer</span> — 10% Instant Discount on select Credit Cards.
+            <span className="font-semibold text-foreground">Bank Offer</span> —
+            10% Instant Discount on select Credit Cards.
           </li>
           <li>
-            <span className="font-semibold text-foreground">Coupon</span> — Extra ₹150 off on prepaid UPI.
+            <span className="font-semibold text-foreground">Coupon</span> —
+            Extra ₹150 off on prepaid UPI.
           </li>
           <li>
-            <span className="font-semibold text-foreground">Everwear Pay</span> — 5% unlimited cashback.
+            <span className="font-semibold text-foreground">Everwear Pay</span>{" "}
+            — 5% unlimited cashback.
           </li>
         </ul>
       </div>

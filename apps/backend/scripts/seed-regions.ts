@@ -21,24 +21,6 @@ async function seedRegions() {
       createdAt: now,
       updatedAt: now,
     },
-    {
-      _id: "reg_eu",
-      name: "Europe",
-      currency: "eur",
-      countries: [
-        { code: "dk", name: "Denmark" },
-        { code: "de", name: "Germany" },
-        { code: "fr", name: "France" },
-      ],
-      taxRate: 25,
-      taxInclusive: false,
-      shippingOptions: [
-        { _id: "so_eu_std", name: "Standard Delivery (EU)", amount: 500 },
-        { _id: "so_eu_exp", name: "Express Tracked (EU)", amount: 1500 },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    },
   ]
 
   for (const reg of regions) {

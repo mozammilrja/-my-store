@@ -15,12 +15,12 @@ const api = new URL(API_PUBLIC_URL)
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://js.stripe.com${isProd ? "" : " 'unsafe-eval'"}`,
+  `script-src 'self' 'unsafe-inline' https://checkout.razorpay.com${isProd ? "" : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   `img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.razorpay.com ${api.origin}`,
   "font-src 'self' data: https://fonts.gstatic.com",
-  `connect-src 'self' https://api.razorpay.com https://api.stripe.com${isProd ? "" : " ws: wss:"}`,
-  "frame-src 'self' https://checkout.razorpay.com https://js.stripe.com",
+  `connect-src 'self' https://api.razorpay.com${isProd ? "" : " ws: wss:"}`,
+  "frame-src 'self' https://checkout.razorpay.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

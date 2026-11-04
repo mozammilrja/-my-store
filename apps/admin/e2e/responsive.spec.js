@@ -49,7 +49,7 @@ test.describe("mobile shell", () => {
     expect(await aside.evaluate((el) => el.getBoundingClientRect().left)).toBe(0)
 
     await page.getByRole("link", { name: /^Products/ }).click()
-    await expect(page.locator("main h1")).toHaveText(/catalog/i)
+    await expect(page.locator("main h1")).toHaveText(/^products$/i)
     await page.waitForTimeout(400)
     expect(await aside.evaluate((el) => el.getBoundingClientRect().right <= 0)).toBe(true)
     expect(await pageOverflow(page)).toBe(0)

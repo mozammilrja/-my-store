@@ -24,10 +24,10 @@ const call = async (method: string, path: string, body?: unknown, headers: Recor
 const address = {
   firstName: "Test",
   lastName: "Shopper",
-  address1: "Nørregade 1",
-  city: "Copenhagen",
-  postalCode: "1165",
-  countryCode: "dk",
+  address1: "12 MG Road",
+  city: "Bengaluru",
+  postalCode: "560001",
+  countryCode: "in",
 }
 
 before(async () => {
@@ -36,11 +36,11 @@ before(async () => {
   await ensureIndexes()
   const now = new Date()
   await db.regions().insertOne({
-    _id: "reg_eu",
-    name: "Europe",
-    currency: "eur",
-    countries: [{ code: "dk", name: "Denmark" }],
-    taxRate: 25,
+    _id: "reg_in",
+    name: "India",
+    currency: "inr",
+    countries: [{ code: "in", name: "India" }],
+    taxRate: 12,
     taxInclusive: false,
     shippingOptions: [{ _id: "so_std", name: "Standard", amount: 500 }],
     createdAt: now,
@@ -57,8 +57,8 @@ before(async () => {
     tags: ["new-arrival"],
     options: [{ title: "Size", values: ["M", "L"] }],
     variants: [
-      { _id: "var_m", title: "M", options: { Size: "M" }, prices: { eur: 2000 }, manageInventory: true, allowBackorder: false, stock: 5 },
-      { _id: "var_l", title: "L", options: { Size: "L" }, prices: { eur: 2000 }, manageInventory: true, allowBackorder: false, stock: 1 },
+      { _id: "var_m", title: "M", options: { Size: "M" }, prices: { inr: 2000 }, manageInventory: true, allowBackorder: false, stock: 5 },
+      { _id: "var_l", title: "L", options: { Size: "L" }, prices: { inr: 2000 }, manageInventory: true, allowBackorder: false, stock: 1 },
     ],
     createdAt: now,
     updatedAt: now,
@@ -82,7 +82,7 @@ after(async () => {
   await disconnect()
 })
 
-const newCart = async (headers: Record<string, string> = {}) => (await call("POST", "/store/carts", { country: "DK" }, headers)).body.cart
+const newCart = async (headers: Record<string, string> = {}) => (await call("POST", "/store/carts", { country: "IN" }, headers)).body.cart
 
 describe("customer accounts", () => {
   test("register, log in, wrong password", async () => {
@@ -114,8 +114,8 @@ describe("cart and checkout", () => {
     assert.equal(added.body.cart.items[0].unitPrice, 2000)
     await call("POST", `/store/carts/${cart.id}/shipping`, { optionId: "so_std" })
     const promo = await call("POST", `/store/carts/${cart.id}/promotions`, { codes: ["ten"] })
-    // 4000 items - 400 discount + 500 shipping = 4100, +25% tax = 1025
-    assert.deepEqual(promo.body.cart.totals, { itemSubtotal: 4000, discountTotal: 400, shippingTotal: 500, taxTotal: 1025, total: 5125 })
+    // 4000 items - 400 discount + 500 shipping = 4100, +12% tax = 492
+    assert.deepEqual(promo.body.cart.totals, { itemSubtotal: 4000, discountTotal: 400, shippingTotal: 500, taxTotal: 492, total: 4592 })
   })
 
   test("stock and quantity limits are enforced", async () => {

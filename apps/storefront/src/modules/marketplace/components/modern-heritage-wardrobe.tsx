@@ -1,5 +1,6 @@
 "use client"
 
+import { ensureOk } from "@lib/util/cart-action"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
 import { useParams, useRouter } from "next/navigation"
@@ -94,11 +95,13 @@ export function ModernHeritageWardrobe() {
     e.stopPropagation()
     setAddingId(prod.id)
     try {
-      await addToCart({
-        variantId: prod.variantId,
-        quantity: 1,
-        countryCode,
-      })
+      ensureOk(
+        await addToCart({
+          variantId: prod.variantId,
+          quantity: 1,
+          countryCode,
+        })
+      )
       notifyCartUpdated()
       toast.success(`Added ${prod.title} (Size M) to your bag`)
     } catch {

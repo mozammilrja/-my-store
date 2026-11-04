@@ -2,35 +2,25 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Icon,
   Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardDescription,
   Badge,
   Button,
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
   Input,
   Select,
-  Dialog,
-  DialogHeader,
-  DialogTitle,
-  DialogContent,
-  DialogBody,
-  DialogFooter,
-  Alert,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
   PageContainer,
   PageHeader,
   ContentGrid,
   StatsCard,
   StatusBadge,
-  ErrorState,
+  PageBody,
+  EmptyState,
   SkeletonPage,
-  TablePagination,
+  AppDialog,
+  FilterBar,
+  FilterDropdown,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
 import { DataTable } from '../shared/DataTable';
@@ -248,6 +238,20 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
   // One shared pager over the rows this module actually holds.
   const invoicesPager = useClientTable(filteredInvoices);
 
+  // No invoice exists at all: the filters and the invoice preview have nothing
+  // to work on, so the register becomes one full-width empty state.
+  const noInvoices = invoices.length === 0;
+  const noInvoiceMatches = !noInvoices && filteredInvoices.length === 0;
+  const hidePreview = noInvoices || (activeTab === 'invoices' && noInvoiceMatches);
+
+  const clearInvoiceFilters = () => {
+    setSelectedPeriod('all');
+    setSelectedState('all');
+    setSelectedHsn('all');
+    setSelectedSlab('all');
+    setSearchQuery('');
+  };
+
   const handleDownloadGstr1Json = () => {
     const payload = {
       gstin: '29AAAAE1234F1Z5',
@@ -411,6 +415,19 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
   }
 
 
+  const inr = (n, digits = 2) =>
+    `₹${Number(n ?? 0).toLocaleString('en-IN', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+
+  // API rows carry the customer as a string; a hand-raised invoice carries an object.
+  const customerName = (inv) =>
+    inv?.customerDetail?.name ?? (typeof inv?.customer === 'string' ? inv.customer : inv?.customer?.name) ?? 'Guest';
+
+  // CGST and SGST each carry half the slab; a mixed-rate invoice has no single figure.
+  const halfSlab = (slab) => {
+    const rate = Number(String(slab ?? '').replace('%', ''));
+    return Number.isFinite(rate) && rate > 0 ? ` ${rate / 2}%` : '';
+  };
+
   const lineItemColumns = [
     {
       key: 'desc',
@@ -418,468 +435,401 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       cell: (item) => (
         <>
           <div className="line-clamp-2 font-medium text-primary">{item.desc}</div>
-          <div className="text-micro text-muted font-mono whitespace-nowrap">HSN: {item.hsn}</div>
+          <div className="whitespace-nowrap font-mono text-micro text-muted">HSN {item.hsn}</div>
         </>
       ),
     },
-    { key: 'qty', fit: true, header: 'Qty', align: 'center', className: 'font-mono whitespace-nowrap', accessor: 'qty' },
+    { key: 'qty', fit: true, header: 'Qty', align: 'right', accessor: 'qty' },
     {
       key: 'taxable',
-      header: 'Taxable',
+      header: 'Taxable + GST',
       align: 'right',
-      className: 'font-mono whitespace-nowrap',
-      cell: (item) => `\u20B9${Number(item.taxable ?? 0).toFixed(2)}`,
-    },
-    {
-      key: 'gst',
-      header: 'GST',
-      align: 'right',
-      className: 'font-mono text-micro whitespace-nowrap',
-      cell: (item) => `${item.rate} (\u20B9${Number(item.taxAmt ?? 0).toFixed(2)})`,
+      className: 'whitespace-nowrap',
+      cell: (item) => (
+        <>
+          <div>{inr(item.taxable)}</div>
+          <div className="text-micro text-muted">+ {inr(item.taxAmt)} ({item.rate})</div>
+        </>
+      ),
     },
     {
       key: 'total',
       header: 'Total',
       align: 'right',
-      className: 'font-mono font-semibold whitespace-nowrap',
-      cell: (item) => `\u20B9${Number(item.total ?? 0).toFixed(2)}`,
+      className: 'whitespace-nowrap font-semibold',
+      cell: (item) => inr(item.total),
     },
+  ];
+
+  const invoiceColumns = [
+    {
+      key: 'invoice',
+      header: 'Invoice',
+      cell: (inv) => (
+        <>
+          <div className="whitespace-nowrap font-mono text-meta font-semibold text-accent">{inv.invoiceNumber}</div>
+          <div className="text-micro text-muted">{inv.type}</div>
+        </>
+      ),
+    },
+    {
+      key: 'order',
+      header: 'Order / issued',
+      cell: (inv) => (
+        <>
+          <div className="whitespace-nowrap font-mono text-meta text-primary">{inv.orderRef}</div>
+          <div className="whitespace-nowrap text-micro text-muted">{inv.dateTime}</div>
+        </>
+      ),
+    },
+    {
+      key: 'recipient',
+      header: 'Recipient & place of supply',
+      cell: (inv) => (
+        <>
+          <div className="text-meta font-medium text-primary">{customerName(inv)}</div>
+          <div className="text-micro text-muted">{inv.posBadge}</div>
+        </>
+      ),
+    },
+    {
+      key: 'hsn',
+      header: 'HSN',
+      cell: (inv) => (
+        <>
+          <div className="whitespace-nowrap font-mono text-meta text-primary">{inv.hsnCode}</div>
+          <div className="whitespace-nowrap text-micro text-muted">{inv.slab} slab</div>
+        </>
+      ),
+    },
+    {
+      key: 'taxable',
+      header: 'Taxable value',
+      align: 'right',
+      className: 'whitespace-nowrap text-meta',
+      cell: (inv) => inr(inv.taxableVal),
+    },
+    {
+      key: 'cgst',
+      header: 'CGST + SGST',
+      align: 'right',
+      className: 'whitespace-nowrap text-meta',
+      cell: (inv) =>
+        inv.cgst > 0 ? (
+          <>
+            <div>{inr(inv.cgst)}</div>
+            <div className="text-micro text-muted">+ {inr(inv.sgst)}</div>
+          </>
+        ) : (
+          <span className="text-faint">—</span>
+        ),
+    },
+    {
+      key: 'igst',
+      header: 'IGST',
+      align: 'right',
+      className: 'whitespace-nowrap text-meta',
+      cell: (inv) => (inv.igst > 0 ? inr(inv.igst) : <span className="text-faint">—</span>),
+    },
+    {
+      key: 'total',
+      header: 'Total',
+      align: 'right',
+      className: 'whitespace-nowrap text-meta font-semibold',
+      cell: (inv) => inr(inv.total),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      fit: true,
+      cell: (inv) => (
+        <StatusBadge status={inv.status} variant={inv.status === 'Reconciled' ? 'success' : 'warning'} />
+      ),
+    },
+    {
+      key: 'action',
+      header: <span className="sr-only">Actions</span>,
+      fit: true,
+      align: 'right',
+      cell: (inv) => (
+        <span onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="ghost"
+            size="iconXs"
+            onClick={() => setSelectedInvoiceId(inv.id)}
+            title="Inspect full invoice"
+            aria-label={`Inspect invoice ${inv.invoiceNumber}`}
+          >
+            <Icon name="visibility" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+          </Button>
+        </span>
+      ),
+    },
+  ];
+
+  const hsnColumns = [
+    {
+      key: 'hsn',
+      header: 'HSN code',
+      className: 'whitespace-nowrap font-mono text-meta font-semibold text-accent',
+      accessor: 'hsn',
+    },
+    { key: 'rate', header: 'Rate', align: 'right', className: 'text-meta', accessor: 'rate' },
+    { key: 'qty', header: 'Quantity', align: 'right', className: 'text-meta', accessor: 'qty' },
+    { key: 'taxable', header: 'Taxable value', align: 'right', className: 'whitespace-nowrap text-meta', cell: (r) => inr(r.taxable, 0) },
+    { key: 'cgst', header: 'CGST', align: 'right', className: 'whitespace-nowrap text-meta', cell: (r) => inr(r.cgst, 0) },
+    { key: 'sgst', header: 'SGST', align: 'right', className: 'whitespace-nowrap text-meta', cell: (r) => inr(r.sgst, 0) },
+    { key: 'igst', header: 'IGST', align: 'right', className: 'whitespace-nowrap text-meta', cell: (r) => inr(r.igst, 0) },
+    { key: 'total', header: 'Total', align: 'right', className: 'whitespace-nowrap text-meta font-semibold', cell: (r) => inr(r.total, 0) },
+  ];
+
+  const creditNoteColumns = [
+    {
+      key: 'number',
+      header: 'Credit note',
+      accessor: (c) => <span className="whitespace-nowrap font-mono text-meta">{c.creditNoteNumber}</span>,
+    },
+    {
+      key: 'invoice',
+      header: 'Against invoice',
+      accessor: (c) => <span className="whitespace-nowrap font-mono text-meta">{c.invoiceNumber}</span>,
+    },
+    { key: 'customer', header: 'Customer', accessor: (c) => c.customerName },
+    { key: 'reason', header: 'Reason', accessor: (c) => c.reason },
+    {
+      key: 'amount',
+      header: 'Credit value',
+      align: 'right',
+      accessor: (c) => `₹${Math.round((c.refundAmount ?? 0) / 100).toLocaleString('en-IN')}`,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      accessor: (c) => (
+        <StatusBadge
+          status={{ issued: 'Issued', settled: 'Settled', canceled: 'Cancelled' }[c.status] ?? c.status}
+          variant={c.status === 'settled' ? 'success' : c.status === 'canceled' ? 'destructive' : 'info'}
+        />
+      ),
+    },
+  ];
+
+  const slabTabs = [
+    { id: 'all', label: 'All slabs' },
+    ...filterOptions.slabs.map((slab) => ({ id: slab, label: slab })),
   ];
 
   return (
     <PageContainer>
-      {invoicesError && (
-        <ErrorState
-          title="Tax invoices could not be loaded"
-          message={invoicesError?.message}
-          onRetry={() => refetchInvoices()}
-        />
-      )}
-      {/* Breadcrumb Navigation & Top Action Bar */}
       <PageHeader
-        breadcrumb={['Everwear Admin', 'Finance & Compliance', 'GST & Tax Invoices']}
-        title="GST Compliance, Tax Invoices & E-Way Bill Management"
-        description="Indian Goods and Services Tax (GST) filing reconciliation, GSTR-1 & GSTR-3B audit ledger, HSN rate configuration, and credit note issuance."
+        kicker="Finance & compliance"
+        title="GST & tax invoices"
+        description="Tax invoices, HSN rates and credit notes."
         actions={
           <>
             <Button
               variant="outline"
               size="sm"
               onClick={handleDownloadGstr1Json}
-              className="gap-1.5 shadow-sm"
               title="Download compliant GSTR-1 payload JSON"
-              type="button"
             >
-              <Icon name="data_object" className="material-symbols-outlined text-icon text-accent" />
+              <Icon name="data_object" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
               <span>GSTR-1 JSON</span>
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCsv}
-              className="gap-1.5 shadow-sm"
-              title="Export Ledger Records to CSV"
-              type="button"
-            >
-              <Icon name="table_view" className="material-symbols-outlined text-icon text-muted" />
+            <Button variant="outline" size="sm" onClick={handleExportCsv} title="Export ledger records to CSV">
+              <Icon name="table_view" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
               <span>Export CSV</span>
             </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setIsManualInvoiceModalOpen(true)}
-              className="gap-1.5 bg-primary-container text-on-accent hover:bg-primary-container-hover shadow-sm"
-              type="button"
-            >
-              <Icon name="add" className="material-symbols-outlined text-icon" />
-              <span>+ Create Tax Invoice</span>
+            <Button variant="primary" size="sm" onClick={() => setIsManualInvoiceModalOpen(true)}>
+              <Icon name="add" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+              <span>Create Tax Invoice</span>
             </Button>
           </>
         }
       />
+      <PageBody
+        error={invoicesError}
+        hasData={invoicesData != null}
+        title="Tax invoices could not be loaded"
+        onRetry={refetchInvoices}
+      >
 
-      {/* Counted from the invoices the API returned. These were six fixed
-          strings before, unchanged by whatever the register actually held. */}
-      <ContentGrid columns={5}>
-        <StatsCard
-          title="Invoices issued"
-          value={gstTotals.count}
-          icon="receipt_long"
-          subtitle="In the register"
-        />
-        <StatsCard
-          title="Taxable value"
-          value={`₹${gstTotals.taxable.toLocaleString('en-IN')}`}
-          icon="storefront"
-          subtitle="Before GST"
-        />
-        <StatsCard
-          title="Total GST"
-          value={`₹${gstTotals.totalTax.toLocaleString('en-IN')}`}
-          icon="account_balance"
-          iconColor="text-accent"
-          subtitle={
-            gstTotals.taxable > 0
-              ? `Effective rate ${((gstTotals.totalTax / gstTotals.taxable) * 100).toFixed(1)}%`
-              : 'No taxable value yet'
-          }
-        />
-        <StatsCard
-          title="CGST + SGST"
-          value={`₹${(gstTotals.cgst + gstTotals.sgst).toLocaleString('en-IN')}`}
-          icon="account_balance_wallet"
-          subtitle={`${gstTotals.intraCount} intra-state invoices`}
-        />
-        <StatsCard
-          title="IGST"
-          value={`₹${gstTotals.igst.toLocaleString('en-IN')}`}
-          icon="flight_takeoff"
-          iconColor="text-info"
-          subtitle={`${gstTotals.interCount} inter-state invoices`}
-        />
-      </ContentGrid>
+        {/* Counted from the invoices the API returned. These were six fixed
+            strings before, unchanged by whatever the register actually held. */}
+        <ContentGrid columns={5}>
+          <StatsCard
+            title="Invoices issued"
+            value={gstTotals.count}
+            icon="receipt_long"
+            subtitle="In the register"
+          />
+          <StatsCard
+            title="Taxable value"
+            value={`₹${gstTotals.taxable.toLocaleString('en-IN')}`}
+            icon="storefront"
+            subtitle="Before GST"
+          />
+          <StatsCard
+            title="Total GST"
+            value={`₹${gstTotals.totalTax.toLocaleString('en-IN')}`}
+            icon="account_balance"
+            iconColor="text-accent"
+            subtitle={
+              gstTotals.taxable > 0
+                ? `Effective rate ${((gstTotals.totalTax / gstTotals.taxable) * 100).toFixed(1)}%`
+                : 'No taxable value yet'
+            }
+          />
+          <StatsCard
+            title="CGST + SGST"
+            value={`₹${(gstTotals.cgst + gstTotals.sgst).toLocaleString('en-IN')}`}
+            icon="account_balance_wallet"
+            subtitle={`${gstTotals.intraCount} intra-state invoices`}
+          />
+          <StatsCard
+            title="IGST"
+            value={`₹${gstTotals.igst.toLocaleString('en-IN')}`}
+            icon="flight_takeoff"
+            iconColor="text-info"
+            subtitle={`${gstTotals.interCount} inter-state invoices`}
+          />
+        </ContentGrid>
 
-      {/* Dual-Pane Layout: register table takes the remaining width, preview is a fixed column */}
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* LEFT PANEL: Invoices Register & Sub-tabs */}
-        <div className="w-full lg:flex-1 lg:min-w-0 flex flex-col space-y-4">
-          <Card className="border border-subtle bg-surface-container-lowest overflow-hidden">
-            {/* Navigation Sub-Tabs */}
-            <div className="px-4 pt-2 bg-surface-container-low/50 flex flex-wrap gap-1 border-b border-subtle">
-              <button
-                type="button"
-                onClick={() => setActiveTab('invoices')}
-                className={`px-3 py-2 rounded-t-lg text-meta font-semibold flex items-center gap-1.5 transition-colors ${
- activeTab === 'invoices'
- ? 'bg-surface-container-lowest text-accent shadow-sm border-t-2 border-primary-container'
- : 'text-muted hover:text-primary'
- }`}
-              >
-                <Icon name="receipt_long" className="material-symbols-outlined text-icon" />
-                <span>Tax Invoices (B2C &amp; B2B)</span>
-                <span className="px-1.5 py-px rounded-full bg-primary-fixed text-on-primary-fixed text-micro">
-                  {invoices.length}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('hsn')}
-                className={`px-3 py-2 rounded-t-lg text-meta font-semibold flex items-center gap-1.5 transition-colors ${
- activeTab === 'hsn'
- ? 'bg-surface-container-lowest text-accent shadow-sm border-t-2 border-primary-container'
- : 'text-muted hover:text-primary'
- }`}
-              >
-                <Icon name="sell" className="material-symbols-outlined text-icon" />
-                <span>HSN Rate Master</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('credit-notes')}
-                className={`px-3 py-2 rounded-t-lg text-meta font-semibold flex items-center gap-1.5 transition-colors ${
- activeTab === 'credit-notes'
- ? 'bg-surface-container-lowest text-accent shadow-sm border-t-2 border-primary-container'
- : 'text-muted hover:text-primary'
- }`}
-              >
-                <Icon name="assignment_return" className="material-symbols-outlined text-icon" />
-                <span>Credit Notes (Returns)</span>
-                <span className="px-1.5 py-px rounded-full bg-surface-subtle text-muted text-micro">
-                  {creditNotes.length}
-                </span>
-              </button>
-            </div>
+        {/* Register takes the remaining width; the invoice preview is a fixed column. */}
+        <div className="flex flex-col items-start gap-space-lg lg:flex-row">
+          <div className="flex w-full min-w-0 flex-col gap-space-md lg:flex-1">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList>
+                <TabsTrigger value="invoices" className="gap-1.5">
+                  <Icon name="receipt_long" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                  <span>Tax invoices</span>
+                  <Badge variant="secondary" size="sm" className="tabular-nums">{invoices.length}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="hsn" className="gap-1.5">
+                  <Icon name="sell" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                  <span>HSN summary</span>
+                </TabsTrigger>
+                <TabsTrigger value="credit-notes" className="gap-1.5">
+                  <Icon name="assignment_return" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                  <span>Credit notes</span>
+                  <Badge variant="secondary" size="sm" className="tabular-nums">{creditNotes.length}</Badge>
+                </TabsTrigger>
+              </TabsList>
 
-            {/* Filter & Search Matrix (Active when Invoices Tab is open) */}
-            {activeTab === 'invoices' && (
-              <div className="p-4 bg-surface-container-lowest grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-center border-b border-subtle">
-                <div>
-                  <label className="block text-caption text-muted uppercase mb-1">Financial Period</label>
-                  <Select
-                    value={selectedPeriod}
-                    onChange={(e) => setSelectedPeriod(e.target.value)}
-                    className="h-8 text-meta font-medium"
-                  >
-                    <option value="all">All periods</option>
-                    {filterOptions.periods.map((period) => (
-                      <option key={period} value={period}>
-                        {period}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-caption text-muted uppercase mb-1">Place of Supply (State)</label>
-                  <Select
-                    value={selectedState}
-                    onChange={(e) => setSelectedState(e.target.value)}
-                    className="h-8 text-meta font-medium"
-                  >
-                    <option value="all">All destination states</option>
-                    {filterOptions.states.map((state) => (
-                      <option key={state} value={state}>
-                        {state}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-caption text-muted uppercase mb-1">HSN Chapter</label>
-                  <Select
-                    value={selectedHsn}
-                    onChange={(e) => setSelectedHsn(e.target.value)}
-                    className="h-8 text-meta font-medium"
-                  >
-                    <option value="all">All HSN codes</option>
-                    {filterOptions.hsnCodes.map((code) => (
-                      <option key={code} value={code}>
-                        HSN {code}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-caption text-muted uppercase mb-1">GST Tax Slab</label>
-                  <div className="flex items-center gap-1">
-                    {['all', ...filterOptions.slabs].map(slab => (
-                      <button
-                        key={slab}
-                        type="button"
-                        onClick={() => setSelectedSlab(slab)}
-                        className={`flex-1 py-1 text-center rounded-md text-micro font-semibold transition-all ${
- selectedSlab === slab
- ? 'bg-primary-fixed text-on-primary-fixed font-semibold shadow-sm'
- : 'bg-surface-subtle text-muted hover:text-primary'
- }`}
-                      >
-                        {slab === 'all' ? 'ALL' : slab}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+              <TabsContent value="invoices" className="flex flex-col gap-space-md">
+                {noInvoices ? (
+                  <EmptyState
+                    icon="receipt_long"
+                    title="No tax invoices yet"
+                    description="A GST tax invoice appears here for each order once it is billed. You can also raise one by hand."
+                    className="py-16"
+                    action={
+                      <Button variant="primary" size="sm" onClick={() => setIsManualInvoiceModalOpen(true)}>
+                        <Icon name="add" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                        <span>Create Tax Invoice</span>
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <>
+                    <FilterBar
+                      tabs={slabTabs}
+                      tabsLabel="GST tax slab"
+                      activeTab={selectedSlab}
+                      onTabChange={setSelectedSlab}
+                      filters={
+                        <>
+                          <FilterDropdown
+                            label="Financial period"
+                            value={selectedPeriod}
+                            onChange={setSelectedPeriod}
+                            options={[
+                              { value: 'all', label: 'All periods' },
+                              ...filterOptions.periods.map((p) => ({ value: p, label: p })),
+                            ]}
+                          />
+                          <FilterDropdown
+                            label="Place of supply"
+                            value={selectedState}
+                            onChange={setSelectedState}
+                            options={[
+                              { value: 'all', label: 'All states' },
+                              ...filterOptions.states.map((s) => ({ value: s, label: s })),
+                            ]}
+                          />
+                          <FilterDropdown
+                            label="HSN code"
+                            value={selectedHsn}
+                            onChange={setSelectedHsn}
+                            options={[
+                              { value: 'all', label: 'All HSN codes' },
+                              ...filterOptions.hsnCodes.map((c) => ({ value: c, label: `HSN ${c}` })),
+                            ]}
+                          />
+                        </>
+                      }
+                    />
 
-            {/* TAB CONTENT: Invoices Table */}
-            {activeTab === 'invoices' && (
-              <div className="overflow-x-auto scrollbar-thin">
-                <Table className="min-w-[1020px] w-full border-collapse">
-                  <TableHeader sticky>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="whitespace-nowrap">Invoice Number</TableHead>
-                      <TableHead className="whitespace-nowrap">Order Ref / Time</TableHead>
-                      <TableHead className="whitespace-nowrap">Recipient &amp; PoS</TableHead>
-                      <TableHead className="whitespace-nowrap">HSN Code</TableHead>
-                      <TableHead className="text-right whitespace-nowrap">Taxable Val</TableHead>
-                      <TableHead className="text-right whitespace-nowrap">CGST + SGST</TableHead>
-                      <TableHead className="text-right whitespace-nowrap">IGST</TableHead>
-                      <TableHead className="text-right whitespace-nowrap">Total (INR)</TableHead>
-                      <TableHead className="text-center whitespace-nowrap">Status</TableHead>
-                      <TableHead className="text-center whitespace-nowrap">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="divide-y divide-border-subtle">
-                    {/* A filter combination with no match used to leave the
-                        header sitting above nothing at all. */}
-                    {invoicesPager.pageRows.length === 0 && (
-                      <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={10} className="py-10 text-center text-body text-muted">
-                          No invoice matches this period, state, HSN code and slab.
-                        </TableCell>
-                      </TableRow>
+                    {noInvoiceMatches ? (
+                      <EmptyState
+                        icon="search"
+                        title="No tax invoices match these filters"
+                        description="Clear the period, state, HSN code and slab filters to see every invoice."
+                        action={
+                          <Button variant="outline" size="sm" onClick={clearInvoiceFilters}>
+                            Clear filters
+                          </Button>
+                        }
+                      />
+                    ) : (
+                      <DataTable
+                        columns={invoiceColumns}
+                        data={invoicesPager.pageRows}
+                        keyField="id"
+                        activeRowId={selectedInvoice?.id}
+                        onRowClick={(inv) => setSelectedInvoiceId(inv.id)}
+                        caption="GST tax invoice register"
+                        pagination={{
+                          page: invoicesPager.page,
+                          pageSize: invoicesPager.limit,
+                          totalItems: invoicesPager.total,
+                          onPageChange: invoicesPager.setPage,
+                          onPageSizeChange: invoicesPager.setLimit,
+                        }}
+                      />
                     )}
-                    {invoicesPager.pageRows.map(inv => {
-                      const isSelected = selectedInvoice?.id === inv.id;
-                      return (
-                        <TableRow
-                          key={inv.id}
-                          onClick={() => setSelectedInvoiceId(inv.id)}
-                          className={`cursor-pointer transition-colors ${
- isSelected
- ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30 border-l-4 border-l-primary-container'
- : 'hover:bg-surface-subtle'
- }`}
-                        >
-                          <TableCell className="py-3 px-3 font-semibold text-accent">
-                            <div className="flex items-center gap-1.5">
-                              {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-primary-container"></span>}
-                              <span className="font-mono text-meta whitespace-nowrap">{inv.invoiceNumber}</span>
-                            </div>
-                            <span className="text-micro text-muted block font-normal">{inv.type}</span>
-                          </TableCell>
-                          <TableCell className="py-3 px-3">
-                            <div className="font-medium text-meta text-primary">{inv.orderRef}</div>
-                            <div className="whitespace-nowrap text-micro text-muted">{inv.dateTime}</div>
-                          </TableCell>
-                          <TableCell className="py-3 px-3">
-                            <div className="font-medium text-meta text-primary">{inv.customer.shortName}</div>
-                            <span className="px-1.5 py-px rounded-md bg-surface-subtle text-micro text-muted">
-                              {inv.posBadge}
-                            </span>
-                          </TableCell>
-                          <TableCell className="py-3 px-3">
-                            <span className="font-mono text-meta font-semibold text-primary whitespace-nowrap">{inv.hsnCode}</span>
-                            <span className="text-micro text-muted block">{inv.slab} Slab</span>
-                          </TableCell>
-                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-primary whitespace-nowrap">
-                            ₹{inv.taxableVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-primary whitespace-nowrap">
-                            {inv.cgst > 0 ? (
-                              <>
-                                <div>₹{inv.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                                <div className="text-micro text-muted">+ ₹{inv.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                              </>
-                            ) : (
-                              <span className="text-muted">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-3 px-3 text-right font-mono text-meta text-primary whitespace-nowrap">
-                            {inv.igst > 0 ? (
-                              `₹${inv.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                            ) : (
-                              <span className="text-muted">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-3 px-3 text-right font-mono font-semibold text-meta text-primary whitespace-nowrap">
-                            ₹{inv.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="py-3 px-3 text-center">
-                            <Badge variant={inv.status === 'Reconciled' ? 'success' : 'warning'} className="text-micro">
-                              {inv.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="py-3 px-3 text-center" onClick={e => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedInvoiceId(inv.id)}
-                              className="p-1 rounded-lg text-muted hover:text-accent hover:bg-surface-subtle"
-                              title="Inspect Full Invoice"
-                            >
-                              <Icon name="visibility" className="material-symbols-outlined text-icon-md" />
-                            </button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+                  </>
+                )}
+              </TabsContent>
 
-            {/* TAB CONTENT: HSN Rate Master */}
-            {activeTab === 'hsn' && (
-              <div className="p-4 space-y-4">
-                <div className="flex flex-col gap-0.5">
-                  <h3 className="text-body font-semibold text-primary">HSN-wise summary</h3>
-                  <p className="text-meta text-muted">
-                    Every line on the invoices in this register, grouped by HSN code and rate.
-                    This is the shape GSTR-1 asks for.
-                  </p>
-                </div>
+              <TabsContent value="hsn" className="flex flex-col gap-space-sm">
+                <p className="text-meta text-muted">
+                  Every line on the invoices in this register, grouped by HSN code and rate. This is the
+                  shape GSTR-1 asks for.
+                </p>
                 {hsnSummary.length === 0 ? (
                   <EmptyState
                     icon="inventory_2"
                     title="No invoice lines yet"
                     description="An HSN summary appears once invoices carry line items."
+                    className="py-16"
                   />
                 ) : (
-                  <div className="scrollbar-thin overflow-x-auto">
-                    <Table className="w-full border-collapse">
-                      <TableHeader sticky>
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead className="whitespace-nowrap">HSN code</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">Rate</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">Quantity</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">Taxable value</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">CGST</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">SGST</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">IGST</TableHead>
-                          <TableHead className="whitespace-nowrap text-right">Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody className="divide-y divide-border-subtle">
-                        {hsnSummary.map((row) => (
-                          <TableRow key={`${row.hsn}-${row.rate}`} className="hover:bg-surface-subtle">
-                            <TableCell className="whitespace-nowrap font-mono text-meta font-semibold text-accent">
-                              {row.hsn}
-                            </TableCell>
-                            <TableCell className="text-right text-meta tabular-nums">{row.rate}</TableCell>
-                            <TableCell className="text-right text-meta tabular-nums">{row.qty}</TableCell>
-                            <TableCell className="text-right text-meta tabular-nums">
-                              ₹{row.taxable.toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-right text-meta tabular-nums">
-                              ₹{row.cgst.toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-right text-meta tabular-nums">
-                              ₹{row.sgst.toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-right text-meta tabular-nums">
-                              ₹{row.igst.toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-right text-meta font-semibold tabular-nums">
-                              ₹{row.total.toLocaleString('en-IN')}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                  <DataTable
+                    columns={hsnColumns}
+                    data={hsnSummary.map((row) => ({ ...row, key: `${row.hsn}-${row.rate}` }))}
+                    keyField="key"
+                    caption="HSN-wise summary of invoice lines"
+                  />
                 )}
-              </div>
-            )}
+              </TabsContent>
 
-            {/* TAB CONTENT: Credit Notes */}
-            {activeTab === 'credit-notes' && (
-              <div className="p-4 space-y-4">
-                <div className="flex flex-col gap-0.5">
-                  <h3 className="text-body font-semibold text-primary">Credit notes</h3>
-                  <p className="text-meta text-muted">
-                    Issued against invoices in this register. Managed in full under Credit Notes
-                    &amp; Refunds.
-                  </p>
-                </div>
+              <TabsContent value="credit-notes" className="flex flex-col gap-space-sm">
+                <p className="text-meta text-muted">
+                  Issued against invoices in this register. Managed in full under Credit Notes &amp; Refunds.
+                </p>
                 <DataTable
-                  columns={[
-                    {
-                      key: 'number',
-                      header: 'Credit note',
-                      accessor: (c) => <span className="font-mono text-num">{c.creditNoteNumber}</span>,
-                    },
-                    {
-                      key: 'invoice',
-                      header: 'Against invoice',
-                      accessor: (c) => <span className="font-mono text-num">{c.invoiceNumber}</span>,
-                    },
-                    { key: 'customer', header: 'Customer', accessor: (c) => c.customerName },
-                    { key: 'reason', header: 'Reason', accessor: (c) => c.reason },
-                    {
-                      key: 'amount',
-                      header: 'Credit value',
-                      align: 'right',
-                      accessor: (c) => `₹${Math.round((c.refundAmount ?? 0) / 100).toLocaleString('en-IN')}`,
-                    },
-                    {
-                      key: 'status',
-                      header: 'Status',
-                      accessor: (c) => (
-                        <StatusBadge
-                          status={
-                            { issued: 'Issued', settled: 'Settled', canceled: 'Cancelled' }[c.status] ??
-                            c.status
-                          }
-                          variant={
-                            c.status === 'settled'
-                              ? 'success'
-                              : c.status === 'canceled'
-                                ? 'destructive'
-                                : 'info'
-                          }
-                        />
-                      ),
-                    },
-                  ]}
+                  columns={creditNoteColumns}
                   data={creditNotes}
                   keyField="id"
                   isLoading={isCreditNotesLoading}
@@ -888,360 +838,293 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   emptyMessage="A credit note is raised when an order is refunded."
                   caption="Credit notes raised against invoices"
                 />
+              </TabsContent>
+            </Tabs>
+
+            {/* The rate rule is policy, not a live figure, so it stays as a note. */}
+            <Card className="flex items-start gap-space-sm p-space-md">
+              <Icon name="info" aria-hidden="true" className="material-symbols-outlined mt-px shrink-0 text-icon-md text-muted" />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <h4 className="text-label font-semibold text-primary">
+                  Apparel GST rates (Notification No. 01/2017)
+                </h4>
+                <p className="text-meta text-muted">
+                  Fabric, silk and ready-made cotton garments valued under ₹1,000 are taxed at 5%; garments
+                  over ₹1,000 at 12%.
+                </p>
               </div>
-            )}
+            </Card>
+          </div>
 
-            {/* TAB CONTENT: E-Way Bills */}
-
-            {/* TAB CONTENT: Reconciliation */}
-
-            <TablePagination
-              currentPage={invoicesPager.page}
-              pageSize={invoicesPager.limit}
-              totalItems={invoicesPager.total}
-              onPageChange={invoicesPager.setPage}
-              onPageSizeChange={invoicesPager.setLimit}
-            />
-          </Card>
-
-          {/* HSN Rate Summary Micro-Card */}
-          <Card className="border border-subtle bg-surface-container-lowest p-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary-fixed flex items-center justify-center text-accent shrink-0">
-                  <Icon name="category" className="material-symbols-outlined text-icon-lg" />
+          {/* Invoice preview */}
+          {!hidePreview && (
+          <div className="flex w-full min-w-0 flex-col lg:w-5/12 lg:max-w-md lg:shrink-0 xl:w-1/3">
+            <Card className="overflow-hidden">
+              <div className="flex items-center justify-between gap-space-sm border-b border-subtle bg-surface-subtle px-space-md py-space-sm">
+                <div className="flex min-w-0 items-center gap-space-sm">
+                  <Badge variant="success">Original for recipient</Badge>
+                  <span className="truncate text-micro text-muted">{selectedInvoice?.type}</span>
                 </div>
-                <div>
-                  <h4 className="text-body font-semibold text-primary">Apparel GST Rate Master Schedule (Notification No. 01/2017)</h4>
-                  <p className="text-meta text-muted">Fabric, silk and ready-made cotton garments valued &lt; ₹1,000 are taxed at 5%; garments &gt; ₹1,000 at 12% IGST.</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="text-right">
-                  <div className="text-caption text-muted uppercase">Portal Sync Status</div>
-                  <div className="text-meta font-semibold text-success">GSTN Active • Live E-Invoicing</div>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* RIGHT PANEL: E-Invoice IRN & Compliant Tax Invoice Interactive Preview */}
-        <div className="w-full lg:w-[41.666%] xl:w-[33.333%] lg:max-w-[480px] lg:shrink-0 min-w-0 flex flex-col space-y-4">
-          <Card className="border border-subtle bg-surface-container-lowest overflow-hidden shadow-sm">
-            {/* Document Action Ribbon */}
-            <div className="px-4 py-2 bg-surface-subtle flex items-center justify-between border-b border-subtle">
-              <div className="flex items-center gap-2">
-                <Badge variant="success" className="text-caption uppercase tracking-wider">
-                  ORIGINAL FOR RECIPIENT
-                </Badge>
-                <span className="text-micro text-muted">{selectedInvoice?.type}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="iconXs"
                   onClick={() => window.print()}
-                  className="h-7 w-7 p-0"
-                  title="Print Tax Invoice"
+                  title="Print tax invoice"
+                  aria-label="Print tax invoice"
                 >
-                  <Icon name="print" className="material-symbols-outlined text-icon" />
+                  <Icon name="print" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
                 </Button>
               </div>
-            </div>
 
-            {/* Invoice Body Document */}
-            {selectedInvoice && (
-              <div className="p-4 space-y-4 text-primary text-meta">
-                {/* Supplier Legal Identity Header */}
-                <div className="flex justify-between items-start gap-3">
-                  <div className="space-y-1">
-                    <div className="font-semibold text-body tracking-tight text-primary">Everwear Retail Pvt. Ltd.</div>
-                    <div className="text-micro text-muted leading-snug">
-                      FC-1 Warehouse, 4th Cross, Peenya Industrial Area Phase 2,<br />
-                      Bengaluru, Karnataka - 560058, India
+              {selectedInvoice && (
+                <div className="flex flex-col gap-space-md p-space-md text-meta text-primary">
+                  {/* Supplier identity */}
+                  <div className="flex flex-col gap-1">
+                    <div className="text-body font-semibold text-primary">Everwear Retail Pvt. Ltd.</div>
+                    <div className="text-micro leading-snug text-muted">
+                      FC-1 Warehouse, 4th Cross, Peenya Industrial Area Phase 2, Bengaluru, Karnataka - 560058, India
                     </div>
-                    <div className="pt-1 space-y-0.5 text-micro">
-                      <div><span className="text-muted">GSTIN:</span> <span className="font-semibold font-mono whitespace-nowrap">29AAAAE1234F1Z5</span></div>
-                      <div><span className="text-muted">State / Code:</span> <span className="font-medium">Karnataka (29)</span></div>
-                      <div><span className="text-muted">CIN:</span> <span className="font-mono whitespace-nowrap">U18101KA2021PTC148902</span></div>
+                    <div className="flex flex-col gap-0.5 pt-1 text-micro">
+                      <div><span className="text-muted">GSTIN:</span> <span className="whitespace-nowrap font-mono font-semibold">29AAAAE1234F1Z5</span></div>
+                      <div><span className="text-muted">State / code:</span> <span className="font-medium">Karnataka (29)</span></div>
+                      <div><span className="text-muted">CIN:</span> <span className="break-all font-mono">U18101KA2021PTC148902</span></div>
                     </div>
                   </div>
 
-                  {/* Authentic QR Code Vector */}
-                  <div className="flex flex-col items-center p-2 rounded-xl bg-surface-canvas shadow-sm shrink-0 text-center">
-                    <svg className="w-16 h-16 text-primary" fill="currentColor" viewBox="0 0 100 100">
-                      <path d="M10,10 h30 v30 h-30 z M15,15 v20 h20 v-20 z M22,22 h6 v6 h-6 z" />
-                      <path d="M60,10 h30 v30 h-30 z M65,15 v20 h20 v-20 z M72,22 h6 v6 h-6 z" />
-                      <path d="M10,60 h30 v30 h-30 z M15,65 v20 h20 v-20 z M22,72 h6 v6 h-6 z" />
-                      <rect x="45" y="15" width="8" height="8" />
-                      <rect x="45" y="30" width="8" height="15" />
-                      <rect x="15" y="45" width="10" height="8" />
-                      <rect x="30" y="48" width="12" height="6" />
-                      <rect x="60" y="45" width="15" height="8" />
-                      <rect x="80" y="50" width="10" height="10" />
-                      <rect x="50" y="65" width="12" height="12" />
-                      <rect x="70" y="65" width="20" height="8" />
-                      <rect x="70" y="80" width="10" height="10" />
-                      <rect x="85" y="85" width="5" height="5" />
-                    </svg>
-                    <span className="text-micro text-muted mt-1 font-semibold tracking-wider">GSTN VERIFIED</span>
-                  </div>
-                </div>
-
-                {/* IRN Hash Metadata Box */}
-                <div className="p-2.5 rounded-lg bg-surface-canvas space-y-1 font-mono text-micro text-muted border border-subtle whitespace-nowrap">
-                  <div className="flex items-start gap-2 text-primary">
-                    <Icon
-                      name="info"
-                      aria-hidden="true"
-                      className="material-symbols-outlined mt-px text-icon-sm text-muted"
-                    />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-caption uppercase">E-invoice registration</span>
+                  {/* E-invoice registration: none is recorded, so none is claimed. */}
+                  <div className="flex items-start gap-space-sm rounded-lg border border-subtle bg-surface-subtle p-space-sm">
+                    <Icon name="info" aria-hidden="true" className="material-symbols-outlined mt-px shrink-0 text-icon-sm text-muted" />
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-label font-semibold text-primary">E-invoice registration</span>
                       <span className="text-micro text-muted">
                         This invoice has not been registered with the IRP, so it carries no IRN or
                         acknowledgement number.
                       </span>
                     </div>
                   </div>
-                </div>
 
-                {/* Document Identity Grid */}
-                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-surface-subtle">
-                  <div>
-                    <span className="text-caption text-muted block uppercase">Tax Invoice No</span>
-                    <span className="text-body font-semibold font-mono text-primary whitespace-nowrap">{selectedInvoice.invoiceNumber}</span>
-                  </div>
-                  <div>
-                    <span className="text-caption text-muted block uppercase">Invoice Date &amp; Time</span>
-                    <span className="text-meta font-semibold text-primary">{selectedInvoice.dateTime}</span>
-                  </div>
-                  <div>
-                    <span className="text-caption text-muted block uppercase">Channel Order ID</span>
-                    <span className="text-meta font-medium text-primary">{selectedInvoice.orderRef}</span>
-                  </div>
-                  <div>
-                    <span className="text-caption text-muted block uppercase">Place of Supply</span>
-                    <span className="text-meta font-semibold text-primary">{selectedInvoice.shipping?.posState}</span>
-                  </div>
-                </div>
-
-                {/* Billing & Shipping Information */}
-                <div className="grid grid-cols-2 gap-2 text-micro">
-                  <div className="p-2 rounded-lg bg-surface-canvas space-y-1 border border-subtle">
-                    <span className="text-caption text-muted uppercase block">Billed To (Customer)</span>
-                    <div className="font-semibold text-primary">{selectedInvoice.customerDetail?.name}</div>
-                    <div className="text-muted leading-snug">{selectedInvoice.customerDetail?.address}</div>
-                    <div className="text-muted pt-0.5">GSTIN: {selectedInvoice.customerDetail?.gstin}</div>
-                  </div>
-                  <div className="p-2 rounded-lg bg-surface-canvas space-y-1 border border-subtle">
-                    <span className="text-caption text-muted uppercase block">Shipped To (Delivery Point)</span>
-                    <div className="font-semibold text-primary">{selectedInvoice.customer.name}</div>
-                    <div className="text-muted leading-snug">{selectedInvoice.shipping.address}</div>
-                    <div className="text-muted pt-0.5">State Code: {selectedInvoice.shipping.posCode}</div>
-                  </div>
-                </div>
-
-                {/* Itemized Table */}
-                <DataTable
-                  data={selectedInvoice.items ?? []}
-                  columns={lineItemColumns}
-                  keyField="id"
-                  className="text-micro"
-                  containerClassName="border border-subtle rounded-lg"
-                  emptyIcon="receipt_long"
-                  emptyTitle="No line items"
-                  emptyMessage="This invoice records no line items."
-                />
-
-                {/* Tax Breakdown & Computation Box */}
-                <div className="p-3 rounded-lg bg-surface-canvas space-y-1.5 border border-subtle text-meta">
-                  <div className="flex justify-between">
-                    <span className="text-muted">Total Taxable Value:</span>
-                    <span className="font-mono font-medium whitespace-nowrap">₹{selectedInvoice.taxableVal.toFixed(2)}</span>
-                  </div>
-                  {selectedInvoice.isIntra ? (
-                    <>
-                      <div className="flex justify-between text-muted">
-                        <span>Central GST (CGST 6%):</span>
-                        <span className="font-mono whitespace-nowrap">₹{selectedInvoice.cgst.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-muted">
-                        <span>State GST (SGST 6%):</span>
-                        <span className="font-mono whitespace-nowrap">₹{selectedInvoice.sgst.toFixed(2)}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex justify-between text-muted">
-                      <span>Integrated GST (IGST {selectedInvoice.slab}):</span>
-                      <span className="font-mono whitespace-nowrap">₹{selectedInvoice.igst.toFixed(2)}</span>
+                  {/* Document identity */}
+                  <dl className="grid grid-cols-2 gap-space-sm rounded-lg bg-surface-subtle p-space-sm">
+                    <div className="min-w-0">
+                      <dt className="text-caption uppercase tracking-wider text-muted">Invoice no.</dt>
+                      <dd className="break-all font-mono text-meta font-semibold text-primary">{selectedInvoice.invoiceNumber}</dd>
                     </div>
-                  )}
-                  <div className="pt-1.5 border-t border-subtle flex justify-between items-center text-body font-semibold text-primary">
-                    <span>Invoice Total (INR):</span>
-                    <span className="font-mono text-heading text-accent whitespace-nowrap">
-                      ₹{selectedInvoice.total.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
+                    <div className="min-w-0">
+                      <dt className="text-caption uppercase tracking-wider text-muted">Issued</dt>
+                      <dd className="text-meta font-semibold text-primary">{selectedInvoice.dateTime}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-caption uppercase tracking-wider text-muted">Order</dt>
+                      <dd className="font-mono text-meta text-primary">{selectedInvoice.orderRef}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-caption uppercase tracking-wider text-muted">Place of supply</dt>
+                      <dd className="text-meta font-semibold text-primary">{selectedInvoice.shipping?.posState}</dd>
+                    </div>
+                  </dl>
 
-                {/* Signatory & Verification Footer */}
-                <div className="pt-2 flex justify-between items-end border-t border-subtle text-micro text-muted">
-                  <div>
-                    <div>Computer Generated Invoice</div>
-                    <div className="text-micro">Tax is payable under Reverse Charge: No</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-semibold text-primary">For Everwear Retail Pvt. Ltd.</div>
-                    <div className="text-micro text-success font-semibold mt-1">
-                      ✓ Digitally Signed By Authorized Signatory
+                  {/* Billing & shipping */}
+                  <div className="grid grid-cols-1 gap-space-sm text-micro sm:grid-cols-2">
+                    <div className="flex flex-col gap-1 rounded-lg border border-subtle p-space-sm">
+                      <span className="text-caption uppercase tracking-wider text-muted">Billed to</span>
+                      <div className="font-semibold text-primary">{selectedInvoice.customerDetail?.name ?? customerName(selectedInvoice)}</div>
+                      <div className="leading-snug text-muted">{selectedInvoice.customerDetail?.address ?? selectedInvoice.customer?.address}</div>
+                      <div className="pt-0.5 text-muted">GSTIN: {selectedInvoice.customerDetail?.gstin ?? selectedInvoice.customer?.gstin}</div>
+                    </div>
+                    <div className="flex flex-col gap-1 rounded-lg border border-subtle p-space-sm">
+                      <span className="text-caption uppercase tracking-wider text-muted">Shipped to</span>
+                      <div className="font-semibold text-primary">{customerName(selectedInvoice)}</div>
+                      <div className="leading-snug text-muted">{selectedInvoice.shipping?.address}</div>
+                      {selectedInvoice.shipping?.posCode && (
+                        <div className="pt-0.5 text-muted">State code: {selectedInvoice.shipping.posCode}</div>
+                      )}
                     </div>
                   </div>
+
+                  {/* Line items */}
+                  <DataTable
+                    data={selectedInvoice.items ?? []}
+                    columns={lineItemColumns}
+                    keyField="id"
+                    className="text-micro"
+                    containerClassName="shadow-none"
+                    emptyIcon="receipt_long"
+                    emptyTitle="No line items"
+                    emptyMessage="This invoice records no line items."
+                  />
+
+                  {/* Tax computation */}
+                  <dl className="flex flex-col gap-1.5 rounded-lg border border-subtle p-space-sm text-meta">
+                    <div className="flex justify-between gap-space-sm">
+                      <dt className="text-muted">Taxable value</dt>
+                      <dd className="whitespace-nowrap font-medium tabular-nums">{inr(selectedInvoice.taxableVal)}</dd>
+                    </div>
+                    {selectedInvoice.isIntra ? (
+                      <>
+                        <div className="flex justify-between gap-space-sm text-muted">
+                          <dt>CGST{halfSlab(selectedInvoice.slab)}</dt>
+                          <dd className="whitespace-nowrap tabular-nums">{inr(selectedInvoice.cgst)}</dd>
+                        </div>
+                        <div className="flex justify-between gap-space-sm text-muted">
+                          <dt>SGST{halfSlab(selectedInvoice.slab)}</dt>
+                          <dd className="whitespace-nowrap tabular-nums">{inr(selectedInvoice.sgst)}</dd>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between gap-space-sm text-muted">
+                        <dt>IGST {selectedInvoice.slab}</dt>
+                        <dd className="whitespace-nowrap tabular-nums">{inr(selectedInvoice.igst)}</dd>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-space-sm border-t border-subtle pt-1.5 font-semibold text-primary">
+                      <dt className="text-body">Invoice total</dt>
+                      <dd className="whitespace-nowrap text-kpi-sm tabular-nums text-accent">{inr(selectedInvoice.total)}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="flex items-end justify-between gap-space-sm border-t border-subtle pt-space-sm text-micro text-muted">
+                    <div>
+                      <div>Computer generated invoice</div>
+                      <div>Tax payable under reverse charge: No</div>
+                    </div>
+                    <div className="text-right font-semibold text-primary">For Everwear Retail Pvt. Ltd.</div>
+                  </div>
                 </div>
-              </div>
-            )}
-          </Card>
+              )}
+            </Card>
+          </div>
+          )}
         </div>
-      </div>
 
-      {/* Manual Invoice Creation Modal */}
-      <Dialog
-        open={isManualInvoiceModalOpen}
-        onOpenChange={(open) => !open && setIsManualInvoiceModalOpen(false)}
-        labelledBy="manual-invoice-title"
-      >
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle id="manual-invoice-title" className="flex items-center gap-2">
-              <Icon name="receipt_long" className="material-symbols-outlined text-accent" />
-              <span>Create Manual Tax Invoice</span>
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreateManualInvoice} className="flex min-h-0 flex-1 flex-col">
-            <DialogBody className="space-y-4 pb-space-md">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Recipient / Customer Name</label>
-                  <Input
-                    required
-                    value={manualForm.customerName}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, customerName: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Phone Number</label>
-                  <Input
-                    required
-                    value={manualForm.customerPhone}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, customerPhone: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Delivery / Billing Address</label>
-                <Input
-                  required
-                  value={manualForm.customerAddress}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, customerAddress: e.target.value }))}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Destination State &amp; Code</label>
-                  <Select
-                    value={manualForm.stateCode}
-                    onChange={(e) => {
-                      const code = e.target.value;
-                      let stateName = 'Karnataka';
-                      if (code === '27') stateName = 'Maharashtra';
-                      else if (code === '07') stateName = 'Delhi';
-                      else if (code === '36') stateName = 'Telangana';
-                      else if (code === '33') stateName = 'Tamil Nadu';
-                      setManualForm(prev => ({ ...prev, stateCode: code, state: stateName }));
-                    }}
-                  >
-                    <option value="29">Karnataka (29) - Intra State</option>
-                    <option value="27">Maharashtra (27) - Inter State</option>
-                    <option value="07">Delhi (07) - Inter State</option>
-                    <option value="36">Telangana (36) - Inter State</option>
-                    <option value="33">Tamil Nadu (33) - Inter State</option>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Applicable GST Slab</label>
-                  <Select
-                    value={manualForm.slab}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, slab: e.target.value }))}
-                  >
-                    <option value="12%">12% Standard Apparel</option>
-                    <option value="5%">5% Concessional Standard</option>
-                    <option value="18%">18% Premium Footwear / Accessories</option>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Garment / Item Description</label>
-                  <Input
-                    required
-                    value={manualForm.itemDesc}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, itemDesc: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">HSN Code</label>
-                  <Select
-                    value={manualForm.hsnCode}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, hsnCode: e.target.value }))}
-                  >
-                    <option value="620442">620442 - Dresses &amp; Ensembles</option>
-                    <option value="620342">620342 - Suits &amp; Trousers</option>
-                    <option value="610910">610910 - Cotton Tees &amp; Tops</option>
-                    <option value="611010">611010 - Knitwear &amp; Cardigans</option>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Quantity (Pcs)</label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={manualForm.qty}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, qty: Number(e.target.value) }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-meta font-medium text-muted">Taxable Value (INR)</label>
-                  <Input
-                    type="number"
-                    min="100"
-                    step="0.01"
-                    value={manualForm.taxableVal}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, taxableVal: Number(e.target.value) }))}
-                  />
-                </div>
-              </div>
-            </DialogBody>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsManualInvoiceModalOpen(false)}>
+        {/* Manual invoice */}
+        <AppDialog
+          isOpen={isManualInvoiceModalOpen}
+          onClose={() => setIsManualInvoiceModalOpen(false)}
+          title="Create manual tax invoice"
+          maxWidth="max-w-xl"
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setIsManualInvoiceModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="default" className="bg-primary-container text-on-accent hover:bg-primary-container-hover">
+              <Button type="submit" form="manual-invoice-form" variant="primary">
                 Issue Tax Invoice
               </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            </>
+          }
+        >
+          <form id="manual-invoice-form" onSubmit={handleCreateManualInvoice} className="flex flex-col gap-space-md pb-space-md">
+            <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary">Customer name</label>
+                <Input
+                  required
+                  value={manualForm.customerName}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, customerName: e.target.value }))}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary">Phone number</label>
+                <Input
+                  required
+                  value={manualForm.customerPhone}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, customerPhone: e.target.value }))}
+                />
+              </div>
+            </div>
 
-      {/* Generate E-Way Bill Modal */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-label text-secondary">Billing and delivery address</label>
+              <Input
+                required
+                value={manualForm.customerAddress}
+                onChange={(e) => setManualForm(prev => ({ ...prev, customerAddress: e.target.value }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary">Destination state</label>
+                <Select
+                  value={manualForm.stateCode}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    let stateName = 'Karnataka';
+                    if (code === '27') stateName = 'Maharashtra';
+                    else if (code === '07') stateName = 'Delhi';
+                    else if (code === '36') stateName = 'Telangana';
+                    else if (code === '33') stateName = 'Tamil Nadu';
+                    setManualForm(prev => ({ ...prev, stateCode: code, state: stateName }));
+                  }}
+                >
+                  <option value="29">Karnataka (29) - Intra State</option>
+                  <option value="27">Maharashtra (27) - Inter State</option>
+                  <option value="07">Delhi (07) - Inter State</option>
+                  <option value="36">Telangana (36) - Inter State</option>
+                  <option value="33">Tamil Nadu (33) - Inter State</option>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary">GST slab</label>
+                <Select
+                  value={manualForm.slab}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, slab: e.target.value }))}
+                >
+                  <option value="12%">12% Standard Apparel</option>
+                  <option value="5%">5% Concessional Standard</option>
+                  <option value="18%">18% Premium Footwear / Accessories</option>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary">Item description</label>
+                <Input
+                  required
+                  value={manualForm.itemDesc}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, itemDesc: e.target.value }))}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary">HSN code</label>
+                <Select
+                  value={manualForm.hsnCode}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, hsnCode: e.target.value }))}
+                >
+                  <option value="620442">620442 - Dresses &amp; Ensembles</option>
+                  <option value="620342">620342 - Suits &amp; Trousers</option>
+                  <option value="610910">610910 - Cotton Tees &amp; Tops</option>
+                  <option value="611010">611010 - Knitwear &amp; Cardigans</option>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary">Quantity (pcs)</label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={manualForm.qty}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, qty: Number(e.target.value) }))}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-label text-secondary">Taxable value (INR)</label>
+                <Input
+                  type="number"
+                  min="100"
+                  step="0.01"
+                  value={manualForm.taxableVal}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, taxableVal: Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+          </form>
+        </AppDialog>
+
+      </PageBody>
     </PageContainer>
   );
 }

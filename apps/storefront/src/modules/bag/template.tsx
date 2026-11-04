@@ -12,11 +12,8 @@ import { LineItem } from "./line-item"
 import { PromoCode } from "./promo-code"
 import { Totals } from "./totals"
 
-const FREE_SHIPPING_THRESHOLDS: Record<string, number> = {
-  inr: 199900, // ₹1,999
-  eur: 5000, // €50
-  dkk: 37500, // 375 kr
-}
+/** Free standard delivery from ₹1,999, in paise. */
+const FREE_SHIPPING_THRESHOLD = 199900
 
 const checkoutStep = (cart: Cart) => {
   if (!cart.shippingAddress || !cart.email) return "address"
@@ -41,7 +38,7 @@ export function BagTemplate({
   const count = items.reduce((n, item) => n + item.quantity, 0)
   const currency = cart?.currency ?? "inr"
 
-  const threshold = FREE_SHIPPING_THRESHOLDS[currency.toLowerCase()] ?? 199900
+  const threshold = FREE_SHIPPING_THRESHOLD
   const subtotal = cart?.totals.itemSubtotal ?? 0
   const isFreeUnlocked = subtotal >= threshold
   const remaining = Math.max(0, threshold - subtotal)

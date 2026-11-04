@@ -1,8 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon } from '../ui';
+import { cn } from '../../lib/utils';
+import { MENU_SECTIONS } from '../../routes';
+
+/**
+ * Every page the sidebar offers, under the same label, so the palette and the
+ * nav can never drift apart. The subtitle is the sidebar section it lives in.
+ */
+const VIEW_ITEMS = MENU_SECTIONS.flatMap((section) =>
+  section.items.map((item) => ({
+    type: 'view',
+    title: item.label,
+    subtitle: section.title,
+    path: item.path,
+    icon: item.icon,
+  }))
+);
 
 export function CommandPalette({ isOpen, onClose, onNavigate, onAction }) {
   const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return VIEW_ITEMS;
+    return VIEW_ITEMS.filter(
+      (item) => item.title.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q)
+    );
+  }, [query]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query, isOpen]);
+
+  const select = (item) => {
+    if (!item) return;
+    if (item.action) {
+      onAction?.(item.action);
+    } else {
+      onNavigate(item.path);
+    }
+    onClose();
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -11,7 +50,6 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onAction }) {
         if (isOpen) {
           onClose();
         } else {
-          // Open
           setQuery('');
         }
       } else if (e.key === 'Escape' && isOpen) {
@@ -24,91 +62,99 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onAction }) {
 
   if (!isOpen) return null;
 
-  const items = [
-    { type: 'view', title: 'Executive Operations Overview', subtitle: 'Consolidated real-time fashion telemetry', path: 'overview', icon: 'dashboard' },
-    { type: 'view', title: 'Enterprise Fashion Analytics & Revenue Operations', subtitle: 'Multi-channel unit economics, GMV run-rate, SKU margins', path: 'analytics-and-reports', icon: 'insights' },
-    { type: 'view', title: 'Order Management & Fulfillment Dispatch', subtitle: '84,210 orders, carrier allocation, live tracking', path: 'order-management', icon: 'shopping_bag' },
-    { type: 'view', title: 'Returns, Reverse Logistics & Refund Operations', subtitle: 'Inbound QC dock, Grade A-C triage, instant UPI refunds', path: 'returns-and-exchanges', icon: 'swap_horizontal_circle' },
-    { type: 'view', title: 'Omnichannel Inventory & Multi-Node Warehousing', subtitle: 'Real-time stock ledger, bin allocations, cycle counts', path: 'inventory-and-warehouses', icon: 'warehouse' },
-    { type: 'view', title: 'Purchase Orders & Supplier Relationship Management', subtitle: '14 Mill partners, organic cotton & silk procurement', path: 'purchase-orders-and-suppliers', icon: 'local_shipping' },
-    { type: 'view', title: 'GST Compliance, Tax Invoices & E-Way Bills', subtitle: 'GSTR-1 JSON, IRN verification, HSN rate master', path: 'gst-and-tax-invoices', icon: 'receipt_long' },
-    { type: 'view', title: 'Payment Gateway Settlement & Financial Reconciliation', subtitle: 'Razorpay, PayU, Stripe UTR matching & COD remittances', path: 'payments-and-reconciliation', icon: 'account_balance_wallet' },
-    { type: 'view', title: 'Fashion Product Catalog & Variant Master', subtitle: 'Atelier mulberry silk, SKU matrices, GST setup', path: 'products', icon: 'checkroom' },
-    { type: 'order', title: 'EVR-984210-BLR (Priyanka Sengupta)', subtitle: '₹4,890.00 • BlueDart Express • Ready to handover', path: 'order-management', orderId: 'EVR-984210-BLR', icon: 'local_shipping' },
-    { type: 'order', title: 'EVR-984209-BOM (Karan Mehra)', subtitle: '₹3,450.00 • Delhivery • Allocating Picker', path: 'order-management', orderId: 'EVR-984209-BOM', icon: 'local_shipping' },
-    { type: 'sku', title: 'EVR-WDR-2024-MULB (Mulberry Silk Pleated Dress)', subtitle: 'Autumn / Atelier 24 • 10 Variants Active', path: 'products', icon: 'texture' },
-    { type: 'action', title: 'Flash Sync All 4 Node Hubs', subtitle: 'Bengaluru, Mumbai, Delhi, Kolkata', action: 'flash-sync', icon: 'sync' },
-    { type: 'action', title: 'Export GST Compliance CSV', subtitle: 'Monthly GSTIN tax register', action: 'export-gst', icon: 'receipt_long' },
-    { type: 'action', title: 'Generate Courier Batch Manifest', subtitle: 'Batch #4409 (14 staged orders)', action: 'bulk-manifest', icon: 'inventory_2' },
-  ];
-
-  const filtered = items.filter(item => 
-    item.title.toLowerCase().includes(query.toLowerCase()) || 
-    item.subtitle.toLowerCase().includes(query.toLowerCase())
-  );
+  const onInputKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => (filtered.length ? (i + 1) % filtered.length : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => (filtered.length ? (i - 1 + filtered.length) % filtered.length : 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      select(filtered[activeIndex]);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-scrim/50 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div 
-        className="w-full max-w-2xl bg-surface-container-lowest rounded-2xl shadow-2xl border border-subtle overflow-hidden flex flex-col"
+    <div
+      className="fixed inset-0 z-overlay flex items-start justify-center bg-scrim/50 px-space-lg pt-20 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Go to page"
+        className="flex w-full max-w-xl flex-col overflow-hidden rounded-xl border border-subtle bg-surface-container-lowest shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center px-4 py-3 border-b border-subtle gap-3">
-          <Icon name="search" className="material-symbols-outlined text-muted text-icon-lg" />
+        <div className="flex items-center gap-space-md border-b border-subtle px-space-lg py-space-md">
+          <Icon name="search" aria-hidden="true" className="material-symbols-outlined text-icon-lg text-muted" />
           <input
             autoFocus
             type="text"
-            className="flex-1 bg-transparent text-primary text-heading placeholder:text-muted focus:outline-none"
-            placeholder="Type a command, SKU, Order ID, customer name or action..."
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="command-palette-list"
+            aria-activedescendant={filtered[activeIndex] ? `command-item-${activeIndex}` : undefined}
+            aria-label="Search pages"
+            className="flex-1 bg-transparent text-body-lg text-primary placeholder:text-muted focus:outline-none"
+            placeholder="Search pages…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onInputKeyDown}
           />
-          <kbd className="px-2 py-0.5 rounded bg-surface-subtle text-muted text-meta border border-subtle">ESC</kbd>
+          <kbd className="rounded border border-subtle bg-surface-subtle px-1.5 py-0.5 text-micro text-muted">Esc</kbd>
         </div>
 
-        <div className="max-h-96 overflow-y-auto p-2 space-y-1">
+        <div id="command-palette-list" role="listbox" className="flex max-h-96 flex-col gap-0.5 overflow-y-auto p-space-sm">
           {filtered.length === 0 ? (
-            <div className="p-8 text-center text-secondary text-body">
-              No matching commands or resources found for "{query}".
+            <div className="p-space-xl text-center text-body text-muted">
+              No pages match “{query}”.
             </div>
           ) : (
-            filtered.map((item, index) => (
-              <button
-                key={index}
-                className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-surface-subtle transition-colors text-left group"
-                onClick={() => {
-                  if (item.action) {
-                    onAction(item.action);
-                  } else {
-                    onNavigate(item.path, item.orderId);
-                  }
-                  onClose();
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-surface-subtle group-hover:bg-primary-container group-hover:text-on-accent flex items-center justify-center text-accent transition-colors">
-                    <Icon name={item.icon} className="material-symbols-outlined text-icon-md" />
+            filtered.map((item, index) => {
+              const active = index === activeIndex;
+              return (
+                <button
+                  key={item.path}
+                  id={`command-item-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  className={cn(
+                    'group flex w-full items-center justify-between gap-space-md rounded-lg px-space-md py-space-sm text-left transition-colors',
+                    active ? 'bg-surface-subtle' : 'hover:bg-surface-subtle'
+                  )}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => select(item)}
+                >
+                  <div className="flex min-w-0 items-center gap-space-md">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-subtle bg-surface-container-lowest text-muted">
+                      <Icon name={item.icon} aria-hidden="true" className="material-symbols-outlined text-icon-md" />
+                    </span>
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-body font-medium text-primary">{item.title}</span>
+                      <span className="truncate text-meta text-muted">{item.subtitle}</span>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-semibold text-body text-primary group-hover:text-accent transition-colors">{item.title}</div>
-                    <div className="text-meta text-muted">{item.subtitle}</div>
-                  </div>
-                </div>
-                <span className="text-meta text-muted/60 group-hover:text-accent font-mono flex items-center gap-1 whitespace-nowrap">
-                  Select <Icon name="arrow_forward" className="material-symbols-outlined text-icon-sm" />
-                </span>
-              </button>
-            ))
+                  <Icon
+                    name="arrow_forward"
+                    aria-hidden="true"
+                    className={cn(
+                      'material-symbols-outlined shrink-0 text-icon-sm text-faint transition-opacity',
+                      active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    )}
+                  />
+                </button>
+              );
+            })
           )}
         </div>
 
-        <div className="px-4 py-2.5 bg-surface-subtle border-t border-subtle flex items-center justify-between text-meta text-muted">
-          <div className="flex items-center gap-4">
-            <span>↑↓ to navigate</span>
-            <span>↵ to select</span>
-            <span>ESC to close</span>
-          </div>
-          <span className="font-semibold text-accent">Everwear Omnichannel Engine</span>
+        <div className="flex items-center gap-space-lg border-t border-subtle bg-surface-subtle px-space-lg py-space-sm text-micro text-muted">
+          <span>↑↓ to navigate</span>
+          <span>↵ to open</span>
+          <span>Esc to close</span>
         </div>
       </div>
     </div>

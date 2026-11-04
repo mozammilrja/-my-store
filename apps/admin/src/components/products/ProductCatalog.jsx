@@ -7,8 +7,8 @@ import { VariantMatrixPanel, StockAllocationPanel, StorefrontSeoPanel } from './
 import { useProductsQuery, useUpdateProductMutation, useCategoriesQuery } from '../../hooks/useAdminQueries';
 import { Icon,
   Card,
-  CardContent,
   Button,
+  buttonVariants,
   Badge,
   Input,
   Select,
@@ -16,23 +16,31 @@ import { Icon,
   Tabs,
   TabsList,
   TabsTrigger,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+  AppDialog,
   PageContainer,
   PageHeader,
   ContentGrid,
   StatsCard,
   StatusBadge,
+  FilterBar,
+  SectionCard,
   EmptyState,
-  ErrorState,
+  PageBody,
   SkeletonPage,
   Thumbnail,
   ColorSwatch,
 } from '../ui';
 
 const EMPTY_PRODUCT = {};
+
+/** The chart palette as hex, read off the live theme (confetti takes hex only). */
+const themeChartColors = () => {
+  const root = getComputedStyle(document.documentElement);
+  return ['chart-1', 'chart-2', 'chart-3', 'chart-4']
+    .map((name) => root.getPropertyValue(`--${name}`).trim().split(/\s+/).map(Number))
+    .filter((rgb) => rgb.length === 3 && rgb.every((n) => Number.isFinite(n)))
+    .map((rgb) => `#${rgb.map((n) => n.toString(16).padStart(2, '0')).join('')}`);
+};
 
 /** Tab slugs, so the URL says which panel is open rather than a bare number. */
 const TAB_SLUGS = {
@@ -91,9 +99,9 @@ export function ProductCatalog({ onShowToast, currentHub }) {
   const [gstRate, setGstRate] = useState(product.gstRate || 12);
 
   // Commercial pricing state
-  const [mrp, setMrp] = useState(product.mrp || 6990);
-  const [b2cPrice, setB2cPrice] = useState(product.b2cPrice || 4890);
-  const [procurementCost, setProcurementCost] = useState(product.procurementCost || 1650);
+  const [mrp, setMrp] = useState(product.mrp ?? 0);
+  const [b2cPrice, setB2cPrice] = useState(product.b2cPrice ?? 0);
+  const [procurementCost, setProcurementCost] = useState(product.procurementCost ?? 0);
 
   // Channels
   const [syncStorefront, setSyncStorefront] = useState(product.storefrontSync ?? true);
@@ -119,9 +127,9 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       setOrigin(product.origin || 'Jaipur Craft Guild, India');
       setHsnCode(product.hsnCode || '6204.49.00');
       setGstRate(product.gstRate || 12);
-      setMrp(product.mrp || 6990);
-      setB2cPrice(product.b2cPrice || 4890);
-      setProcurementCost(product.procurementCost || 1650);
+      setMrp(product.mrp ?? 0);
+      setB2cPrice(product.b2cPrice ?? 0);
+      setProcurementCost(product.procurementCost ?? 0);
       setMediaAssets(product.mediaAssets || (product.thumbnail ? [{ slot: 'Primary Editorial', url: product.thumbnail, isPrimary: true }] : []));
     }
   }, [product]);
@@ -145,7 +153,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
   useEffect(() => {
     if (catalogData?.products && catalogData.products.length > 0) {
       const apiProducts = catalogData.products.map((p, idx) => {
-        const firstPrice = p.variants?.[0]?.prices?.inr || p.variants?.[0]?.prices?.eur || 4890;
+        const firstPrice = p.variants?.[0]?.prices?.inr || 0;
         const priceINR = firstPrice > 1000 ? Math.round(firstPrice / 100) : firstPrice;
         return {
           id: p.id,
@@ -156,7 +164,6 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           department: idx % 2 === 0 ? 'Women' : 'Men',
           categoryIds: p.categoryIds ?? [],
           category: (p.categoryIds ?? []).map((id) => categoryNames.get(id)).filter(Boolean).join(', '),
-          seasonTag: 'AUTUMN / ATELIER 24',
           fabricComposition: p.material || 'Premium Woven Fabric',
           silhouette: 'Tailored Fit',
           pattern: 'Solid / Subtle Texture',
@@ -164,9 +171,11 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           origin: 'India Atelier Workshop',
           hsnCode: '6204.49.00',
           gstRate: 12,
-          mrp: Math.round(priceINR * 1.4),
+          // The catalog API carries a selling price only. MRP and cost are
+          // entered here; they used to be invented as 1.4x and 0.4x the price.
+          mrp: 0,
           b2cPrice: priceINR,
-          procurementCost: Math.round(priceINR * 0.4),
+          procurementCost: 0,
           storefrontSync: p.status === 'published',
           codActive: true,
           expressShip: true,
@@ -243,8 +252,9 @@ export function ProductCatalog({ onShowToast, currentHub }) {
 
   // Calculations
   const grossMargin = b2cPrice - procurementCost;
-  const grossMarginPercent = b2cPrice > 0 ? ((grossMargin / b2cPrice) * 100).toFixed(1) : 0;
-  const discountDepth = mrp > 0 ? Math.round(((mrp - b2cPrice) / mrp) * 100) : 0;
+  const hasMargin = b2cPrice > 0 && procurementCost > 0;
+  const grossMarginPercent = hasMargin ? ((grossMargin / b2cPrice) * 100).toFixed(1) : null;
+  const discountDepth = mrp > 0 && b2cPrice > 0 ? Math.round(((mrp - b2cPrice) / mrp) * 100) : null;
 
   // Tax calculations
   const taxableValue = (b2cPrice / (1 + (gstRate / 100)));
@@ -271,13 +281,13 @@ export function ProductCatalog({ onShowToast, currentHub }) {
         particleCount: 80,
         spread: 70,
         origin: { y: 0.8 },
-        colors: ['#6d28d9', '#c026d3', '#059669', '#2563eb']
+        colors: themeChartColors(),
       });
 
       onShowToast({
         type: 'success',
-        title: 'Garment Style Published Live',
-        message: `${title} is now active and published across catalog channels!`,
+        title: 'Product published',
+        message: `${title} is live on the storefront.`,
         duration: 5000
       });
     } catch (err) {
@@ -305,8 +315,8 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       }
       onShowToast({
         type: 'info',
-        title: 'Draft Saved',
-        message: `${title} saved as inactive draft in catalog master.`,
+        title: 'Draft saved',
+        message: `${title} is saved as a draft and hidden from the storefront.`,
       });
     } catch (err) {
       onShowToast({
@@ -324,12 +334,11 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     const newProd = {
       id: newId,
       styleCode: newId,
-      title: 'New Luxury Garment Style',
+      title: 'New product',
       brand: 'Everwear Atelier',
       collection: 'Festive / Spring 25',
       department: 'Women',
       category: "Women's Western",
-      seasonTag: 'SPRING / RESORT 25',
       fabricComposition: '100% Mulberry Silk Crepe',
       silhouette: 'Pleated Slip Dress',
       pattern: 'Artisan Solid Dye',
@@ -337,9 +346,9 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       origin: 'Jaipur Guild, India',
       hsnCode: '6204.49.00',
       gstRate: 12,
-      mrp: 7490,
-      b2cPrice: 5290,
-      procurementCost: 1850,
+      mrp: 0,
+      b2cPrice: 0,
+      procurementCost: 0,
       storefrontSync: true,
       codActive: true,
       expressShip: true,
@@ -351,8 +360,8 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     setSelectedProductId(newId);
     onShowToast({
       type: 'info',
-      title: 'New Style Template Initialized',
-      message: 'Created blank luxury apparel style template. Enter details and publish.',
+      title: 'New product started',
+      message: 'Fill in the details. This style stays in the browser until it exists in the catalog.',
     });
   };
 
@@ -462,9 +471,9 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     setOrigin(product.origin || 'Jaipur Craft Guild, India');
     setHsnCode(product.hsnCode || '6204.49.00');
     setGstRate(product.gstRate || 12);
-    setMrp(product.mrp || 6990);
-    setB2cPrice(product.b2cPrice || 4890);
-    setProcurementCost(product.procurementCost || 1650);
+    setMrp(product.mrp ?? 0);
+    setB2cPrice(product.b2cPrice ?? 0);
+    setProcurementCost(product.procurementCost ?? 0);
     setMediaAssets(product.mediaAssets || []);
     onShowToast({
       type: 'info',
@@ -574,8 +583,8 @@ export function ProductCatalog({ onShowToast, currentHub }) {
 
     onShowToast({
       type: 'success',
-      title: 'Product Catalog CSV Exported',
-      message: `Downloaded CSV spec sheet for ${styleCode}.`,
+      title: 'CSV exported',
+      message: `Downloaded the spec sheet for ${styleCode}.`,
     });
   };
 
@@ -589,25 +598,46 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     { id: 7, label: '7. Storefront & SEO', icon: 'language' },
   ];
 
+  const pageHeader = (
+    <PageHeader
+      kicker="Catalog & inventory"
+      title="Products"
+      description="Styles, variants, pricing and stock."
+      actions={
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            className="gap-1.5 h-9"
+            type="button"
+          >
+            <Icon name="file_download" className="material-symbols-outlined text-icon-md" />
+            <span>Export CSV</span>
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleAddNewStyle}
+            className="gap-1.5 h-9 shadow-sm"
+            type="button"
+          >
+            <Icon name="add_circle" className="material-symbols-outlined text-icon-md" />
+            <span>Add New Style</span>
+          </Button>
+        </>
+      }
+    />
+  );
+
   if (isCatalogLoading) {
     return <SkeletonPage variant="cards" stats={6} statsCols={6} label="Loading product catalog" />;
   }
 
-  if (isCatalogError) {
+  if (!isCatalogError && !allProducts.length) {
     return (
       <PageContainer>
-        <ErrorState
-          title="Product catalog could not be loaded"
-          message={catalogError?.message}
-          onRetry={() => refetchCatalog()}
-        />
-      </PageContainer>
-    );
-  }
-
-  if (!allProducts.length) {
-    return (
-      <PageContainer>
+        {pageHeader}
         <EmptyState
           icon="inventory_2"
           title="No products yet"
@@ -619,400 +649,314 @@ export function ProductCatalog({ onShowToast, currentHub }) {
 
   return (
     <PageContainer>
-      {catalogError && (
-        <ErrorState
-          title="Product catalog could not be loaded"
-          message={catalogError?.message}
-          onRetry={() => refetchCatalog()}
-        />
-      )}
       {/* Context Breadcrumb & Editorial Header */}
-      <PageHeader
-        breadcrumb={['Everwear Admin', 'Catalog', 'Products']}
-        title="Fashion Product Catalog & Variant Master"
-        description="Product details, images, variants, pricing, tax and stock, saved straight to the catalog."
-        actions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportCsv}
-              className="gap-1.5 h-9"
-              type="button"
-            >
-              <Icon name="file_download" className="material-symbols-outlined text-icon-md" />
-              <span>Export CSV</span>
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleAddNewStyle}
-              className="gap-1.5 h-9 shadow-sm"
-              type="button"
-            >
-              <Icon name="add_circle" className="material-symbols-outlined text-icon-md" />
-              <span>Add New Style</span>
-            </Button>
-          </>
-        }
-      />
+      {pageHeader}
+      <PageBody
+        error={catalogError}
+        hasData={catalogData != null}
+        title="Product catalog could not be loaded"
+        onRetry={refetchCatalog}
+      >
 
-      {/* Operational Stat Band */}
-      <ContentGrid cols={5}>
-        <StatsCard
-          title="Total products"
-          value={allProducts.length}
-          icon="checkroom"
-          badge={`${catalogStats.published} published`}
-          badgeVariant="info"
-        />
+        {/* Operational Stat Band */}
+        <ContentGrid cols={5}>
+          <StatsCard
+            title="Total products"
+            value={allProducts.length}
+            icon="checkroom"
+            badge={`${catalogStats.published} published`}
+            badgeVariant="info"
+          />
 
-        <StatsCard
-          title="Variants (SKUs)"
-          value={catalogStats.variants.toLocaleString('en-IN')}
-          icon="view_in_ar"
-          iconColor="text-accent"
-          badge={`${catalogStats.tracked} stock-tracked`}
-          badgeVariant="info"
-        />
+          <StatsCard
+            title="Variants (SKUs)"
+            value={catalogStats.variants.toLocaleString('en-IN')}
+            icon="view_in_ar"
+            iconColor="text-accent"
+            badge={`${catalogStats.tracked} stock-tracked`}
+            badgeVariant="info"
+          />
 
-        <StatsCard
-          title="Draft catalog"
-          value={String(catalogStats.draft)}
-          icon="edit_note"
-          iconColor="text-muted"
-          badge="Not on the storefront"
-          badgeVariant="secondary"
-        />
+          <StatsCard
+            title="Draft catalog"
+            value={String(catalogStats.draft)}
+            icon="edit_note"
+            iconColor="text-muted"
+            badge="Not on the storefront"
+            badgeVariant="secondary"
+          />
 
-        <StatsCard
-          className="hover:border-status-danger/40"
-          title="Out of stock"
-          value={String(catalogStats.outOfStock)}
-          icon="inventory_2"
-          iconColor="text-danger"
-          badge="Tracked variants at zero"
-          badgeVariant="destructive"
-        />
+          <StatsCard
+            className="hover:border-status-danger/40"
+            title="Out of stock"
+            value={String(catalogStats.outOfStock)}
+            icon="inventory_2"
+            iconColor="text-danger"
+            badge="Tracked variants at zero"
+            badgeVariant="destructive"
+          />
 
-        <StatsCard
-          className="hover:border-status-warning/40"
-          title="Missing imagery"
-          value={String(catalogStats.noImage)}
-          icon="photo_camera"
-          iconColor="text-warning"
-          badge="Products with no image"
-          badgeVariant="warning"
-        />
-      </ContentGrid>
+          <StatsCard
+            className="hover:border-status-warning/40"
+            title="Missing imagery"
+            value={String(catalogStats.noImage)}
+            icon="photo_camera"
+            iconColor="text-warning"
+            badge="Products with no image"
+            badgeVariant="warning"
+          />
+        </ContentGrid>
 
-      {/* Category Nav Chips & Style Switcher Bar */}
-      <Card>
-        <CardContent className="p-2 flex items-center justify-between flex-wrap gap-space-sm">
-          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
-            {categoryChips.map((cat) => {
-              const isCatActive = activeCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`px-3 py-1.5 rounded-lg text-label transition-all whitespace-nowrap ${
- isCatActive
- ? 'bg-primary-container text-on-accent font-semibold shadow-xs'
- : 'bg-surface-subtle hover:bg-surface-container text-muted'
- }`}
-                  type="button"
-                >
-                  {cat.label} ({cat.count})
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Product Switcher Dropdown */}
-          <div className="flex items-center gap-2 pr-2">
-            <span className="text-caption text-muted uppercase font-semibold">
-              Select Style:
-            </span>
+        {/* Category filter and the style being edited */}
+        <FilterBar
+          tabs={categoryChips}
+          activeTab={activeCategory}
+          onTabChange={setActiveCategory}
+          filters={
             <Select
               value={selectedProductId}
               onChange={(e) => setSelectedProductId(e.target.value)}
-              aria-label="Select style"
-              wrapperClassName="w-auto"
-              className="h-8 w-auto max-w-[14rem] text-meta"
+              aria-label="Product to edit"
+              wrapperClassName="w-full sm:w-auto"
+              className="w-full sm:w-56"
               options={filteredProducts.map((p) => ({
                 value: p.id,
                 label: `${p.styleCode || p.id} — ${p.title}`,
               }))}
             />
-            <span className="inline-flex w-2 h-2 rounded-full bg-status-success animate-pulse shrink-0"></span>
-          </div>
-        </CardContent>
-      </Card>
+          }
+        />
 
-      {/* Editor Workspace Shell */}
-      <Card className="overflow-hidden flex flex-col">
-        {/* Studio Header / Top Utility Ribbon */}
-        <div className="p-space-lg bg-surface-container-low flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md border-b border-subtle">
-          <div className="flex items-center gap-space-md">
-            <div className="w-12 h-16 rounded-lg overflow-hidden bg-surface-subtle shrink-0 shadow-xs border border-subtle">
-              <Thumbnail src={product.thumbnail || (mediaAssets[0]?.url) || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6'} alt="Product Editorial Thumbnail" className="w-full h-full" imgClassName="object-cover" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <Badge variant="default" className="text-micro font-semibold">
-                  {product.seasonTag || 'AUTUMN / ATELIER 24'}
-                </Badge>
-                <Badge variant="success" className="text-micro font-semibold">
-                  GST RECONCILED
-                </Badge>
-              </div>
-              <h2 className="text-heading font-semibold text-primary tracking-tight mt-0.5">
-                {title}
-              </h2>
-              <div className="flex flex-wrap items-center gap-3 text-body text-secondary mt-0.5">
-                <span>Style Code: <strong className="text-primary font-mono text-label whitespace-nowrap">{styleCode}</strong></span>
-                <span>•</span>
-                <span>Atelier Master Guild</span>
-                <span>•</span>
-                <span className="text-success font-medium">Variants Configured</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 self-end md:self-auto">
-            <div className="flex flex-col text-right">
-              <span className="text-caption text-muted uppercase font-semibold">
-                Gross Profit Margin
-              </span>
-              <span className="text-kpi text-success tabular-nums">
-                {grossMarginPercent}%
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Multi-Step Interactive Tabs Nav */}
-        <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)}>
-          <TabsList className="bg-surface-subtle px-space-md">
-            {tabs.map((tab) => (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                className="gap-2 whitespace-nowrap"
-              >
-                <Icon name={tab.icon} className="material-symbols-outlined text-icon-md" />
-                <span>{tab.label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-
-        {/* One panel per tab. Every tab owns its content; before this the
-            panels were all rendered at once and the tabs only moved a
-            highlight. */}
-        <div data-testid="product-tab-panel" className="bg-surface-container-lowest p-space-lg">
-          {activeTab === 1 && (
-            <div className="grid grid-cols-1 gap-space-lg xl:grid-cols-12">
-              <div className="flex flex-col gap-space-lg xl:col-span-7">
-            <Card className="bg-surface-canvas border-subtle/50">
-              <CardContent className="p-space-lg space-y-space-md">
-                <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
-                  <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
-                    <Icon name="apparel" className="material-symbols-outlined text-accent text-icon-lg" />
-                    <span>Garment Identification & Merchandising</span>
-                  </h3>
-                  <span className="text-caption text-muted font-semibold">
-                    MANDATORY COMPLIANCE
+        {/* Editor */}
+        <Card className="flex flex-col overflow-hidden">
+          <div className="flex flex-col items-start justify-between gap-space-md border-b border-subtle p-space-md md:flex-row md:items-center">
+            <div className="flex min-w-0 items-center gap-space-md">
+              <Thumbnail
+                src={product.thumbnail || mediaAssets[0]?.url || null}
+                alt=""
+                className="h-16 w-12 rounded-lg"
+                imgClassName="object-cover"
+              />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex min-w-0 items-center gap-space-sm">
+                  <h2 className="truncate text-heading text-primary">{title}</h2>
+                  {savedStatus && <StatusBadge status={savedStatus === 'published' ? 'Published' : 'Draft'} />}
+                </div>
+                <div className="flex flex-wrap items-center gap-x-space-md gap-y-0.5 text-meta text-muted">
+                  <span>
+                    Style code <span className="whitespace-nowrap font-mono text-secondary">{styleCode}</span>
                   </span>
+                  {Array.isArray(product.rawBackend?.variants) && (
+                    <span className="tabular-nums">
+                      {product.rawBackend.variants.length} variant{product.rawBackend.variants.length === 1 ? '' : 's'}
+                    </span>
+                  )}
                 </div>
-
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="product-title"
-                    className="block text-caption uppercase font-semibold text-muted"
-                  >
-                    Product Title (Customer Facing)
-                  </label>
-                  <Input
-                    id="product-title"
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="h-10 bg-surface-container-lowest"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
-                  <div className="space-y-1.5">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Brand Master Label
-                    </label>
-                    <Select
-                      value={brand}
-                      onChange={(e) => setBrand(e.target.value)}
-                      className="h-10 bg-surface-container-lowest"
-                    >
-                      <option>Everwear Signature Label</option>
-                      <option>Everwear Atelier</option>
-                      <option>Everwear Studio Casuals</option>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Sub-Brand / Collection
-                    </label>
-                    <Input
-                      type="text"
-                      value={collection}
-                      onChange={(e) => setCollection(e.target.value)}
-                      className="h-10 bg-surface-container-lowest"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-md">
-                  <div className="space-y-1.5">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Parent Style Code (SKU)
-                    </label>
-                    <Input
-                      type="text"
-                      value={styleCode}
-                      onChange={(e) => setStyleCode(e.target.value)}
-                      className="h-10 font-mono text-label font-semibold bg-surface-container-lowest whitespace-nowrap"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Department
-                    </label>
-                    <Select
-                      value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
-                      className="h-10 bg-surface-container-lowest"
-                    >
-                      <option>Women</option>
-                      <option>Men</option>
-                      <option>Unisex</option>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Primary Category
-                    </label>
-                    <Select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="h-10 bg-surface-container-lowest"
-                    >
-                      <option>Dresses & Jumpsuits</option>
-                      <option>Kurtas & Tunics</option>
-                      <option>Blazers & Coats</option>
-                      <option>Pants & Trousers</option>
-                      <option>Shirts & Tops</option>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
               </div>
-              <div className="flex flex-col gap-space-lg xl:col-span-5">
-            <Card className="bg-surface-canvas border-subtle/50">
-              <CardContent className="p-space-lg space-y-space-md">
-                <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
-                  <Icon name="texture" className="material-symbols-outlined text-accent text-icon-lg" />
-                  <span>Material, Fit & Manufacturing Composition</span>
-                </h3>
+            </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-md">
-                  <div className="space-y-1.5">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Fabric Composition
-                    </label>
-                    <Input
-                      type="text"
-                      value={fabric}
-                      onChange={(e) => setFabric(e.target.value)}
-                      className="h-10 bg-surface-container-lowest"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Garment Silhouette / Fit
-                    </label>
-                    <Input
-                      type="text"
-                      value={silhouette}
-                      onChange={(e) => setSilhouette(e.target.value)}
-                      className="h-10 bg-surface-container-lowest"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Pattern & Surface Craft
-                    </label>
-                    <Input
-                      type="text"
-                      value={pattern}
-                      onChange={(e) => setPattern(e.target.value)}
-                      className="h-10 bg-surface-container-lowest"
-                    />
-                  </div>
-                </div>
+            {grossMarginPercent !== null && (
+              <div className="flex flex-col md:items-end">
+                <span className="text-meta text-muted">Gross margin</span>
+                <span className="text-kpi-sm tabular-nums text-primary">{grossMarginPercent}%</span>
+              </div>
+            )}
+          </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
-                  <div className="space-y-1.5">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Recommended Wash Care
+          <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val)}>
+            <TabsList className="px-space-md">
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id} className="gap-space-sm">
+                  <Icon name={tab.icon} aria-hidden="true" className="material-symbols-outlined text-icon" />
+                  <span>{tab.label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+
+          {/* One panel per tab. Every tab owns its content; before this the
+              panels were all rendered at once and the tabs only moved a
+              highlight. */}
+          <div data-testid="product-tab-panel" className="bg-surface-canvas p-space-md">
+            {activeTab === 1 && (
+              <div className="grid grid-cols-1 gap-space-md xl:grid-cols-12">
+                <div className="flex flex-col gap-space-md xl:col-span-7">
+              <SectionCard
+                title="Garment identification"
+                description="What the customer sees and how the style is filed."
+                contentClassName="flex flex-col gap-space-md"
+              >
+
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      htmlFor="product-title"
+                      className="block text-label text-primary"
+                    >
+                      Product title
                     </label>
-                    <div className="relative">
+                    <Input
+                      id="product-title"
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="block text-label text-primary">
+                        Brand
+                      </label>
+                      <Select
+                        value={brand}
+                        onChange={(e) => setBrand(e.target.value)}
+                      >
+                        <option>Everwear Signature Label</option>
+                        <option>Everwear Atelier</option>
+                        <option>Everwear Studio Casuals</option>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="block text-label text-primary">
+                        Collection
+                      </label>
                       <Input
                         type="text"
-                        value={washCare}
-                        onChange={(e) => setWashCare(e.target.value)}
-                        className="h-10 bg-surface-container-lowest pr-9"
+                        value={collection}
+                        onChange={(e) => setCollection(e.target.value)}
                       />
-                      <Icon name="local_laundry_service" className="material-symbols-outlined text-icon-md text-muted absolute right-3 top-2.5" />
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Country of Origin & Guild
-                    </label>
-                    <Input
-                      type="text"
-                      value={origin}
-                      onChange={(e) => setOrigin(e.target.value)}
-                      className="h-10 bg-surface-container-lowest"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-              </div>
-            </div>
-          )}
 
-          {activeTab === 2 && (
-            <div className="flex flex-col gap-space-lg">
-            <Card className="bg-surface-canvas border-subtle/50">
-              <CardContent className="p-space-lg space-y-space-md">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
-                    <Icon name="perm_media" className="material-symbols-outlined text-accent text-icon-lg" />
-                    <span>Studio 360° Photography & Swatch Assets</span>
-                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-md">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="block text-label text-primary">
+                        Style code
+                      </label>
+                      <Input
+                        type="text"
+                        value={styleCode}
+                        onChange={(e) => setStyleCode(e.target.value)}
+                        className="font-mono whitespace-nowrap"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="block text-label text-primary">
+                        Department
+                      </label>
+                      <Select
+                        value={department}
+                        onChange={(e) => setDepartment(e.target.value)}
+                      >
+                        <option>Women</option>
+                        <option>Men</option>
+                        <option>Unisex</option>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="block text-label text-primary">
+                        Category
+                      </label>
+                      <Select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                      >
+                        <option>Dresses & Jumpsuits</option>
+                        <option>Kurtas & Tunics</option>
+                        <option>Blazers & Coats</option>
+                        <option>Pants & Trousers</option>
+                        <option>Shirts & Tops</option>
+                      </Select>
+                    </div>
+                  </div>
+              </SectionCard>
+                </div>
+                <div className="flex flex-col gap-space-md xl:col-span-5">
+              <SectionCard
+                title="Material, fit and origin"
+                description="Printed on the product page and the care label."
+                contentClassName="flex flex-col gap-space-md"
+              >
+
+                  <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="block text-label text-primary">
+                        Fabric composition
+                      </label>
+                      <Input
+                        type="text"
+                        value={fabric}
+                        onChange={(e) => setFabric(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="block text-label text-primary">
+                        Silhouette or fit
+                      </label>
+                      <Input
+                        type="text"
+                        value={silhouette}
+                        onChange={(e) => setSilhouette(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="block text-label text-primary">
+                        Pattern
+                      </label>
+                      <Input
+                        type="text"
+                        value={pattern}
+                        onChange={(e) => setPattern(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="block text-label text-primary">
+                        Wash care
+                      </label>
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          value={washCare}
+                          onChange={(e) => setWashCare(e.target.value)}
+                          className="pr-9"
+                        />
+                        <Icon name="local_laundry_service" aria-hidden="true" className="material-symbols-outlined text-icon-md text-muted absolute right-3 top-1/2 -translate-y-1/2" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="block text-label text-primary">
+                        Country of origin
+                      </label>
+                      <Input
+                        type="text"
+                        value={origin}
+                        onChange={(e) => setOrigin(e.target.value)}
+                      />
+                    </div>
+                  </div>
+              </SectionCard>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 2 && (
+              <div className="flex flex-col gap-space-md">
+              <SectionCard
+                title="Studio 360° photography"
+                description="PNG, JPEG or WebP, up to 5 MB. The first image becomes the thumbnail."
+                contentClassName="flex flex-col gap-space-md"
+                action={
                   <label
                     className={cn(
-                      'text-label font-medium inline-flex items-center gap-1',
-                      isUploading
-                        ? 'text-disabled cursor-not-allowed'
-                        : 'text-accent cursor-pointer hover:underline'
+                      buttonVariants({ variant: 'outline', size: 'sm' }),
+                      isUploading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
                     )}
                   >
-                    <Icon name="add_photo_alternate" className="material-symbols-outlined text-icon" />
-                    <span>{isUploading ? 'Uploading...' : 'Upload photo'}</span>
+                    <Icon name="add_photo_alternate" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                    <span>{isUploading ? 'Uploading…' : 'Upload photo'}</span>
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
@@ -1021,337 +965,295 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                       disabled={isUploading}
                     />
                   </label>
-                </div>
+                }
+              >
 
-                <p className="text-meta text-muted">PNG, JPEG or WebP, up to 5 MB. The first image becomes the thumbnail.</p>
-
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-space-sm">
-                  {mediaAssets.map((asset, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => setActiveMediaSlot(asset)}
-                      className="group relative aspect-[3/4] rounded-lg overflow-hidden bg-surface-subtle border border-subtle hover:border-primary cursor-pointer transition-all shadow-xs"
-                    >
-                      <Thumbnail src={asset.url} alt={asset.slot} className="w-full h-full" imgClassName="object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-scrim/70 via-transparent to-transparent flex flex-col justify-end p-2 opacity-90 group-hover:opacity-100">
-                        <span className="text-on-accent text-micro font-semibold truncate leading-tight">
-                          {asset.slot}
-                        </span>
-                        {asset.isPrimary && (
-                          <span className="mt-0.5 w-fit rounded-full bg-status-success-solid px-1.5 py-px text-micro font-semibold text-on-accent">
-                            PRIMARY
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-space-sm">
+                    {mediaAssets.map((asset, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => setActiveMediaSlot(asset)}
+                        className="group relative aspect-[3/4] cursor-pointer overflow-hidden rounded-lg border border-subtle bg-surface-subtle transition-colors hover:border-strong"
+                      >
+                        <Thumbnail src={asset.url} alt={asset.slot} className="w-full h-full" imgClassName="object-cover" />
+                        <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-scrim/70 via-transparent to-transparent p-space-sm">
+                          <span className="truncate text-micro text-on-accent">
+                            {asset.slot}
                           </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-
-                  {uploads.map((upload) => (
-                    <div
-                      key={upload.id}
-                      className={cn(
-                        'relative aspect-[3/4] overflow-hidden rounded-lg border bg-surface-subtle',
-                        upload.status === 'error' ? 'border-status-danger/50' : 'border-subtle'
-                      )}
-                    >
-                      <img
-                        src={upload.previewUrl}
-                        alt=""
-                        aria-hidden="true"
-                        className="h-full w-full object-cover opacity-40"
-                      />
-                      <div className="absolute inset-0 flex flex-col justify-end gap-1 bg-scrim/70 p-2">
-                        <span className="truncate text-micro font-semibold text-on-accent">{upload.name}</span>
-                        {upload.status === 'uploading' ? (
-                          <>
-                            <span className="text-micro text-on-accent" role="status">
-                              {upload.progress === null ? 'Uploading' : `Uploading ${upload.progress}%`}
+                          {asset.isPrimary && (
+                            <span className="mt-0.5 w-fit rounded-full bg-status-success-solid px-1.5 py-px text-micro text-on-accent">
+                              Primary
                             </span>
-                            <div className="h-1 w-full overflow-hidden rounded-full bg-surface-raised/40">
-                              <div
-                                className={cn(
-                                  'h-full rounded-full bg-status-success-solid',
-                                  upload.progress === null && 'w-1/3 animate-pulse'
-                                )}
-                                style={
-                                  upload.progress === null ? undefined : { width: `${upload.progress}%` }
-                                }
-                              />
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-micro text-on-accent">{upload.error}</span>
-                            <div className="flex gap-1">
-                              <button
-                                type="button"
-                                onClick={() => retryUpload(upload.id)}
-                                className="rounded bg-surface-raised px-1.5 py-px text-micro font-semibold text-primary"
-                              >
-                                Retry
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => dismissUpload(upload.id)}
-                                className="rounded px-1.5 py-px text-micro font-semibold text-on-accent underline"
-                              >
-                                Dismiss
-                              </button>
-                            </div>
-                          </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    {uploads.map((upload) => (
+                      <div
+                        key={upload.id}
+                        className={cn(
+                          'relative aspect-[3/4] overflow-hidden rounded-lg border bg-surface-subtle',
+                          upload.status === 'error' ? 'border-status-danger/50' : 'border-subtle'
                         )}
+                      >
+                        <img
+                          src={upload.previewUrl}
+                          alt=""
+                          aria-hidden="true"
+                          className="h-full w-full object-cover opacity-40"
+                        />
+                        <div className="absolute inset-0 flex flex-col justify-end gap-1 bg-scrim/70 p-space-sm">
+                          <span className="truncate text-micro text-on-accent">{upload.name}</span>
+                          {upload.status === 'uploading' ? (
+                            <>
+                              <span className="text-micro text-on-accent" role="status">
+                                {upload.progress === null ? 'Uploading' : `Uploading ${upload.progress}%`}
+                              </span>
+                              <div className="h-1 w-full overflow-hidden rounded-full bg-on-status/30">
+                                <div
+                                  className={cn(
+                                    'h-full rounded-full bg-status-success-solid',
+                                    upload.progress === null && 'w-1/3 animate-pulse'
+                                  )}
+                                  style={
+                                    upload.progress === null ? undefined : { width: `${upload.progress}%` }
+                                  }
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-micro text-on-accent">{upload.error}</span>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => retryUpload(upload.id)}
+                                  className="h-6 px-2 text-micro"
+                                >
+                                  Retry
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => dismissUpload(upload.id)}
+                                  className="h-6 px-2 text-micro text-on-accent hover:bg-on-status/20 hover:text-on-accent"
+                                >
+                                  Dismiss
+                                </Button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {mediaAssets.length === 0 && uploads.length === 0 && (
+                    <EmptyState
+                      icon="photo_library"
+                      title="No images yet"
+                      description="Upload a photo to give this product a thumbnail."
+                    />
+                  )}
+              </SectionCard>
+              </div>
+            )}
+
+            {activeTab === 3 && <VariantMatrixPanel product={product} />}
+
+            {activeTab === 4 && (
+              <SectionCard
+                title="Commercial pricing"
+                description="The selling price comes from the catalog. MRP and cost are for your margin check."
+                contentClassName="flex flex-col gap-space-md"
+                action={grossMarginPercent !== null ? <Badge variant="success">{grossMarginPercent}% margin</Badge> : null}
+              >
+                <div className="grid grid-cols-1 gap-space-md sm:grid-cols-3">
+                  {[
+                    { id: 'product-mrp', label: 'MRP', value: mrp, set: setMrp },
+                    { id: 'product-price', label: 'Selling price', value: b2cPrice, set: setB2cPrice },
+                    { id: 'product-cost', label: 'Procurement cost', value: procurementCost, set: setProcurementCost },
+                  ].map((field) => (
+                    <div key={field.id} className="flex flex-col gap-1.5">
+                      <label htmlFor={field.id} className="block text-label text-primary">
+                        {field.label}
+                      </label>
+                      <div className="relative">
+                        <span aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-body text-muted">₹</span>
+                        <Input
+                          id={field.id}
+                          type="number"
+                          min="0"
+                          placeholder="Not set"
+                          value={field.value || ''}
+                          onChange={(e) => field.set(Number(e.target.value))}
+                          className="pl-7 tabular-nums"
+                        />
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {mediaAssets.length === 0 && uploads.length === 0 && (
-                  <p className="text-meta text-muted">No images on this product yet.</p>
-                )}
-              </CardContent>
-            </Card>
-            </div>
-          )}
-
-          {activeTab === 3 && <VariantMatrixPanel product={product} />}
-
-          {activeTab === 4 && (
-            <div className="flex flex-col gap-space-lg">
-            <Card className="bg-surface-canvas border-subtle/50">
-              <CardContent className="p-space-lg space-y-space-md">
-                <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
-                  <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
-                    <Icon name="currency_rupee" className="material-symbols-outlined text-accent text-icon-lg" />
-                    <span>Commercial Pricing & Margins</span>
-                  </h3>
-                  <Badge variant="success" className="text-caption">
-                    {grossMarginPercent}% MARGIN
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-sm">
-                  <div className="space-y-1">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Maximum Retail Price
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-secondary text-body">₹</span>
-                      <Input
-                        type="number"
-                        value={mrp}
-                        onChange={(e) => setMrp(Number(e.target.value))}
-                        className="h-10 pl-7 font-mono font-semibold bg-surface-container-lowest whitespace-nowrap"
-                      />
-                    </div>
+                <dl className="flex flex-col gap-space-sm rounded-lg border border-subtle bg-surface-subtle p-space-md text-body">
+                  <div className="flex justify-between gap-space-md">
+                    <dt className="text-secondary">Discount from MRP</dt>
+                    <dd className="tabular-nums text-primary">{discountDepth === null ? '—' : `${discountDepth}%`}</dd>
                   </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Selling Price (B2C)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-accent text-body font-semibold">₹</span>
-                      <Input
-                        type="number"
-                        value={b2cPrice}
-                        onChange={(e) => setB2cPrice(Number(e.target.value))}
-                        className="h-10 pl-7 font-mono font-semibold text-accent bg-surface-container-lowest whitespace-nowrap"
-                      />
-                    </div>
+                  <div className="flex justify-between gap-space-md">
+                    <dt className="text-secondary">Gross profit per piece</dt>
+                    <dd className="whitespace-nowrap tabular-nums text-primary">
+                      {hasMargin ? `₹${grossMargin.toFixed(2)}` : '—'}
+                    </dd>
                   </div>
+                </dl>
+              </SectionCard>
+            )}
 
-                  <div className="space-y-1">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      Procurement Cost
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-secondary text-body">₹</span>
-                      <Input
-                        type="number"
-                        value={procurementCost}
-                        onChange={(e) => setProcurementCost(Number(e.target.value))}
-                        className="h-10 pl-7 font-mono bg-surface-container-lowest whitespace-nowrap"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-space-md rounded-xl bg-surface-container-lowest space-y-2 border border-subtle">
-                  <div className="flex justify-between text-body text-secondary">
-                    <span>Discount from MRP:</span>
-                    <span className="font-semibold text-primary">{discountDepth}% Off</span>
-                  </div>
-                  <div className="flex justify-between text-body text-secondary">
-                    <span>Net Gross Profit (per piece):</span>
-                    <span className="font-semibold text-success font-mono whitespace-nowrap">₹{grossMargin.toFixed(2)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            </div>
-          )}
-
-          {activeTab === 5 && (
-            <div className="flex flex-col gap-space-lg">
-            <Card className="bg-surface-canvas border-subtle/50">
-              <CardContent className="p-space-lg space-y-space-md">
-                <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
-                  <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
-                    <Icon name="receipt_long" className="material-symbols-outlined text-accent text-icon-lg" />
-                    <span>Statutory HSN & GST Split</span>
-                  </h3>
-                  <span className="text-caption text-muted font-semibold">
-                    KA-GSTIN 29AAACE1284P1ZX
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
-                  <div className="space-y-1">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      HSN Classification Code
+            {activeTab === 5 && (
+              <SectionCard
+                title="Statutory HSN and GST split"
+                description="How the selling price divides into taxable value and GST."
+                contentClassName="flex flex-col gap-space-md"
+              >
+                <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="product-hsn" className="block text-label text-primary">
+                      HSN code
                     </label>
                     <Input
+                      id="product-hsn"
                       type="text"
                       value={hsnCode}
                       onChange={(e) => setHsnCode(e.target.value)}
-                      className="h-10 font-mono bg-surface-container-lowest whitespace-nowrap"
+                      className="font-mono"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="block text-caption text-muted uppercase font-semibold">
-                      GST Rate Tier
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="product-gst" className="block text-label text-primary">
+                      GST rate
                     </label>
                     <Select
+                      id="product-gst"
                       value={gstRate}
                       onChange={(e) => setGstRate(Number(e.target.value))}
-                      className="h-10 bg-surface-container-lowest font-medium"
                     >
-                      <option value={5}>5% (Garments &lt; ₹1,000)</option>
-                      <option value={12}>12% (Standard Apparel &gt; ₹1,000)</option>
-                      <option value={18}>18% (Luxury Fabrics &amp; Accessories)</option>
+                      <option value={5}>5% (garments under ₹1,000)</option>
+                      <option value={12}>12% (apparel over ₹1,000)</option>
+                      <option value={18}>18% (luxury fabrics and accessories)</option>
                     </Select>
                   </div>
                 </div>
 
-                <div className="p-space-md rounded-xl bg-surface-container-lowest space-y-1.5 border border-subtle text-body">
-                  <div className="flex justify-between text-muted">
-                    <span>Taxable Base Value:</span>
-                    <span className="font-mono text-primary whitespace-nowrap">₹{taxableValue.toFixed(2)}</span>
+                <dl className="flex flex-col gap-space-sm rounded-lg border border-subtle bg-surface-subtle p-space-md text-body">
+                  <div className="flex justify-between gap-space-md">
+                    <dt className="text-secondary">Taxable value</dt>
+                    <dd className="whitespace-nowrap tabular-nums text-primary">₹{taxableValue.toFixed(2)}</dd>
                   </div>
-                  <div className="flex justify-between text-muted">
-                    <span>CGST (Intra-state {gstRate / 2}%):</span>
-                    <span className="font-mono text-primary whitespace-nowrap">₹{cgstAmount}</span>
+                  <div className="flex justify-between gap-space-md">
+                    <dt className="text-secondary">CGST, intra-state ({gstRate / 2}%)</dt>
+                    <dd className="whitespace-nowrap tabular-nums text-primary">₹{cgstAmount}</dd>
                   </div>
-                  <div className="flex justify-between text-muted">
-                    <span>SGST (Intra-state {gstRate / 2}%):</span>
-                    <span className="font-mono text-primary whitespace-nowrap">₹{sgstAmount}</span>
+                  <div className="flex justify-between gap-space-md">
+                    <dt className="text-secondary">SGST, intra-state ({gstRate / 2}%)</dt>
+                    <dd className="whitespace-nowrap tabular-nums text-primary">₹{sgstAmount}</dd>
                   </div>
-                  <div className="flex justify-between text-muted border-t border-surface-subtle pt-1">
-                    <span>IGST (Inter-state {gstRate}%):</span>
-                    <span className="font-mono text-accent font-semibold whitespace-nowrap">₹{igstAmount}</span>
+                  <div className="flex justify-between gap-space-md border-t border-subtle pt-space-sm">
+                    <dt className="text-secondary">IGST, inter-state ({gstRate}%)</dt>
+                    <dd className="whitespace-nowrap font-semibold tabular-nums text-primary">₹{igstAmount}</dd>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </dl>
+              </SectionCard>
+            )}
+
+            {activeTab === 6 && (
+              <StockAllocationPanel
+                product={product}
+                onSave={handleSaveStock}
+                isSaving={updateProductMutation.isPending}
+              />
+            )}
+
+            {activeTab === 7 && (
+              <StorefrontSeoPanel
+                product={product}
+                title={title}
+                description={product.rawBackend?.description ?? ''}
+                onSave={handleSaveStorefront}
+                isSaving={updateProductMutation.isPending}
+              />
+            )}
+          </div>
+
+
+          {/* Save bar */}
+          <div className="sticky bottom-0 z-30 flex flex-col items-stretch justify-between gap-space-md border-t border-subtle bg-surface-container-lowest p-space-md sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-label text-primary">
+                {updateProductMutation.isPending
+                  ? 'Saving changes'
+                  : isDirty
+                    ? 'Unsaved changes'
+                    : 'All changes saved'}
+              </span>
+              <span className="text-meta text-muted">
+                {isDirty
+                  ? 'Save as a draft or publish to keep them.'
+                  : canSaveProduct
+                    ? `This style is ${savedStatus === 'published' ? 'published' : 'a draft'}.`
+                    : 'This style only exists in the browser and cannot be saved.'}
+              </span>
             </div>
-          )}
 
-          {activeTab === 6 && (
-            <StockAllocationPanel
-              product={product}
-              onSave={handleSaveStock}
-              isSaving={updateProductMutation.isPending}
-            />
-          )}
-
-          {activeTab === 7 && (
-            <StorefrontSeoPanel
-              product={product}
-              title={title}
-              description={product.rawBackend?.description ?? ''}
-              onSave={handleSaveStorefront}
-              isSaving={updateProductMutation.isPending}
-            />
-          )}
-        </div>
-
-
-        {/* Sticky Bottom Master Action Bar */}
-        <div className="p-space-md bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-space-md sticky bottom-0 z-30 shadow-lg border-t border-subtle">
-          <div className="flex items-center gap-2">
-            <span className="text-label font-semibold text-primary">
-              {updateProductMutation.isPending
-                ? 'Saving changes'
-                : isDirty
-                  ? 'Unsaved changes stay local'
-                  : 'All changes saved'}
-            </span>
-            <span className="text-muted text-micro">
-              {isDirty
-                ? 'Use the actions on the right to save.'
-                : canSaveProduct
-                  ? `This style is ${savedStatus === 'published' ? 'published' : 'a draft'}.`
-                  : 'This style only exists in the browser and cannot be saved.'}
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-space-xs w-full sm:w-auto justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDiscardDraft}
-              disabled={!isDirty || isSaving}
-              className="text-danger hover:bg-status-danger-bg hover:text-danger"
-              type="button"
-            >
-              Discard Draft
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSaveDraft}
-              disabled={isSaving || !canSaveDraft}
-              type="button"
-            >
-              Save as Inactive Draft
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handlePublish}
-              disabled={isSaving || !canPublish}
-              className="gap-1.5 shadow-md"
-              type="button"
-            >
-              <Icon name="rocket_launch" className="material-symbols-outlined text-icon-md" />
-              <span>{isSaving ? 'Publishing...' : 'Publish Product (Active)'}</span>
-            </Button>
-          </div>
-        </div>
-      </Card>
-
-      {/* Lookbook Zoom Dialog */}
-      {activeMediaSlot && (
-        <Dialog open={!!activeMediaSlot} onOpenChange={() => setActiveMediaSlot(null)}>
-          <DialogContent className="max-w-2xl p-4 flex flex-col gap-3">
-            <DialogHeader className="flex flex-row items-center justify-between pb-2">
-              <DialogTitle className="text-body font-semibold">
-                {title} - {activeMediaSlot.slot} Perspective
-              </DialogTitle>
+            <div className="flex flex-wrap items-center justify-end gap-space-sm">
               <Button
                 variant="ghost"
-                size="icon"
-                onClick={() => setActiveMediaSlot(null)}
-                className="h-7 w-7 text-muted hover:text-primary"
-                type="button"
+                size="sm"
+                onClick={handleDiscardDraft}
+                disabled={!isDirty || isSaving}
+                className="text-danger hover:bg-status-danger-bg hover:text-danger"
               >
-                <Icon name="close" className="material-symbols-outlined text-icon-md" />
+                Discard draft
               </Button>
-            </DialogHeader>
-            <Thumbnail src={activeMediaSlot.url} alt={activeMediaSlot.slot} className="h-[70vh] w-auto rounded-xl" imgClassName="object-contain" />
-          </DialogContent>
-        </Dialog>
-      )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSaveDraft}
+                disabled={isSaving || !canSaveDraft}
+              >
+                Save as draft
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handlePublish}
+                disabled={isSaving || !canPublish}
+              >
+                <Icon name="rocket_launch" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                <span>{isSaving ? 'Publishing…' : 'Publish'}</span>
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        {/* Image preview */}
+        <AppDialog
+          isOpen={!!activeMediaSlot}
+          onClose={() => setActiveMediaSlot(null)}
+          title={activeMediaSlot ? `${title} · ${activeMediaSlot.slot}` : ''}
+          maxWidth="max-w-2xl"
+        >
+          {activeMediaSlot && (
+            <Thumbnail
+              src={activeMediaSlot.url}
+              alt={activeMediaSlot.slot}
+              className="h-[70vh] w-full rounded-lg"
+              imgClassName="object-contain"
+            />
+          )}
+        </AppDialog>
+      </PageBody>
     </PageContainer>
   );
 }

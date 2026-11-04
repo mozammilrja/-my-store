@@ -1,4 +1,5 @@
 import { Router, type Request } from "express"
+import { buildInvoiceLines } from "../../lib/invoice.js"
 import type { ClientSession } from "mongodb"
 import { z } from "zod"
 import { withTransaction } from "../../db/client.js"
@@ -66,6 +67,16 @@ async function refreshItems(items: LineItem[], currency: string, session?: Clien
 }
 
 async function serializeCart(cart: CartDoc, region: RegionDoc, removed: string[] = []) {
+  // Units each line could be raised to right now, so the bag can say "Only 2
+  // left" or "Sold out" instead of failing when the shopper changes quantity.
+  const stock = new Map<string, number>()
+  if (!cart.completedAt && cart.items.length) {
+    const products = await db
+      .products()
+      .find({ _id: { $in: [...new Set(cart.items.map((i) => i.productId))] } }, { projection: { variants: 1 } })
+      .toArray()
+    for (const p of products) for (const v of p.variants) stock.set(v._id, allowedUnits(v))
+  }
   const promotions = cart.promoCodes.length ? await db.promotions().find({ code: { $in: cart.promoCodes } }).toArray() : []
   const totals = computeTotals(cart, region, promotions)
   return {
@@ -86,6 +97,7 @@ async function serializeCart(cart: CartDoc, region: RegionDoc, removed: string[]
       quantity: i.quantity,
       unitPrice: i.unitPrice,
       total: i.unitPrice * i.quantity,
+      available: stock.get(i.variantId) ?? null,
     })),
     shippingAddress: cart.shippingAddress ?? null,
     billingAddress: cart.billingAddress ?? null,
@@ -125,6 +137,21 @@ const allowedUnits = (variant: ProductDoc["variants"][number]) =>
 export const cartRoutes = Router()
 cartRoutes.use(optionalAuth("customer"))
 
+/**
+ * A bag that belongs to an account is only visible to that account. Without
+ * this, anyone holding the cart id (a signed-out browser that kept the
+ * cookie, or a shared device) would see the customer's bag, email and
+ * addresses. Answers "not found" rather than "forbidden" so ids can't be probed.
+ * Guest bags (no customerId) work as before.
+ */
+cartRoutes.use("/carts/:id", async (req, _res, next) => {
+  const parsed = cartId.safeParse(req.params.id)
+  if (!parsed.success) return next()
+  const cart = await db.carts().findOne({ _id: parsed.data }, { projection: { customerId: 1 } })
+  if (cart?.customerId && cart.customerId !== req.actorId) throw notFound("Cart")
+  next()
+})
+
 cartRoutes.post("/carts", async (req, res) => {
   const body = z.object({ country: z.string().regex(/^[a-zA-Z]{2}$/) }).parse(req.body)
   const region = await regionForCountry(body.country)
@@ -145,6 +172,27 @@ cartRoutes.post("/carts", async (req, res) => {
   }
   await db.carts().insertOne(cart)
   res.status(201).json({ cart: await serializeCart(cart, region) })
+})
+
+/**
+ * The signed-in customer's most recent open bag with something in it, for the
+ * storefront to restore on sign-in (Myntra-style: the bag follows the
+ * account, not the browser). `country` keeps it to the shopper's region,
+ * since prices and currency are per region. Null when there is none.
+ */
+cartRoutes.get("/customers/me/cart", requireAuth("customer"), async (req, res) => {
+  const query = z.object({ country: z.string().regex(/^[a-zA-Z]{2}$/).optional() }).parse(req.query)
+  const region = query.country ? await regionForCountry(query.country) : null
+  const cart = await db.carts().findOne(
+    {
+      customerId: req.actorId!,
+      completedAt: null,
+      "items.0": { $exists: true },
+      ...(region ? { regionId: region._id } : {}),
+    },
+    { sort: { updatedAt: -1 }, projection: { _id: 1 } }
+  )
+  res.json({ cartId: cart?._id ?? null })
 })
 
 cartRoutes.get("/carts/:id", async (req, res) => {
@@ -423,23 +471,8 @@ cartRoutes.post("/carts/:id/complete", async (req, res) => {
           customerName: `${doc.shippingAddress.firstName} ${doc.shippingAddress.lastName}`,
           shippingAddress: doc.shippingAddress,
           billingAddress: doc.billingAddress,
-          items: doc.items.map((i) => ({
-            name: i.productTitle,
-            sku: `SKU-${i.variantId.slice(-6)}`,
-            hsn: "6204",
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-            taxableValue: Math.round((i.unitPrice * i.quantity) / 1.12),
-            gstRate: 12,
-            cgst: Math.round((i.unitPrice * i.quantity * 0.06) / 1.12),
-            sgst: Math.round((i.unitPrice * i.quantity * 0.06) / 1.12),
-            igst: 0,
-          })),
-          subtotal: doc.totals.itemSubtotal,
-          cgstTotal: Math.round((doc.totals.taxTotal || 0) / 2),
-          sgstTotal: Math.round((doc.totals.taxTotal || 0) / 2),
-          igstTotal: 0,
-          grandTotal: doc.totals.total,
+          // Lines and totals that add up to what the order charged.
+          ...buildInvoiceLines(doc, region),
           currency: doc.currency,
           status: "issued",
           issuedAt: now,
@@ -502,6 +535,22 @@ export { toStoreOrder }
  * An order is visible to its customer (token) or to whoever holds the cart it
  * was placed from (the `x-cart-id` header the shop keeps in an httpOnly cookie).
  */
+/**
+ * The GST tax invoice raised when an order was placed. Same access rule as
+ * the order: the account that placed it, or the browser that just did.
+ */
+cartRoutes.get("/orders/:id/invoice", async (req, res) => {
+  const order = await db.orders().findOne({ _id: z.string().regex(/^order_[0-9a-z]{16}$/).parse(req.params.id) })
+  if (!order) throw notFound("Order")
+  const ownsByAccount = !!req.actorId && order.customerId === req.actorId
+  const ownsByCart = req.get("x-cart-id") === order.cartId
+  if (!ownsByAccount && !ownsByCart) throw forbidden("You can't view this invoice")
+  const invoice = await db.invoices().findOne({ orderId: order._id })
+  if (!invoice) throw notFound("Invoice")
+  const { _id, issuedAt, ...rest } = invoice
+  res.json({ invoice: { id: _id, ...rest, issuedAt: issuedAt.toISOString() } })
+})
+
 cartRoutes.get("/orders/:id", async (req, res) => {
   const order = await db.orders().findOne({ _id: z.string().regex(/^order_[0-9a-z]{16}$/).parse(req.params.id) })
   if (!order) throw notFound("Order")

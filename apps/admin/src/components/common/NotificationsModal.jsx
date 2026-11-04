@@ -1,106 +1,53 @@
-import React from 'react';
-import { Icon, Badge, Button, Separator } from '../ui';
+import React, { useEffect } from 'react';
+import { Icon, Button } from '../ui';
+import { EmptyState } from '../shared';
 
+/**
+ * The store has no notification feed yet, so this panel says so plainly
+ * instead of showing sample alerts. When a feed exists, render its items in
+ * the list region below and wire each item's action through `onAction`.
+ */
 export function NotificationsModal({ isOpen, onClose, onAction }) {
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
-  const notifications = [
-    {
-      id: 1,
-      type: 'danger',
-      icon: 'error',
-      title: 'Critical Buffer Breach Alert',
-      time: '2 mins ago',
-      desc: '42 apparel SKUs in Bengaluru Hub (BLR-FC1) fell below safe threshold (< 15 units).',
-      action: 'Auto-Rebalance Inventory',
-      badge: 'URGENT'
-    },
-    {
-      id: 2,
-      type: 'warning',
-      icon: 'warning',
-      title: '3PL Carrier Latency in Bhiwandi',
-      time: '18 mins ago',
-      desc: 'Delhivery express scans delayed 45 mins at BOM-FC2 dock. Risking flight handoff cutoff.',
-      action: 'Reroute to BlueDart Aviation',
-      badge: 'CARRIER SLA'
-    },
-    {
-      id: 3,
-      type: 'info',
-      icon: 'rocket_launch',
-      title: 'Festive Drop Staging Complete',
-      time: '42 mins ago',
-      desc: 'Autumn Atelier drop pre-allocated into pick-bin fast paths across 4 national fulfillment centers.',
-      action: 'View Staging Matrix',
-      badge: 'EVENT'
-    }
-  ];
-
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end p-4 pt-16 bg-scrim/30 backdrop-blur-xs animate-fade-in" onClick={onClose}>
-      <div 
-        className="w-full max-w-sm bg-surface-container-lowest rounded-2xl shadow-2xl border border-subtle overflow-hidden flex flex-col"
+    <div
+      className="fixed inset-0 z-overlay flex items-start justify-end bg-scrim/30 p-space-lg pt-16 backdrop-blur-xs animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notifications-title"
+        className="flex w-full max-w-sm flex-col overflow-hidden rounded-xl border border-subtle bg-surface-container-lowest shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-4 border-b border-subtle flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Icon name="notifications_active" className="material-symbols-outlined text-accent text-icon-lg" />
-            <span className="text-body font-semibold text-primary">Ops Notifications</span>
-            <Badge variant="destructive" className="text-micro py-0 px-1.5 font-semibold">3</Badge>
+        <div className="flex items-center justify-between border-b border-subtle p-space-md">
+          <div className="flex items-center gap-space-sm">
+            <Icon name="notifications" aria-hidden="true" className="material-symbols-outlined text-icon-md text-muted" />
+            <h2 id="notifications-title" className="text-subheading text-primary">Notifications</h2>
           </div>
           <Button variant="ghost" size="iconSm" onClick={onClose} title="Close" aria-label="Close notifications">
-            <Icon name="close" className="material-symbols-outlined text-icon-md" />
+            <Icon name="close" aria-hidden="true" className="material-symbols-outlined text-icon-md" />
           </Button>
         </div>
 
-        <div className="divide-y divide-border-subtle max-h-[420px] overflow-y-auto">
-          {notifications.map((n) => (
-            <div key={n.id} className="p-4 hover:bg-surface-subtle transition-colors flex flex-col gap-2">
-              <div className="flex items-start justify-between gap-2">
-                <Badge 
-                  variant={n.type === 'danger' ? 'destructive' : n.type === 'warning' ? 'warning' : 'info'}
-                  className="text-caption tracking-wider uppercase py-0"
-                >
-                  {n.badge}
-                </Badge>
-                <span className="text-micro text-muted">{n.time}</span>
-              </div>
-              <h4 className="font-semibold text-meta text-primary flex items-center gap-1.5">
-                <Icon name={n.icon} className={`material-symbols-outlined text-icon ${
- n.type === 'danger' ? 'text-danger' :
- n.type === 'warning' ? 'text-warning' : 'text-info'
- }`} />
-                {n.title}
-              </h4>
-              <p className="text-meta text-muted leading-relaxed">{n.desc}</p>
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => {
-                  onAction(n.action);
-                  onClose();
-                }}
-                className="p-0 h-auto justify-start text-meta font-semibold text-accent"
-              >
-                {n.action} <Icon name="arrow_forward" className="material-symbols-outlined text-icon-sm ml-1" />
-              </Button>
-            </div>
-          ))}
-        </div>
-
-        <div className="p-3 bg-surface-subtle border-t border-subtle text-center">
-          <Button 
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              onAction('mark-all-read');
-              onClose();
-            }}
-            className="text-meta font-semibold text-muted hover:text-primary h-auto py-1"
-          >
-            Mark all 3 alerts as acknowledged
-          </Button>
+        <div className="max-h-96 overflow-y-auto p-space-md">
+          <EmptyState
+            icon="notifications"
+            title="You're all caught up"
+            description="Store alerts will appear here when there is something to act on."
+            className="p-space-xl"
+          />
         </div>
       </div>
     </div>

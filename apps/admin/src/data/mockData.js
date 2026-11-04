@@ -1360,14 +1360,12 @@ export const INITIAL_PAYMENTS_DATA = {
     { id: 'gw-1', name: 'Razorpay PG', channels: 'UPI, RuPay & Cards', settledToday: '₹1,94,20,400', feeRate: '1.85%', uptime: '99.98%', status: 'Optimal' },
     { id: 'gw-2', name: 'PayU Enterprise', channels: 'NetBanking & EMI', settledToday: '₹88,14,200', feeRate: '2.10%', uptime: '99.95%', status: 'Optimal' },
     { id: 'gw-3', name: 'Cashfree Disbursals', channels: 'Instant UPI Refunds', settledToday: '₹41,20,910', feeRate: '₹3/tx', uptime: '100%', status: 'Optimal' },
-    { id: 'gw-4', name: 'Stripe Global', channels: 'International USD/GBP', settledToday: '₹18,32,900', feeRate: '3.40%', uptime: '99.99%', status: 'Optimal' }
   ],
   settlementRecords: [
     { id: 'stl-1', utr: 'UTR-HDFC-99120481', gateway: 'Razorpay PG', orderRef: 'EVR-984210-BLR', gross: 4890.00, mdr: 90.46, gstOnMdr: 16.28, net: 4783.26, bankAc: 'HDFC ••4920', cycle: 'T+1 (24 May)', status: 'Matched' },
     { id: 'stl-2', utr: 'UTR-ICIC-88410291', gateway: 'PayU Enterprise', orderRef: 'EVR-984209-BOM', gross: 3450.00, mdr: 72.45, gstOnMdr: 13.04, net: 3364.51, bankAc: 'ICICI ••1024', cycle: 'T+1 (24 May)', status: 'Matched' },
     { id: 'stl-3', utr: 'UTR-AXIS-77401928', gateway: 'Razorpay PG', orderRef: 'EVR-984208-DEL', gross: 11240.00, mdr: 207.94, gstOnMdr: 37.43, net: 10994.63, bankAc: 'HDFC ••4920', cycle: 'T+1 (24 May)', status: 'Matched' },
     { id: 'stl-4', utr: 'PENDING-T2-004', gateway: 'Razorpay PG', orderRef: 'EVR-984205-BLR', gross: 2199.00, mdr: 40.68, gstOnMdr: 7.32, net: 2151.00, bankAc: 'HDFC ••4920', cycle: 'T+2 Clearing', status: 'In-Transit' },
-    { id: 'stl-5', utr: 'UTR-STRP-11029381', gateway: 'Stripe Global', orderRef: 'EVR-INT-99014-DXB', gross: 24890.00, mdr: 846.26, gstOnMdr: 152.33, net: 23891.41, bankAc: 'Citi ••8810', cycle: 'T+3 Forex', status: 'Matched' }
   ],
   codRemittances: [
     { carrier: 'BlueDart Express', collected: 784200, remitted: 784200, inTransit: 0, cycle: 'Weekly Tuesday', status: 'Cleared' },

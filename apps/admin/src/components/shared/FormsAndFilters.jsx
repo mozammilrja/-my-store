@@ -135,13 +135,11 @@ export function DateRangeFilter({
  * FilterBar
  * Status pills on the left, search and filters on the right.
  */
-const TAB_SCROLL_FADE = {
-  maskImage: 'linear-gradient(to right, black calc(100% - 1.5rem), transparent)',
-  WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 1.5rem), transparent)',
-};
 
 export function FilterBar({
   tabs = [],
+  // What the tab row filters on, read to screen readers ("Tax slab", ...).
+  tabsLabel = "Status filter",
   activeTab,
   onTabChange,
   search,
@@ -162,10 +160,10 @@ export function FilterBar({
            right edge to say "there is more". */
         <div
           role="tablist"
-          aria-label="Status filter"
-          className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-0.5 pr-2 lg:pb-0"
-          style={TAB_SCROLL_FADE}
+          aria-label={tabsLabel}
+          className="no-scrollbar scroll-fade-x flex min-w-0 flex-1 items-center overflow-x-auto pr-6"
         >
+          <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-surface-subtle p-0.5">
           {tabs.map((tab) => {
             const tabId = typeof tab === "object" ? tab.id : tab;
             const tabLabel = typeof tab === "object" ? tab.label : tab;
@@ -179,10 +177,10 @@ export function FilterBar({
                 aria-selected={isActive}
                 onClick={() => onTabChange && onTabChange(tabId)}
                 className={cn(
-                  "flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-label transition-colors",
+                  "flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-label transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   isActive
-                    ? "bg-primary-container font-semibold text-on-accent"
-                    : "bg-surface-subtle text-muted hover:bg-surface-container hover:text-primary"
+                    ? "bg-surface-container-lowest font-semibold text-primary shadow-xs"
+                    : "text-muted hover:text-primary"
                 )}
                 type="button"
               >
@@ -192,8 +190,8 @@ export function FilterBar({
                     className={cn(
                       "rounded-full px-1.5 py-px text-micro tabular-nums",
                       isActive
-                        ? "bg-scrim/25 text-on-accent"
-                        : "bg-surface-container-high text-muted"
+                        ? "bg-primary-fixed text-on-primary-fixed"
+                        : "bg-surface-container text-muted"
                     )}
                   >
                     {count}
@@ -202,10 +200,18 @@ export function FilterBar({
               </button>
             );
           })}
+          </div>
         </div>
       )}
 
-      <div className="flex shrink-0 flex-wrap items-center gap-space-xs">
+      {/* Without tabs the controls take the whole row, so the search can
+          stretch instead of leaving an empty box beside it. */}
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-space-xs",
+          tabs.length > 0 ? "shrink-0" : "w-full flex-1 [&>*:first-child]:min-w-0 [&>*:first-child]:flex-1"
+        )}
+      >
         {search}
         {filters}
         {actions}

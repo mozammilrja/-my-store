@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-const COUNTRY = "dk"
+const COUNTRY = "in"
 const PAGES = ["", "/store", "/categories/shirts", "/products/t-shirt", "/cart", "/account", "/search?q=tee", "/shipping"]
 
 test("mobile menu opens, navigates and closes", async ({ page }) => {

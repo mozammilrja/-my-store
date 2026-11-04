@@ -9,6 +9,15 @@ import { checkoutAddressStepSchema } from "../validation/checkout-schemas"
 
 export type ActionResult = { error: string | null }
 
+/**
+ * Calls a /store/carts/:id endpoint as the signed-in shopper. The API only
+ * lets an account's own token touch a bag tied to that account, so every bag
+ * call must carry it (a guest simply has none).
+ */
+async function cartApi<T = unknown>(path: string, options: Parameters<typeof api>[1] = {}) {
+  return api<T>(path, { ...options, token: options.token ?? (await getToken()) ?? undefined })
+}
+
 const message = (e: unknown) => (e instanceof ApiError ? e.message : "Something went wrong. Please try again.")
 
 /** The visitor's open bag, or null. A completed or missing cart clears the cookie. */
@@ -16,7 +25,7 @@ export async function retrieveCart(): Promise<Cart | null> {
   const id = await getCartId()
   if (!id) return null
   try {
-    const { cart } = await api<{ cart: Cart }>(`/store/carts/${id}`, { token: await getToken() })
+    const { cart } = await cartApi<{ cart: Cart }>(`/store/carts/${id}`, { token: await getToken() })
     return cart.completed ? null : cart
   } catch (e) {
     if (e instanceof ApiError && (e.status === 404 || e.status === 400)) return null
@@ -35,103 +44,122 @@ async function cartFor(countryCode: string) {
   const cart = await retrieveCart()
   if (!cart) return createCart(countryCode)
   if (!cart.countryCodes.includes(countryCode.toLowerCase())) {
-    const moved = await api<{ cart: Cart }>(`/store/carts/${cart.id}`, { method: "PATCH", body: { country: countryCode } })
+    const moved = await cartApi<{ cart: Cart }>(`/store/carts/${cart.id}`, { method: "PATCH", body: { country: countryCode } })
     return moved.cart
   }
   return cart
 }
 
-export async function addToCart(input: { variantId: string; quantity: number; countryCode: string }) {
-  const cart = await cartFor(input.countryCode)
+/**
+ * Bag actions report failures by returning `{ error }` instead of throwing:
+ * Next.js replaces a thrown server-action error's message with a generic
+ * one in production, so "Only 2 of this item are available" would reach the
+ * shopper as an unreadable React error. Callers use `ensureOk` to turn the
+ * result back into a thrown Error on the client.
+ */
+export type CartActionResult = { error: string | null }
+
+export async function addToCart(input: {
+  variantId: string
+  quantity: number
+  countryCode: string
+}): Promise<CartActionResult> {
   try {
-    await api(`/store/carts/${cart.id}/items`, { method: "POST", body: { variantId: input.variantId, quantity: input.quantity } })
-  } catch (e) {
-    // The bag was checked out elsewhere: start a new one and retry once.
-    if (e instanceof ApiError && e.code === "cart_completed") {
+    const cart = await cartFor(input.countryCode)
+    try {
+      await cartApi(`/store/carts/${cart.id}/items`, { method: "POST", body: { variantId: input.variantId, quantity: input.quantity } })
+    } catch (e) {
+      // The bag was checked out elsewhere: start a new one and retry once.
+      if (!(e instanceof ApiError && e.code === "cart_completed")) throw e
       const fresh = await createCart(input.countryCode)
-      await api(`/store/carts/${fresh.id}/items`, { method: "POST", body: { variantId: input.variantId, quantity: input.quantity } })
-      refresh()
-      return
+      await cartApi(`/store/carts/${fresh.id}/items`, { method: "POST", body: { variantId: input.variantId, quantity: input.quantity } })
     }
-    throw new Error(message(e))
+  } catch (e) {
+    return { error: message(e) }
   }
   refresh()
+  return { error: null }
 }
 
 /** Re-renders pages that show the bag (cart page, checkout) after a change. */
 const refresh = () => revalidatePath("/", "layout")
 
-const requireCartId = async () => {
+const EXPIRED = "Your bag has expired. Please add the items again."
+
+export async function updateLineItem(input: { lineId: string; quantity: number }): Promise<CartActionResult> {
   const id = await getCartId()
-  if (!id) throw new Error("Your bag has expired. Please add the items again.")
-  return id
-}
-
-export async function updateLineItem(input: { lineId: string; quantity: number }) {
-  const id = await requireCartId()
+  if (!id) return { error: EXPIRED }
   try {
-    await api(`/store/carts/${id}/items/${encodeURIComponent(input.lineId)}`, { method: "PATCH", body: { quantity: input.quantity } })
+    await cartApi(`/store/carts/${id}/items/${encodeURIComponent(input.lineId)}`, { method: "PATCH", body: { quantity: input.quantity } })
   } catch (e) {
-    throw new Error(message(e))
+    return { error: message(e) }
   }
   refresh()
+  return { error: null }
 }
 
-export async function deleteLineItem(lineId: string) {
-  const id = await requireCartId()
+export async function deleteLineItem(lineId: string): Promise<CartActionResult> {
+  const id = await getCartId()
+  if (!id) return { error: EXPIRED }
   try {
-    await api(`/store/carts/${id}/items/${encodeURIComponent(lineId)}`, { method: "DELETE" })
+    await cartApi(`/store/carts/${id}/items/${encodeURIComponent(lineId)}`, { method: "DELETE" })
   } catch (e) {
-    throw new Error(message(e))
+    return { error: message(e) }
   }
   refresh()
+  return { error: null }
 }
 
 export async function clearCart() {
   const cart = await retrieveCart()
   if (!cart) return
   for (const item of cart.items) {
-    try {
-      await deleteLineItem(item.id)
-    } catch {
-      // ignore
-    }
+    // One line failing should not stop the rest from being removed.
+    await deleteLineItem(item.id)
   }
   refresh()
 }
 
-export async function applyPromotions(codes: string[]) {
-  const id = await requireCartId()
-  try {
-    await api(`/store/carts/${id}/promotions`, { method: "POST", body: { codes } })
-  } catch (e) {
-    throw new Error(message(e))
-  }
-  refresh()
-}
-
-/** Switches the bag to another country's region, then reloads the same page there. */
-export async function changeRegion(countryCode: string, currentPath: string) {
+export async function applyPromotions(codes: string[]): Promise<CartActionResult> {
   const id = await getCartId()
-  if (id) {
-    try {
-      await api(`/store/carts/${id}`, { method: "PATCH", body: { country: countryCode } })
-    } catch {
-      // A stale cart shouldn't block switching country.
-    }
+  if (!id) return { error: EXPIRED }
+  try {
+    await cartApi(`/store/carts/${id}/promotions`, { method: "POST", body: { codes } })
+  } catch (e) {
+    return { error: message(e) }
   }
-  const path = currentPath.startsWith("/") ? currentPath : ""
-  redirect(`/${countryCode}${path}`)
+  refresh()
+  return { error: null }
 }
 
 /** Links the signed-in customer to the current bag (after login or sign-up). */
-export async function linkCartToCustomer() {
-  const [id, token] = await Promise.all([getCartId(), getToken()])
-  if (!id || !token) return
+/**
+ * Runs right after sign-in or sign-up. Myntra-style, the bag follows the
+ * account: a guest bag with items in it is attached to the account; an empty
+ * or missing guest bag is swapped for the account's last open bag.
+ */
+export async function linkCartToCustomer(freshToken?: string) {
+  // Just after sign-in the new token is not readable from the request's
+  // cookies yet, so the caller passes it in.
+  const [id, cookieToken] = await Promise.all([getCartId(), getToken()])
+  const token = freshToken ?? cookieToken
+  if (!token) return
+
+  const guest = id ? await retrieveCart().catch(() => null) : null
+  if (guest && guest.items.length > 0) {
+    try {
+      await cartApi(`/store/carts/${guest.id}/customer`, { method: "POST", token })
+    } catch {
+      // A completed or foreign cart is simply left alone.
+    }
+    return
+  }
+
   try {
-    await api(`/store/carts/${id}/customer`, { method: "POST", token })
+    const { cartId } = await api<{ cartId: string | null }>("/store/customers/me/cart", { token })
+    if (cartId) await setCartId(cartId)
   } catch {
-    // A completed or foreign cart is simply left alone.
+    // No saved bag to restore; the shopper starts with an empty one.
   }
 }
 
@@ -152,8 +180,12 @@ const readAddress = (form: FormData, prefix: string): Address => ({
   phone: text(form, `${prefix}.phone`) || undefined,
 })
 
-/** Checkout step 1: email and addresses. */
-export async function saveAddresses(_: ActionResult, form: FormData): Promise<ActionResult> {
+/**
+ * Saves checkout's email and addresses without navigating, so the one-button
+ * checkout can save the address, the delivery choice and place the order in
+ * one go. Validates with the same Zod schema as the form.
+ */
+export async function setCheckoutAddress(form: FormData): Promise<ActionResult> {
   const id = await getCartId()
   if (!id) return { error: "Your bag has expired. Please add the items again." }
   const shippingAddress = readAddress(form, "shipping")
@@ -161,7 +193,6 @@ export async function saveAddresses(_: ActionResult, form: FormData): Promise<Ac
   const billingAddress = sameAsShipping ? shippingAddress : readAddress(form, "billing")
   const emailVal = text(form, "email")
 
-  // Zod Server Validation
   const validation = checkoutAddressStepSchema.safeParse({
     email: emailVal,
     shipping: shippingAddress,
@@ -173,11 +204,18 @@ export async function saveAddresses(_: ActionResult, form: FormData): Promise<Ac
   }
 
   try {
-    await api(`/store/carts/${id}`, { method: "PATCH", body: { email: emailVal, shippingAddress, billingAddress } })
+    await cartApi(`/store/carts/${id}`, { method: "PATCH", body: { email: emailVal, shippingAddress, billingAddress } })
   } catch (e) {
     return { error: message(e) }
   }
-  redirect(`/${shippingAddress.countryCode}/checkout?step=delivery`)
+  return { error: null }
+}
+
+/** Checkout step 1 of the stepped flow: save, then go on to delivery. */
+export async function saveAddresses(_: ActionResult, form: FormData): Promise<ActionResult> {
+  const result = await setCheckoutAddress(form)
+  if (result.error) return result
+  redirect(`/${text(form, "shipping.countryCode").toLowerCase()}/checkout?step=delivery`)
 }
 
 /** Checkout step 2: delivery option. */
@@ -191,7 +229,7 @@ export async function setShippingOption(optionId: string): Promise<ActionResult>
   const id = await getCartId()
   if (!id) return { error: "Your bag has expired. Please add the items again." }
   try {
-    await api(`/store/carts/${id}/shipping`, { method: "POST", body: { optionId } })
+    await cartApi(`/store/carts/${id}/shipping`, { method: "POST", body: { optionId } })
   } catch (e) {
     return { error: message(e) }
   }
@@ -202,7 +240,7 @@ export async function saveShipping(_: ActionResult, form: FormData): Promise<Act
   const id = await getCartId()
   if (!id) return { error: "Your bag has expired. Please add the items again." }
   try {
-    await api(`/store/carts/${id}/shipping`, { method: "POST", body: { optionId: text(form, "optionId") } })
+    await cartApi(`/store/carts/${id}/shipping`, { method: "POST", body: { optionId: text(form, "optionId") } })
   } catch (e) {
     return { error: message(e) }
   }
@@ -217,22 +255,21 @@ export async function placeOrder(_: ActionResult, form: FormData): Promise<Actio
   let order: Order
 
   try {
-    if (paymentMethod === "razorpay" || paymentMethod === "stripe") {
+    if (paymentMethod === "razorpay") {
       order = (
-        await api<{ order: Order }>(`/store/carts/${id}/confirm-payment`, {
+        await cartApi<{ order: Order }>(`/store/carts/${id}/confirm-payment`, {
           method: "POST",
           body: {
             provider: paymentMethod,
             razorpayOrderId: text(form, "razorpayOrderId") || undefined,
             razorpayPaymentId: text(form, "razorpayPaymentId") || undefined,
             razorpaySignature: text(form, "razorpaySignature") || undefined,
-            paymentIntentId: text(form, "paymentIntentId") || undefined,
           },
           token: await getToken(),
         })
       ).order
     } else {
-      order = (await api<{ order: Order }>(`/store/carts/${id}/complete`, { method: "POST", token: await getToken() })).order
+      order = (await cartApi<{ order: Order }>(`/store/carts/${id}/complete`, { method: "POST", token: await getToken() })).order
     }
   } catch (e) {
     return { error: message(e) }

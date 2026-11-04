@@ -7,7 +7,10 @@ import { cn } from '../../lib/utils';
  * cannot resolve: the wordmark rendered black and disappeared in dark mode.
  * Painting it as a mask lets it inherit the theme's text colour instead.
  */
-export function BrandMark({ src, label, className, style, ...props }) {
+export function BrandMark({ src, label, align = 'center', className, style, ...props }) {
+  // The mask URL comes from a prop, so it has to be set at runtime; the
+  // alignment rides along with it rather than being retyped at each call site.
+  const position = align === 'left' ? 'left center' : 'center';
   return (
     <span
       role="img"
@@ -18,8 +21,8 @@ export function BrandMark({ src, label, className, style, ...props }) {
         maskImage: `url(${src})`,
         WebkitMaskRepeat: 'no-repeat',
         maskRepeat: 'no-repeat',
-        WebkitMaskPosition: 'center',
-        maskPosition: 'center',
+        WebkitMaskPosition: position,
+        maskPosition: position,
         WebkitMaskSize: 'contain',
         maskSize: 'contain',
         ...style,

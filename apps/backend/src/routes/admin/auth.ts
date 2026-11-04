@@ -4,12 +4,13 @@ import { db, type AdminUserRole } from "../../db/schema.js"
 import { clientKey, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
 import { ApiError, unauthorized } from "../../lib/errors.js"
 import { email } from "../../lib/validation.js"
+import { adminLoginMaxAttempts } from "../../env.js"
 
 export const adminAuthRoutes = Router()
 
 adminAuthRoutes.post("/auth/login", async (req, res) => {
   const body = z.object({ email, password: z.string().min(1).max(200) }).parse(req.body)
-  if (!rateLimit(`admin-login:${clientKey(req, body.email)}`, 5, 15 * 60 * 1000)) {
+  if (!rateLimit(`admin-login:${clientKey(req, body.email)}`, adminLoginMaxAttempts, 15 * 60 * 1000)) {
     throw new ApiError(429, "rate_limited", "Too many attempts. Try again later.")
   }
   const admin = await db.adminUsers().findOne({ email: body.email })

@@ -15,9 +15,15 @@ const { request, close } = await startTestServer(createApp())
 type Json = Record<string, any>
 
 const call = async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
+  // Like the storefront, bag calls go out as the signed-in customer: a bag
+  // tied to an account only answers to that account's token.
+  const asCustomer: Record<string, string> =
+    path.startsWith("/store/carts/") && customerToken && !headers.Authorization
+      ? { Authorization: `Bearer ${customerToken}` }
+      : {}
   const res = await request(path, {
     method,
-    headers: { "content-type": "application/json", ...headers },
+    headers: { "content-type": "application/json", ...asCustomer, ...headers },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   return { status: res.status, body: (await res.json().catch(() => null)) as Json }
@@ -188,6 +194,16 @@ describe("End-to-End Customer & Admin Integrated Flow", () => {
     assert.equal(order.paymentStatus, "awaiting")
     assert.equal(order.fulfillmentStatus, "unfulfilled")
     assert.equal(order.paymentMethod, "cod")
+
+    // The shopper can read their own GST invoice; nobody else can.
+    const invoice = await call("GET", `/store/orders/${order.id}/invoice`, undefined, {
+      Authorization: `Bearer ${customerToken}`,
+    })
+    assert.equal(invoice.status, 200, JSON.stringify(invoice.body))
+    assert.equal(invoice.body.invoice.orderId, order.id)
+    assert.ok(invoice.body.invoice.invoiceNumber)
+    assert.equal(invoice.body.invoice.items.length, order.items.length)
+    assert.equal((await call("GET", `/store/orders/${order.id}/invoice`)).status, 403, "anonymous: refused")
 
     // VERIFY MONGODB ATOMIC STOCK DEDUCTION
     const prodAfter = await db.products().findOne({ _id: productId })

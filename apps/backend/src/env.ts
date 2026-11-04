@@ -17,15 +17,17 @@ const schema = z.object({
   /** Currency of the single region this store trades in. Admin reporting is scoped to it. */
   OPERATING_REGION_CURRENCY: z.string().min(3).max(3).default("inr"),
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
+  /**
+   * Admin sign-in attempts allowed per email in 15 minutes. Defaults to 5 in
+   * production and 100 elsewhere, so local testing does not lock you out.
+   */
+  ADMIN_LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().optional(),
   STORE_CORS: list,
   ADMIN_CORS: list,
   // Payment Providers (optional in local/test, required for live external gateway connections)
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
-  STRIPE_SECRET_KEY: z.string().optional(),
-  STRIPE_WEBHOOK_SECRET: z.string().optional(),
-  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   // Carrier Logistics (optional in local/test, required for live manifest/dispatch APIs)
   DELHIVERY_API_KEY: z.string().optional(),
   DELHIVERY_CLIENT_ID: z.string().optional(),
@@ -46,3 +48,4 @@ if (!parsed.success) {
 /** Validated settings. The process exits at startup if any are missing or invalid. */
 export const env = parsed.data
 export const isProd = env.NODE_ENV === "production"
+export const adminLoginMaxAttempts = env.ADMIN_LOGIN_MAX_ATTEMPTS ?? (isProd ? 5 : 100)

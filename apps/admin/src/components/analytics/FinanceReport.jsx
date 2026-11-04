@@ -96,15 +96,15 @@ export function FinanceReport({ data, totals, money }) {
         footer={
           invoices.length > 0 && (
             <dl className="flex flex-wrap items-center gap-x-space-xl gap-y-1 px-space-sm text-meta text-muted">
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-space-sm">
                 <dt>Taxable</dt>
                 <dd className="text-num tabular-nums text-primary">{money(invoiceTotals.taxable)}</dd>
               </div>
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-space-sm">
                 <dt>Tax</dt>
                 <dd className="text-num tabular-nums text-primary">{money(invoiceTotals.tax)}</dd>
               </div>
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-space-sm">
                 <dt>Invoiced</dt>
                 <dd className="text-num tabular-nums text-primary">{money(invoiceTotals.grandTotal)}</dd>
               </div>
@@ -181,11 +181,11 @@ export function FinanceReport({ data, totals, money }) {
               {[...purchaseOrders]
                 .sort((a, b) => b.amount - a.amount)
                 .map((row) => (
-                  <li key={row.status} className="flex min-w-0 flex-col gap-1.5">
+                  <li key={row.status} className="flex min-w-0 flex-col gap-space-xs">
                     <div className="flex items-baseline justify-between gap-space-md">
                       <span className="truncate text-body-lg text-secondary">
                         {PO_LABEL[row.status] ?? row.status}
-                        <span className="ml-2 text-meta text-faint">
+                        <span className="ml-space-sm text-meta text-faint">
                           {row.count} {row.count === 1 ? 'order' : 'orders'}
                         </span>
                       </span>

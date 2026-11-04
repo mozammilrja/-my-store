@@ -3,20 +3,26 @@ import {
   Icon,
   Button,
   Badge,
-  Select,
+  Checkbox,
+  Progress,
   PageContainer,
   PageHeader,
   ContentGrid,
   StatsCard,
   StatusBadge,
-  ErrorState,
+  PageBody,
   SkeletonPage,
   SearchInput,
-  TablePagination,
+  FilterBar,
+  SectionCard,
+  AppDialog,
+  ConfirmDialog,
+  FormInput,
+  FormSelect,
+  FormGrid,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
 import { DataTable, TableToolbar } from '../shared/DataTable';
-import { adminApi } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
 import { EmptyState } from '../shared/FeedbackAndOverlays';
 import { downloadCsv, datedFilename } from '../../lib/export';
@@ -28,13 +34,39 @@ import {
   useDeletePromotionMutation
 } from '../../hooks/useAdminQueries';
 
+/**
+ * Where a promotion stands today, read off its `active` flag and its
+ * `startsAt`/`endsAt` dates. Every promotion lands in exactly one state, so
+ * the tab counts add up to the total.
+ */
+function promotionState(p, now) {
+  const starts = p.startsAt ? new Date(p.startsAt) : null;
+  const ends = p.endsAt ? new Date(p.endsAt) : null;
+  if (ends && ends <= now) return 'expired';
+  if (!p.active) return 'paused';
+  if (starts && starts > now) return 'scheduled';
+  return 'live';
+}
+
+const STATE_LABEL = { live: 'Live', scheduled: 'Scheduled', paused: 'Paused', expired: 'Expired' };
+const STATE_VARIANT = { live: 'success', scheduled: 'info', paused: 'secondary', expired: 'destructive' };
+
+const PROMO_TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'live', label: 'Live' },
+  { id: 'scheduled', label: 'Scheduled' },
+  { id: 'paused', label: 'Paused' },
+  { id: 'expired', label: 'Expired' },
+];
+
+const EMPTY_FORM = { code: '', type: 'percentage', value: 20, currency: 'inr', usageLimit: '', active: true };
+
 export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
-  const [selectedCode, setSelectedCode] = useState('FESTIVE20');
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'live', 'vip', 'expired'
+  const [selectedCode, setSelectedCode] = useState(null);
+  const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [channelFilter, setChannelFilter] = useState('omni');
-  const [selectedRows, setSelectedRows] = useState({ 'FESTIVE20': true });
+  const [selectedRows, setSelectedRows] = useState({});
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   // TanStack Query for promotions
   const {
@@ -56,14 +88,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
   const [isCreatePromoOpen, setIsCreatePromoOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [promoForm, setPromoForm] = useState({
-    code: '',
-    type: 'percentage',
-    value: 20,
-    currency: 'inr',
-    usageLimit: '',
-    active: true,
-  });
+  const [promoForm, setPromoForm] = useState(EMPTY_FORM);
 
   useEffect(() => {
     if (promotionsData?.promotions) {
@@ -81,7 +106,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
         code: promoForm.code.toUpperCase().trim(),
         type: promoForm.type,
         value: promoForm.type === 'percentage' ? Number(promoForm.value) : Number(promoForm.value) * 100, // convert major to minor paise if fixed
-        currency: promoForm.type === 'fixed' ? (promoForm.currency || 'inr') : null,
+        currency: promoForm.type === 'fixed' ? 'inr' : null,
         usageLimit: promoForm.usageLimit ? Number(promoForm.usageLimit) : null,
         active: promoForm.active,
       });
@@ -89,10 +114,10 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       onShowToast?.({
         type: 'success',
         title: 'Promotion Created',
-        message: `Campaign code "${promoForm.code.toUpperCase()}" created and active.`,
+        message: `Campaign code "${promoForm.code.toUpperCase()}" created${promoForm.active ? ' and active' : ''}.`,
       });
       setIsCreatePromoOpen(false);
-      setPromoForm({ code: '', type: 'percentage', value: 20, currency: 'inr', usageLimit: '', active: true });
+      setPromoForm(EMPTY_FORM);
     } catch (err) {
       onShowToast?.({
         type: 'error',
@@ -121,8 +146,9 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     }
   };
 
-  const handleDeletePromo = async (promoId, promoCode) => {
-    if (!confirm(`Are you sure you want to delete promo ${promoCode}?`)) return;
+  const handleDeletePromo = async () => {
+    if (!pendingDelete) return;
+    const { id: promoId, code: promoCode } = pendingDelete;
     try {
       await deletePromotionMutation.mutateAsync(promoId);
       onShowToast?.({
@@ -136,13 +162,15 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
         title: 'Delete Failed',
         message: err?.message || 'Cannot delete used code. Deactivate it instead.',
       });
+    } finally {
+      setPendingDelete(null);
     }
   };
 
-  // Promotions as the API holds them. GMV impact and margin health used to be
-  // typed in as a fixed "4.2L" and "Safe (48%)" for every row; neither figure
-  // exists anywhere in the data, so neither is shown.
+  // Promotions as the API holds them. GMV impact, margin health, velocity and
+  // abuse rules are not on a promotion record, so none of them are shown.
   const mergedCampaigns = useMemo(() => {
+    const now = new Date();
     const dateLabel = (value) =>
       value ? new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : null;
 
@@ -151,12 +179,11 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       const used = p.usageCount ?? 0;
       const starts = dateLabel(p.startsAt);
       const ends = dateLabel(p.endsAt);
-      const endsInPast = p.endsAt ? new Date(p.endsAt) < new Date() : false;
+      const state = promotionState(p, now);
 
       return {
         code: p.code,
         id: p.id,
-        isDbPromo: true,
         name:
           p.type === 'percentage'
             ? `${p.value}% off the order`
@@ -164,15 +191,13 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
         type: p.type === 'percentage' ? 'Percentage' : 'Fixed amount',
         discountLabel:
           p.type === 'percentage' ? `${p.value}%` : formatMoney(p.value, p.currency ?? 'inr'),
-        window: starts && ends ? `${starts} to ${ends}` : starts ? `From ${starts}` : 'No end date',
-        windowWarning: endsInPast && p.active ? 'End date has passed' : null,
+        window: starts && ends ? `${starts} to ${ends}` : starts ? `From ${starts}` : ends ? `Until ${ends}` : 'No end date',
+        windowWarning: state === 'expired' && p.active ? 'Still switched on' : null,
         usageLabel: limit ? `${used} of ${limit}` : `${used} uses`,
         progress: limit ? Math.min(100, Math.round((used / limit) * 100)) : null,
-        progressColor: 'bg-primary-container',
-        status: p.active ? 'Live' : 'Paused',
-        statusColor: p.active ? 'bg-status-success-bg text-success' : 'bg-surface-subtle text-muted',
-        icon: 'local_offer',
-        iconColor: 'bg-primary-container text-on-accent',
+        created: dateLabel(p.createdAt),
+        state,
+        status: STATE_LABEL[state],
         active: p.active,
       };
     });
@@ -185,7 +210,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     const subtotal = orders.reduce((t, o) => t + (o.totals?.itemSubtotal ?? 0), 0);
     const discount = orders.reduce((t, o) => t + (o.totals?.discountTotal ?? 0), 0);
     return {
-      live: mergedCampaigns.filter((c) => c.active).length,
+      live: mergedCampaigns.filter((c) => c.state === 'live').length,
       total: mergedCampaigns.length,
       redemptions: dbPromotions.reduce((t, p) => t + (p.usageCount ?? 0), 0),
       orderCount: orders.length,
@@ -195,11 +220,20 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     };
   }, [mergedCampaigns, dbPromotions, ordersData]);
 
+  // Counted from the loaded promotions. These read 24, 18, 6 and 14 whatever
+  // the store held, and "Expired / Paused" filtered nothing.
+  const tabCounts = useMemo(() => {
+    const counts = { all: mergedCampaigns.length, live: 0, scheduled: 0, paused: 0, expired: 0 };
+    mergedCampaigns.forEach((c) => {
+      counts[c.state] += 1;
+    });
+    return counts;
+  }, [mergedCampaigns]);
+
   const selectedCampaign = mergedCampaigns.find(c => c.code === selectedCode) || mergedCampaigns[0];
 
   const filteredCampaigns = mergedCampaigns.filter(c => {
-    if (activeTab === 'live' && c.status !== 'Live') return false;
-    if (activeTab === 'vip' && !c.code.includes('VIP') && !c.code.includes('INFLUENCER')) return false;
+    if (activeTab !== 'all' && c.state !== activeTab) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       if (!c.code.toLowerCase().includes(q) && !c.name.toLowerCase().includes(q)) return false;
@@ -231,6 +265,14 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
   // One shared pager over the rows this module actually holds.
   const promosPager = useClientTable(filteredCampaigns);
 
+  // No promotion on record at all, as against none matching the filters.
+  const noCampaigns = (promotionsData?.promotions ?? []).length === 0;
+  const noMatches = !noCampaigns && filteredCampaigns.length === 0;
+  const clearFilters = () => {
+    setActiveTab('all');
+    setSearchQuery('');
+  };
+
   const toggleSelectRow = (code) => {
     setSelectedRows(prev => ({
       ...prev,
@@ -239,45 +281,41 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
   };
 
   if (isPromotionsLoading) {
-    return <SkeletonPage variant="cards" stats={6} statsCols={6} label="Loading promotions" />;
+    return <SkeletonPage variant="cards" stats={4} statsCols={4} label="Loading promotions" />;
   }
 
 
   // Selected row ids in the shape DataTable expects.
   const selectedCodes = Object.keys(selectedRows).filter((code) => selectedRows[code]);
 
-  // One column definition per visible column. Cells keep the markup the
-  // hand-rolled table used, so the ledger reads exactly as before.
   const promoColumns = [
     {
       key: 'code',
-      header: 'Campaign & Coupon Code',
+      header: 'Campaign & code',
       cell: (camp) => (
-        <div className="flex items-center gap-2">
-          <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${camp.iconColor}`}>
-            <Icon name={camp.icon} className="material-symbols-outlined text-icon" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-body-lg font-semibold text-primary tracking-tight">{camp.code}</span>
-              {camp.isAuto && (
-                <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
-                  AUTO
-                </span>
-              )}
-              <button
-                className="text-muted hover:text-primary"
+        <div className="flex items-center gap-space-sm">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-subtle bg-surface-subtle text-accent">
+            <Icon name="local_offer" aria-hidden="true" className="material-symbols-outlined text-icon" />
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <div className="flex items-center gap-space-xs">
+              <span className="font-mono text-body font-semibold text-primary">{camp.code}</span>
+              <Button
+                variant="ghost"
+                size="iconXs"
+                className="h-5 w-5"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigator.clipboard.writeText(camp.code);
                   onShowToast?.(`Copied coupon code ${camp.code}`);
                 }}
-                title="Copy Code"
+                title="Copy code"
+                aria-label={`Copy code ${camp.code}`}
               >
-                <Icon name="content_copy" className="material-symbols-outlined text-icon-sm" />
-              </button>
+                <Icon name="content_copy" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+              </Button>
             </div>
-            <span className="text-micro text-muted truncate">{camp.name}</span>
+            <span className="truncate text-micro text-muted">{camp.name}</span>
           </div>
         </div>
       ),
@@ -285,18 +323,14 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     {
       key: 'type',
       header: 'Type',
-      cell: (camp) => (
-        <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-primary text-caption font-semibold border border-subtle">
-          {camp.type}
-        </span>
-      ),
+      cell: (camp) => <Badge variant="secondary">{camp.type}</Badge>,
     },
     {
       key: 'discount',
       fit: true,
       header: 'Discount',
       align: 'right',
-      cell: (camp) => <span className="text-num font-semibold text-primary">{camp.discountLabel}</span>,
+      cell: (camp) => <span className="text-num font-semibold tabular-nums text-primary">{camp.discountLabel}</span>,
     },
     {
       key: 'window',
@@ -318,23 +352,18 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       align: 'right',
       cell: (camp) => (
         <div className="flex flex-col items-end gap-1">
-          <span className="text-num font-semibold text-primary">{camp.usageLabel}</span>
+          <span className="text-num font-semibold tabular-nums text-primary">{camp.usageLabel}</span>
           {camp.progress === null ? (
             <span className="text-micro text-faint">No limit</span>
           ) : (
             <>
-              <div
-                className="h-1 w-16 overflow-hidden rounded-full border border-subtle bg-surface-subtle"
-                role="progressbar"
-                aria-valuenow={camp.progress}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={`${camp.code} redemption limit used`}
+              <Progress
+                value={camp.progress}
+                label={`${camp.code} redemption limit used`}
+                className="h-1 w-16"
                 title={`${camp.progress}% of the redemption limit used`}
-              >
-                <div className={`${camp.progressColor} h-full`} style={{ width: `${camp.progress}%` }} />
-              </div>
-              <span className="text-micro text-muted tabular-nums">{camp.progress}% of limit</span>
+              />
+              <span className="text-micro tabular-nums text-muted">{camp.progress}% of limit</span>
             </>
           )}
         </div>
@@ -345,11 +374,7 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       fit: true,
       header: 'Status',
       align: 'center',
-      cell: (camp) => (
-        <span className={`px-2 py-0.5 rounded-full text-caption font-medium ${camp.statusColor}`}>
-          {camp.status}
-        </span>
-      ),
+      cell: (camp) => <StatusBadge status={camp.status} variant={STATE_VARIANT[camp.state]} />,
     },
     {
       key: 'actions',
@@ -357,23 +382,27 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       header: 'Action',
       align: 'center',
       cell: (camp) => (
-        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <>
-              <button
-                className={`p-1 rounded hover:bg-surface-subtle cursor-pointer ${camp.active ? 'text-success' : 'text-muted'}`}
-                onClick={() => handleToggleActive(camp.id, camp.active, camp.code)}
-                title={camp.active ? 'Pause Promotion' : 'Activate Promotion'}
-              >
-                <Icon name={camp.active ? 'toggle_on' : 'toggle_off'} className="material-symbols-outlined text-icon-md" />
-              </button>
-              <button
-                className="p-1 rounded hover:bg-status-danger-bg text-muted hover:text-danger cursor-pointer"
-                onClick={() => handleDeletePromo(camp.id, camp.code)}
-                title="Delete Promo"
-              >
-                <Icon name="delete" className="material-symbols-outlined text-icon" />
-              </button>
-          </>
+        <div className="flex items-center justify-center gap-space-xs" onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="ghost"
+            size="iconXs"
+            className={camp.active ? 'text-success' : 'text-muted'}
+            onClick={() => handleToggleActive(camp.id, camp.active, camp.code)}
+            title={camp.active ? 'Pause promotion' : 'Activate promotion'}
+            aria-label={camp.active ? `Pause ${camp.code}` : `Activate ${camp.code}`}
+          >
+            <Icon name={camp.active ? 'toggle_on' : 'toggle_off'} aria-hidden="true" className="material-symbols-outlined text-icon-md" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="iconXs"
+            className="hover:bg-status-danger-bg hover:text-danger"
+            onClick={() => setPendingDelete({ id: camp.id, code: camp.code })}
+            title="Delete promo"
+            aria-label={`Delete ${camp.code}`}
+          >
+            <Icon name="delete" aria-hidden="true" className="material-symbols-outlined text-icon" />
+          </Button>
         </div>
       ),
     },
@@ -381,511 +410,300 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
 
   return (
     <PageContainer>
-      {promotionsError && (
-        <ErrorState
-          title="Promotions could not be loaded"
-          message={promotionsError?.message}
-          onRetry={() => refetchPromotions()}
-        />
-      )}
       <PageHeader
-        breadcrumb="Everwear Admin / Settings & Admin / Promotions & Coupons"
-        title="Promotions, Discount Engines & Coupon Campaign Orchestration"
-        description="Discount codes, their active window and how often each has been redeemed."
+        kicker="Settings & admin"
+        title="Promotions & coupons"
+        description="Discount codes, their dates and redemptions."
         actions={
           <div className="flex min-w-0 flex-wrap items-center gap-space-sm lg:shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportPromotions}
-              icon="download"
-            >
-              Export Campaign Ledger
+            <Button variant="outline" size="sm" onClick={handleExportPromotions}>
+              <Icon name="download" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+              <span>Export Campaign Ledger</span>
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setIsCreatePromoOpen(true)}
-              icon="add"
-            >
-              Create Promo Campaign
+            <Button variant="primary" size="sm" onClick={() => setIsCreatePromoOpen(true)}>
+              <Icon name="add" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+              <span>Create Promo Campaign</span>
             </Button>
           </div>
         }
       />
+      <PageBody
+        error={promotionsError}
+        hasData={promotionsData != null}
+        title="Promotions could not be loaded"
+        onRetry={refetchPromotions}
+      >
 
-      {/* KPI Summary Banner (5 Metric Cards) */}
-      <ContentGrid columns={5}>
-        <StatsCard
-          label="Active promotions"
-          value={`${promoStats.live} live`}
-          changeType="neutral"
-          icon="campaign"
-          subtitle={`${promoStats.total} codes on record`}
-        />
-        <StatsCard
-          label="Promo-driven GMV"
-          value={formatMoney(promoStats.promoGmv, 'inr')}
-          changeType="neutral"
-          icon="payments"
-          subtitle={
-            promoStats.orderCount
-              ? `${promoStats.promoOrders} of ${promoStats.orderCount} orders used a code`
-              : 'No orders loaded'
-          }
-        />
-        <StatsCard
-          label="Blended discount depth"
-          value={promoStats.depth == null ? 'Not recorded' : `${promoStats.depth.toFixed(1)}%`}
-          changeType="neutral"
-          icon="percent"
-          subtitle="Discount against item subtotal, all orders"
-        />
-        <StatsCard
-          label="Coupon redemptions"
-          value={promoStats.redemptions.toLocaleString('en-IN')}
-          changeType="neutral"
-          icon="confirmation_number"
-          subtitle="Counted on the promotions themselves"
-        />
-        <StatsCard
-          label="Margin shield triggers"
-          value="Not recorded"
-          changeType="neutral"
-          icon="security"
-          subtitle="No suppression rule is evaluated or logged"
-        />
-      </ContentGrid>
-
-      {/* Filters & Segmentation Toolbar */}
-      <div className="p-space-sm bg-surface-container-lowest rounded-xl shadow-sm border border-subtle flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-space-sm">
-        {/* Segment Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-3 py-1.5 rounded-lg text-label font-semibold whitespace-nowrap shadow-sm transition-all ${
- activeTab === 'all'
- ? 'bg-primary-container text-on-accent'
- : 'text-muted hover:bg-surface-subtle hover:text-primary'
- }`}
-          >
-            All Campaigns (24)
-          </button>
-          <button
-            onClick={() => setActiveTab('live')}
-            className={`px-3 py-1.5 rounded-lg text-label font-semibold whitespace-nowrap transition-all ${
- activeTab === 'live'
- ? 'bg-primary-container text-on-accent shadow-sm'
- : 'text-muted hover:bg-surface-subtle hover:text-primary'
- }`}
-          >
-            Live & Scheduled (18)
-          </button>
-          <button
-            onClick={() => setActiveTab('vip')}
-            className={`px-3 py-1.5 rounded-lg text-label font-semibold whitespace-nowrap transition-all ${
- activeTab === 'vip'
- ? 'bg-primary-container text-on-accent shadow-sm'
- : 'text-muted hover:bg-surface-subtle hover:text-primary'
- }`}
-          >
-            Influencer & VIP (6)
-          </button>
-          <button
-            onClick={() => setActiveTab('expired')}
-            className={`px-3 py-1.5 rounded-lg text-label font-semibold whitespace-nowrap transition-all ${
- activeTab === 'expired'
- ? 'bg-primary-container text-on-accent shadow-sm'
- : 'text-muted hover:bg-surface-subtle hover:text-primary'
- }`}
-          >
-            Expired / Paused (14)
-          </button>
-        </div>
-
-        {/* Search & Facets */}
-        <div className="flex items-center gap-space-xs flex-wrap sm:flex-nowrap">
-          <SearchInput
-            value={searchQuery}
-            onChange={(value) => setSearchQuery(value)}
-            onClear={() => setSearchQuery('')}
-            placeholder="Filter code or trigger"
-            label="Filter campaigns"
-            className="w-full sm:w-64 sm:flex-initial"
+        {/* Counted from the promotions and orders the API returns. */}
+        <ContentGrid columns={4}>
+          <StatsCard
+            label="Active promotions"
+            value={`${promoStats.live} live`}
+            icon="campaign"
+            subtitle={`${promoStats.total} codes on record`}
           />
-          <Select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="h-8"
-          >
-            <option value="all">Category: All</option>
-            <option value="ethnic">Ethnic Wear</option>
-            <option value="western">Western Coutures</option>
-            <option value="silk">Pure Silk Collections</option>
-          </Select>
-          <Select
-            value={channelFilter}
-            onChange={(e) => setChannelFilter(e.target.value)}
-            className="h-8"
-          >
-            <option value="app">Mobile App Only</option>
-            <option value="web">Web Storefront</option>
-          </Select>
-        </div>
-      </div>
-
-      {/* Main Split Architecture: Table (65%) + Campaign Inspector (35%) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-start">
-        {/* Left Data Table Column (8 Cols ~ 66.6%) */}
-        <div className="lg:col-span-8 flex flex-col space-y-space-md">
-          <DataTable
-            data={promosPager.pageRows}
-            columns={promoColumns}
-            keyField="code"
-            className="min-w-[840px]"
-            selectable
-            selectedIds={selectedCodes}
-            onSelectRow={(code) => toggleSelectRow(code)}
-            onSelectAll={(checked) =>
-              setSelectedRows(
-                checked ? Object.fromEntries(filteredCampaigns.map((c) => [c.code, true])) : {}
-              )
+          <StatsCard
+            label="Promo-driven GMV"
+            value={formatMoney(promoStats.promoGmv, 'inr')}
+            icon="payments"
+            subtitle={
+              promoStats.orderCount
+                ? `${promoStats.promoOrders} of ${promoStats.orderCount} orders used a code`
+                : 'No orders loaded'
             }
-            activeRowId={selectedCode}
-            onRowClick={(row) => setSelectedCode(row.code)}
-            emptyIcon="sell"
-            emptyTitle="No campaigns match these filters"
-            emptyMessage="No promotion rule matches the current search, audience or channel selection."
-            pagination={{
-              page: promosPager.page,
-              pageSize: promosPager.limit,
-              totalItems: promosPager.total,
-              onPageChange: promosPager.setPage,
-              onPageSizeChange: promosPager.setLimit,
-            }}
-            toolbar={
-              <TableToolbar
-                className="bg-surface-canvas px-space-md py-3"
-                left={
-                  <div className="flex items-center gap-2">
-                    <span className="text-subheading text-primary font-semibold">Active Engine Rules</span>
-                    <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
-                      {filteredCampaigns.length} Rules
-                    </span>
-                  </div>
-                }
+          />
+          <StatsCard
+            label="Blended discount depth"
+            value={promoStats.depth == null ? 'Not recorded' : `${promoStats.depth.toFixed(1)}%`}
+            icon="percent"
+            subtitle="Discount against item subtotal, all orders"
+          />
+          <StatsCard
+            label="Coupon redemptions"
+            value={promoStats.redemptions.toLocaleString('en-IN')}
+            icon="confirmation_number"
+            subtitle="Counted on the promotions themselves"
+          />
+        </ContentGrid>
+
+        {!noCampaigns && (
+          <FilterBar
+            tabs={PROMO_TABS.map((tab) => ({ ...tab, count: tabCounts[tab.id] }))}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            search={
+              <SearchInput
+                value={searchQuery}
+                onChange={(value) => setSearchQuery(value)}
+                onClear={() => setSearchQuery('')}
+                placeholder="Filter code or discount"
+                label="Filter campaigns"
+                className="w-full sm:w-64"
               />
             }
           />
-
-          {/* Real-Time Rule Simulation Log Module */}
-          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Icon name="bolt" className="material-symbols-outlined text-accent text-icon-md" />
-                <span className="text-subheading text-primary font-semibold">Simulated Stack Resolution Engine</span>
-              </div>
-              <span className="text-caption text-muted uppercase">Deterministic Stacking: ON</span>
-            </div>
-            <p className="text-body text-secondary">
-              Rule engine evaluates hierarchically: <strong>Product-Level Markdown &gt; Cart-Level Auto Promos &gt; Coupon Code &gt; Payment Tender Bank Offers</strong>. Auto-exclusion triggered when combined discount pushes product net GMV below target cost margin.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-space-sm pt-1">
-              <div className="p-space-sm bg-surface-canvas rounded-lg border border-subtle">
-                <span className="text-caption text-muted uppercase block">Primary Conflict Mode</span>
-                <span className="text-label font-semibold text-primary">Greedy High-Value Wins</span>
-              </div>
-              <div className="p-space-sm bg-surface-canvas rounded-lg border border-subtle">
-                <span className="text-caption text-muted uppercase block">Bank Offer Stack</span>
-                <span className="text-label font-semibold text-success">Allowed (HDFC/ICICI 10%)</span>
-              </div>
-              <div className="p-space-sm bg-surface-canvas rounded-lg border border-subtle">
-                <span className="text-caption text-muted uppercase block">Max Combined Concession</span>
-                <span className="text-label font-semibold text-primary">Cap 32.5% of Cart MRP</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Campaign Inspector (4 Cols ~ 33.3%) */}
-        {!selectedCampaign ? (
-          <div className="lg:col-span-4">
-            <EmptyState icon="sell" title="No campaign selected" description="Pick a campaign from the list to inspect it." />
-          </div>
-        ) : (
-        <div className="lg:col-span-4 flex flex-col space-y-space-md">
-          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-md">
-            {/* Inspector Header */}
-            <div className="flex items-start justify-between">
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-caption text-accent uppercase font-semibold tracking-wider">
-                    Live Campaign Inspector
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">
-                    ACTIVE
-                  </span>
-                </div>
-                <h2 className="text-heading text-primary font-semibold mt-0.5 flex items-center gap-1.5">
-                  {selectedCampaign.code}
-                </h2>
-                <span className="text-meta text-muted">{selectedCampaign.subTitle ?? 'Not recorded'}</span>
-              </div>
-            </div>
-
-            {/* Telemetry Metrics & Sparkline Graphic */}
-            <div className="p-space-sm rounded-xl bg-surface-canvas border border-subtle flex flex-col space-y-space-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-caption text-muted uppercase">Redemption Velocity (Last 6 Hours)</span>
-                <span className="text-micro font-semibold text-success">{selectedCampaign.velocity ?? 'Not recorded'}</span>
-              </div>
-              {/* Inline SVG Sparkline */}
-              <div className="w-full h-14 relative flex items-end">
-                <svg className="w-full h-full text-accent" preserveAspectRatio="none" viewBox="0 0 100 35">
-                  <defs>
-                    <linearGradient id="promoGrad" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="currentColor" stopOpacity="0.3"></stop>
-                      <stop offset="100%" stopColor="currentColor" stopOpacity="0.0"></stop>
-                    </linearGradient>
-                  </defs>
-                  <path d="M0,28 Q10,24 20,27 T40,16 T60,20 T80,8 T100,5 L100,35 L0,35 Z" fill="url(#promoGrad)"></path>
-                  <path d="M0,28 Q10,24 20,27 T40,16 T60,20 T80,8 T100,5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5"></path>
-                </svg>
-              </div>
-              <div className="grid grid-cols-2 gap-space-xs pt-1">
-                <div className="bg-surface-container-lowest p-2 rounded-lg border border-subtle">
-                  <span className="text-caption text-muted uppercase block">AOV Uplift</span>
-                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.aovUplift ?? 'Not recorded'}</span>
-                  <span className="text-micro text-success block">{selectedCampaign.aovUpliftSub ?? 'Not recorded'}</span>
-                </div>
-                <div className="bg-surface-container-lowest p-2 rounded-lg border border-subtle">
-                  <span className="text-caption text-muted uppercase block">Net Margin Post-Promo</span>
-                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.netMargin ?? 'Not recorded'}</span>
-                  <span className="text-micro text-success block">{selectedCampaign.netMarginSub ?? 'Not recorded'}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Margin Guardrails Warning/Status Card */}
-            <div className="p-space-sm rounded-xl bg-status-success-bg/60 border border-status-success/20 flex flex-col space-y-1">
-              <div className="flex items-center gap-2">
-                <Icon name="verified_user" className="material-symbols-outlined text-icon-md text-success" />
-                <span className="text-label font-semibold text-success">Margin Threshold Guard Enforced</span>
-              </div>
-              <p className="text-meta text-muted leading-relaxed">
-                System enforces automatic coupon suppression if post-discount contribution margin drops below <strong>45.0%</strong> on SKU basket.
-              </p>
-            </div>
-
-            {/* Eligible Category & Exclusion Tree */}
-            <div className="flex flex-col space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-caption text-muted uppercase">Product Scope & Exclusions</span>
-              </div>
-              <div className="p-space-sm bg-surface-canvas rounded-xl border border-subtle flex flex-col space-y-2">
-                {/* Included */}
-                <div className="flex items-start gap-2">
-                  <Icon name="check_circle" className="material-symbols-outlined text-icon text-success shrink-0 mt-0.5" />
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-label font-semibold text-primary">
-                      Category: {selectedCampaign.categoryScope ?? 'Not recorded'}
-                    </span>
-                    <span className="text-micro text-muted">{selectedCampaign.scopeSkus ?? 'Not recorded'}</span>
-                  </div>
-                </div>
-                {/* Excluded SKU Badges */}
-                <div className="flex items-start gap-2 pt-1">
-                  <Icon name="do_not_disturb_on" className="material-symbols-outlined text-icon text-danger shrink-0 mt-0.5" />
-                  <div className="flex flex-col min-w-0 space-y-1">
-                    <span className="text-label font-semibold text-primary">Target Exclusions</span>
-                    <div className="flex flex-wrap gap-1">
-                      {(selectedCampaign.exclusions ?? []).map((ex, idx) => (
-                        <span key={idx} className="px-2 py-0.5 rounded-full bg-status-danger-bg text-danger text-micro">
-                          {ex}
-                        </span>
-                      ))}
-                      {(selectedCampaign.exclusions ?? []).length === 0 && (
-                        <span className="text-micro text-muted">
-                          No exclusion rules recorded for this promotion.
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Fraud & Checkout Abuse Shield */}
-            <div className="flex flex-col space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-caption text-muted uppercase">Abuse Mitigation Rules</span>
-                <span className="px-1.5 py-0.5 rounded bg-surface-subtle text-muted text-micro border border-subtle">
-                  L3 STRICT
-                </span>
-              </div>
-              <div className="p-space-sm bg-surface-canvas rounded-xl border border-subtle space-y-2">
-                <div className="flex items-center justify-between text-meta">
-                  <span className="text-muted">Device Fingerprint Cap</span>
-                  <span className="font-semibold text-primary">{selectedCampaign.fraudDevice ?? 'Not recorded'}</span>
-                </div>
-                <div className="flex items-center justify-between text-meta">
-                  <span className="text-muted">Customer Identity</span>
-                  <span className="font-semibold text-primary">{selectedCampaign.fraudAuth ?? 'Not recorded'}</span>
-                </div>
-                <div className="flex items-center justify-between text-meta">
-                  <span className="text-muted">Min Cart Qualifying Value</span>
-                  <span className="font-semibold text-primary">{selectedCampaign.fraudMinCart ?? 'Not recorded'}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Action Buttons */}
-            <div className="pt-2 flex flex-col space-y-2">
-              <div className="grid grid-cols-2 gap-space-xs">
-              </div>
-              <button
-                onClick={() =>
-                  handleToggleActive(selectedCampaign.id, selectedCampaign.active, selectedCampaign.code)
-                }
-                disabled={!selectedCampaign.isDbPromo || togglePromotionMutation.isPending}
-                className="h-9 px-3 rounded-lg bg-status-danger-bg hover:bg-status-danger text-danger hover:text-on-accent text-label font-semibold flex items-center justify-center gap-1.5 transition-colors active:scale-[0.99] border border-status-danger/20"
-                type="button"
-              >
-                <Icon name="pause_circle" className="material-symbols-outlined text-icon-md" />
-                <span>Pause {selectedCampaign.code} Instantly</span>
-              </button>
-            </div>
-          </div>
-
-        </div>
         )}
-      </div>
 
-      {/* Create Promo Campaign Modal */}
-      {isCreatePromoOpen && (
-        <div className="fixed inset-0 z-50 bg-scrim/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-subtle max-w-md w-full overflow-hidden animate-fade-in fade-in duration-150">
-            <div className="p-space-lg border-b border-subtle flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Icon name="local_offer" className="p-2 rounded-xl bg-primary-container text-on-accent material-symbols-outlined text-icon-lg" />
-                <div>
-                  <h3 className="font-semibold text-primary">Create Promo Campaign</h3>
-                  <p className="text-meta text-muted">Configure cart discount rules and voucher codes</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsCreatePromoOpen(false)}
-                className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-muted" title="Close" aria-label="Close"
-              >
-                <Icon name="close" className="material-symbols-outlined text-icon-md" />
-              </button>
+        <div className="grid grid-cols-1 items-start gap-space-lg lg:grid-cols-12">
+          {noCampaigns ? (
+            <EmptyState
+              icon="sell"
+              title="No campaigns yet"
+              description="Discount codes you create will be listed here with their dates, status and redemptions."
+              className="py-16 lg:col-span-12"
+              action={
+                <Button variant="primary" size="sm" onClick={() => setIsCreatePromoOpen(true)}>
+                  <Icon name="add" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                  <span>Create Promo Campaign</span>
+                </Button>
+              }
+            />
+          ) : (
+            <DataTable
+              data={promosPager.pageRows}
+              columns={promoColumns}
+              keyField="code"
+              className="min-w-[840px]"
+              containerClassName={noMatches ? 'lg:col-span-12' : 'lg:col-span-8'}
+              selectable
+              selectedIds={selectedCodes}
+              onSelectRow={(code) => toggleSelectRow(code)}
+              onSelectAll={(checked) =>
+                setSelectedRows(
+                  checked ? Object.fromEntries(filteredCampaigns.map((c) => [c.code, true])) : {}
+                )
+              }
+              activeRowId={selectedCode ?? selectedCampaign?.code}
+              onRowClick={(row) => setSelectedCode(row.code)}
+              emptyIcon="search"
+              emptyTitle="No campaigns match these filters"
+              emptyMessage="No promotion matches the current search or status selection."
+              emptyAction={
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              }
+              pagination={{
+                page: promosPager.page,
+                pageSize: promosPager.limit,
+                totalItems: promosPager.total,
+                onPageChange: promosPager.setPage,
+                onPageSizeChange: promosPager.setLimit,
+              }}
+              toolbar={
+                <TableToolbar
+                  className="px-space-md py-space-sm"
+                  left={
+                    <div className="flex items-center gap-space-sm">
+                      <span className="text-subheading font-semibold text-primary">Campaigns</span>
+                      <Badge variant="secondary" className="tabular-nums">
+                        {filteredCampaigns.length}
+                      </Badge>
+                    </div>
+                  }
+                />
+              }
+            />
+          )}
+
+          {/* Only what a promotion records. The inspector used to show a
+              drawn-in sparkline, a 45% margin guard, "L3 strict" abuse rules
+              and an always-on ACTIVE badge; none of it existed. */}
+          {noCampaigns || noMatches ? null : !selectedCampaign ? (
+            <div className="lg:col-span-4">
+              <EmptyState icon="sell" title="No campaign selected" description="Pick a campaign from the list to inspect it." />
             </div>
-
-            <form onSubmit={handleCreatePromo} className="p-space-lg space-y-4">
-              <div>
-                <label className="block text-meta font-semibold text-muted mb-1">Coupon Code *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. DIWALI30"
-                  value={promoForm.code}
-                  onChange={(e) => setPromoForm({ ...promoForm, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })}
-                  className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-mono font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container uppercase whitespace-nowrap"
-                />
-                <p className="text-micro text-muted mt-1">3 to 32 letters, numbers, or dashes.</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-meta font-semibold text-muted mb-1">Discount Type</label>
-                  <Select
-                    value={promoForm.type}
-                    onChange={(e) => setPromoForm({ ...promoForm, type: e.target.value })}
-                    aria-label="Discount type"
-                    options={[
-                      { value: 'percentage', label: 'Percentage off (%)' },
-                      { value: 'fixed', label: 'Fixed amount (₹ / €)' },
-                    ]}
-                  />
+          ) : (
+            <SectionCard
+              className="lg:col-span-4"
+              title={<span className="font-mono">{selectedCampaign.code}</span>}
+              description={selectedCampaign.name}
+              action={<StatusBadge status={selectedCampaign.status} variant={STATE_VARIANT[selectedCampaign.state]} />}
+              footer={
+                <div className="flex flex-wrap items-center justify-end gap-space-xs">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="hover:bg-status-danger-bg hover:text-danger"
+                    onClick={() => setPendingDelete({ id: selectedCampaign.id, code: selectedCampaign.code })}
+                  >
+                    <Icon name="delete" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                    <span>Delete</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      handleToggleActive(selectedCampaign.id, selectedCampaign.active, selectedCampaign.code)
+                    }
+                    disabled={togglePromotionMutation.isPending}
+                  >
+                    <Icon
+                      name={selectedCampaign.active ? 'pause_circle' : 'toggle_on'}
+                      aria-hidden="true"
+                      className="material-symbols-outlined text-icon-sm"
+                    />
+                    <span>{selectedCampaign.active ? 'Pause promotion' : 'Activate promotion'}</span>
+                  </Button>
                 </div>
-                <div>
-                  <label className="block text-meta font-semibold text-muted mb-1">
-                    {promoForm.type === 'percentage' ? 'Percentage Value (1-100)' : 'Amount (Major Currency)'}
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    max={promoForm.type === 'percentage' ? 100 : 100000}
-                    value={promoForm.value}
-                    onChange={(e) => setPromoForm({ ...promoForm, value: e.target.value })}
-                    className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
-                  />
-                </div>
-              </div>
-
-              {promoForm.type === 'fixed' && (
-                <div>
-                  <label className="block text-meta font-semibold text-muted mb-1">Currency</label>
-                  <Select
-                    value={promoForm.currency}
-                    onChange={(e) => setPromoForm({ ...promoForm, currency: e.target.value })}
-                    aria-label="Currency"
-                    options={[
-                      { value: 'inr', label: 'INR (Indian rupee, ₹)' },
-                      { value: 'eur', label: 'EUR (euro, €)' },
-                    ]}
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-meta font-semibold text-muted mb-1">Max Redemptions (Optional)</label>
-                <input
-                  type="number"
-                  placeholder="Leave empty for unlimited uses"
-                  min={1}
-                  max={100000}
-                  value={promoForm.usageLimit}
-                  onChange={(e) => setPromoForm({ ...promoForm, usageLimit: e.target.value })}
-                  className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="promo-active-chk"
-                  checked={promoForm.active}
-                  onChange={(e) => setPromoForm({ ...promoForm, active: e.target.checked })}
-                  className="w-4 h-4 accent-primary-container rounded cursor-pointer"
-                />
-                <label htmlFor="promo-active-chk" className="text-meta font-semibold text-primary cursor-pointer">
-                  Activate campaign immediately upon creation
-                </label>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-subtle">
-                <button
-                  type="button"
-                  onClick={() => setIsCreatePromoOpen(false)}
-                  className="h-9 px-4 rounded-xl border border-subtle bg-surface-container-lowest text-primary text-meta font-semibold hover:bg-surface-subtle transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary-container-hover text-on-accent text-meta font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <Icon name={isSubmitting ? 'hourglass_top' : 'check'} className="material-symbols-outlined text-icon" />
-                  <span>{isSubmitting ? 'Creating...' : 'Launch Campaign'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
+              }
+            >
+              <dl className="flex flex-col gap-space-sm">
+                {[
+                  ['Discount', selectedCampaign.discountLabel],
+                  ['Type', selectedCampaign.type],
+                  ['Active window', selectedCampaign.window],
+                  ['Redemptions', selectedCampaign.usageLabel],
+                  ['Created', selectedCampaign.created ?? 'Not recorded'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-start justify-between gap-space-md">
+                    <dt className="text-meta text-muted">{label}</dt>
+                    <dd className="text-right text-body tabular-nums text-primary">{value}</dd>
+                  </div>
+                ))}
+                {selectedCampaign.windowWarning && (
+                  <p className="text-meta text-warning">
+                    The end date has passed but the code is still switched on.
+                  </p>
+                )}
+                {selectedCampaign.progress !== null && (
+                  <div className="flex flex-col gap-space-xs border-t border-subtle pt-space-sm">
+                    <div className="flex items-center justify-between text-micro text-muted">
+                      <span>Redemption limit used</span>
+                      <span className="font-semibold tabular-nums text-primary">{selectedCampaign.progress}%</span>
+                    </div>
+                    <Progress value={selectedCampaign.progress} label="Redemption limit used" />
+                  </div>
+                )}
+              </dl>
+            </SectionCard>
+          )}
         </div>
-      )}
+
+        <AppDialog
+          isOpen={isCreatePromoOpen}
+          onClose={() => setIsCreatePromoOpen(false)}
+          title="Create promo campaign"
+          description="Set the discount and the voucher code customers enter at checkout."
+          maxWidth="max-w-md"
+        >
+          <form id="create-promo-form" onSubmit={handleCreatePromo} className="flex flex-col gap-space-md">
+            <FormInput
+              id="promo-code"
+              label="Coupon code"
+              required
+              placeholder="e.g. DIWALI30"
+              value={promoForm.code}
+              onChange={(value) => setPromoForm({ ...promoForm, code: value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })}
+              helperText="3 to 32 letters, numbers, or dashes."
+              inputClassName="font-mono uppercase"
+            />
+
+            <FormGrid columns={2}>
+              <FormSelect
+                id="promo-type"
+                label="Discount type"
+                value={promoForm.type}
+                onChange={(e) => setPromoForm({ ...promoForm, type: e.target.value })}
+                options={[
+                  { value: 'percentage', label: 'Percentage off (%)' },
+                  { value: 'fixed', label: 'Fixed amount (₹)' },
+                ]}
+              />
+              <FormInput
+                id="promo-value"
+                label={promoForm.type === 'percentage' ? 'Percentage (1-100)' : 'Amount (₹)'}
+                type="number"
+                required
+                min={1}
+                max={promoForm.type === 'percentage' ? 100 : 100000}
+                value={promoForm.value}
+                onChange={(value) => setPromoForm({ ...promoForm, value })}
+              />
+            </FormGrid>
+
+            <FormInput
+              id="promo-limit"
+              label="Max redemptions"
+              type="number"
+              placeholder="Leave empty for unlimited uses"
+              min={1}
+              max={100000}
+              value={promoForm.usageLimit}
+              onChange={(value) => setPromoForm({ ...promoForm, usageLimit: value })}
+            />
+
+            <label htmlFor="promo-active-chk" className="flex cursor-pointer items-center gap-space-sm text-label text-primary">
+              <Checkbox
+                id="promo-active-chk"
+                checked={promoForm.active}
+                onChange={(e) => setPromoForm({ ...promoForm, active: e.target.checked })}
+              />
+              Activate campaign immediately upon creation
+            </label>
+
+            <div className="flex items-center justify-end gap-space-sm border-t border-subtle pt-space-md">
+              <Button variant="outline" size="sm" onClick={() => setIsCreatePromoOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="sm" disabled={isSubmitting}>
+                <Icon name={isSubmitting ? 'hourglass_top' : 'check'} aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                <span>{isSubmitting ? 'Creating...' : 'Launch Campaign'}</span>
+              </Button>
+            </div>
+          </form>
+        </AppDialog>
+
+        <ConfirmDialog
+          isOpen={pendingDelete != null}
+          onClose={() => setPendingDelete(null)}
+          onConfirm={handleDeletePromo}
+          title={`Delete promo ${pendingDelete?.code ?? ''}?`}
+          message="The code stops working at checkout. A code that has been redeemed cannot be deleted; pause it instead."
+          confirmText="Delete"
+          isLoading={deletePromotionMutation.isPending}
+        />
+      </PageBody>
     </PageContainer>
   );
 }

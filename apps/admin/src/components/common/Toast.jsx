@@ -40,11 +40,11 @@ export function Toast({ toast, onClose }) {
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-6 right-6 z-overlay animate-fade-in-up"
+      className="fixed bottom-6 left-6 right-6 z-overlay flex justify-end animate-fade-in-up sm:left-auto"
     >
       <div
         className={cn(
-          'flex min-w-[17.5rem] max-w-md items-start gap-3 rounded-xl px-4 py-3 text-on-accent shadow-xl',
+          'flex w-full items-start gap-space-md rounded-xl px-space-lg py-space-md text-on-accent shadow-xl sm:w-auto sm:min-w-72 sm:max-w-md',
           tone.fill
         )}
       >
@@ -55,11 +55,11 @@ export function Toast({ toast, onClose }) {
         />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           {title && (
-            <div className="text-caption uppercase tracking-wider opacity-90">
+            <div className="text-label font-semibold">
               {title}
             </div>
           )}
-          <div className="text-meta leading-relaxed">{message}</div>
+          <div className="text-meta opacity-90">{message}</div>
         </div>
         <button
           onClick={onClose}

@@ -56,14 +56,13 @@ test.describe("Sidebar Navigation Verification (Items 1, 2, 3)", () => {
     await expect(sidebar).toBeVisible()
   })
 
-  test("1. Sidebar structure renders correctly with Brand and Environment tag", async () => {
+  test("1. Sidebar structure renders correctly with the brand and no invented environment tag", async () => {
     // Top brand title
     const brand = sidebar.getByTitle(/AVELIQ/i).or(sidebar.getByText(/AVELIQ/i)).first()
     await expect(brand).toBeVisible()
 
-    // Environment badge
-    const envBadge = sidebar.getByText("PROD-IN-01")
-    await expect(envBadge).toBeVisible()
+    // The hard-coded "PROD-IN-01" tag claimed production on every machine
+    await expect(sidebar.getByText("PROD-IN-01")).toHaveCount(0)
 
     // Node hub selector at bottom
     const nodeHub = sidebar.getByText(/Node hub/i).first()
@@ -136,6 +135,6 @@ test.describe("Sidebar Navigation Verification (Items 1, 2, 3)", () => {
 
     await expect(productsItem).toBeVisible()
     await expect(productsItem).toHaveAttribute("aria-current", "page")
-    await expect(productsItem).toHaveClass(/bg-primary-container/)
+    await expect(productsItem).toHaveClass(/bg-primary-fixed/)
   })
 })

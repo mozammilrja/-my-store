@@ -10,11 +10,8 @@ import { cardValidationSchema, upiVerificationSchema } from "@lib/validation/che
 
 export function ReviewStep({ total }: { total: string }) {
   const { countryCode } = useParams<{ countryCode: string }>()
-  const isIndia = countryCode?.toLowerCase() === "in"
 
-  const [activeTab, setActiveTab] = useState<"upi" | "card" | "netbanking" | "cod">(
-    isIndia ? "upi" : "card"
-  )
+  const [activeTab, setActiveTab] = useState<"upi" | "card" | "netbanking" | "cod">("upi")
   const [selectedUpiApp, setSelectedUpiApp] = useState("gpay")
   const [upiIdInput, setUpiIdInput] = useState("")
   const [upiVerified, setUpiVerified] = useState(false)
@@ -66,8 +63,7 @@ export function ReviewStep({ total }: { total: string }) {
     setCardErrors({})
   }
 
-  const paymentMethodValue =
-    activeTab === "cod" ? "cod" : isIndia ? "razorpay" : "stripe"
+  const paymentMethodValue = activeTab === "cod" ? "cod" : "razorpay"
 
   return (
     <form
@@ -91,19 +87,17 @@ export function ReviewStep({ total }: { total: string }) {
 
         {/* Tab Buttons */}
         <div className="flex items-center gap-space-sm overflow-x-auto pb-space-xs no-scrollbar">
-          {isIndia && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("upi")}
-              className={`px-space-md py-space-xs rounded-lg font-label-md text-label-md uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === "upi"
-                  ? "bg-primary text-on-primary font-semibold shadow-xs"
-                  : "bg-surface-container text-on-surface-variant hover:text-on-surface"
-              }`}
-            >
-              UPI Apps
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveTab("upi")}
+            className={`px-space-md py-space-xs rounded-lg font-label-md text-label-md uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === "upi"
+                ? "bg-primary text-on-primary font-semibold shadow-xs"
+                : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            UPI Apps
+          </button>
 
           <button
             type="button"
@@ -117,19 +111,17 @@ export function ReviewStep({ total }: { total: string }) {
             Credit / Debit Card
           </button>
 
-          {isIndia && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("netbanking")}
-              className={`px-space-md py-space-xs rounded-lg font-label-md text-label-md uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                activeTab === "netbanking"
-                  ? "bg-primary text-on-primary font-semibold shadow-xs"
-                  : "bg-surface-container text-on-surface-variant hover:text-on-surface"
-              }`}
-            >
-              NetBanking
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveTab("netbanking")}
+            className={`px-space-md py-space-xs rounded-lg font-label-md text-label-md uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === "netbanking"
+                ? "bg-primary text-on-primary font-semibold shadow-xs"
+                : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            NetBanking
+          </button>
 
           <button
             type="button"
@@ -246,7 +238,7 @@ export function ReviewStep({ total }: { total: string }) {
                 Tokenized Card Settlement
               </span>
               <span className="font-label-caps text-label-caps text-secondary font-bold">
-                {isIndia ? "Secured by Razorpay" : "Secured by Stripe 3DS"}
+                Secured by Razorpay
               </span>
             </div>
 

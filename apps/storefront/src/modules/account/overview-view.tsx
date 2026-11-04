@@ -1,5 +1,6 @@
 "use client"
 
+import { ensureOk } from "@lib/util/cart-action"
 import type { Customer, OrderSummary, Product } from "@lib/api/types"
 import { addToCart } from "@lib/data/shop"
 import { formatMoney } from "@lib/money"
@@ -58,7 +59,7 @@ export function OverviewView({
         const product = catalogProducts.find((p) => p.title === firstItem?.productTitle) ?? catalogProducts[0]
         const variantId = product?.variants?.[0]?.id
         if (variantId) {
-          await addToCart({ variantId, quantity: 1, countryCode })
+          ensureOk(await addToCart({ variantId, quantity: 1, countryCode }))
           toast.success(`Added ${product.title} to your bag`)
         } else {
           toast.info("Item is currently viewing in catalog")
@@ -74,7 +75,7 @@ export function OverviewView({
       try {
         const variantId = product.variants[0]?.id
         if (!variantId) throw new Error("No variant available")
-        await addToCart({ variantId, quantity: 1, countryCode })
+        ensureOk(await addToCart({ variantId, quantity: 1, countryCode }))
         toast.success(`Added ${product.title} to your bag`)
       } catch (err: unknown) {
         toast.error(err instanceof Error ? err.message : "Failed to add to bag")

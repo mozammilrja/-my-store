@@ -4,10 +4,8 @@ import { useState } from "react"
 import { X } from "lucide-react"
 
 export function Announcement({
-  countryCode,
   deliveryInfo,
 }: {
-  countryCode: string
   deliveryInfo?: { deliveryDays: string; returnDays: number; freeReturns: boolean } | null
 }) {
   const [dismissed, setDismissed] = useState(false)
@@ -16,9 +14,7 @@ export function Announcement({
 
   const deliveryText = deliveryInfo
     ? `Complimentary delivery in ${deliveryInfo.deliveryDays} business days · ${deliveryInfo.returnDays}-day ${deliveryInfo.freeReturns ? "free " : ""}returns`
-    : countryCode === "in"
-      ? "Complimentary standard delivery across India on orders above ₹1,999"
-      : "Complimentary standard delivery across Europe on orders above €49"
+    : "Complimentary standard delivery across India on orders above ₹1,999"
 
   return (
     <div

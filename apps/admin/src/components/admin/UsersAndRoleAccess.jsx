@@ -9,11 +9,21 @@ import {
   StatsCard,
   StatusBadge,
   SearchInput,
-  ErrorState,
+  PageBody,
   SkeletonPage,
   Thumbnail,
   Select,
   TablePagination,
+  Card,
+  SectionCard,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  AppDialog,
+  ConfirmDialog,
+  FormField,
+  FormInput,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
 import { DataTable, TableToolbar } from '../shared/DataTable';
@@ -36,7 +46,7 @@ const MODULE_ACCESS = [
 
 export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   const [selectedUserKey, setSelectedUserKey] = useState('vikram');
-  const [activeTab, setActiveTab] = useState('directory'); // 'directory', 'matrix', 'nodes', 'audit'
+  const [activeTab, setActiveTab] = useState('directory'); // 'directory', 'matrix', 'audit'
   const [filterText, setFilterText] = useState('');
   
   // TanStack Query for users
@@ -103,8 +113,15 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
     }
   };
 
-  const handleDeleteUser = async (userId, userName) => {
-    if (!confirm(`Are you sure you want to remove ${userName}? This will revoke all admin access.`)) return;
+  // Removal goes through a confirm dialog rather than window.confirm, so it
+  // reads like every other destructive action in the admin.
+  const [pendingDelete, setPendingDelete] = useState(null); // { id, name }
+
+  const handleDeleteUser = (userId, userName) => setPendingDelete({ id: userId, name: userName });
+
+  const confirmDeleteUser = async () => {
+    if (!pendingDelete) return;
+    const { id: userId, name: userName } = pendingDelete;
     try {
       await deleteUserMutation.mutateAsync(userId);
       onShowToast?.({
@@ -118,6 +135,8 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         title: 'Action Failed',
         message: err?.message || 'Failed to remove user.',
       });
+    } finally {
+      setPendingDelete(null);
     }
   };
 
@@ -130,22 +149,16 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       name: u.name || u.email.split('@')[0],
       email: u.email,
       role: u.role === 'owner' ? 'Store Owner' : 'Operations Staff',
-      roleBadge: u.role === 'owner' ? 'bg-primary-container text-on-accent' : 'bg-surface-subtle text-primary',
-      hub: 'Central HQ / All Hubs',
-      hubIcon: 'corporate_fare',
+      roleVariant: u.role === 'owner' ? 'info' : 'secondary',
+      // Every account used to read "Central HQ / All Hubs" and "Zero-Trust
+      // Active". Neither is stored on an admin, so neither is shown.
       scopeTitle: u.role === 'owner' ? 'Full Superadmin' : 'Operational Access',
       scopeDesc: u.role === 'owner' ? 'Full RBAC & financial sign-off authority' : 'Order, shipment & catalog management',
-      securityState: 'Zero-Trust Active',
-      securityBadge: 'bg-status-success-bg text-success',
-      securityIcon: 'verified_user',
       // The API records when an account was created and last changed; it does
       // not track sessions, so presence is not claimed.
       lastActive: u.updatedAt
         ? new Date(u.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
         : 'Unknown',
-      device: null,
-      isOnline: false,
-      isExec: u.role === 'owner',
       // The data model has two roles, owner and staff, and the API enforces
       // exactly two owner-only capabilities. The per-module list is derived
       // from that rather than stored per user, so it cannot drift from what
@@ -154,10 +167,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         name: m.name,
         icon: m.icon,
         scopeTag: m.ownerOnly && u.role !== 'owner' ? 'Read only' : 'Full access',
-        scopeColor:
-          m.ownerOnly && u.role !== 'owner'
-            ? 'bg-surface-subtle text-muted'
-            : 'bg-status-success-bg text-success',
+        scopeVariant: m.ownerOnly && u.role !== 'owner' ? 'secondary' : 'success',
         perms: [
           { text: 'View', allowed: true },
           { text: 'Create and edit', allowed: !m.ownerOnly || u.role === 'owner' },
@@ -173,7 +183,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   const filteredUsers = mergedUsers.filter(u => {
     if (filterText.trim()) {
       const q = filterText.toLowerCase();
-      if (!u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q) && !u.role.toLowerCase().includes(q) && !u.hub.toLowerCase().includes(q)) {
+      if (!u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q) && !u.role.toLowerCase().includes(q)) {
         return false;
       }
     }
@@ -199,10 +209,21 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
     });
   };
 
+  // No operator exists at all: every tab, the search and the inspector have
+  // nothing to work on, so the page becomes one call to invite the first one.
+  const noUsers = mergedUsers.length === 0;
+  const noFilteredUsers = !noUsers && filteredUsers.length === 0;
+  const clearUserFilters = () => setFilterText('');
+  const clearFiltersAction = (
+    <Button variant="outline" size="sm" onClick={clearUserFilters}>
+      Clear filters
+    </Button>
+  );
+
   // One shared pager over the rows this module actually holds.
   const usersPager = useClientTable(filteredUsers);
 
-  // The other three tabs are views over the same operator records, grouped the
+  // The other two tabs are views over the same operator records, grouped the
   // way each tab asks about them. Nothing here invents data: every field shown
   // is one the directory rows already carry.
   const groupBy = (rows, pick) =>
@@ -218,80 +239,43 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   const directoryColumns = [
     {
       key: 'identity',
-      header: 'Operator Identity',
+      header: 'Team member',
       cell: (user) => (
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-space-sm">
           <PersonAvatar
             name={user.name}
             email={user.email}
             src={user.avatar}
-            className="h-9 w-9 shadow-sm"
+            className="h-9 w-9"
             fallbackClassName="text-label"
           />
-          <div>
-            <div className={`text-label-lg font-semibold text-primary flex items-center gap-1.5 ${user.isSuspended ? 'line-through' : ''}`}>
-              <span>{user.name}</span>
-              {user.isOnline && <span className="w-2 h-2 rounded-full bg-status-success" title="Session Online" />}
-              {user.isExec && (
-                <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">EXEC</span>
-              )}
-            </div>
-            <div className="text-body text-secondary text-meta">{user.email}</div>
+          <div className="min-w-0">
+            <div className="truncate text-label font-semibold text-primary">{user.name}</div>
+            <div className="truncate text-meta text-muted">{user.email}</div>
           </div>
         </div>
       ),
     },
     {
       key: 'role',
-      header: 'Primary Role',
-      cell: (user) => (
-        <span className={`inline-block max-w-[11rem] truncate rounded-md px-2 py-0.5 text-label font-medium ${user.roleBadge}`} title={user.role}>
-          {user.role}
-        </span>
-      ),
-    },
-    {
-      key: 'hub',
-      header: 'Hub / Node',
-      cell: (user) => (
-        <span className="flex min-w-0 items-center gap-1 text-label text-primary" title={user.hub}>
-          <Icon name={user.hubIcon} aria-hidden="true" className="material-symbols-outlined shrink-0 text-icon-sm text-muted" />
-          <span className="truncate">{user.hub}</span>
-        </span>
-      ),
+      header: 'Role',
+      cell: (user) => <Badge variant={user.roleVariant} className="whitespace-nowrap">{user.role}</Badge>,
     },
     {
       key: 'scope',
-      header: 'Access Scope & Limit',
+      header: 'Access',
       cell: (user) => (
-        <div className="space-y-0.5">
-          <span className="text-primary font-medium text-meta block">{user.scopeTitle}</span>
-          <span className={`text-micro block ${user.isSuspended ? 'text-danger font-semibold' : 'text-muted'}`}>
-            {user.scopeDesc}
-          </span>
+        <div className="flex min-w-48 flex-col gap-0.5">
+          <span className="text-label font-medium text-primary">{user.scopeTitle}</span>
+          <span className="text-meta text-muted">{user.scopeDesc}</span>
         </div>
       ),
     },
     {
-      key: 'security',
-      header: 'Security State',
-      cell: (user) => (
-        <span className={`whitespace-nowrap inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-semibold ${user.securityBadge}`}>
-          <Icon name={user.securityIcon} className="material-symbols-outlined text-icon-sm" />
-          {user.securityState}
-        </span>
-      ),
-    },
-    {
       key: 'lastActive',
-      header: 'Last Active',
-      className: 'text-muted text-meta',
-      cell: (user) => (
-        <>
-          <span>{user.lastActive}</span>
-          <span className="block text-micro text-muted/70">{user.device}</span>
-        </>
-      ),
+      header: 'Last updated',
+      className: 'whitespace-nowrap text-meta text-muted tabular-nums',
+      accessor: 'lastActive',
     },
     {
       key: 'actions',
@@ -299,17 +283,20 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       header: 'Actions',
       align: 'right',
       cell: (user) => (
-        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-end gap-space-xs" onClick={(e) => e.stopPropagation()}>
           {/* There is no suspended state on an admin account, so the only row
               action is the delete the API supports, and only for an owner. */}
           {canManageUsers && user.isDbUser && user.role !== 'Store Owner' && (
-            <button
+            <Button
+              variant="ghost"
+              size="iconSm"
               onClick={() => handleDeleteUser(user.id, user.name)}
-              className="p-1 rounded-lg text-danger transition-colors hover:bg-status-danger-bg"
-              title="Delete"
+              className="text-danger hover:bg-status-danger-bg hover:text-danger"
+              title={`Remove ${user.name}`}
+              aria-label={`Remove ${user.name}`}
             >
-              <Icon name="delete" className="material-symbols-outlined text-icon-md" />
-            </button>
+              <Icon name="delete" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+            </Button>
           )}
         </div>
       ),
@@ -317,9 +304,6 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   ];
 
   const roleGroups = Object.entries(groupBy(filteredUsers, (u) => u.role)).sort(
-    (a, b) => b[1].length - a[1].length
-  );
-  const nodeGroups = Object.entries(groupBy(filteredUsers, (u) => u.hub)).sort(
     (a, b) => b[1].length - a[1].length
   );
   // `owner` is the only elevated role the server defines, so it is the only
@@ -336,18 +320,16 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       key: 'role',
       header: 'Role',
       cell: ({ roleName, sample }) => (
-        <span className={`px-2 py-0.5 rounded-md text-label font-semibold ${sample.roleBadge || 'bg-surface-subtle text-primary'}`}>
-          {roleName}
-        </span>
+        <Badge variant={sample.roleVariant || 'secondary'} className="whitespace-nowrap">{roleName}</Badge>
       ),
     },
     {
       key: 'operators',
-      header: 'Operators',
+      header: 'Members',
       cell: ({ members }) => (
-        <div className="flex items-center gap-1.5">
-          <span className="text-body font-semibold text-primary">{members.length}</span>
-          <span className="text-caption text-muted truncate max-w-[220px]">
+        <div className="flex min-w-0 items-center gap-space-sm">
+          <span className="text-label font-semibold tabular-nums text-primary">{members.length}</span>
+          <span className="truncate text-meta text-muted">
             {members.map((m) => m.name).join(', ')}
           </span>
         </div>
@@ -355,12 +337,12 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
     },
     {
       key: 'scope',
-      header: 'Access Scope',
+      header: 'Access',
       cell: ({ sample }) => (
-        <>
-          <div className="text-meta text-primary">{sample.scopeTitle}</div>
-          <div className="text-caption text-muted">{sample.scopeDesc}</div>
-        </>
+        <div className="flex min-w-48 flex-col gap-0.5">
+          <span className="text-label text-primary">{sample.scopeTitle}</span>
+          <span className="text-meta text-muted">{sample.scopeDesc}</span>
+        </div>
       ),
     },
     ...permissionColumns.map((name) => ({
@@ -369,64 +351,48 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       cell: ({ sample }) => {
         const mod = (sample.modules ?? []).find((m) => m.name === name);
         return mod ? (
-          <span className="text-caption text-muted whitespace-nowrap">{mod.scopeTag ?? 'Granted'}</span>
+          <span className="whitespace-nowrap text-meta text-muted">{mod.scopeTag ?? 'Granted'}</span>
         ) : (
-          <span className="text-caption text-faint">&mdash;</span>
+          <span className="text-meta text-faint">&mdash;</span>
         );
       },
     })),
   ];
 
+  // Security state ("Zero-Trust Active" on every row) and device were never
+  // stored, so the report holds what an account does carry.
   const auditColumns = [
     {
       key: 'operator',
-      header: 'Operator',
+      header: 'Team member',
       cell: (u) => (
-        <>
-          <div className="text-label text-primary">{u.name}</div>
-          <div className="text-caption text-muted">{u.email}</div>
-        </>
+        <div className="min-w-0">
+          <div className="truncate text-label text-primary">{u.name}</div>
+          <div className="truncate text-meta text-muted">{u.email}</div>
+        </div>
       ),
     },
     {
-      key: 'securityState',
-      header: 'Security State',
-      cell: (u) => (
-        <span className={`px-2 py-0.5 rounded-md text-caption font-semibold ${u.securityBadge || 'bg-surface-subtle text-primary'}`}>
-          {u.securityState}
-        </span>
-      ),
+      key: 'role',
+      header: 'Role',
+      cell: (u) => <Badge variant={u.roleVariant} className="whitespace-nowrap">{u.role}</Badge>,
     },
-    { key: 'lastActive', header: 'Last Active', className: 'text-meta text-muted whitespace-nowrap', accessor: 'lastActive' },
-    { key: 'device', header: 'Device', className: 'text-meta text-muted whitespace-nowrap', accessor: 'device' },
+    { key: 'lastActive', header: 'Last updated', className: 'whitespace-nowrap text-meta text-muted tabular-nums', accessor: 'lastActive' },
   ];
 
   // The API refuses user writes for a staff account; say so before the call.
   const { isOwner: canManageUsers, role } = useSession();
 
   if (isUsersLoading) {
-    return <SkeletonPage variant="table" stats={6} statsCols={6} columns={6} label="Loading users and roles" />;
+    return <SkeletonPage variant="table" stats={3} statsCols={3} columns={5} label="Loading users and roles" />;
   }
 
   return (
     <PageContainer>
-      {usersError && (
-        <ErrorState
-          title="Users could not be loaded"
-          message={usersError?.message}
-          onRetry={() => refetchUsers()}
-        />
-      )}
       <PageHeader
-        breadcrumb="Everwear Admin / Settings & Admin / Users & Role Access"
-        title="Enterprise User Management & Granular Role-Based Access Control (RBAC)"
-        badge={
-          <span className="whitespace-nowrap inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-status-success-bg text-success text-caption font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse"></span>
-            Zero Trust SSO Enforced
-          </span>
-        }
-        description="Manage operator permissions across fulfillment nodes, catalog merchandising controls, financial sign-off limits, and security audit logs."
+        kicker="Settings & admin"
+        title="Users & roles"
+        description="Who can sign in to the admin and what they can change."
         actions={
           <div className="flex min-w-0 flex-wrap items-center gap-space-sm lg:shrink-0">
             <Button
@@ -442,483 +408,318 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
           </div>
         }
       />
+      <PageBody
+        error={usersError}
+        hasData={usersData != null}
+        title="Users could not be loaded"
+        onRetry={refetchUsers}
+      >
 
-      {/* Top Metrics Bar (5 Bento Metric Cards) */}
-      <ContentGrid columns={5}>
-        <StatsCard
-          label="Active Team Members"
-          value={`${mergedUsers.length} ${mergedUsers.length === 1 ? 'User' : 'Users'}`}
-          changeType="neutral"
-          icon="group"
-          subtitle={`Across ${nodeGroups.length} ${nodeGroups.length === 1 ? 'hub' : 'hubs'}`}
-        />
-        <StatsCard
-          label="Defined Roles & Policies"
-          value={`${roleGroups.length} ${roleGroups.length === 1 ? 'Role' : 'Roles'}`}
-          changeType="neutral"
-          icon="policy"
-          subtitle={roleGroups.map(([name]) => name).join(', ') || 'No roles recorded'}
-        />
-        <StatsCard
-          label="2FA Enforcement"
-          value="Not recorded"
-          changeType="neutral"
-          icon="lock_clock"
-          subtitle="No second factor is stored against an operator"
-        />
-        <StatsCard
-          label="Privileged Admins"
-          value={`${ownerCount} ${ownerCount === 1 ? 'Owner' : 'Owners'}`}
-          changeType="neutral"
-          icon="admin_panel_settings"
-          subtitle="Full RBAC and financial sign-off"
-        />
-        <StatsCard
-          label="Active Node Sessions"
-          value="Not recorded"
-          changeType="neutral"
-          icon="devices"
-          subtitle="The API keeps no session register"
-        />
-      </ContentGrid>
-
-      {/* Segmented Primary Navigation Tabs */}
-      <div className="flex items-center justify-between gap-space-md bg-surface-container-lowest px-space-md py-space-xs rounded-xl shadow-sm border border-subtle mb-space-md flex-wrap">
-        <div className="flex items-center gap-space-xs flex-wrap">
-          <button
-            onClick={() => setActiveTab('directory')}
-            className={`px-space-md py-2 rounded-lg text-label-lg font-semibold transition-all flex items-center gap-2 ${
- activeTab === 'directory' ? 'bg-primary-container text-on-accent shadow-sm' : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-          >
-            <span>Team Directory</span>
-            <span className={`whitespace-nowrap px-1.5 py-0.5 rounded-full text-caption ${
- activeTab === 'directory' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
- }`}>
-              {mergedUsers.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab('matrix')}
-            className={`px-space-md py-2 rounded-lg text-label-lg font-semibold transition-all flex items-center gap-2 ${
- activeTab === 'matrix' ? 'bg-primary-container text-on-accent shadow-sm' : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-          >
-            <span>Roles & Permission Matrix</span>
-            <span className={`whitespace-nowrap px-1.5 py-0.5 rounded-full text-caption ${
- activeTab === 'matrix' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
- }`}>
-              {roleGroups.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab('nodes')}
-            className={`px-space-md py-2 rounded-lg text-label-lg font-semibold transition-all flex items-center gap-2 ${
- activeTab === 'nodes' ? 'bg-primary-container text-on-accent shadow-sm' : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-          >
-            <span>FC Node Assignments</span>
-            <span className={`whitespace-nowrap px-1.5 py-0.5 rounded-full text-caption ${
- activeTab === 'nodes' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
- }`}>
-              {nodeGroups.length} {nodeGroups.length === 1 ? 'Hub' : 'Hubs'}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab('audit')}
-            className={`px-space-md py-2 rounded-lg text-label-lg font-semibold transition-all flex items-center gap-2 ${
- activeTab === 'audit' ? 'bg-primary-container text-on-accent shadow-sm' : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-          >
-            <span>Security & Audit Logs</span>
-            <span className="w-2 h-2 rounded-full bg-status-success animate-pulse"></span>
-          </button>
-        </div>
-
-        {/* Quick Filter & Search Bar in Tabs Line */}
-        <div className="flex min-w-0 flex-wrap items-center gap-space-sm">
-          <SearchInput
-            value={filterText}
-            onChange={(value) => setFilterText(value)}
-            onClear={() => setFilterText('')}
-            placeholder="Filter by name, role, node"
-            label="Filter users"
-            className="w-full min-w-0 sm:w-64 sm:flex-initial"
+        {/* "2FA enforcement" and "Active node sessions" both read "Not
+            recorded": the API stores neither, so they are not shown as KPIs. */}
+        <ContentGrid columns={3}>
+          <StatsCard
+            label="Team members"
+            value={String(mergedUsers.length)}
+            icon="group"
+            subtitle={`${mergedUsers.length === 1 ? 'account' : 'accounts'} can sign in to the admin`}
           />
-        </div>
-      </div>
+          <StatsCard
+            label="Roles"
+            value={String(roleGroups.length)}
+            icon="policy"
+            subtitle={roleGroups.map(([name]) => name).join(', ') || 'No roles recorded'}
+          />
+          <StatsCard
+            label="Owners"
+            value={String(ownerCount)}
+            icon="admin_panel_settings"
+            subtitle="Can manage the team and settings"
+          />
+        </ContentGrid>
 
-      {/* Asymmetric Split Layout: Directory (65%) vs Inspector (35%) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
-        {/* LEFT PANEL: 65% Main User Directory */}
-        <div className="lg:col-span-8 space-y-space-md">
-          {activeTab === 'directory' && (
-            <DataTable
-              data={usersPager.pageRows}
-              columns={directoryColumns}
-              keyField="key"
-              className="min-w-[960px]"
-              activeRowId={selectedUserKey}
-              onRowClick={(user) => setSelectedUserKey(user.key)}
-              emptyIcon="group_off"
-              emptyTitle="No operators match this search"
-              emptyMessage="No operator matches the current name, role or node filter."
-              pagination={{
-                page: usersPager.page,
-                pageSize: usersPager.limit,
-                totalItems: usersPager.total,
-                onPageChange: usersPager.setPage,
-                onPageSizeChange: usersPager.setLimit,
-              }}
-              toolbar={
-                <TableToolbar
-                  className="p-space-md"
-                  left={
-                    <div className="flex items-center gap-space-sm">
-                      <span className="text-subheading text-primary font-semibold">Node Operators &amp; Executives</span>
-                      <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
-                        Showing {filteredUsers.length} of {mergedUsers.length}
-                      </span>
-                    </div>
-                  }
-                  right={
-                    <>
-                      <button
-                        onClick={handleExportTeam}
-                        className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
-                      >
-                        <Icon name="download" className="material-symbols-outlined text-icon" />
-                        <span>CSV</span>
-                      </button>
-                    </>
-                  }
-                />
-              }
+        {noUsers ? (
+          <EmptyState
+            icon="group"
+            title="No team members yet"
+            description="Everyone who can sign in to the admin appears here, with their role and what they can change. Invite the first team member to give them access."
+            className="py-16"
+            action={
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setIsInviteModalOpen(true)}
+                disabled={!canManageUsers}
+                title={canManageUsers ? undefined : 'Only an owner can invite team members'}
+              >
+                <Icon name="add" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                <span>Invite team member</span>
+              </Button>
+            }
+          />
+        ) : (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <div className="flex flex-col gap-space-sm border-b border-subtle md:flex-row md:items-center md:justify-between">
+            <TabsList aria-label="Team views" className="border-b-0">
+              <TabsTrigger value="directory" className="gap-space-xs">
+                <span>Team directory</span>
+                <Badge variant="secondary" size="sm" className="tabular-nums">{mergedUsers.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="matrix" className="gap-space-xs">
+                <span>Roles and permissions</span>
+                <Badge variant="secondary" size="sm" className="tabular-nums">{roleGroups.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="audit">Access report</TabsTrigger>
+            </TabsList>
+            <SearchInput
+              value={filterText}
+              onChange={(value) => setFilterText(value)}
+              onClear={() => setFilterText('')}
+              placeholder="Filter by name, email or role"
+              label="Filter users"
+              className="mb-space-sm w-full min-w-0 md:w-64"
             />
-          )}
+          </div>
 
-          {activeTab === 'matrix' && (
-            <DataTable
-              data={roleGroups.map(([roleName, members]) => ({ roleName, members, sample: members[0] }))}
-              columns={matrixColumns}
-              keyField="roleName"
-              className="min-w-[720px]"
-              emptyIcon="admin_panel_settings"
-              emptyTitle="No roles to compare"
-              emptyMessage="No operator matches the current filter, so there are no roles to lay out."
-              toolbar={
-                <TableToolbar
-                  className="p-space-md"
-                  left={
-                    <div>
-                      <span className="text-subheading text-primary font-semibold">Roles &amp; Permission Matrix</span>
-                      <p className="text-meta text-muted mt-0.5">
-                        {roleGroups.length} distinct roles across {filteredUsers.length} operators.
-                      </p>
-                    </div>
-                  }
-                />
-              }
-            />
-          )}
-
-          {activeTab === 'nodes' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
-              {nodeGroups.map(([hubName, members]) => (
-                <div key={hubName} className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-md">
-                  <div className="flex items-center justify-between gap-space-sm mb-space-sm">
-                    <div className="flex items-center gap-space-sm min-w-0">
-                      <div className="p-2 rounded-lg bg-surface-subtle text-muted shrink-0">
-                        <Icon name={members[0].hubIcon || 'warehouse'} className="material-symbols-outlined text-icon" />
-                      </div>
-                      <span className="text-meta font-semibold text-primary truncate">{hubName}</span>
-                    </div>
-                    <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold shrink-0">
-                      {members.length} assigned
-                    </span>
-                  </div>
-                  <ul className="space-y-1.5">
-                    {members.map((m) => (
-                      <li key={m.key || m.email} className="flex items-center justify-between gap-space-sm">
-                        <div className="min-w-0">
-                          <div className="text-label text-primary truncate">{m.name}</div>
-                          <div className="text-caption text-muted truncate">{m.email}</div>
-                        </div>
-                        <span className="text-caption text-muted shrink-0">{m.role}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {activeTab === 'audit' && (
-            <div className="space-y-space-md">
+        <div className="mt-space-lg grid grid-cols-1 items-start gap-space-lg lg:grid-cols-12">
+          <div className={`${noFilteredUsers ? 'lg:col-span-12' : 'lg:col-span-8'} flex min-w-0 flex-col gap-space-md`}>
+            <TabsContent value="directory" className="mt-0">
               <DataTable
-                data={filteredUsers}
-                columns={auditColumns}
-                keyField="email"
-                className="min-w-[680px]"
-                emptyIcon="shield_person"
-                emptyTitle="No operators to report on"
-                emptyMessage="No operator matches the current filter."
+                data={usersPager.pageRows}
+                columns={directoryColumns}
+                keyField="key"
+                activeRowId={selectedUserKey}
+                onRowClick={(user) => setSelectedUserKey(user.key)}
+                emptyIcon="search"
+                emptyTitle="No operators match these filters"
+                emptyMessage="Clear the search to see every operator."
+                emptyAction={clearFiltersAction}
+                pagination={{
+                  page: usersPager.page,
+                  pageSize: usersPager.limit,
+                  totalItems: usersPager.total,
+                  onPageChange: usersPager.setPage,
+                  onPageSizeChange: usersPager.setLimit,
+                }}
                 toolbar={
                   <TableToolbar
                     className="p-space-md"
                     left={
-                      <div>
-                        <span className="text-subheading text-primary font-semibold">Session &amp; Security State</span>
-                        <p className="text-meta text-muted mt-0.5">
-                          Current posture for {filteredUsers.length} operators.
-                        </p>
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-subheading text-primary">Team members</span>
+                        <span className="text-meta text-muted">
+                          Showing {filteredUsers.length} of {mergedUsers.length}
+                        </span>
+                      </div>
+                    }
+                    right={
+                      <Button variant="outline" size="sm" onClick={handleExportTeam}>
+                        <Icon name="download" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                        <span>Export CSV</span>
+                      </Button>
+                    }
+                  />
+                }
+              />
+            </TabsContent>
+
+            <TabsContent value="matrix" className="mt-0">
+              <DataTable
+                data={roleGroups.map(([roleName, members]) => ({ roleName, members, sample: members[0] }))}
+                columns={matrixColumns}
+                keyField="roleName"
+                emptyIcon="admin_panel_settings"
+                emptyTitle="No operators match these filters"
+                emptyMessage="Clear the search to lay out every role."
+                emptyAction={clearFiltersAction}
+                toolbar={
+                  <TableToolbar
+                    className="p-space-md"
+                    left={
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-subheading text-primary">Roles and permissions</span>
+                        <span className="text-meta text-muted">
+                          {roleGroups.length} {roleGroups.length === 1 ? 'role' : 'roles'} across {filteredUsers.length} {filteredUsers.length === 1 ? 'member' : 'members'}
+                        </span>
                       </div>
                     }
                   />
                 }
               />
-              <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-subtle flex items-start gap-space-md">
-                <div className="p-2.5 rounded-xl bg-status-info-bg text-info shrink-0">
-                  <Icon name="history" className="material-symbols-outlined text-icon-xl" />
-                </div>
-                <div>
-                  <div className="text-meta font-semibold text-primary">Event history is not recorded yet</div>
-                  <p className="text-caption text-muted mt-0.5">
-                    The table above is live session state. A per-event audit trail (who changed what,
-                    when, from which address) needs an audit endpoint on the API; the backend exposes
-                    no such route today, so nothing here is back-filled or simulated.
+            </TabsContent>
+
+            <TabsContent value="audit" className="mt-0 flex flex-col gap-space-md">
+              <DataTable
+                data={filteredUsers}
+                columns={auditColumns}
+                keyField="email"
+                emptyIcon="security"
+                emptyTitle="No operators match these filters"
+                emptyMessage="Clear the search to report on every operator."
+                emptyAction={clearFiltersAction}
+                toolbar={
+                  <TableToolbar
+                    className="p-space-md"
+                    left={
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-subheading text-primary">Access report</span>
+                        <span className="text-meta text-muted">
+                          When each of {filteredUsers.length} {filteredUsers.length === 1 ? 'account' : 'accounts'} last changed
+                        </span>
+                      </div>
+                    }
+                  />
+                }
+              />
+              <Card className="flex items-start gap-space-md p-space-md">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-status-info-bg text-info">
+                  <Icon name="history" aria-hidden="true" className="material-symbols-outlined text-icon-md" />
+                </span>
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-label font-semibold text-primary">Event history is not recorded yet</span>
+                  <p className="text-meta text-muted">
+                    A per-event audit trail (who changed what, when, from which address) needs an
+                    audit endpoint on the API; the backend exposes no such route today, so nothing
+                    here is back-filled or simulated.
                   </p>
                 </div>
-              </div>
-            </div>
-          )}
-
-
-          {/* System Security Policy Banner */}
-          <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-subtle flex items-start gap-space-md">
-            <div className="p-2.5 rounded-xl bg-status-info-bg text-info shrink-0">
-              <Icon name="verified" className="material-symbols-outlined text-icon-xl" />
-            </div>
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center justify-between">
-                <h4 className="text-subheading text-primary font-semibold">
-                  FC Operational Hardening Rules in Effect
-                </h4>
-                <span className="text-caption px-2 py-0.5 rounded bg-status-success-bg text-success font-semibold">
-                  ACTIVE ENFORCEMENT
-                </span>
-              </div>
-              <p className="text-body text-secondary leading-relaxed">
-                All handheld RF guns in BLR-FC1 and BOM-FC2 must re-authenticate credentials every 8 hours. High-value stock write-offs exceeding ₹1,00,000 require concurrent cryptographic authorization by a VP or Station Commander.
-              </p>
-            </div>
+              </Card>
+            </TabsContent>
+            {/* The "FC Operational Hardening Rules in Effect / ACTIVE
+                ENFORCEMENT" banner described RF-gun re-authentication and
+                write-off sign-off that nothing in the system enforces. */}
           </div>
-        </div>
 
-        {/* RIGHT PANEL: 35% Role Policy Inspector & Deep Controls */}
-        {!selectedUser ? (
-          <div className="lg:col-span-4">
-            <EmptyState icon="person" title="No team member selected" description="Pick a team member from the list to see their access." />
-          </div>
-        ) : (
-        <div className="lg:col-span-4 space-y-space-md">
-          {/* Main Policy Inspector Card */}
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-md space-y-space-md sticky top-20">
-            {/* Inspector Header */}
-            <div className="flex items-start justify-between pb-space-sm border-b border-subtle">
-              <div>
-                <div className="flex items-center gap-1.5 text-caption uppercase tracking-wider text-accent font-semibold">
-                  <Icon name="shield" className="material-symbols-outlined text-icon-sm" />
-                  <span>Role Policy Inspector</span>
-                </div>
-                <h3 className="text-subheading text-primary mt-0.5 font-semibold">{selectedUser.role}</h3>
-                <p className="text-body text-secondary">
-                  Assigned to: <strong className="text-primary">{selectedUser.name}</strong> ({selectedUser.assignedHub})
+          {/* Inspector: what the selected account's role can do. */}
+          {noFilteredUsers ? null : !selectedUser ? (
+            <div className="lg:col-span-4">
+              <EmptyState icon="person" title="No team member selected" description="Pick a team member from the list to see their access." />
+            </div>
+          ) : (
+          <div className="lg:sticky lg:top-20 lg:col-span-4">
+            <SectionCard
+              title={selectedUser.name}
+              description={selectedUser.email}
+              action={<Badge variant={selectedUser.roleVariant} className="whitespace-nowrap">{selectedUser.role}</Badge>}
+              contentClassName="flex flex-col gap-space-md"
+              footer={
+                <p className="px-space-xs text-meta text-muted">
+                  Last updated <span className="text-primary">{selectedUser.lastActive}</span>. The API keeps no
+                  per-action audit log, so recent activity cannot be shown.
                 </p>
+              }
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="text-label font-semibold text-primary">{selectedUser.scopeTitle}</span>
+                <span className="text-meta text-muted">{selectedUser.scopeDesc}</span>
               </div>
-              <span className={`whitespace-nowrap px-2 py-0.5 rounded-full text-caption font-semibold ${selectedUser.tierBadge}`}>
-                {selectedUser.tier}
-              </span>
-            </div>
 
-            {/* Permission Matrix Checklist by Module */}
-            <div className="space-y-space-sm">
-              <span className="text-caption uppercase text-muted tracking-wider block">
-                Granular Module Permissions
-              </span>
-
-              {selectedUser.modules.map((mod, mIdx) => (
-                <div key={mIdx} className="p-space-sm rounded-lg bg-surface-subtle border border-subtle space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-label font-semibold text-primary flex items-center gap-1.5">
-                      <Icon name={mod.icon} className="material-symbols-outlined text-icon text-muted" />
-                      {mod.name}
-                    </span>
-                    <span className={`text-caption px-1.5 py-0.5 rounded font-semibold ${mod.scopeColor}`}>
-                      {mod.scopeTag}
-                    </span>
-                  </div>
-                  {mod.perms && (
-                    <div className="space-y-1 text-body">
-                      {mod.perms.map((p, pIdx) => (
-                        <div key={pIdx} className={`flex items-center gap-2 ${p.allowed ? 'text-primary' : 'text-muted'}`}>
-                          <Icon name={p.allowed ? 'check_circle' : 'cancel'} className={`material-symbols-outlined text-icon ${p.allowed ? 'text-success' : 'text-danger'}`} />
-                          <span>{p.text}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {mod.desc && (
-                    <p className="text-body text-secondary leading-relaxed">
-                      {mod.desc}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Security Hardening Controls */}
-            <div className="space-y-space-xs pt-space-xs border-t border-subtle">
-              <span className="text-caption uppercase text-muted tracking-wider block">
-                Station Security Controls
-              </span>
-              <div className="grid grid-cols-2 gap-space-xs text-body text-body">
-                <div className="p-2 rounded bg-surface-subtle border border-subtle">
-                  <span className="text-muted text-micro block">IP Whitelisting</span>
-                  <span className="font-medium text-primary text-meta">{selectedUser.ipWhitelist}</span>
-                </div>
-                <div className="p-2 rounded bg-surface-subtle border border-subtle">
-                  <span className="text-muted text-micro block">Session Inactivity</span>
-                  <span className="font-medium text-primary text-meta">{selectedUser.sessionLimit}</span>
-                </div>
-                <div className="p-2 rounded bg-surface-subtle border border-subtle col-span-2 flex items-center justify-between">
-                  <div>
-                    <span className="text-muted text-micro block">Stock Reconciliation</span>
-                    <span className="font-medium text-primary text-meta">Mandatory Mobile OTP Verification</span>
-                  </div>
-                  <Icon name="verified" className="material-symbols-outlined text-success text-icon-md" />
-                </div>
+              <div className="flex flex-col gap-space-sm">
+                <span className="text-caption uppercase tracking-wider text-muted">Module permissions</span>
+                <ul className="flex flex-col divide-y divide-subtle rounded-lg border border-subtle">
+                  {selectedUser.modules.map((mod) => (
+                    <li key={mod.name} className="flex flex-col gap-space-xs p-space-sm">
+                      <div className="flex items-center justify-between gap-space-sm">
+                        <span className="flex min-w-0 items-center gap-space-xs text-label font-medium text-primary">
+                          <Icon name={mod.icon} aria-hidden="true" className="material-symbols-outlined text-icon-sm text-muted" />
+                          <span className="truncate">{mod.name}</span>
+                        </span>
+                        <Badge variant={mod.scopeVariant} size="sm" className="whitespace-nowrap">{mod.scopeTag}</Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-x-space-md gap-y-space-xs">
+                        {mod.perms.map((p) => (
+                          <span key={p.text} className={`flex items-center gap-1 text-meta ${p.allowed ? 'text-secondary' : 'text-faint'}`}>
+                            <Icon
+                              name={p.allowed ? 'check_circle' : 'cancel'}
+                              aria-hidden="true"
+                              className={`material-symbols-outlined text-icon-sm ${p.allowed ? 'text-success' : 'text-faint'}`}
+                            />
+                            {p.text}
+                          </span>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </div>
-
-            {/* Recent Audit Trail Entries */}
-            <div className="space-y-space-xs pt-space-xs border-t border-subtle">
-              <span className="text-caption uppercase text-muted tracking-wider">
-                Activity
-              </span>
-              <p className="text-meta text-muted">
-                The API records when an account was created and last changed, but keeps no
-                per-action audit log, so recent activity cannot be shown here.
-              </p>
-              <div className="flex flex-col gap-0.5 text-meta">
-                <span className="text-secondary">
-                  Last updated: <span className="text-primary">{selectedUser.lastActive}</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Inspector Action Buttons */}
-            <div className="pt-space-sm border-t border-subtle flex flex-col gap-2">
-              <div className="grid grid-cols-2 gap-2">
-              </div>
-            </div>
+            </SectionCard>
           </div>
+          )}
         </div>
+        </Tabs>
         )}
-      </div>
 
-      {/* Invite Team Member Modal */}
-      {isInviteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-scrim/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest rounded-2xl shadow-xl border border-subtle max-w-md w-full overflow-hidden animate-fade-in fade-in duration-150">
-            <div className="p-space-lg border-b border-subtle flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Icon name="person_add" className="p-2 rounded-xl bg-primary-container text-on-accent material-symbols-outlined text-icon-lg" />
-                <div>
-                  <h3 className="font-semibold text-primary">Invite Team Member</h3>
-                  <p className="text-meta text-muted">Provision administrator credentials in Everwear RBAC</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsInviteModalOpen(false)}
-                className="w-8 h-8 rounded-lg hover:bg-surface-subtle flex items-center justify-center text-muted" title="Close" aria-label="Close"
-              >
-                <Icon name="close" className="material-symbols-outlined text-icon-md" />
-              </button>
-            </div>
+        <AppDialog
+          isOpen={isInviteModalOpen}
+          onClose={() => setIsInviteModalOpen(false)}
+          title="Invite team member"
+          description="Create admin sign-in credentials and choose what they can change."
+          maxWidth="max-w-md"
+          footer={
+            <>
+              <Button variant="outline" size="sm" onClick={() => setIsInviteModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" form="invite-member-form" variant="primary" size="sm" disabled={isSubmitting}>
+                <Icon name={isSubmitting ? 'hourglass_top' : 'check'} aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                <span>{isSubmitting ? 'Creating' : 'Grant access'}</span>
+              </Button>
+            </>
+          }
+        >
+          <form id="invite-member-form" onSubmit={handleCreateUser} className="flex flex-col gap-space-md">
+            <FormInput
+              id="invite-name"
+              label="Full name"
+              placeholder="e.g. Alisha Kapoor"
+              value={inviteForm.name}
+              onChange={(value) => setInviteForm({ ...inviteForm, name: value })}
+            />
+            <FormInput
+              id="invite-email"
+              label="Work email"
+              type="email"
+              required
+              placeholder="alisha@everwear.test"
+              value={inviteForm.email}
+              onChange={(value) => setInviteForm({ ...inviteForm, email: value })}
+            />
+            <FormInput
+              id="invite-password"
+              label="Initial password"
+              type="password"
+              required
+              minLength={12}
+              placeholder="At least 12 characters"
+              helperText="Must contain at least 12 characters."
+              value={inviteForm.password}
+              onChange={(value) => setInviteForm({ ...inviteForm, password: value })}
+            />
+            <FormField label="Role" id="invite-role">
+              <Select
+                id="invite-role"
+                value={inviteForm.role}
+                onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                aria-label="Role"
+                options={[
+                  { value: 'staff', label: 'Operations staff (catalog, orders, inventory, fulfillment)' },
+                  { value: 'owner', label: 'Store owner (full administrative and financial access)' },
+                ]}
+              />
+            </FormField>
+          </form>
+        </AppDialog>
 
-            <form onSubmit={handleCreateUser} className="p-space-lg space-y-4">
-              <div>
-                <label className="block text-meta font-semibold text-muted mb-1">Full Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Alisha Kapoor"
-                  value={inviteForm.name}
-                  onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
-                  className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
-                />
-              </div>
-
-              <div>
-                <label className="block text-meta font-semibold text-muted mb-1">Work Email *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="alisha@everwear.test"
-                  value={inviteForm.email}
-                  onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                  className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
-                />
-              </div>
-
-              <div>
-                <label className="block text-meta font-semibold text-muted mb-1">Initial Password (min 12 characters) *</label>
-                <input
-                  type="password"
-                  required
-                  minLength={12}
-                  placeholder="••••••••••••"
-                  value={inviteForm.password}
-                  onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })}
-                  className="w-full h-9 px-3 bg-surface-canvas border border-subtle rounded-lg text-meta font-semibold text-primary focus:outline-none focus:ring-1 focus:ring-primary-container"
-                />
-                <p className="text-micro text-muted mt-1">Must contain at least 12 characters.</p>
-              </div>
-
-              <div>
-                <label className="block text-meta font-semibold text-muted mb-1">Role / Permissions Level</label>
-                <Select
-                  value={inviteForm.role}
-                  onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
-                  aria-label="Role / permissions level"
-                  options={[
-                    { value: 'staff', label: 'Operations staff (catalog, orders, inventory, fulfillment)' },
-                    { value: 'owner', label: 'Store owner (full administrative and financial access)' },
-                  ]}
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-subtle">
-                <button
-                  type="button"
-                  onClick={() => setIsInviteModalOpen(false)}
-                  className="h-9 px-4 rounded-xl border border-subtle bg-surface-container-lowest text-primary text-meta font-semibold hover:bg-surface-subtle transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="h-9 px-4 rounded-xl bg-primary-container hover:bg-primary-container-hover text-on-accent text-meta font-semibold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <Icon name={isSubmitting ? 'hourglass_top' : 'check'} className="material-symbols-outlined text-icon" />
-                  <span>{isSubmitting ? 'Creating...' : 'Grant Access'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        <ConfirmDialog
+          isOpen={pendingDelete != null}
+          onClose={() => setPendingDelete(null)}
+          onConfirm={confirmDeleteUser}
+          isLoading={deleteUserMutation.isPending}
+          title={`Remove ${pendingDelete?.name ?? 'team member'}?`}
+          message="This revokes all of their admin access. They will no longer be able to sign in."
+          confirmText="Remove"
+        />
+      </PageBody>
     </PageContainer>
   );
 }

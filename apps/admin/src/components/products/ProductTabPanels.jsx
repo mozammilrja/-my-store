@@ -237,7 +237,7 @@ export function StockAllocationPanel({ product, onSave, isSaving, canEdit = true
       header: 'Status',
       cell: (row) =>
         !row.tracked ? (
-          <StatusBadge status="Not tracked" variant="neutral" />
+          <StatusBadge status="Not tracked" variant="secondary" />
         ) : row.stock > 0 ? (
           <StatusBadge status="In stock" variant="success" />
         ) : row.backorder ? (
@@ -254,7 +254,7 @@ export function StockAllocationPanel({ product, onSave, isSaving, canEdit = true
       title="Stock allocation"
       description="Units on hand per variant. Saved straight onto the product."
       action={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-space-sm">
           {changed.length > 0 && (
             <span className="text-meta text-muted">
               {changed.length} unsaved {changed.length === 1 ? 'change' : 'changes'}
@@ -272,7 +272,7 @@ export function StockAllocationPanel({ product, onSave, isSaving, canEdit = true
       }
     >
       <div className="flex flex-col gap-space-md">
-        <div className="flex flex-wrap gap-space-md">
+        <div className="flex flex-wrap gap-space-xl">
           <div className="flex flex-col">
             <span className="text-meta text-muted">Tracked variants</span>
             <span className="text-kpi-sm text-primary tabular-nums">{totals.tracked}</span>
@@ -360,7 +360,7 @@ export function StorefrontSeoPanel({
   const previewDescription = metaDescription || title || 'No description yet.';
 
   return (
-    <div className="flex flex-col gap-space-lg">
+    <div className="flex flex-col gap-space-md">
       <SectionCard
         title="Storefront listing"
         description="These are the fields the storefront reads when it renders this product and its meta tags."
@@ -412,7 +412,7 @@ export function StorefrontSeoPanel({
           />
 
           <FormField label="Storefront visibility">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-space-sm">
               {['published', 'draft'].map((value) => (
                 <Button
                   key={value}
@@ -439,13 +439,13 @@ export function StorefrontSeoPanel({
         description="How this product reads once the storefront renders its meta tags."
       >
         <div className="flex flex-col gap-space-md">
-          <div className="flex flex-col gap-0.5 rounded-xl border border-subtle bg-surface-subtle p-space-md">
+          <div className="flex flex-col gap-0.5 rounded-lg border border-subtle bg-surface-subtle p-space-md">
             <span className="truncate text-meta text-success">{previewUrl}</span>
             <span className="truncate text-body-lg text-accent">{title || 'Untitled product'}</span>
             <span className="line-clamp-2 text-meta text-muted">{previewDescription}</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-space-sm">
             {tagList.length === 0 ? (
               <span className="text-meta text-faint">No tags yet.</span>
             ) : (
@@ -458,7 +458,7 @@ export function StorefrontSeoPanel({
           </div>
 
           {status !== 'published' && (
-            <div className="flex items-start gap-2 rounded-lg border border-status-warning/25 bg-status-warning-bg p-space-sm">
+            <div className="flex items-start gap-space-sm rounded-lg border border-status-warning/25 bg-status-warning-bg p-space-sm">
               <Icon
                 name="visibility_off"
                 aria-hidden="true"

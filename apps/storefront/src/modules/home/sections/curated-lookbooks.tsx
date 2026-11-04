@@ -58,7 +58,7 @@ export function CuratedLookbooks() {
   }
 
   return (
-    <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin my-12">
+    <section className="w-full px-margin-mobile md:px-margin my-12">
       <div className="flex items-center justify-between mb-6">
         <div>
           <span className="font-label-caps text-label-caps uppercase text-on-surface-variant tracking-wider font-semibold">

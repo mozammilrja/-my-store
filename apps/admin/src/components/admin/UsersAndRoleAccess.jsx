@@ -16,10 +16,23 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
+import { DataTable, TableToolbar } from '../shared/DataTable';
+import { PersonAvatar } from '../shared/PersonAvatar';
 import { useSession } from '../../lib/session';
-import { usersList } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
 import { useUsersQuery, useCreateUserMutation, useDeleteUserMutation } from '../../hooks/useAdminQueries';
+import { EmptyState } from '../shared/FeedbackAndOverlays';
+import { downloadCsv, datedFilename } from '../../lib/export';
+
+/** What each role can do, mirroring the two capabilities the API enforces. */
+const MODULE_ACCESS = [
+  { name: 'Orders and fulfilment', icon: 'shopping_bag', ownerOnly: false },
+  { name: 'Catalog and inventory', icon: 'checkroom', ownerOnly: false },
+  { name: 'Customers', icon: 'group', ownerOnly: false },
+  { name: 'Finance and tax', icon: 'receipt_long', ownerOnly: false },
+  { name: 'Team and access', icon: 'admin_panel_settings', ownerOnly: true },
+  { name: 'System settings', icon: 'settings', ownerOnly: true },
+];
 
 export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
   const [selectedUserKey, setSelectedUserKey] = useState('vikram');
@@ -125,13 +138,34 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       securityState: 'Zero-Trust Active',
       securityBadge: 'bg-status-success-bg text-success',
       securityIcon: 'verified_user',
-      lastActive: 'Just now',
-      device: 'Everwear Secure Auth',
-      isOnline: true,
+      // The API records when an account was created and last changed; it does
+      // not track sessions, so presence is not claimed.
+      lastActive: u.updatedAt
+        ? new Date(u.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+        : 'Unknown',
+      device: null,
+      isOnline: false,
       isExec: u.role === 'owner',
+      // The data model has two roles, owner and staff, and the API enforces
+      // exactly two owner-only capabilities. The per-module list is derived
+      // from that rather than stored per user, so it cannot drift from what
+      // the server will actually allow.
+      modules: MODULE_ACCESS.map((m) => ({
+        name: m.name,
+        icon: m.icon,
+        scopeTag: m.ownerOnly && u.role !== 'owner' ? 'Read only' : 'Full access',
+        scopeColor:
+          m.ownerOnly && u.role !== 'owner'
+            ? 'bg-surface-subtle text-muted'
+            : 'bg-status-success-bg text-success',
+        perms: [
+          { text: 'View', allowed: true },
+          { text: 'Create and edit', allowed: !m.ownerOnly || u.role === 'owner' },
+          { text: 'Delete', allowed: !m.ownerOnly || u.role === 'owner' },
+        ],
+      })),
       avatar: null,
     })),
-    ...usersList.filter(m => !dbUsers.some(d => d.email.toLowerCase() === m.email.toLowerCase()))
   ];
 
   const selectedUser = mergedUsers.find(u => u.key === selectedUserKey) || mergedUsers[0];
@@ -145,8 +179,227 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
     }
     return true;
   });
+
+  /** Writes the team directory as listed. */
+  const handleExportTeam = () => {
+    const written = downloadCsv({
+      filename: datedFilename('team'),
+      columns: [
+        { header: 'Name', value: (u) => u.name },
+        { header: 'Email', value: (u) => u.email },
+        { header: 'Role', value: (u) => u.role },
+        { header: 'Last updated', value: (u) => u.lastActive },
+      ],
+      rows: filteredUsers,
+    });
+    onShowToast?.({
+      type: 'success',
+      title: 'Team directory exported',
+      message: `${written} ${written === 1 ? 'row' : 'rows'} written to a CSV file.`,
+    });
+  };
+
   // One shared pager over the rows this module actually holds.
   const usersPager = useClientTable(filteredUsers);
+
+  // The other three tabs are views over the same operator records, grouped the
+  // way each tab asks about them. Nothing here invents data: every field shown
+  // is one the directory rows already carry.
+  const groupBy = (rows, pick) =>
+    rows.reduce((acc, row) => {
+      const key = pick(row) || 'Unassigned';
+      (acc[key] ||= []).push(row);
+      return acc;
+    }, {});
+
+
+
+
+  const directoryColumns = [
+    {
+      key: 'identity',
+      header: 'Operator Identity',
+      cell: (user) => (
+        <div className="flex items-center gap-3">
+          <PersonAvatar
+            name={user.name}
+            email={user.email}
+            src={user.avatar}
+            className="h-9 w-9 shadow-sm"
+            fallbackClassName="text-label"
+          />
+          <div>
+            <div className={`text-label-lg font-semibold text-primary flex items-center gap-1.5 ${user.isSuspended ? 'line-through' : ''}`}>
+              <span>{user.name}</span>
+              {user.isOnline && <span className="w-2 h-2 rounded-full bg-status-success" title="Session Online" />}
+              {user.isExec && (
+                <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">EXEC</span>
+              )}
+            </div>
+            <div className="text-body text-secondary text-meta">{user.email}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'role',
+      header: 'Primary Role',
+      cell: (user) => (
+        <span className={`inline-block max-w-[11rem] truncate rounded-md px-2 py-0.5 text-label font-medium ${user.roleBadge}`} title={user.role}>
+          {user.role}
+        </span>
+      ),
+    },
+    {
+      key: 'hub',
+      header: 'Hub / Node',
+      cell: (user) => (
+        <span className="flex min-w-0 items-center gap-1 text-label text-primary" title={user.hub}>
+          <Icon name={user.hubIcon} aria-hidden="true" className="material-symbols-outlined shrink-0 text-icon-sm text-muted" />
+          <span className="truncate">{user.hub}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'scope',
+      header: 'Access Scope & Limit',
+      cell: (user) => (
+        <div className="space-y-0.5">
+          <span className="text-primary font-medium text-meta block">{user.scopeTitle}</span>
+          <span className={`text-micro block ${user.isSuspended ? 'text-danger font-semibold' : 'text-muted'}`}>
+            {user.scopeDesc}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'security',
+      header: 'Security State',
+      cell: (user) => (
+        <span className={`whitespace-nowrap inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-semibold ${user.securityBadge}`}>
+          <Icon name={user.securityIcon} className="material-symbols-outlined text-icon-sm" />
+          {user.securityState}
+        </span>
+      ),
+    },
+    {
+      key: 'lastActive',
+      header: 'Last Active',
+      className: 'text-muted text-meta',
+      cell: (user) => (
+        <>
+          <span>{user.lastActive}</span>
+          <span className="block text-micro text-muted/70">{user.device}</span>
+        </>
+      ),
+    },
+    {
+      key: 'actions',
+      fit: true,
+      header: 'Actions',
+      align: 'right',
+      cell: (user) => (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          {/* There is no suspended state on an admin account, so the only row
+              action is the delete the API supports, and only for an owner. */}
+          {canManageUsers && user.isDbUser && user.role !== 'Store Owner' && (
+            <button
+              onClick={() => handleDeleteUser(user.id, user.name)}
+              className="p-1 rounded-lg text-danger transition-colors hover:bg-status-danger-bg"
+              title="Delete"
+            >
+              <Icon name="delete" className="material-symbols-outlined text-icon-md" />
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  const roleGroups = Object.entries(groupBy(filteredUsers, (u) => u.role)).sort(
+    (a, b) => b[1].length - a[1].length
+  );
+  const nodeGroups = Object.entries(groupBy(filteredUsers, (u) => u.hub)).sort(
+    (a, b) => b[1].length - a[1].length
+  );
+  // `owner` is the only elevated role the server defines, so it is the only
+  // thing "privileged" can honestly be counted from.
+  const ownerCount = mergedUsers.filter((u) => /owner/i.test(u.role)).length;
+  // Module-level grants only exist on records that carry a `modules` array.
+  const permissionColumns = [
+    ...new Set(filteredUsers.flatMap((u) => (u.modules ?? []).map((m) => m.name))),
+  ];
+
+  // Role matrix: three fixed columns plus one per module grant found in the data.
+  const matrixColumns = [
+    {
+      key: 'role',
+      header: 'Role',
+      cell: ({ roleName, sample }) => (
+        <span className={`px-2 py-0.5 rounded-md text-label font-semibold ${sample.roleBadge || 'bg-surface-subtle text-primary'}`}>
+          {roleName}
+        </span>
+      ),
+    },
+    {
+      key: 'operators',
+      header: 'Operators',
+      cell: ({ members }) => (
+        <div className="flex items-center gap-1.5">
+          <span className="text-body font-semibold text-primary">{members.length}</span>
+          <span className="text-caption text-muted truncate max-w-[220px]">
+            {members.map((m) => m.name).join(', ')}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'scope',
+      header: 'Access Scope',
+      cell: ({ sample }) => (
+        <>
+          <div className="text-meta text-primary">{sample.scopeTitle}</div>
+          <div className="text-caption text-muted">{sample.scopeDesc}</div>
+        </>
+      ),
+    },
+    ...permissionColumns.map((name) => ({
+      key: `perm-${name}`,
+      header: name,
+      cell: ({ sample }) => {
+        const mod = (sample.modules ?? []).find((m) => m.name === name);
+        return mod ? (
+          <span className="text-caption text-muted whitespace-nowrap">{mod.scopeTag ?? 'Granted'}</span>
+        ) : (
+          <span className="text-caption text-faint">&mdash;</span>
+        );
+      },
+    })),
+  ];
+
+  const auditColumns = [
+    {
+      key: 'operator',
+      header: 'Operator',
+      cell: (u) => (
+        <>
+          <div className="text-label text-primary">{u.name}</div>
+          <div className="text-caption text-muted">{u.email}</div>
+        </>
+      ),
+    },
+    {
+      key: 'securityState',
+      header: 'Security State',
+      cell: (u) => (
+        <span className={`px-2 py-0.5 rounded-md text-caption font-semibold ${u.securityBadge || 'bg-surface-subtle text-primary'}`}>
+          {u.securityState}
+        </span>
+      ),
+    },
+    { key: 'lastActive', header: 'Last Active', className: 'text-meta text-muted whitespace-nowrap', accessor: 'lastActive' },
+    { key: 'device', header: 'Device', className: 'text-meta text-muted whitespace-nowrap', accessor: 'device' },
+  ];
 
   // The API refuses user writes for a staff account; say so before the call.
   const { isOwner: canManageUsers, role } = useSession();
@@ -168,7 +421,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         breadcrumb="Everwear Admin / Settings & Admin / Users & Role Access"
         title="Enterprise User Management & Granular Role-Based Access Control (RBAC)"
         badge={
-          <span className="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-status-success-bg text-success text-caption font-semibold">
+          <span className="whitespace-nowrap inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-status-success-bg text-success text-caption font-semibold">
             <span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse"></span>
             Zero Trust SSO Enforced
           </span>
@@ -176,14 +429,6 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         description="Manage operator permissions across fulfillment nodes, catalog merchandising controls, financial sign-off limits, and security audit logs."
         actions={
           <div className="flex min-w-0 flex-wrap items-center gap-space-sm lg:shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast?.("Exporting encrypted security audit log...")}
-              icon="receipt_long"
-            >
-              Security Audit Export
-            </Button>
             <Button
               variant="primary"
               size="sm"
@@ -202,43 +447,38 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       <ContentGrid columns={5}>
         <StatsCard
           label="Active Team Members"
-          value="148 Users"
-          change="+14 this month"
-          changeType="positive"
+          value={`${mergedUsers.length} ${mergedUsers.length === 1 ? 'User' : 'Users'}`}
+          changeType="neutral"
           icon="group"
-          subtitle="Across 4 FC Nodes & Central HQ"
+          subtitle={`Across ${nodeGroups.length} ${nodeGroups.length === 1 ? 'hub' : 'hubs'}`}
         />
         <StatsCard
           label="Defined Roles & Policies"
-          value="12 Roles"
-          change="4 Custom Scopes"
+          value={`${roleGroups.length} ${roleGroups.length === 1 ? 'Role' : 'Roles'}`}
           changeType="neutral"
           icon="policy"
-          subtitle="Operations, Finance, Merch, QC"
+          subtitle={roleGroups.map(([name]) => name).join(', ') || 'No roles recorded'}
         />
         <StatsCard
           label="2FA Enforcement"
-          value="100%"
-          change="0 Non-compliant"
-          changeType="positive"
+          value="Not recorded"
+          changeType="neutral"
           icon="lock_clock"
-          subtitle="Compliant (FIDO2 / Hardware OTP)"
+          subtitle="No second factor is stored against an operator"
         />
         <StatsCard
           label="Privileged Admins"
-          value="6 Super Users"
-          change="Tier 0 Security"
-          changeType="warning"
+          value={`${ownerCount} ${ownerCount === 1 ? 'Owner' : 'Owners'}`}
+          changeType="neutral"
           icon="admin_panel_settings"
-          subtitle="Require Dual Sign-off"
+          subtitle="Full RBAC and financial sign-off"
         />
         <StatsCard
           label="Active Node Sessions"
-          value="84 Concurrent"
-          change="BLR-FC1 Peak"
-          changeType="positive"
+          value="Not recorded"
+          changeType="neutral"
           icon="devices"
-          subtitle="Avg. Session Latency 18ms"
+          subtitle="The API keeps no session register"
         />
       </ContentGrid>
 
@@ -252,10 +492,10 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
  }`}
           >
             <span>Team Directory</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-caption ${
+            <span className={`whitespace-nowrap px-1.5 py-0.5 rounded-full text-caption ${
  activeTab === 'directory' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
  }`}>
-              148
+              {mergedUsers.length}
             </span>
           </button>
           <button
@@ -265,10 +505,10 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
  }`}
           >
             <span>Roles & Permission Matrix</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-caption ${
+            <span className={`whitespace-nowrap px-1.5 py-0.5 rounded-full text-caption ${
  activeTab === 'matrix' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
  }`}>
-              12
+              {roleGroups.length}
             </span>
           </button>
           <button
@@ -278,10 +518,10 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
  }`}
           >
             <span>FC Node Assignments</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-caption ${
+            <span className={`whitespace-nowrap px-1.5 py-0.5 rounded-full text-caption ${
  activeTab === 'nodes' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'
  }`}>
-              4 Hubs
+              {nodeGroups.length} {nodeGroups.length === 1 ? 'Hub' : 'Hubs'}
             </span>
           </button>
           <button
@@ -305,15 +545,6 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
             label="Filter users"
             className="w-full min-w-0 sm:w-64 sm:flex-initial"
           />
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => onShowToast?.('Filtering scopes')}
-            className="shrink-0"
-          >
-            <Icon name="tune" aria-hidden="true" className="material-symbols-outlined text-icon text-muted" />
-            <span>All Scopes</span>
-          </Button>
         </div>
       </div>
 
@@ -321,179 +552,147 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
         {/* LEFT PANEL: 65% Main User Directory */}
         <div className="lg:col-span-8 space-y-space-md">
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden">
-            {/* Directory Header Controls */}
-            <div className="p-space-md flex flex-wrap items-center justify-between gap-space-md bg-surface-container-lowest border-b border-subtle">
-              <div className="flex items-center gap-space-sm">
-                <span className="text-subheading text-primary font-semibold">Node Operators & Executives</span>
-                <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
-                  Showing {filteredUsers.length} of 148
-                </span>
-              </div>
-              <div className="flex items-center gap-space-sm">
-                <button
-                  onClick={() => onShowToast?.('Exporting team directory CSV...')}
-                  className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
-                >
-                  <Icon name="download" className="material-symbols-outlined text-icon" />
-                  <span>CSV</span>
-                </button>
-                <button
-                  onClick={() => onShowToast?.('Synchronized employee profiles with Workday HRIS.')}
-                  className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
-                >
-                  <Icon name="refresh" className="material-symbols-outlined text-icon" />
-                  <span>Sync</span>
-                </button>
-              </div>
-            </div>
-
-            {/* High-density Table */}
-            <div className="overflow-x-auto scrollbar-thin">
-              <table className="w-full text-left border-collapse min-w-[960px]">
-                <thead>
-                  <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                    <th className="py-2.5 px-space-md whitespace-nowrap">Operator Identity</th>
-                    <th className="py-2.5 px-space-sm whitespace-nowrap">Primary Role</th>
-                    <th className="py-2.5 px-space-sm whitespace-nowrap">Hub / Node</th>
-                    <th className="py-2.5 px-space-sm whitespace-nowrap">Access Scope &amp; Limit</th>
-                    <th className="py-2.5 px-space-sm whitespace-nowrap">Security State</th>
-                    <th className="py-2.5 px-space-sm whitespace-nowrap">Last Active</th>
-                    <th className="py-2.5 px-space-md text-right whitespace-nowrap">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle text-body text-primary">
-                  {usersPager.pageRows.map((user) => {
-                    const isSelected = selectedUserKey === user.key;
-                    return (
-                      <tr
-                        key={user.key}
-                        onClick={() => setSelectedUserKey(user.key)}
-                        className={`transition-colors group cursor-pointer ${
- user.isSuspended ? 'opacity-75' : ''
- } ${isSelected ? 'bg-primary-fixed/30 hover:bg-primary-fixed/40' : 'hover:bg-surface-subtle/60'}`}
+          {activeTab === 'directory' && (
+            <DataTable
+              data={usersPager.pageRows}
+              columns={directoryColumns}
+              keyField="key"
+              className="min-w-[960px]"
+              activeRowId={selectedUserKey}
+              onRowClick={(user) => setSelectedUserKey(user.key)}
+              emptyIcon="group_off"
+              emptyTitle="No operators match this search"
+              emptyMessage="No operator matches the current name, role or node filter."
+              pagination={{
+                page: usersPager.page,
+                pageSize: usersPager.limit,
+                totalItems: usersPager.total,
+                onPageChange: usersPager.setPage,
+                onPageSizeChange: usersPager.setLimit,
+              }}
+              toolbar={
+                <TableToolbar
+                  className="p-space-md"
+                  left={
+                    <div className="flex items-center gap-space-sm">
+                      <span className="text-subheading text-primary font-semibold">Node Operators &amp; Executives</span>
+                      <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
+                        Showing {filteredUsers.length} of {mergedUsers.length}
+                      </span>
+                    </div>
+                  }
+                  right={
+                    <>
+                      <button
+                        onClick={handleExportTeam}
+                        className="h-8 px-space-sm rounded-lg bg-surface-subtle border border-subtle text-muted hover:text-primary text-label flex items-center gap-1 transition-colors"
                       >
-                        <td className="py-3 px-space-md">
-                          <div className="flex items-center gap-3">
-                            {user.avatar ? (
-                              <Thumbnail src={user.avatar} alt={user.name} className="w-9 h-9 rounded-full shadow-sm" imgClassName="object-cover" />
-                            ) : (
-                              <div className="w-9 h-9 rounded-full bg-surface-subtle flex items-center justify-center text-subheading text-muted font-semibold">
-                                FQ
-                              </div>
-                            )}
-                            <div>
-                              <div className={`text-label-lg font-semibold text-primary flex items-center gap-1.5 ${
- user.isSuspended ? 'line-through' : ''
- }`}>
-                                <span>{user.name}</span>
-                                {user.isOnline && (
-                                  <span className="w-2 h-2 rounded-full bg-status-success" title="Session Online"></span>
-                                )}
-                                {user.isExec && (
-                                  <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
-                                    EXEC
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-body text-secondary text-meta">{user.email}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-space-sm">
-                          <span className={`inline-block max-w-[11rem] truncate rounded-md px-2 py-0.5 text-label font-medium ${user.roleBadge}`} title={user.role}>
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="py-3 px-space-sm">
-                          <span className="flex min-w-0 items-center gap-1 text-label text-primary" title={user.hub}>
-                            <Icon name={user.hubIcon} aria-hidden="true" className="material-symbols-outlined shrink-0 text-icon-sm text-muted" />
-                            <span className="truncate">{user.hub}</span>
-                          </span>
-                        </td>
-                        <td className="py-3 px-space-sm">
-                          <div className="space-y-0.5">
-                            <span className="text-primary font-medium text-meta block">{user.scopeTitle}</span>
-                            <span className={`text-micro block ${user.isSuspended ? 'text-danger font-semibold' : 'text-muted'}`}>
-                              {user.scopeDesc}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-space-sm">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-semibold ${user.securityBadge}`}>
-                            <Icon name={user.securityIcon} className="material-symbols-outlined text-icon-sm" />
-                            {user.securityState}
-                          </span>
-                        </td>
-                        <td className="py-3 px-space-sm text-muted text-meta">
-                          <span>{user.lastActive}</span>
-                          <span className="block text-micro text-muted/70">{user.device}</span>
-                        </td>
-                        <td className="py-3 px-space-md text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {user.isSuspended ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onShowToast?.(`Password reset link sent to ${user.email}`);
-                                }}
-                                className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary transition-colors" title="Reset password" aria-label="Reset password"
-                              >
-                                <Icon name="lock_reset" className="material-symbols-outlined text-icon-md" />
-                              </button>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onShowToast?.(`Editing access privileges for ${user.name}`);
-                                  }}
-                                  className="p-1 rounded-lg hover:bg-surface-subtle text-muted hover:text-primary transition-colors"
-                                  title="Edit Permissions"
-                                >
-                                  <Icon name="edit" className="material-symbols-outlined text-icon-md" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onShowToast?.(`Terminated active session on ${user.device}`);
-                                  }}
-                                  className="p-1 rounded-lg hover:bg-status-danger-bg text-muted hover:text-danger transition-colors"
-                                  title="Kill Session"
-                                >
-                                  <Icon name="logout" className="material-symbols-outlined text-icon-md" />
-                                </button>
-                                {canManageUsers && user.isDbUser && user.role !== 'Store Owner' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteUser(user.id, user.name);
-                                    }}
-                                    className="p-1 rounded-lg hover:bg-status-danger-bg text-danger transition-colors"
-                                    title="Delete User"
-                                  >
-                                    <Icon name="delete" className="material-symbols-outlined text-icon-md" />
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <TablePagination
-              currentPage={usersPager.page}
-              pageSize={usersPager.limit}
-              totalItems={usersPager.total}
-              onPageChange={usersPager.setPage}
-              onPageSizeChange={usersPager.setLimit}
+                        <Icon name="download" className="material-symbols-outlined text-icon" />
+                        <span>CSV</span>
+                      </button>
+                    </>
+                  }
+                />
+              }
             />
-          </div>
+          )}
+
+          {activeTab === 'matrix' && (
+            <DataTable
+              data={roleGroups.map(([roleName, members]) => ({ roleName, members, sample: members[0] }))}
+              columns={matrixColumns}
+              keyField="roleName"
+              className="min-w-[720px]"
+              emptyIcon="admin_panel_settings"
+              emptyTitle="No roles to compare"
+              emptyMessage="No operator matches the current filter, so there are no roles to lay out."
+              toolbar={
+                <TableToolbar
+                  className="p-space-md"
+                  left={
+                    <div>
+                      <span className="text-subheading text-primary font-semibold">Roles &amp; Permission Matrix</span>
+                      <p className="text-meta text-muted mt-0.5">
+                        {roleGroups.length} distinct roles across {filteredUsers.length} operators.
+                      </p>
+                    </div>
+                  }
+                />
+              }
+            />
+          )}
+
+          {activeTab === 'nodes' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md">
+              {nodeGroups.map(([hubName, members]) => (
+                <div key={hubName} className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-md">
+                  <div className="flex items-center justify-between gap-space-sm mb-space-sm">
+                    <div className="flex items-center gap-space-sm min-w-0">
+                      <div className="p-2 rounded-lg bg-surface-subtle text-muted shrink-0">
+                        <Icon name={members[0].hubIcon || 'warehouse'} className="material-symbols-outlined text-icon" />
+                      </div>
+                      <span className="text-meta font-semibold text-primary truncate">{hubName}</span>
+                    </div>
+                    <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold shrink-0">
+                      {members.length} assigned
+                    </span>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {members.map((m) => (
+                      <li key={m.key || m.email} className="flex items-center justify-between gap-space-sm">
+                        <div className="min-w-0">
+                          <div className="text-label text-primary truncate">{m.name}</div>
+                          <div className="text-caption text-muted truncate">{m.email}</div>
+                        </div>
+                        <span className="text-caption text-muted shrink-0">{m.role}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'audit' && (
+            <div className="space-y-space-md">
+              <DataTable
+                data={filteredUsers}
+                columns={auditColumns}
+                keyField="email"
+                className="min-w-[680px]"
+                emptyIcon="shield_person"
+                emptyTitle="No operators to report on"
+                emptyMessage="No operator matches the current filter."
+                toolbar={
+                  <TableToolbar
+                    className="p-space-md"
+                    left={
+                      <div>
+                        <span className="text-subheading text-primary font-semibold">Session &amp; Security State</span>
+                        <p className="text-meta text-muted mt-0.5">
+                          Current posture for {filteredUsers.length} operators.
+                        </p>
+                      </div>
+                    }
+                  />
+                }
+              />
+              <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-subtle flex items-start gap-space-md">
+                <div className="p-2.5 rounded-xl bg-status-info-bg text-info shrink-0">
+                  <Icon name="history" className="material-symbols-outlined text-icon-xl" />
+                </div>
+                <div>
+                  <div className="text-meta font-semibold text-primary">Event history is not recorded yet</div>
+                  <p className="text-caption text-muted mt-0.5">
+                    The table above is live session state. A per-event audit trail (who changed what,
+                    when, from which address) needs an audit endpoint on the API; the backend exposes
+                    no such route today, so nothing here is back-filled or simulated.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
 
           {/* System Security Policy Banner */}
           <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-sm border border-subtle flex items-start gap-space-md">
@@ -517,6 +716,11 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
         </div>
 
         {/* RIGHT PANEL: 35% Role Policy Inspector & Deep Controls */}
+        {!selectedUser ? (
+          <div className="lg:col-span-4">
+            <EmptyState icon="person" title="No team member selected" description="Pick a team member from the list to see their access." />
+          </div>
+        ) : (
         <div className="lg:col-span-4 space-y-space-md">
           {/* Main Policy Inspector Card */}
           <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-md space-y-space-md sticky top-20">
@@ -532,7 +736,7 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
                   Assigned to: <strong className="text-primary">{selectedUser.name}</strong> ({selectedUser.assignedHub})
                 </p>
               </div>
-              <span className={`px-2 py-0.5 rounded-full text-caption font-semibold ${selectedUser.tierBadge}`}>
+              <span className={`whitespace-nowrap px-2 py-0.5 rounded-full text-caption font-semibold ${selectedUser.tierBadge}`}>
                 {selectedUser.tier}
               </span>
             </div>
@@ -599,53 +803,28 @@ export function UsersAndRoleAccess({ onNavigate, onShowToast }) {
 
             {/* Recent Audit Trail Entries */}
             <div className="space-y-space-xs pt-space-xs border-t border-subtle">
-              <div className="flex items-center justify-between">
-                <span className="text-caption uppercase text-muted tracking-wider">
-                  Live Operator Audit Trail
+              <span className="text-caption uppercase text-muted tracking-wider">
+                Activity
+              </span>
+              <p className="text-meta text-muted">
+                The API records when an account was created and last changed, but keeps no
+                per-action audit log, so recent activity cannot be shown here.
+              </p>
+              <div className="flex flex-col gap-0.5 text-meta">
+                <span className="text-secondary">
+                  Last updated: <span className="text-primary">{selectedUser.lastActive}</span>
                 </span>
-                <span className="text-caption text-info font-semibold">Real-time</span>
-              </div>
-              <div className="space-y-2">
-                {selectedUser.auditEntries.map((aud, aIdx) => (
-                  <div key={aIdx} className="flex items-start gap-2 text-meta">
-                    <span className={`w-1.5 h-1.5 rounded-full ${aud.dotColor} mt-1.5 shrink-0`}></span>
-                    <div>
-                      <span className="font-medium text-primary block">{aud.title}</span>
-                      <span className="text-muted text-micro">{aud.sub}</span>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
 
             {/* Inspector Action Buttons */}
             <div className="pt-space-sm border-t border-subtle flex flex-col gap-2">
-              <button
-                onClick={() => onShowToast?.(`Editing permissions matrix for ${selectedUser.name}`)}
-                className="w-full h-9 rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-accent text-label-lg font-medium transition-colors shadow-sm flex items-center justify-center gap-1.5"
-              >
-                <Icon name="tune" className="material-symbols-outlined text-icon-md" />
-                <span>Modify Permissions</span>
-              </button>
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => onShowToast?.(`Viewing full cryptographic audit trail for ${selectedUser.name}`)}
-                  className="h-8 rounded-lg bg-surface-subtle hover:bg-surface-container-high border border-subtle text-primary text-label font-medium transition-colors flex items-center justify-center gap-1"
-                >
-                  <Icon name="history" className="material-symbols-outlined text-icon text-muted" />
-                  <span>View Full Audit</span>
-                </button>
-                <button
-                  onClick={() => onShowToast?.(`Suspended access for ${selectedUser.name}`)}
-                  className="h-8 rounded-lg bg-status-danger-bg hover:bg-error-container text-danger text-label font-medium transition-colors flex items-center justify-center gap-1 border border-status-danger/20"
-                >
-                  <Icon name="lock" className="material-symbols-outlined text-icon" />
-                  <span>Suspend Access</span>
-                </button>
               </div>
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Invite Team Member Modal */}

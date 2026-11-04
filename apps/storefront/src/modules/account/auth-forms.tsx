@@ -72,6 +72,38 @@ export function AuthForms() {
           {loggingIn ? "Signing in" : "Sign in"}
         </Button>
       </form>
+
+      {/* Quick Demo Sign-In as Sarah Jenkins */}
+      <div className="rounded-xl border border-secondary/20 bg-secondary-fixed/30 p-4 flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="font-label-sm text-label-sm font-semibold text-on-surface">Explore Atelier Account Demo:</span>
+          <span className="text-[9px] bg-secondary text-on-secondary px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+            Privilege Gold
+          </span>
+        </div>
+        <p className="font-body-sm text-body-sm text-on-surface-variant">
+          Experience Sarah Jenkins’ atelier profile with preloaded orders, addresses, payment methods, and concierge perks.
+        </p>
+        <button
+          type="button"
+          disabled={loggingIn}
+          onClick={() => {
+            const form = document.querySelector<HTMLFormElement>('[data-testid="login-page"] form')
+            const emailInput = form?.querySelector<HTMLInputElement>('input[name="email"]')
+            const passInput = form?.querySelector<HTMLInputElement>('input[name="password"]')
+            if (emailInput && passInput && form) {
+              emailInput.value = "sarah.jenkins@atelier-everwear.com"
+              passInput.value = "SarahJenkins123!"
+              setSubmitted(true)
+              form.requestSubmit()
+            }
+          }}
+          className="mt-1 w-full h-10 rounded bg-primary text-on-primary font-label-sm text-label-sm uppercase tracking-wider font-semibold hover:bg-inverse-surface transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+        >
+          {loggingIn ? "Signing In..." : "1-Click Sign In as Sarah Jenkins"}
+        </button>
+      </div>
+
       <p className="text-sm text-muted-foreground">
         New to Everwear?{" "}
         <button type="button" onClick={() => setMode("register")} className="font-semibold text-foreground underline underline-offset-4" data-testid="register-switch">

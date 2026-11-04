@@ -5,7 +5,7 @@ import { MODULES, getAdminToken, seed, gotoModule } from "./helpers.js"
  * The approved type scale, as rendered. Anything outside it means a component
  * invented its own size instead of taking one from the scale.
  */
-const TEXT_SIZES = ["28px", "24px", "22px", "20px", "16px", "14px", "13px", "12px", "11px"]
+const TEXT_SIZES = ["36px", "28px", "24px", "22px", "20px", "16px", "14px", "13px", "12px", "11px"]
 const ICON_SIZES = ["14px", "16px", "18px", "20px", "24px", "32px"]
 const WEIGHTS = ["400", "500", "600"]
 
@@ -108,7 +108,18 @@ const AUDIT = ([textSizes, iconSizes, weights]) => {
       }
     }
 
-    if (el.scrollWidth > el.clientWidth + 2 && !/auto|scroll|visible/.test(cs.overflowX) && cs.textOverflow !== "ellipsis") {
+    // Visually-hidden text clips on purpose: that is how a screen-reader-only
+    // caption is kept out of the layout. Flagging it would push authors to
+    // delete accessible labels to get the suite green.
+    const screenReaderOnly =
+      el.clientWidth <= 1 || el.clientHeight <= 1 || cs.clip === "rect(0px, 0px, 0px, 0px)"
+
+    if (
+      !screenReaderOnly &&
+      el.scrollWidth > el.clientWidth + 2 &&
+      !/auto|scroll|visible/.test(cs.overflowX) &&
+      cs.textOverflow !== "ellipsis"
+    ) {
       out.clipped.push(`"${text}" ${label(el)}`)
     }
   }

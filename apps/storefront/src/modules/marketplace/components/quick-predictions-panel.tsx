@@ -42,7 +42,7 @@ export function QuickPredictionsPanel({ visible = true }: { visible?: boolean })
       className="relative w-full z-20 bg-surface-container-low/40 border-b border-border/60 py-4 px-margin-mobile md:px-margin transition-all"
       id="search-autocomplete-panel"
     >
-      <div className="max-w-[1440px] mx-auto flex flex-col gap-3">
+      <div className="w-full flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2 text-foreground">
             <SparklesIcon className="size-4 text-secondary" />

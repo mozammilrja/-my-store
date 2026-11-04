@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { adminApi, describeUploadProblem } from '../../lib/api';
 import { cn } from '../../lib/utils';
-import { useProductsQuery, useUpdateProductMutation } from '../../hooks/useAdminQueries';
+import { VariantMatrixPanel, StockAllocationPanel, StorefrontSeoPanel } from './ProductTabPanels';
+import { useProductsQuery, useUpdateProductMutation, useCategoriesQuery } from '../../hooks/useAdminQueries';
 import { Icon,
   Card,
   CardContent,
@@ -32,9 +34,33 @@ import { Icon,
 
 const EMPTY_PRODUCT = {};
 
+/** Tab slugs, so the URL says which panel is open rather than a bare number. */
+const TAB_SLUGS = {
+  1: 'details',
+  2: 'media',
+  3: 'variants',
+  4: 'pricing',
+  5: 'tax',
+  6: 'stock',
+  7: 'storefront',
+};
+const SLUG_TO_TAB = Object.fromEntries(Object.entries(TAB_SLUGS).map(([id, slug]) => [slug, Number(id)]));
+
 export function ProductCatalog({ onShowToast, currentHub }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = SLUG_TO_TAB[searchParams.get('tab')] ?? 1;
+  // Pushed, not replaced: moving between tabs is navigation, so Back should
+  // return to the tab you came from.
+  const setActiveTab = (next) =>
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      if (Number(next) === 1) params.delete('tab');
+      else params.set('tab', TAB_SLUGS[Number(next)]);
+      return params;
+    });
+
   const [activeCategory, setActiveCategory] = useState('All');
-  const [activeTab, setActiveTab] = useState(1);
+
   const [allProducts, setAllProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [activeMediaSlot, setActiveMediaSlot] = useState(null);
@@ -109,6 +135,11 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     refetch: refetchCatalog,
   } = useProductsQuery({ limit: 100 });
   const updateProductMutation = useUpdateProductMutation();
+  const { data: categoriesData } = useCategoriesQuery();
+  const categoryNames = useMemo(
+    () => new Map((categoriesData?.categories ?? []).map((c) => [c.id, c.name])),
+    [categoriesData]
+  );
 
   // Sync products when query cache updates
   useEffect(() => {
@@ -123,7 +154,8 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           brand: 'Everwear Atelier',
           collection: 'Autumn / Festive 24',
           department: idx % 2 === 0 ? 'Women' : 'Men',
-          category: idx % 3 === 0 ? "Women's Ethnic" : idx % 3 === 1 ? "Women's Western" : "Men's Casual",
+          categoryIds: p.categoryIds ?? [],
+          category: (p.categoryIds ?? []).map((id) => categoryNames.get(id)).filter(Boolean).join(', '),
           seasonTag: 'AUTUMN / ATELIER 24',
           fabricComposition: p.material || 'Premium Woven Fabric',
           silhouette: 'Tailored Fit',
@@ -138,7 +170,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           storefrontSync: p.status === 'published',
           codActive: true,
           expressShip: true,
-          thumbnail: p.thumbnail || (p.images && p.images[0]) || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBY9Tgm6nn9TMViDB2K0jV_IgnR1CTQzPSh4UF1qP0xioyqkpMq3i7rxekw2L-XzIqJ7t0oI4QqiK1ZfohmEgXR501aua43kgyya37eW_Pnzg1T4YVEcL0PZnC5nDOlZkUy2t-rC3JITisM8eYFYMI4d6TLZtJcydeuJ8KukkLzD8BdJmW5hA7Jm3FflcjpsXIW5n5FvIgEXboyVtaKgQdoBRB4-htL-mHupOCj5v7x',
+          thumbnail: p.thumbnail || p.images?.[0] || null,
           mediaAssets: p.images && p.images.length > 0
             ? p.images.map((img, i) => ({ slot: `Perspective ${i + 1}`, url: img, path: img, isPrimary: i === 0 }))
             : p.thumbnail
@@ -151,6 +183,24 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     }
   }, [catalogData]);
 
+  /** The stat band, counted off the API payload rather than written in. The
+      row mapper above drops `status` and `variants` and substitutes a stock
+      thumbnail, so counting from it would answer the wrong question. */
+  const catalogStats = useMemo(() => {
+    const rows = catalogData?.products ?? [];
+    const variants = rows.flatMap((p) => p.variants ?? []);
+    const tracked = variants.filter((v) => v.manageInventory);
+    return {
+      published: rows.filter((p) => p.status === 'published').length,
+      draft: rows.filter((p) => p.status === 'draft').length,
+      variants: variants.length,
+      tracked: tracked.length,
+      outOfStock: tracked.filter((v) => (v.stock ?? 0) <= 0).length,
+      noImage: rows.filter((p) => !p.thumbnail && !(p.images ?? []).length).length,
+    };
+  }, [catalogData]);
+
+
   // Keep a real selection as the catalog loads or the list changes under it.
   useEffect(() => {
     if (!allProducts.length) {
@@ -162,10 +212,33 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     }
   }, [allProducts, selectedProductId]);
 
+  /**
+   * One chip per category that has products in it, counted from the catalog.
+   * The chips used to be four fixed labels derived from a product's position
+   * in the array, with counts that fell back to 14, 18, 12 and 6, so they
+   * never added up to the catalog and the filter narrowed by a label no
+   * product really carried.
+   */
+  const categoryChips = useMemo(() => {
+    const counts = new Map();
+    for (const product of allProducts) {
+      for (const id of product.categoryIds ?? []) {
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+    }
+    return [
+      { id: 'All', label: 'All', count: allProducts.length },
+      ...[...counts.entries()]
+        .map(([id, count]) => ({ id, label: categoryNames.get(id) ?? 'Uncategorised', count }))
+        .filter((c) => c.label !== 'Uncategorised')
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
+    ];
+  }, [allProducts, categoryNames]);
+
   // Filtered styles based on activeCategory
   const filteredProducts = useMemo(() => {
     if (activeCategory === 'All') return allProducts;
-    return allProducts.filter(p => p.category?.toLowerCase().includes(activeCategory.toLowerCase()));
+    return allProducts.filter((p) => (p.categoryIds ?? []).includes(activeCategory));
   }, [allProducts, activeCategory]);
 
   // Calculations
@@ -270,10 +343,8 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       storefrontSync: true,
       codActive: true,
       expressShip: true,
-      thumbnail: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBY9Tgm6nn9TMViDB2K0jV_IgnR1CTQzPSh4UF1qP0xioyqkpMq3i7rxekw2L-XzIqJ7t0oI4QqiK1ZfohmEgXR501aua43kgyya37eW_Pnzg1T4YVEcL0PZnC5nDOlZkUy2t-rC3JITisM8eYFYMI4d6TLZtJcydeuJ8KukkLzD8BdJmW5hA7Jm3FflcjpsXIW5n5FvIgEXboyVtaKgQdoBRB4-htL-mHupOCj5v7x',
-      mediaAssets: [
-        { slot: 'Primary Editorial', url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBY9Tgm6nn9TMViDB2K0jV_IgnR1CTQzPSh4UF1qP0xioyqkpMq3i7rxekw2L-XzIqJ7t0oI4QqiK1ZfohmEgXR501aua43kgyya37eW_Pnzg1T4YVEcL0PZnC5nDOlZkUy2t-rC3JITisM8eYFYMI4d6TLZtJcydeuJ8KukkLzD8BdJmW5hA7Jm3FflcjpsXIW5n5FvIgEXboyVtaKgQdoBRB4-htL-mHupOCj5v7x', isPrimary: true }
-      ]
+      thumbnail: null,
+      mediaAssets: []
     };
 
     setAllProducts([newProd, ...allProducts]);
@@ -286,6 +357,26 @@ export function ProductCatalog({ onShowToast, currentHub }) {
   };
 
   const isUploading = uploads.some((u) => u.status === 'uploading');
+
+  /**
+   * Whether anything is actually waiting to be saved. The bar used to read
+   * "Unsaved changes stay local" from the moment the page opened and kept
+   * every action enabled, so Publish was always offered even when it would
+   * send the product's own saved values straight back.
+   *
+   * Only the title and the composed description travel with Publish and Save
+   * draft; images are written as they upload, which is why they are not part
+   * of this.
+   */
+  const canSaveProduct = Boolean(product.rawBackend?.id || product.id?.startsWith('prod_'));
+  const composedDescription = `${silhouette} in ${fabric}. ${pattern}.`;
+  const isDirty =
+    canSaveProduct &&
+    (title.trim() !== (product.title ?? '').trim() ||
+      composedDescription !== (product.rawBackend?.description ?? ''));
+  const savedStatus = product.rawBackend?.status ?? null;
+  const canPublish = canSaveProduct && (isDirty || savedStatus !== 'published');
+  const canSaveDraft = canSaveProduct && (isDirty || savedStatus !== 'draft');
 
   /** The backend id to PATCH, or null when this row only exists in the client. */
   const backendProductId = product.rawBackend?.id || (product.id?.startsWith('prod_') ? product.id : null);
@@ -355,6 +446,74 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     }
   };
 
+  /** Writes changed variant stock onto the product. */
+  /** Puts every field back to what the loaded product says. */
+  const handleDiscardDraft = () => {
+    setTitle(product.title || '');
+    setBrand(product.brand || 'Everwear Atelier');
+    setCollection(product.collection || 'Autumn / Festive 24');
+    setStyleCode(product.styleCode || product.handle || 'EVR-STYLE-01');
+    setDepartment(product.department || 'Women');
+    setCategory(product.category || 'Dresses & Jumpsuits');
+    setFabric(product.fabricComposition || '100% Organic Cotton');
+    setSilhouette(product.silhouette || 'Flared Silhouette');
+    setPattern(product.pattern || 'Artisan Craft');
+    setWashCare(product.washCare || 'Dry Clean Only');
+    setOrigin(product.origin || 'Jaipur Craft Guild, India');
+    setHsnCode(product.hsnCode || '6204.49.00');
+    setGstRate(product.gstRate || 12);
+    setMrp(product.mrp || 6990);
+    setB2cPrice(product.b2cPrice || 4890);
+    setProcurementCost(product.procurementCost || 1650);
+    setMediaAssets(product.mediaAssets || []);
+    onShowToast({
+      type: 'info',
+      title: 'Draft discarded',
+      message: `${product.title} is back to its saved values.`,
+    });
+  };
+
+  const handleSaveStock = async (variantChanges, onDone) => {
+    if (!backendProductId || !variantChanges.length) return;
+    try {
+      await updateProductMutation.mutateAsync({
+        productId: backendProductId,
+        data: { variants: variantChanges },
+      });
+      onDone?.();
+      onShowToast({
+        type: 'success',
+        title: 'Stock updated',
+        message: `Saved ${variantChanges.length} variant${variantChanges.length === 1 ? '' : 's'}.`,
+      });
+    } catch (err) {
+      onShowToast({
+        type: 'error',
+        title: 'Stock not saved',
+        message: err?.message || 'The stock change was rejected. Nothing was changed.',
+      });
+    }
+  };
+
+  /** Writes the storefront-facing fields the product page reads. */
+  const handleSaveStorefront = async (fields) => {
+    if (!backendProductId) return;
+    try {
+      await updateProductMutation.mutateAsync({ productId: backendProductId, data: fields });
+      onShowToast({
+        type: 'success',
+        title: 'Storefront fields saved',
+        message: `${title} is now at /products/${fields.handle}.`,
+      });
+    } catch (err) {
+      onShowToast({
+        type: 'error',
+        title: 'Not saved',
+        message: err?.message || 'The storefront fields were rejected. Nothing was changed.',
+      });
+    }
+  };
+
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     // Reset the input so choosing the same file again still fires a change.
@@ -399,14 +558,6 @@ export function ProductCatalog({ onShowToast, currentHub }) {
     setUploads((prev) => {
       prev.filter((u) => u.id === uploadId).forEach((u) => URL.revokeObjectURL(u.previewUrl));
       return prev.filter((u) => u.id !== uploadId);
-    });
-  };
-
-  const handleRunQc = () => {
-    onShowToast({
-      type: 'info',
-      title: 'Compliance QC Scan Passed',
-      message: `Style ${styleCode}: HSN ${hsnCode} verified against GST portal. EAN barcodes valid. Zero structural violations.`,
     });
   };
 
@@ -460,7 +611,7 @@ export function ProductCatalog({ onShowToast, currentHub }) {
         <EmptyState
           icon="inventory_2"
           title="No products yet"
-          message="Products created in the catalog will appear here, ready to edit and publish."
+          description="Products created in the catalog will appear here, ready to edit and publish."
         />
       </PageContainer>
     );
@@ -479,19 +630,9 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       <PageHeader
         breadcrumb={['Everwear Admin', 'Catalog', 'Products']}
         title="Fashion Product Catalog & Variant Master"
-        description="Omnichannel garment provisioning, multi-hub HSN/GST compliance & dynamic matrix management."
+        description="Product details, images, variants, pricing, tax and stock, saved straight to the catalog."
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast({ type: 'info', title: 'Excel Import', message: 'Ready to import catalog spreadsheet (XLSX template v2.4).' })}
-              className="gap-1.5 h-9"
-              type="button"
-            >
-              <Icon name="upload_file" className="material-symbols-outlined text-icon-md" />
-              <span>Import Excel</span>
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -501,16 +642,6 @@ export function ProductCatalog({ onShowToast, currentHub }) {
             >
               <Icon name="file_download" className="material-symbols-outlined text-icon-md" />
               <span>Export CSV</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast({ type: 'success', title: 'Storefront Synced', message: 'POS & Myntra catalog channels synchronized successfully.' })}
-              className="gap-1.5 h-9"
-              type="button"
-            >
-              <Icon name="sync_alt" className="material-symbols-outlined text-icon-md" />
-              <span>Sync Storefront / POS</span>
             </Button>
             <Button
               variant="primary"
@@ -529,48 +660,48 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       {/* Operational Stat Band */}
       <ContentGrid cols={5}>
         <StatsCard
-          title="Total Products"
+          title="Total products"
           value={allProducts.length}
           icon="checkroom"
-          trend="+3.4% mo"
-          trendType="up"
-        />
-
-        <StatsCard
-          title="Active Variants (SKUs)"
-          value="24,190"
-          icon="view_in_ar"
-          iconColor="text-accent"
-          badge="Live in 12 Hubs"
+          badge={`${catalogStats.published} published`}
           badgeVariant="info"
         />
 
         <StatsCard
-          title="Draft Catalog"
-          value="38"
+          title="Variants (SKUs)"
+          value={catalogStats.variants.toLocaleString('en-IN')}
+          icon="view_in_ar"
+          iconColor="text-accent"
+          badge={`${catalogStats.tracked} stock-tracked`}
+          badgeVariant="info"
+        />
+
+        <StatsCard
+          title="Draft catalog"
+          value={String(catalogStats.draft)}
           icon="edit_note"
           iconColor="text-muted"
-          badge="Work in progress"
+          badge="Not on the storefront"
           badgeVariant="secondary"
         />
 
         <StatsCard
           className="hover:border-status-danger/40"
-          title="Stock Depleted"
-          value="86"
+          title="Out of stock"
+          value={String(catalogStats.outOfStock)}
           icon="inventory_2"
           iconColor="text-danger"
-          badge="Urgent Reorder"
+          badge="Tracked variants at zero"
           badgeVariant="destructive"
         />
 
         <StatsCard
           className="hover:border-status-warning/40"
-          title="Pending Studio QC"
-          value="14"
+          title="Missing imagery"
+          value={String(catalogStats.noImage)}
           icon="photo_camera"
           iconColor="text-warning"
-          badge="Asset Review"
+          badge="Products with no image"
           badgeVariant="warning"
         />
       </ContentGrid>
@@ -579,18 +710,12 @@ export function ProductCatalog({ onShowToast, currentHub }) {
       <Card>
         <CardContent className="p-2 flex items-center justify-between flex-wrap gap-space-sm">
           <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
-            {[
-              { label: 'All', count: allProducts.length },
-              { label: "Women's Ethnic", count: allProducts.filter(p => p.category?.includes("Ethnic")).length || 14 },
-              { label: "Women's Western", count: allProducts.filter(p => p.category?.includes("Western")).length || 18 },
-              { label: "Men's Casual", count: allProducts.filter(p => p.department === 'Men').length || 12 },
-              { label: 'Accessories & Footwear', count: 6 },
-            ].map((cat) => {
-              const isCatActive = activeCategory === cat.label;
+            {categoryChips.map((cat) => {
+              const isCatActive = activeCategory === cat.id;
               return (
                 <button
-                  key={cat.label}
-                  onClick={() => setActiveCategory(cat.label)}
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
                   className={`px-3 py-1.5 rounded-lg text-label transition-all whitespace-nowrap ${
  isCatActive
  ? 'bg-primary-container text-on-accent font-semibold shadow-xs'
@@ -683,11 +808,13 @@ export function ProductCatalog({ onShowToast, currentHub }) {
           </TabsList>
         </Tabs>
 
-        {/* Main Workspace Split Panels */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg p-space-lg bg-surface-container-lowest">
-          {/* Left Column: Rich Fashion Specification Form (7 Cols) */}
-          <div className="xl:col-span-7 space-y-space-lg">
-            {/* General Identity */}
+        {/* One panel per tab. Every tab owns its content; before this the
+            panels were all rendered at once and the tabs only moved a
+            highlight. */}
+        <div data-testid="product-tab-panel" className="bg-surface-container-lowest p-space-lg">
+          {activeTab === 1 && (
+            <div className="grid grid-cols-1 gap-space-lg xl:grid-cols-12">
+              <div className="flex flex-col gap-space-lg xl:col-span-7">
             <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
@@ -701,10 +828,14 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-caption text-muted uppercase font-semibold">
+                  <label
+                    htmlFor="product-title"
+                    className="block text-caption uppercase font-semibold text-muted"
+                  >
                     Product Title (Customer Facing)
                   </label>
                   <Input
+                    id="product-title"
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
@@ -785,8 +916,8 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Material, Weave & Technical Specs */}
+              </div>
+              <div className="flex flex-col gap-space-lg xl:col-span-5">
             <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
@@ -859,8 +990,12 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
               </CardContent>
             </Card>
+              </div>
+            </div>
+          )}
 
-            {/* Studio Lookbook Media Assets (Strip of slots) */}
+          {activeTab === 2 && (
+            <div className="flex flex-col gap-space-lg">
             <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between">
@@ -975,11 +1110,13 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 )}
               </CardContent>
             </Card>
-          </div>
+            </div>
+          )}
 
-          {/* Right Column: Pricing Engine, Tax Setup & SKU Matrix (5 Cols) */}
-          <div className="xl:col-span-5 space-y-space-lg">
-            {/* Commercial Pricing Engine */}
+          {activeTab === 3 && <VariantMatrixPanel product={product} />}
+
+          {activeTab === 4 && (
+            <div className="flex flex-col gap-space-lg">
             <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
@@ -1051,8 +1188,11 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
               </CardContent>
             </Card>
+            </div>
+          )}
 
-            {/* HSN & GST Statutory Compliance */}
+          {activeTab === 5 && (
+            <div className="flex flex-col gap-space-lg">
             <Card className="bg-surface-canvas border-subtle/50">
               <CardContent className="p-space-lg space-y-space-md">
                 <div className="flex items-center justify-between pb-2 border-b border-subtle/50">
@@ -1113,105 +1253,54 @@ export function ProductCatalog({ onShowToast, currentHub }) {
                 </div>
               </CardContent>
             </Card>
+            </div>
+          )}
 
-            {/* Active Variant Matrix */}
-            <Card className="bg-surface-canvas border-subtle/50">
-              <CardContent className="p-space-lg space-y-space-md">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-subheading font-semibold text-primary flex items-center gap-2">
-                      <Icon name="layers" className="material-symbols-outlined text-accent text-icon-lg" />
-                      <span>Active SKU Variant Matrix</span>
-                    </h3>
-                    <p className="text-body text-secondary">Emerald &amp; Wine Colorways • XS–XL</p>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="text-accent hover:bg-surface-container text-meta h-7"
-                    onClick={() => onShowToast({ type: 'info', title: 'New Colorway', message: 'Colorway palette generator opened.' })}
-                    type="button"
-                  >
-                    + New Colorway
-                  </Button>
-                </div>
+          {activeTab === 6 && (
+            <StockAllocationPanel
+              product={product}
+              onSave={handleSaveStock}
+              isSaving={updateProductMutation.isPending}
+            />
+          )}
 
-                {/* Colorway 1: Emerald Green */}
-                <div className="bg-surface-container-lowest p-space-md rounded-xl space-y-space-sm shadow-xs border border-subtle">
-                  <div className="flex items-center justify-between border-b border-surface-subtle pb-2">
-                    <ColorSwatch hex="#065F46" name="Emerald Green" />
-                    <Badge variant="success" className="text-caption font-semibold">
-                      5 SKUs Active
-                    </Badge>
-                  </div>
-
-                  <div className="space-y-1.5 pt-1">
-                    {[
-                      { size: 'XS', sku: `${styleCode}-EMR-XS`, ean: '8904321098451', stock: 142 },
-                      { size: 'S', sku: `${styleCode}-EMR-S`, ean: '8904321098452', stock: 298 },
-                      { size: 'M', sku: `${styleCode}-EMR-M`, ean: '8904321098453', stock: 340 },
-                      { size: 'L', sku: `${styleCode}-EMR-L`, ean: '8904321098454', stock: 18 },
-                      { size: 'XL', sku: `${styleCode}-EMR-XL`, ean: '8904321098455', stock: 0 },
-                    ].map((skuItem) => (
-                      <div key={skuItem.size} className="flex items-center justify-between text-body py-1 border-b border-surface-subtle/50 last:border-none">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded bg-surface-subtle flex items-center justify-center font-semibold text-micro text-primary">
-                            {skuItem.size}
-                          </span>
-                          <span className="font-mono text-caption text-muted whitespace-nowrap">
-                            {skuItem.sku}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono text-micro text-muted hidden sm:inline whitespace-nowrap">
-                            EAN: {skuItem.ean}
-                          </span>
-                          <Badge 
-                            variant={
-                              skuItem.stock === 0 ? 'destructive' :
-                              skuItem.stock < 20 ? 'warning' : 'success'
-                            }
-                            className="text-micro py-0 px-1.5 font-semibold"
-                          >
-                            {skuItem.stock} {skuItem.stock === 0 ? 'Out' : skuItem.stock < 20 ? 'Low' : 'In Stock'}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Colorway 2: Wine Berry */}
-                <div className="bg-surface-container-lowest p-space-md rounded-xl space-y-space-sm shadow-xs border border-subtle">
-                  <div className="flex items-center justify-between border-b border-surface-subtle pb-2">
-                    <ColorSwatch hex="#701A75" name="Wine Berry" />
-                    <Badge variant="info" className="text-caption font-semibold">
-                      5 SKUs Generated
-                    </Badge>
-                  </div>
-                  <div className="text-meta text-muted flex items-center justify-between py-1">
-                    <span>Standard Logistics Spec:</span>
-                    <span className="font-mono text-primary whitespace-nowrap">380g • 30×25×4 cm • Polybag Tier 1</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          {activeTab === 7 && (
+            <StorefrontSeoPanel
+              product={product}
+              title={title}
+              description={product.rawBackend?.description ?? ''}
+              onSave={handleSaveStorefront}
+              isSaving={updateProductMutation.isPending}
+            />
+          )}
         </div>
+
 
         {/* Sticky Bottom Master Action Bar */}
         <div className="p-space-md bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-space-md sticky bottom-0 z-30 shadow-lg border-t border-subtle">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-status-success animate-ping"></span>
-            <span className="text-label font-semibold text-primary">Studio Changes Auto-Saved</span>
-            <span className="text-muted text-micro">(Live Sync)</span>
+            <span className="text-label font-semibold text-primary">
+              {updateProductMutation.isPending
+                ? 'Saving changes'
+                : isDirty
+                  ? 'Unsaved changes stay local'
+                  : 'All changes saved'}
+            </span>
+            <span className="text-muted text-micro">
+              {isDirty
+                ? 'Use the actions on the right to save.'
+                : canSaveProduct
+                  ? `This style is ${savedStatus === 'published' ? 'published' : 'a draft'}.`
+                  : 'This style only exists in the browser and cannot be saved.'}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-space-xs w-full sm:w-auto justify-end">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onShowToast({ type: 'warning', title: 'Draft Discarded', message: 'Restored original production style values.' })}
+              onClick={handleDiscardDraft}
+              disabled={!isDirty || isSaving}
               className="text-danger hover:bg-status-danger-bg hover:text-danger"
               type="button"
             >
@@ -1221,26 +1310,16 @@ export function ProductCatalog({ onShowToast, currentHub }) {
               variant="outline"
               size="sm"
               onClick={handleSaveDraft}
-              disabled={isSaving}
+              disabled={isSaving || !canSaveDraft}
               type="button"
             >
               Save as Inactive Draft
             </Button>
             <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleRunQc}
-              className="gap-1.5 shadow-xs"
-              type="button"
-            >
-              <Icon name="verified" className="material-symbols-outlined text-icon-md" />
-              <span>Run Compliance QC Check</span>
-            </Button>
-            <Button
               variant="primary"
               size="sm"
               onClick={handlePublish}
-              disabled={isSaving}
+              disabled={isSaving || !canPublish}
               className="gap-1.5 shadow-md"
               type="button"
             >

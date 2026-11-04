@@ -5,6 +5,14 @@ import { QUERY_KEYS } from '../lib/queryClient';
 // ==========================================
 // 1. Executive Overview & Dashboard Hooks
 // ==========================================
+export function useAnalyticsQuery(params, options = {}) {
+  return useQuery({
+    queryKey: QUERY_KEYS.analytics(params),
+    queryFn: () => adminApi.analytics(params),
+    ...options,
+  });
+}
+
 export function useDashboardQuery(options = {}) {
   return useQuery({
     queryKey: QUERY_KEYS.dashboard,

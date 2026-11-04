@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Icon,
   Button,
@@ -16,17 +16,21 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
-import { notesList } from '../../data/mockData';
+import { DataTable, TableToolbar } from '../shared/DataTable';
 import { adminApi } from '../../lib/api';
-import { useCreditNotesQuery } from '../../hooks/useAdminQueries';
+import { formatMoney } from '../../lib/format';
+import { useCreditNotesQuery, useInvoicesQuery } from '../../hooks/useAdminQueries';
+import { EmptyState } from '../shared/FeedbackAndOverlays';
+import { SectionCard } from '../shared/Layout';
 
 export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
   const [selectedNoteId, setSelectedNoteId] = useState('#CN-2024-001420');
   const [taxPeriod, setTaxPeriod] = useState('May 2024 (FY 24-25)');
   const [disbursementFilter, setDisbursementFilter] = useState('All');
-  const [statusTab, setStatusTab] = useState('all'); // 'all', 'reconciled', 'syncing', 'disputed'
+  const [statusTab, setStatusTab] = useState('all'); // 'all', 'settled', 'issued', 'canceled'
+  const [sortDesc, setSortDesc] = useState(true);
   const [searchFilter, setSearchFilter] = useState('');
-  const [notesData, setNotesData] = useState(notesList);
+  const [notesData, setNotesData] = useState([]);
 
   // TanStack Query for credit notes
   const {
@@ -36,33 +40,86 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
     error: creditNotesError,
     refetch: refetchCreditNotes,
   } = useCreditNotesQuery();
+  // A credit note records only the refund amount. The tax it reverses belongs
+  // to the invoice it was raised against, so the split comes from there rather
+  // than from a rate assumed here.
+  const { data: invoicesData } = useInvoicesQuery();
 
   useEffect(() => {
-    if (creditNotesData?.creditNotes?.length) {
-      const live = creditNotesData.creditNotes.map(cn => ({
-        id: `#${cn.creditNoteNumber}`,
-        invoice: `#${cn.invoiceNumber}`,
-        date: new Date(cn.createdAt).toLocaleDateString(),
-        customer: cn.customerName,
-        type: 'Return Refund',
-        reason: cn.reason,
-        originalAmt: `₹${(cn.refundAmount / 100).toLocaleString()}`,
-        taxReversal: `₹${Math.round((cn.refundAmount * 0.12) / 100).toLocaleString()}`,
-        refundAmt: `₹${(cn.refundAmount / 100).toLocaleString()}`,
-        disbursement: 'Source Payment Gateway',
-        status: 'Reconciled',
-        statusClass: 'bg-status-success-bg text-success',
-      }));
-      setNotesData(prev => [...live, ...prev.filter(p => !live.some(l => l.id === p.id))]);
+    if (creditNotesData?.creditNotes) {
+      const byNumber = new Map(
+        (invoicesData?.invoices ?? []).map((inv) => [inv.invoiceNumber, inv])
+      );
+      const rupees = (minor) => Math.round((Number(minor) || 0) / 100);
+      const inr = (minor) => `₹${rupees(minor).toLocaleString('en-IN')}`;
+
+      const live = creditNotesData.creditNotes.map((cn) => {
+        const invoice = byNumber.get(cn.invoiceNumber);
+        // What share of the invoice is being credited back.
+        const share =
+          invoice && invoice.grandTotal > 0 ? (cn.refundAmount ?? 0) / invoice.grandTotal : null;
+        const part = (amount) => (share === null ? null : Math.round((amount ?? 0) * share));
+
+        const cgst = part(invoice?.cgstTotal);
+        const sgst = part(invoice?.sgstTotal);
+        const igst = part(invoice?.igstTotal);
+        const taxable = part(invoice?.subtotal);
+        const gstReversal = cgst === null ? null : cgst + sgst + igst;
+
+        return {
+          id: `#${cn.creditNoteNumber}`,
+          invoice: `#${cn.invoiceNumber}`,
+          orderId: cn.orderId,
+          issuedAt: new Date(cn.createdAt).getTime(),
+          date: new Date(cn.createdAt).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          }),
+          customer: cn.customerName,
+          reason: cn.reason,
+          taxableValue: taxable === null ? null : inr(taxable),
+          cgst: cgst === null ? null : inr(cgst),
+          sgst: sgst === null ? null : inr(sgst),
+          igst: igst === null ? null : inr(igst),
+          gstReversal: gstReversal === null ? null : inr(gstReversal),
+          refundAmt: inr(cn.refundAmount),
+          totalNote: inr(cn.refundAmount),
+          status: { issued: 'Issued', settled: 'Settled', canceled: 'Cancelled' }[cn.status] ?? cn.status,
+          statusClass:
+            cn.status === 'settled'
+              ? 'bg-status-success-bg text-success'
+              : cn.status === 'canceled'
+                ? 'bg-status-danger-bg text-danger'
+                : 'bg-status-info-bg text-info',
+        };
+      });
+      setNotesData(live);
     }
+  }, [creditNotesData, invoicesData]);
+
+  const noteStats = useMemo(() => {
+    const raw = creditNotesData?.creditNotes ?? [];
+    const sum = (rows) => rows.reduce((n, c) => n + (c.refundAmount ?? 0), 0);
+    const settled = raw.filter((c) => c.status === 'settled');
+    const issued = raw.filter((c) => c.status === 'issued');
+    return {
+      total: raw.length,
+      refundMinor: sum(raw),
+      settled: settled.length,
+      settledMinor: sum(settled),
+      issued: issued.length,
+      issuedMinor: sum(issued),
+      canceled: raw.filter((c) => c.status === 'canceled').length,
+    };
   }, [creditNotesData]);
 
   const selectedNote = notesData.find(n => n.id === selectedNoteId) || notesData[0];
 
   const filteredNotes = notesData.filter(note => {
-    if (statusTab === 'reconciled' && note.status !== 'Reconciled') return false;
-    if (statusTab === 'syncing' && note.status !== 'GSTR-1 Synced') return false;
-    if (statusTab === 'disputed' && note.status !== 'Disputed / Hold') return false;
+    if (statusTab === 'settled' && note.status !== 'Settled') return false;
+    if (statusTab === 'issued' && note.status !== 'Issued') return false;
+    if (statusTab === 'canceled' && note.status !== 'Cancelled') return false;
     if (searchFilter.trim()) {
       const q = searchFilter.toLowerCase();
       if (!note.id.toLowerCase().includes(q) && !note.invoice.toLowerCase().includes(q) && !note.customer.toLowerCase().includes(q)) {
@@ -70,13 +127,93 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
       }
     }
     return true;
-  });
+  }).sort((a, b) => (sortDesc ? b.issuedAt - a.issuedAt : a.issuedAt - b.issuedAt));
+
   // One shared pager over the rows this module actually holds.
   const notesPager = useClientTable(filteredNotes);
 
   if (isCreditNotesLoading) {
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={7} label="Loading credit notes" />;
   }
+
+
+  const creditNoteColumns = [
+    {
+      key: 'id',
+      header: 'Credit Note ID',
+      cell: (note) => (
+        <div className="flex items-center gap-1.5">
+          <div className={`w-1.5 h-6 rounded-full ${selectedNoteId === note.id ? 'bg-primary-container' : 'bg-transparent'}`} />
+          <div>
+            <span className="block text-body font-semibold text-primary">{note.id}</span>
+            <span className="text-caption text-muted">{note.date}</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'invoice',
+      header: 'Original Invoice / Order',
+      cell: (note) => (
+        <>
+          <div className="font-medium text-primary">{note.invoice}</div>
+          <div className="text-caption text-muted">{note.orderId}</div>
+        </>
+      ),
+    },
+    {
+      key: 'customer',
+      header: 'Customer / Reason',
+      cell: (note) => (
+        <>
+          <div className="font-medium text-primary truncate max-w-[130px]">{note.customer}</div>
+          <span
+            title={note.reason}
+            className="inline-block max-w-[11rem] truncate rounded border border-subtle bg-surface-subtle px-1.5 py-0.5 text-micro text-muted"
+          >
+            {note.reason}
+          </span>
+        </>
+      ),
+    },
+    {
+      key: 'taxableValue',
+      header: 'Taxable value',
+      align: 'right',
+      cell: (note) =>
+        note.taxableValue ?? <span className="text-faint">Invoice not found</span>,
+    },
+    {
+      key: 'gstReversal',
+      header: 'GST Reversal',
+      align: 'right',
+      cell: (note) =>
+        note.gstReversal === null ? (
+          <span className="text-faint">—</span>
+        ) : (
+          <div className="flex flex-col items-end">
+            <span className="text-num font-semibold text-success">{note.gstReversal}</span>
+            <span className="text-micro text-muted">
+              {note.igst !== '₹0' && note.igst !== null ? 'IGST' : 'CGST + SGST'}
+            </span>
+          </div>
+        ),
+    },
+    {
+      key: 'refund',
+      header: 'Refund total',
+      align: 'right',
+      cell: (note) => <span className="text-num font-semibold text-primary">{note.refundAmt}</span>,
+    },
+    {
+      key: 'status',
+      fit: true,
+      header: 'Status',
+      cell: (note) => (
+        <span className={`px-2 py-0.5 rounded-full text-caption font-semibold ${note.statusBadge}`}>{note.status}</span>
+      ),
+    },
+  ];
 
   return (
     <PageContainer>
@@ -94,94 +231,49 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
         description="Statutory GST credit note issuance against customer returns, store credit wallet balances, failed delivery tax offsets, and reversal ledgers."
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast?.('Reconciling gateway reversal logs with GST ledger...')}
-              className="gap-1.5"
-              type="button"
-            >
-              <Icon name="sync" className="material-symbols-outlined text-icon text-muted" />
-              <span>Reconcile Reversals</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast?.('Generating GSTR-1B statutory amendment register...')}
-              className="gap-1.5"
-              type="button"
-            >
-              <Icon name="file_download" className="material-symbols-outlined text-icon text-muted" />
-              <span>Export GSTR-1B</span>
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => onShowToast?.('Opening Manual Credit Note creation form...')}
-              className="gap-1.5 bg-primary-container text-on-accent hover:bg-primary-container-hover shadow-sm"
-              type="button"
-            >
-              <Icon name="add_circle" className="material-symbols-outlined text-icon-md" />
-              <span>Issue Credit Note</span>
-            </Button>
           </>
         }
       />
 
-      {/* KPI Metrics Strip */}
-      <ContentGrid columns={5}>
+      {/* Figures below are counted from the credit notes the API returns. They
+          were fixed strings before: a 42.84 lakh total and 1,340 notes against
+          a register holding a fraction of that. */}
+      <ContentGrid columns={4}>
         <StatsCard
-          title="Active Credit Notes (MTD)"
-          value="₹42,84,100"
+          title="Credit notes"
+          value={noteStats.total}
           icon="receipt_long"
-          trend="+8.4%"
-          trendType="up"
-          trendLabel="1,340 notes issued"
+          subtitle="In the register"
         />
         <StatsCard
-          title="GST Reversal Claimed"
-          value="₹4,12,890"
-          icon="account_balance"
-          iconColor="text-info"
-          badge="Filed"
-          badgeVariant="info"
-          trendLabel="CGST + SGST + IGST"
-        />
-        <StatsCard
-          title="Store Credit Float"
-          value="₹28.40 L"
+          title="Refund value"
+          value={formatMoney(noteStats.refundMinor, 'inr')}
           icon="account_balance_wallet"
-          badge="Float"
-          badgeVariant="secondary"
-          trendLabel="Unspent wallet liability"
+          subtitle="Across every note"
         />
         <StatsCard
-          title="Bank Refund TAT"
-          value="4.2 Hours"
-          icon="bolt"
+          title="Settled"
+          value={noteStats.settled}
+          icon="check_circle"
           iconColor="text-success"
-          badge="99.1%"
-          badgeVariant="success"
-          trendLabel="Razorpay Instant API"
+          subtitle={formatMoney(noteStats.settledMinor, 'inr')}
         />
         <StatsCard
-          title="Pending Approvals"
-          value="14 Flagged"
-          icon="error_outline"
+          title="Awaiting settlement"
+          value={noteStats.issued}
+          icon="pending"
           iconColor="text-warning"
-          badge="Action Required"
-          badgeVariant="warning"
-          trendLabel="RTO Reroute"
+          subtitle={formatMoney(noteStats.issuedMinor, 'inr')}
         />
       </ContentGrid>
 
       {/* Filter & Segment Bar */}
       <FilterBar
         tabs={[
-          { id: 'all', label: 'All', count: '1,340' },
-          { id: 'reconciled', label: 'Reconciled', count: '1,288' },
-          { id: 'syncing', label: 'GSTR-1 Syncing', count: '38' },
-          { id: 'disputed', label: 'Disputed / Hold', count: '14' },
+          { id: 'all', label: 'All', count: noteStats.total },
+          { id: 'settled', label: 'Settled', count: noteStats.settled },
+          { id: 'issued', label: 'Issued', count: noteStats.issued },
+          { id: 'canceled', label: 'Cancelled', count: noteStats.canceled },
         ]}
         activeTab={statusTab}
         onTabChange={setStatusTab}
@@ -199,329 +291,130 @@ export function CreditNotesAndRefunds({ onNavigate, onShowToast }) {
       {/* Main Content Layout (65% Table / 35% Inspector) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg items-start">
         {/* 65% Main Table Module */}
-        <div className="xl:col-span-8 bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden flex flex-col">
-          <div className="p-4 bg-surface-container-lowest flex items-center justify-between border-b border-subtle">
-            <div className="flex items-center gap-2">
-              <span className="text-subheading text-primary font-semibold">Statutory Credit Register Ledger</span>
-              <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed text-caption font-semibold">
-                Active Batch 24-05-C
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-muted text-caption">
-              <span>SORTED BY: ISSUED DATE (DESC)</span>
-              <Icon name="swap_vert" className="material-symbols-outlined text-icon text-primary" />
-            </div>
-          </div>
-
-          {/* Responsive Table Viewport */}
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-left text-body min-w-[980px] border-collapse">
-              <thead>
-                <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                  <th className="py-2.5 px-3 whitespace-nowrap">Credit Note ID</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Original Invoice / Order</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Customer / Reason</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Taxable Value</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap">GST Reversal</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Settlement Channel</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Status</th>
-                  <th className="py-2.5 px-2 text-center whitespace-nowrap">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle text-primary">
-                {notesPager.pageRows.map((note) => {
-                  const isSelected = selectedNoteId === note.id;
-                  return (
-                    <tr
-                      key={note.id}
-                      onClick={() => setSelectedNoteId(note.id)}
-                      className={`cursor-pointer transition-colors group ${
- isSelected ? 'bg-primary-fixed/20' : 'hover:bg-surface-subtle'
- }`}
-                    >
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <div className={`w-1.5 h-6 rounded-full ${isSelected ? 'bg-primary-container' : 'bg-transparent'}`}></div>
-                          <div>
-                            <span className="font-semibold text-primary block text-body">{note.id}</span>
-                            <span className="text-caption text-muted">{note.time}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-medium text-primary">{note.invoice}</div>
-                        <div className="text-caption text-muted">{note.orderId}</div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-medium text-primary truncate max-w-[130px]">{note.customer}</div>
-                        <span
-                          title={note.reason}
-                          className="inline-block max-w-[11rem] truncate rounded border border-subtle bg-surface-subtle px-1.5 py-0.5 text-micro text-muted"
-                        >
-                          {note.reason}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-right text-num text-primary font-semibold">
-                        {note.taxableValue}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="text-num text-success font-semibold">{note.gstReversal}</div>
-                        <span className="text-micro text-muted">{note.gstType}</span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <Icon name={note.channelIcon} className={`material-symbols-outlined text-icon ${note.channelColor}`} />
-                          <span className="text-label text-primary">{note.channel}</span>
-                        </div>
-                        <span className="text-micro text-muted">{note.channelSub}</span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className={`px-2 py-0.5 rounded-full text-caption font-semibold ${note.statusBadge}`}>
-                          {note.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onShowToast?.(`Credit Note options for ${note.id}`);
-                          }}
-                          className="p-1 rounded hover:bg-surface-subtle text-muted hover:text-primary"
-                          type="button" title="More actions" aria-label="More actions"
-                        >
-                          <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <TablePagination
-            currentPage={notesPager.page}
-            pageSize={notesPager.limit}
-            totalItems={notesPager.total}
-            onPageChange={notesPager.setPage}
-            onPageSizeChange={notesPager.setLimit}
-          />
-        </div>
-
-        {/* 35% Inspector Panel (Exact from Stitch design) */}
-        <div className="xl:col-span-4 space-y-space-md">
-          {/* Detailed Inspector Card */}
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden">
-            {/* Inspector Header */}
-            <div className="p-4 bg-surface-subtle/50 flex items-center justify-between border-b border-subtle">
-              <div className="space-y-0.5">
+        <DataTable
+          data={notesPager.pageRows}
+          columns={creditNoteColumns}
+          keyField="id"
+          className="min-w-[980px]"
+          containerClassName="xl:col-span-8"
+          activeRowId={selectedNoteId}
+          onRowClick={(note) => setSelectedNoteId(note.id)}
+          emptyIcon="receipt_long"
+          emptyTitle="No credit notes match these filters"
+          emptyMessage="No credit note matches the current search, channel or status selection."
+          pagination={{
+            page: notesPager.page,
+            pageSize: notesPager.limit,
+            totalItems: notesPager.total,
+            onPageChange: notesPager.setPage,
+            onPageSizeChange: notesPager.setLimit,
+          }}
+          toolbar={
+            <TableToolbar
+              className="p-4"
+              left={
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-caption font-semibold">
-                    GSTR-1 Ready
-                  </span>
-                  <span className="text-caption text-muted">IRN: {selectedNote.irn}</span>
+                  <span className="text-subheading text-primary font-semibold">Statutory Credit Register Ledger</span>
                 </div>
-                <h2 className="text-subheading text-primary font-semibold">Credit Note {selectedNote.id}</h2>
-              </div>
-              <button
-                onClick={() => onShowToast?.(`Minimizing inspector for ${selectedNote.id}`)}
-                className="p-1 rounded-lg text-muted hover:text-primary hover:bg-surface-subtle"
-                title="Close / Minimize"
-                type="button"
-              >
-                <Icon name="close" className="material-symbols-outlined text-icon-lg" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-space-md">
-              {/* Linked Invoice & Fulfillment Reference */}
-              <div className="p-3 rounded-xl bg-surface-canvas border border-subtle space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                  <span className="text-caption uppercase tracking-wider text-muted">
-                    Origin tax invoice
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onShowToast?.(`Opening original tax invoice PDF for ${selectedNote.invoice}...`)}
-                    className="shrink-0 text-caption font-semibold text-accent hover:underline"
-                  >
-                    View PDF
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-body">
-                  <div>
-                    <span className="text-muted text-micro block">Invoice Number:</span>
-                    <span className="font-semibold text-primary">{selectedNote.invoice}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted text-micro block">Original Invoice Date:</span>
-                    <span className="font-medium text-primary">{selectedNote.date}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted text-micro block">Fulfillment Order:</span>
-                    <span className="font-medium text-primary">{selectedNote.orderId}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted text-micro block">FC Inspection Ref:</span>
-                    <span className="font-medium text-primary">{selectedNote.qcRef}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Fashion Merchandise Item Preview */}
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-canvas border border-subtle">
-                <Thumbnail src={selectedNote.productImage} alt={selectedNote.productName} className="w-14 h-16 rounded-lg shadow-xs shrink-0" imgClassName="object-cover" />
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <span className="text-caption text-muted uppercase tracking-wider">
-                    SKU: {selectedNote.sku}
-                  </span>
-                  <div className="font-semibold text-primary truncate text-body">
-                    {selectedNote.productName}
-                  </div>
-                  <div className="text-muted text-caption">
-                    {selectedNote.productMeta}
-                  </div>
-                  <div className="text-danger text-micro">
-                    {selectedNote.defectReason}
-                  </div>
-                </div>
-              </div>
-
-              {/* GSTIN & Statutory Tax Ledger */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-caption text-muted uppercase">TAX REVERSAL BREAKDOWN (GSTR-1B)</span>
-                  <span className="px-1.5 py-0.5 rounded bg-surface-subtle text-micro text-muted border border-subtle">
-                    29AABCE1234F1Z8
-                  </span>
-                </div>
-                <div className="p-3 rounded-xl bg-surface-canvas border border-subtle space-y-2">
-                  <div className="flex items-center justify-between text-body">
-                    <span className="text-muted">Gross Merchandise Value (Original)</span>
-                    <span className="text-num text-primary">{selectedNote.mrp}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-body">
-                    <span className="text-muted">Base Taxable Net Value</span>
-                    <span className="text-num text-primary font-medium">{selectedNote.taxableValue}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-body text-secondary">
-                    <span>Central GST (CGST @ 6.0%)</span>
-                    <span className="text-num text-success font-medium">{selectedNote.cgst}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-body text-secondary">
-                    <span>State GST (SGST @ 6.0%)</span>
-                    <span className="text-num text-success font-medium">{selectedNote.sgst}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-body text-secondary">
-                    <span>Integrated GST (IGST @ 0.0%)</span>
-                    <span className="text-num">{selectedNote.igst}</span>
-                  </div>
-                  {/* Inline Reversal Balance Bar */}
-                  <div className="pt-2 border-t border-subtle flex items-center justify-between text-label-lg">
-                    <span className="font-semibold text-primary">Statutory Credit Note Total</span>
-                    <span className="text-subheading font-semibold text-primary">{selectedNote.totalNote}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Customer Settlement Channel & Bonus Details */}
-              <div className="p-3 rounded-xl bg-surface-canvas border border-subtle space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-caption text-muted uppercase">DISBURSEMENT EXECUTION</span>
-                  <span className="text-caption text-accent font-semibold">{selectedNote.channel}</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-xl bg-surface-container-lowest border border-subtle shadow-xs text-accent shrink-0">
-                    <Icon name="account_balance_wallet" className="material-symbols-outlined text-icon-xl" />
-                  </div>
-                  <div className="space-y-1 text-body text-body">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-primary">Wallet Credited:</span>
-                      <span className="font-semibold text-accent">{selectedNote.creditedWallet}</span>
-                    </div>
-                    <div className="text-meta text-muted leading-relaxed">
-                      {selectedNote.bonusNote}
-                    </div>
-                    <div className="text-micro text-muted pt-0.5">
-                      TRANSACTION RRN: <span className="font-mono text-primary whitespace-nowrap">{selectedNote.rrn}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Digital Signature & E-Invoice Clearance Hash */}
-              <div className="p-3 rounded-xl bg-surface-canvas border border-subtle space-y-1.5 text-caption text-muted">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1 text-success font-semibold">
-                    <Icon name="verified" className="material-symbols-outlined text-icon" />
-                    <span>GST PORTAL DIGITALLY SIGNED</span>
-                  </div>
-                  <span>24/05/2024 14:28:44</span>
-                </div>
-                <div className="p-2 rounded-lg bg-surface-container-lowest border border-subtle font-mono text-micro text-muted break-all select-all">
-                  SHA256: {selectedNote.hash}
-                </div>
-                <div className="flex items-center justify-between text-micro pt-1">
-                  <span>Signatory: {selectedNote.signatory}</span>
-                  <span>NIC Gateway: Online</span>
-                </div>
-              </div>
-
-              {/* Bottom Action Suite */}
-              <div className="space-y-2 pt-1">
+              }
+              right={
                 <button
-                  onClick={() => onShowToast?.(`Downloading PDF Credit Note for ${selectedNote.id}...`)}
-                  className="w-full h-9 rounded-xl bg-primary-container text-on-accent hover:bg-primary-container/90 text-label font-semibold flex items-center justify-center gap-2 transition-all shadow-sm"
                   type="button"
+                  onClick={() => setSortDesc((previous) => !previous)}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1 text-caption text-muted transition-colors hover:bg-surface-subtle hover:text-primary"
+                  title="Change the order credit notes are listed in"
                 >
-                  <Icon name="download" className="material-symbols-outlined text-icon-md" />
-                  <span>Download PDF Credit Note (Form GST-01)</span>
+                  <span>Issued date: {sortDesc ? 'newest first' : 'oldest first'}</span>
+                  <Icon
+                    name={sortDesc ? 'arrow_downward' : 'arrow_upward'}
+                    aria-hidden="true"
+                    className="material-symbols-outlined text-icon text-primary"
+                  />
                 </button>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => onShowToast?.(`Resent statutory notice to ${selectedNote.customer}.`)}
-                    className="h-8 rounded-xl bg-surface-canvas border border-subtle text-primary hover:bg-surface-subtle text-label font-medium flex items-center justify-center gap-1.5 transition-colors"
-                    type="button"
-                  >
-                    <Icon name="send" className="material-symbols-outlined text-icon text-muted" />
-                    <span>Resend Notice</span>
-                  </button>
-                  <button
-                    onClick={() => onShowToast?.(`Retried settlement gateway ping for ${selectedNote.id}.`)}
-                    className="h-8 rounded-xl bg-surface-canvas border border-subtle text-primary hover:bg-surface-subtle text-label font-medium flex items-center justify-center gap-1.5 transition-colors"
-                    type="button"
-                  >
-                    <Icon name="replay" className="material-symbols-outlined text-icon text-muted" />
-                    <span>Retry Gateway</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+              }
+            />
+          }
+        />
 
-          {/* Quick Regulatory Compliance Advisory Card */}
-          <div className="p-4 bg-surface-container-lowest rounded-xl shadow-sm border border-subtle space-y-3">
-            <div className="flex items-center gap-2">
-              <Icon name="policy" className="material-symbols-outlined text-icon-lg text-accent" />
-              <span className="text-subheading text-primary font-semibold">Statutory Rule 54(1) Compliance</span>
-            </div>
-            <p className="text-body text-secondary leading-relaxed">
-              Pursuant to Section 34 of the CGST Act, credit notes for outward supplies executed in May 2024 must be declared in GSTR-1 by 11th June 2024. Tax liability adjustments will reflect against outward tax payable in GSTR-3B.
-            </p>
-            <div className="flex items-center justify-between pt-1">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-status-success"></span>
-                <span className="text-caption text-muted">Auto-Reversal Lock Active</span>
-              </div>
-              <button
-                onClick={() => onShowToast?.('Opening GST Compliance circular reference...')}
-                className="text-label text-accent font-semibold hover:underline"
-                type="button"
+        {/* The panel used to print an IRN, a wallet RRN, a QC reference, a
+            product thumbnail and a signing hash. A credit note records none of
+            those, so every one of those lines rendered blank. */}
+        <div className="xl:col-span-4 flex flex-col gap-space-md">
+          {!selectedNote ? (
+            <EmptyState
+              icon="receipt_long"
+              title="No credit note selected"
+              description="Pick a credit note from the register to inspect it."
+            />
+          ) : (
+            <>
+              <SectionCard
+                title={selectedNote.id}
+                description={`Raised ${selectedNote.date} against ${selectedNote.invoice}`}
+                action={
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-caption font-semibold ${selectedNote.statusClass}`}
+                  >
+                    {selectedNote.status}
+                  </span>
+                }
               >
-                View Compliance Policy →
-              </button>
-            </div>
-          </div>
+                <dl className="flex flex-col gap-space-sm">
+                  <div className="flex items-start justify-between gap-space-md">
+                    <dt className="text-meta text-muted">Customer</dt>
+                    <dd className="text-right text-body text-primary">{selectedNote.customer}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-space-md">
+                    <dt className="text-meta text-muted">Reason</dt>
+                    <dd className="text-right text-body text-primary">{selectedNote.reason}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-space-md">
+                    <dt className="text-meta text-muted">Order</dt>
+                    <dd className="text-right font-mono text-num text-secondary">
+                      {selectedNote.orderId}
+                    </dd>
+                  </div>
+                </dl>
+              </SectionCard>
+
+              <SectionCard
+                title="Tax reversed"
+                description={
+                  selectedNote.taxableValue
+                    ? 'Apportioned from the invoice this note was raised against.'
+                    : 'The originating invoice is not in the register, so the split cannot be shown.'
+                }
+              >
+                {!selectedNote.taxableValue ? (
+                  <EmptyState
+                    icon="search_off"
+                    title="Invoice not found"
+                    description={`No invoice matching ${selectedNote.invoice} is in the register.`}
+                  />
+                ) : (
+                  <dl className="flex flex-col gap-space-sm">
+                    {[
+                      ['Taxable value', selectedNote.taxableValue],
+                      ['CGST', selectedNote.cgst],
+                      ['SGST', selectedNote.sgst],
+                      ['IGST', selectedNote.igst],
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex items-center justify-between gap-space-md">
+                        <dt className="text-meta text-muted">{label}</dt>
+                        <dd className="text-num tabular-nums text-primary">{value}</dd>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between gap-space-md border-t border-subtle pt-space-sm">
+                      <dt className="text-body font-semibold text-primary">Credit note total</dt>
+                      <dd className="text-num font-semibold tabular-nums text-primary">
+                        {selectedNote.totalNote}
+                      </dd>
+                    </div>
+                  </dl>
+                )}
+              </SectionCard>
+            </>
+          )}
         </div>
       </div>
     </PageContainer>

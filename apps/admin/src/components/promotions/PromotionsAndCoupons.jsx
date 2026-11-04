@@ -15,9 +15,13 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
-import { campaigns } from '../../data/mockData';
+import { DataTable, TableToolbar } from '../shared/DataTable';
 import { adminApi } from '../../lib/api';
+import { formatMoney } from '../../lib/format';
+import { EmptyState } from '../shared/FeedbackAndOverlays';
+import { downloadCsv, datedFilename } from '../../lib/export';
 import {
+  useOrdersQuery,
   usePromotionsQuery,
   useCreatePromotionMutation,
   useTogglePromotionMutation,
@@ -40,6 +44,10 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     error: promotionsError,
     refetch: refetchPromotions,
   } = usePromotionsQuery();
+
+  // The GMV and discount-depth strips are measurements of orders, not of the
+  // promotion records, so the orders have to be loaded to state them at all.
+  const { data: ordersData } = useOrdersQuery({ limit: 100 });
   const createPromotionMutation = useCreatePromotionMutation();
   const togglePromotionMutation = useTogglePromotionMutation();
   const deletePromotionMutation = useDeletePromotionMutation();
@@ -131,33 +139,61 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     }
   };
 
-  // Merge live promotions with mock campaigns
+  // Promotions as the API holds them. GMV impact and margin health used to be
+  // typed in as a fixed "4.2L" and "Safe (48%)" for every row; neither figure
+  // exists anywhere in the data, so neither is shown.
   const mergedCampaigns = useMemo(() => {
-    const fromDb = dbPromotions.map(p => ({
-      code: p.code,
-      id: p.id,
-      isDbPromo: true,
-      name: p.type === 'percentage' ? `${p.value}% Off Entire Order` : `Flat ₹${p.value / 100} Discount`,
-      type: p.type === 'percentage' ? 'Percentage' : 'Fixed Minor',
-      applicability: 'All Omnichannel Channels',
-      excluded: p.usageLimit ? `Limit: ${p.usageLimit} uses` : 'Unlimited Uses',
-      isUrgent: false,
-      redemptions: `${p.usageCount ?? 0} Uses`,
-      progress: Math.min(100, Math.round(((p.usageCount ?? 0) / (p.usageLimit || 100)) * 100)),
-      progressColor: 'bg-primary-container',
-      gmvImpact: '₹4.2L',
-      marginHealth: 'Safe (48%)',
-      marginHealthColor: 'bg-status-success-bg text-success',
-      status: p.active ? 'Live' : 'Paused',
-      statusColor: p.active ? 'bg-status-success-bg text-success' : 'bg-surface-subtle text-muted',
-      icon: 'local_offer',
-      iconColor: 'bg-primary-container text-on-accent',
-      isAuto: false,
-      active: p.active,
-    }));
+    const dateLabel = (value) =>
+      value ? new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : null;
 
-    return [...fromDb, ...campaigns.filter(c => !fromDb.some(p => p.code === c.code))];
+    return dbPromotions.map((p) => {
+      const limit = p.usageLimit ?? null;
+      const used = p.usageCount ?? 0;
+      const starts = dateLabel(p.startsAt);
+      const ends = dateLabel(p.endsAt);
+      const endsInPast = p.endsAt ? new Date(p.endsAt) < new Date() : false;
+
+      return {
+        code: p.code,
+        id: p.id,
+        isDbPromo: true,
+        name:
+          p.type === 'percentage'
+            ? `${p.value}% off the order`
+            : `Flat ${formatMoney(p.value, p.currency ?? 'inr')} off`,
+        type: p.type === 'percentage' ? 'Percentage' : 'Fixed amount',
+        discountLabel:
+          p.type === 'percentage' ? `${p.value}%` : formatMoney(p.value, p.currency ?? 'inr'),
+        window: starts && ends ? `${starts} to ${ends}` : starts ? `From ${starts}` : 'No end date',
+        windowWarning: endsInPast && p.active ? 'End date has passed' : null,
+        usageLabel: limit ? `${used} of ${limit}` : `${used} uses`,
+        progress: limit ? Math.min(100, Math.round((used / limit) * 100)) : null,
+        progressColor: 'bg-primary-container',
+        status: p.active ? 'Live' : 'Paused',
+        statusColor: p.active ? 'bg-status-success-bg text-success' : 'bg-surface-subtle text-muted',
+        icon: 'local_offer',
+        iconColor: 'bg-primary-container text-on-accent',
+        active: p.active,
+      };
+    });
   }, [dbPromotions]);
+
+  /** Every strip above the ledger, measured off the records behind it. */
+  const promoStats = useMemo(() => {
+    const orders = ordersData?.orders ?? [];
+    const withCode = orders.filter((o) => (o.promoCodes ?? []).length > 0);
+    const subtotal = orders.reduce((t, o) => t + (o.totals?.itemSubtotal ?? 0), 0);
+    const discount = orders.reduce((t, o) => t + (o.totals?.discountTotal ?? 0), 0);
+    return {
+      live: mergedCampaigns.filter((c) => c.active).length,
+      total: mergedCampaigns.length,
+      redemptions: dbPromotions.reduce((t, p) => t + (p.usageCount ?? 0), 0),
+      orderCount: orders.length,
+      promoOrders: withCode.length,
+      promoGmv: withCode.reduce((t, o) => t + (o.totals?.total ?? 0), 0),
+      depth: subtotal > 0 ? (discount / subtotal) * 100 : null,
+    };
+  }, [mergedCampaigns, dbPromotions, ordersData]);
 
   const selectedCampaign = mergedCampaigns.find(c => c.code === selectedCode) || mergedCampaigns[0];
 
@@ -170,6 +206,28 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     }
     return true;
   });
+
+  /** Writes the campaigns currently listed. */
+  const handleExportPromotions = () => {
+    const written = downloadCsv({
+      filename: datedFilename('promotions'),
+      columns: [
+        { header: 'Code', value: (c) => c.code },
+        { header: 'Discount', value: (c) => c.discountLabel },
+        { header: 'Type', value: (c) => c.type },
+        { header: 'Active window', value: (c) => c.window },
+        { header: 'Redemptions', value: (c) => c.usageLabel },
+        { header: 'Status', value: (c) => c.status },
+      ],
+      rows: filteredCampaigns,
+    });
+    onShowToast?.({
+      type: 'success',
+      title: 'Campaigns exported',
+      message: `${written} ${written === 1 ? 'row' : 'rows'} written to a CSV file.`,
+    });
+  };
+
   // One shared pager over the rows this module actually holds.
   const promosPager = useClientTable(filteredCampaigns);
 
@@ -184,6 +242,143 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
     return <SkeletonPage variant="cards" stats={6} statsCols={6} label="Loading promotions" />;
   }
 
+
+  // Selected row ids in the shape DataTable expects.
+  const selectedCodes = Object.keys(selectedRows).filter((code) => selectedRows[code]);
+
+  // One column definition per visible column. Cells keep the markup the
+  // hand-rolled table used, so the ledger reads exactly as before.
+  const promoColumns = [
+    {
+      key: 'code',
+      header: 'Campaign & Coupon Code',
+      cell: (camp) => (
+        <div className="flex items-center gap-2">
+          <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${camp.iconColor}`}>
+            <Icon name={camp.icon} className="material-symbols-outlined text-icon" />
+          </div>
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-body-lg font-semibold text-primary tracking-tight">{camp.code}</span>
+              {camp.isAuto && (
+                <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
+                  AUTO
+                </span>
+              )}
+              <button
+                className="text-muted hover:text-primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(camp.code);
+                  onShowToast?.(`Copied coupon code ${camp.code}`);
+                }}
+                title="Copy Code"
+              >
+                <Icon name="content_copy" className="material-symbols-outlined text-icon-sm" />
+              </button>
+            </div>
+            <span className="text-micro text-muted truncate">{camp.name}</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      cell: (camp) => (
+        <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-primary text-caption font-semibold border border-subtle">
+          {camp.type}
+        </span>
+      ),
+    },
+    {
+      key: 'discount',
+      fit: true,
+      header: 'Discount',
+      align: 'right',
+      cell: (camp) => <span className="text-num font-semibold text-primary">{camp.discountLabel}</span>,
+    },
+    {
+      key: 'window',
+      // A date range reads as one unit: "04 Oct 26 to 04 Dec 26" split over two
+      // lines had the eye pairing the wrong start and end dates down the column.
+      header: 'Active window',
+      cell: (camp) => (
+        <div className="flex flex-col">
+          <span className="whitespace-nowrap text-label text-primary">{camp.window}</span>
+          {camp.windowWarning && (
+            <span className="text-micro font-semibold text-warning">{camp.windowWarning}</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'redemptions',
+      header: 'Redemptions',
+      align: 'right',
+      cell: (camp) => (
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-num font-semibold text-primary">{camp.usageLabel}</span>
+          {camp.progress === null ? (
+            <span className="text-micro text-faint">No limit</span>
+          ) : (
+            <>
+              <div
+                className="h-1 w-16 overflow-hidden rounded-full border border-subtle bg-surface-subtle"
+                role="progressbar"
+                aria-valuenow={camp.progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`${camp.code} redemption limit used`}
+                title={`${camp.progress}% of the redemption limit used`}
+              >
+                <div className={`${camp.progressColor} h-full`} style={{ width: `${camp.progress}%` }} />
+              </div>
+              <span className="text-micro text-muted tabular-nums">{camp.progress}% of limit</span>
+            </>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      fit: true,
+      header: 'Status',
+      align: 'center',
+      cell: (camp) => (
+        <span className={`px-2 py-0.5 rounded-full text-caption font-medium ${camp.statusColor}`}>
+          {camp.status}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      fit: true,
+      header: 'Action',
+      align: 'center',
+      cell: (camp) => (
+        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <>
+              <button
+                className={`p-1 rounded hover:bg-surface-subtle cursor-pointer ${camp.active ? 'text-success' : 'text-muted'}`}
+                onClick={() => handleToggleActive(camp.id, camp.active, camp.code)}
+                title={camp.active ? 'Pause Promotion' : 'Activate Promotion'}
+              >
+                <Icon name={camp.active ? 'toggle_on' : 'toggle_off'} className="material-symbols-outlined text-icon-md" />
+              </button>
+              <button
+                className="p-1 rounded hover:bg-status-danger-bg text-muted hover:text-danger cursor-pointer"
+                onClick={() => handleDeletePromo(camp.id, camp.code)}
+                title="Delete Promo"
+              >
+                <Icon name="delete" className="material-symbols-outlined text-icon" />
+              </button>
+          </>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <PageContainer>
       {promotionsError && (
@@ -196,21 +391,13 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       <PageHeader
         breadcrumb="Everwear Admin / Settings & Admin / Promotions & Coupons"
         title="Promotions, Discount Engines & Coupon Campaign Orchestration"
-        description="Manage cart-level discounts, VIP influencer codes, flash vouchers, margin-guarded threshold rules, and omnichannel promo attribution across all e-store nodes."
+        description="Discount codes, their active window and how often each has been redeemed."
         actions={
           <div className="flex min-w-0 flex-wrap items-center gap-space-sm lg:shrink-0">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onShowToast?.("Running real-time cart rule conflict simulation...")}
-              icon="science"
-            >
-              Simulate Cart Rules
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast?.("Exporting campaign audit ledger CSV...")}
+              onClick={handleExportPromotions}
               icon="download"
             >
               Export Campaign Ledger
@@ -230,44 +417,43 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       {/* KPI Summary Banner (5 Metric Cards) */}
       <ContentGrid columns={5}>
         <StatsCard
-          label="Active Promotions"
-          value="24 Live"
-          change="+4 this wk"
-          changeType="positive"
+          label="Active promotions"
+          value={`${promoStats.live} live`}
+          changeType="neutral"
           icon="campaign"
-          subtitle="12 Auto-Applied • 12 Coupon Codes"
+          subtitle={`${promoStats.total} codes on record`}
         />
         <StatsCard
-          label="Promo-Driven GMV"
-          value="₹1.94 Cr"
-          change="+18.2%"
-          changeType="positive"
+          label="Promo-driven GMV"
+          value={formatMoney(promoStats.promoGmv, 'inr')}
+          changeType="neutral"
           icon="payments"
-          subtitle="28.4% of total May GMV volume"
+          subtitle={
+            promoStats.orderCount
+              ? `${promoStats.promoOrders} of ${promoStats.orderCount} orders used a code`
+              : 'No orders loaded'
+          }
         />
         <StatsCard
-          label="Blended Discount Depth"
-          value="18.2%"
-          change="Target <20%"
-          changeType="positive"
+          label="Blended discount depth"
+          value={promoStats.depth == null ? 'Not recorded' : `${promoStats.depth.toFixed(1)}%`}
+          changeType="neutral"
           icon="percent"
-          subtitle="Blended discount depth across orders"
+          subtitle="Discount against item subtotal, all orders"
         />
         <StatsCard
-          label="Coupon Redemptions"
-          value="64,280"
-          change="Uses"
+          label="Coupon redemptions"
+          value={promoStats.redemptions.toLocaleString('en-IN')}
           changeType="neutral"
           icon="confirmation_number"
-          subtitle="Avg. 2.14 vouchers / cart"
+          subtitle="Counted on the promotions themselves"
         />
         <StatsCard
-          label="Margin Shield Triggers"
-          value="312"
-          change="Blocked"
-          changeType="negative"
+          label="Margin shield triggers"
+          value="Not recorded"
+          changeType="neutral"
           icon="security"
-          subtitle="Saved ~₹14.8L in leaks"
+          subtitle="No suppression rule is evaluated or logged"
         />
       </ContentGrid>
 
@@ -342,18 +528,9 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             onChange={(e) => setChannelFilter(e.target.value)}
             className="h-8"
           >
-            <option value="omni">Channel: Omnichannel</option>
             <option value="app">Mobile App Only</option>
             <option value="web">Web Storefront</option>
           </Select>
-          <button
-            onClick={() => onShowToast?.('Adjusted campaign ledger column views')}
-            className="h-8 w-8 rounded-lg bg-surface-subtle border border-subtle hover:bg-surface-container-high text-muted hover:text-primary flex items-center justify-center transition-colors"
-            title="Column Layout View"
-            type="button"
-          >
-            <Icon name="view_column" className="material-symbols-outlined text-icon-md" />
-          </button>
         </div>
       </div>
 
@@ -361,189 +538,45 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-start">
         {/* Left Data Table Column (8 Cols ~ 66.6%) */}
         <div className="lg:col-span-8 flex flex-col space-y-space-md">
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle overflow-hidden flex flex-col">
-            {/* Table Header Bar */}
-            <div className="px-space-md py-3 bg-surface-canvas border-b border-subtle flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-subheading text-primary font-semibold">Active Engine Rules</span>
-                <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
-                  {filteredCampaigns.length} Rules
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onShowToast?.('Bulk actions menu opened')}
-                  className="px-2 py-1 rounded bg-surface-subtle border border-subtle text-muted hover:text-primary text-caption uppercase flex items-center gap-1 transition-colors"
-                >
-                  <Icon name="tune" className="material-symbols-outlined text-icon-sm" />
-                  <span>Bulk Actions</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Table Viewport */}
-            <div className="overflow-x-auto scrollbar-thin">
-              <table className="w-full text-left border-collapse min-w-[980px]">
-                <thead>
-                  <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                    <th className="py-2.5 px-3 w-8 whitespace-nowrap">
-                      <input className="rounded bg-surface-canvas text-accent focus:ring-0 cursor-pointer" type="checkbox" />
-                    </th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Campaign &amp; Coupon Code</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Type</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Applicability / Guardrails</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Redemptions</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">GMV Impact</th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">Margin Health</th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">Status</th>
-                    <th className="py-2.5 px-2 text-center w-10 whitespace-nowrap"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle text-body">
-                  {promosPager.pageRows.map((camp) => {
-                    const isSelected = selectedCode === camp.code;
-                    return (
-                      <tr
-                        key={camp.code}
-                        onClick={() => setSelectedCode(camp.code)}
-                        className={`cursor-pointer transition-colors relative ${
- isSelected ? 'bg-primary-fixed/20 hover:bg-primary-fixed/30' : 'bg-surface-container-lowest hover:bg-surface-subtle'
- }`}
-                      >
-                        <td className="py-3 px-3">
-                          <input
-                            checked={!!selectedRows[camp.code]}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              toggleSelectRow(camp.code);
-                            }}
-                            className="rounded bg-surface-canvas text-accent focus:ring-0 cursor-pointer"
-                            type="checkbox"
-                          />
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${camp.iconColor}`}>
-                              <Icon name={camp.icon} className="material-symbols-outlined text-icon" />
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-body-lg font-semibold text-primary tracking-tight">
-                                  {camp.code}
-                                </span>
-                                {camp.isAuto && (
-                                  <span className="px-1.5 py-px rounded bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
-                                    AUTO
-                                  </span>
-                                )}
-                                <button
-                                  className="text-muted hover:text-primary"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigator.clipboard.writeText(camp.code);
-                                    onShowToast?.(`Copied coupon code ${camp.code}`);
-                                  }}
-                                  title="Copy Code"
-                                >
-                                  <Icon name="content_copy" className="material-symbols-outlined text-icon-sm" />
-                                </button>
-                              </div>
-                              <span className="text-micro text-muted truncate">{camp.name}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-primary text-caption font-semibold border border-subtle">
-                            {camp.type}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="flex flex-col">
-                            <span className="text-label text-primary font-medium">{camp.applicability}</span>
-                            <span className={`text-micro truncate ${
- camp.isUrgent ? 'text-danger font-semibold' : 'text-warning'
- }`}>
-                              {camp.excluded}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <div className="flex flex-col items-end">
-                            <span className="text-num font-semibold text-primary">
-                              {camp.redemptions}
-                            </span>
-                            <div className="w-16 bg-surface-subtle h-1 rounded-full overflow-hidden mt-1 border border-subtle">
-                              <div className={`${camp.progressColor} h-full`} style={{ width: `${camp.progress}%` }}></div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-right text-num font-semibold text-primary">
-                          {camp.gmvImpact}
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-success-bg text-success text-caption font-medium">
-                            <span className="w-1.5 h-1.5 rounded-full bg-status-success"></span>
-                            <span>{camp.marginHealth}</span>
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-full text-caption font-medium ${camp.statusColor}`}>
-                            {camp.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-2 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            {camp.isDbPromo ? (
-                              <>
-                                <button
-                                  className={`p-1 rounded hover:bg-surface-subtle cursor-pointer ${camp.active ? 'text-success' : 'text-muted'}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleToggleActive(camp.id, camp.active, camp.code);
-                                  }}
-                                  title={camp.active ? "Pause Promotion" : "Activate Promotion"}
-                                >
-                                  <Icon name={camp.active ? 'toggle_on' : 'toggle_off'} className="material-symbols-outlined text-icon-md" />
-                                </button>
-                                <button
-                                  className="p-1 rounded hover:bg-status-danger-bg text-muted hover:text-danger cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeletePromo(camp.id, camp.code);
-                                  }}
-                                  title="Delete Promo"
-                                >
-                                  <Icon name="delete" className="material-symbols-outlined text-icon" />
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                className="p-1 rounded hover:bg-surface-subtle text-muted hover:text-primary"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onShowToast?.(`Options for promo ${camp.code}`);
-                                }} title="More actions" aria-label="More actions"
-                              >
-                                <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <TablePagination
-              currentPage={promosPager.page}
-              pageSize={promosPager.limit}
-              totalItems={promosPager.total}
-              onPageChange={promosPager.setPage}
-              onPageSizeChange={promosPager.setLimit}
-            />
-          </div>
+          <DataTable
+            data={promosPager.pageRows}
+            columns={promoColumns}
+            keyField="code"
+            className="min-w-[840px]"
+            selectable
+            selectedIds={selectedCodes}
+            onSelectRow={(code) => toggleSelectRow(code)}
+            onSelectAll={(checked) =>
+              setSelectedRows(
+                checked ? Object.fromEntries(filteredCampaigns.map((c) => [c.code, true])) : {}
+              )
+            }
+            activeRowId={selectedCode}
+            onRowClick={(row) => setSelectedCode(row.code)}
+            emptyIcon="sell"
+            emptyTitle="No campaigns match these filters"
+            emptyMessage="No promotion rule matches the current search, audience or channel selection."
+            pagination={{
+              page: promosPager.page,
+              pageSize: promosPager.limit,
+              totalItems: promosPager.total,
+              onPageChange: promosPager.setPage,
+              onPageSizeChange: promosPager.setLimit,
+            }}
+            toolbar={
+              <TableToolbar
+                className="bg-surface-canvas px-space-md py-3"
+                left={
+                  <div className="flex items-center gap-2">
+                    <span className="text-subheading text-primary font-semibold">Active Engine Rules</span>
+                    <span className="whitespace-nowrap px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-caption border border-subtle font-semibold">
+                      {filteredCampaigns.length} Rules
+                    </span>
+                  </div>
+                }
+              />
+            }
+          />
 
           {/* Real-Time Rule Simulation Log Module */}
           <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-sm">
@@ -575,6 +608,11 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
         </div>
 
         {/* Right Column: Campaign Inspector (4 Cols ~ 33.3%) */}
+        {!selectedCampaign ? (
+          <div className="lg:col-span-4">
+            <EmptyState icon="sell" title="No campaign selected" description="Pick a campaign from the list to inspect it." />
+          </div>
+        ) : (
         <div className="lg:col-span-4 flex flex-col space-y-space-md">
           <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-md">
             {/* Inspector Header */}
@@ -591,22 +629,15 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                 <h2 className="text-heading text-primary font-semibold mt-0.5 flex items-center gap-1.5">
                   {selectedCampaign.code}
                 </h2>
-                <span className="text-meta text-muted">{selectedCampaign.subTitle}</span>
+                <span className="text-meta text-muted">{selectedCampaign.subTitle ?? 'Not recorded'}</span>
               </div>
-              <button
-                onClick={() => onShowToast?.(`Refreshed telemetry for ${selectedCampaign.code}`)}
-                className="p-1.5 rounded-lg bg-surface-canvas border border-subtle hover:bg-surface-subtle text-muted hover:text-primary transition-colors"
-                title="Refresh Telemetry"
-              >
-                <Icon name="sync" className="material-symbols-outlined text-icon-md" />
-              </button>
             </div>
 
             {/* Telemetry Metrics & Sparkline Graphic */}
             <div className="p-space-sm rounded-xl bg-surface-canvas border border-subtle flex flex-col space-y-space-sm">
               <div className="flex items-center justify-between">
                 <span className="text-caption text-muted uppercase">Redemption Velocity (Last 6 Hours)</span>
-                <span className="text-micro font-semibold text-success">{selectedCampaign.velocity}</span>
+                <span className="text-micro font-semibold text-success">{selectedCampaign.velocity ?? 'Not recorded'}</span>
               </div>
               {/* Inline SVG Sparkline */}
               <div className="w-full h-14 relative flex items-end">
@@ -624,13 +655,13 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
               <div className="grid grid-cols-2 gap-space-xs pt-1">
                 <div className="bg-surface-container-lowest p-2 rounded-lg border border-subtle">
                   <span className="text-caption text-muted uppercase block">AOV Uplift</span>
-                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.aovUplift}</span>
-                  <span className="text-micro text-success block">{selectedCampaign.aovUpliftSub}</span>
+                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.aovUplift ?? 'Not recorded'}</span>
+                  <span className="text-micro text-success block">{selectedCampaign.aovUpliftSub ?? 'Not recorded'}</span>
                 </div>
                 <div className="bg-surface-container-lowest p-2 rounded-lg border border-subtle">
                   <span className="text-caption text-muted uppercase block">Net Margin Post-Promo</span>
-                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.netMargin}</span>
-                  <span className="text-micro text-success block">{selectedCampaign.netMarginSub}</span>
+                  <span className="text-body-lg font-semibold text-primary">{selectedCampaign.netMargin ?? 'Not recorded'}</span>
+                  <span className="text-micro text-success block">{selectedCampaign.netMarginSub ?? 'Not recorded'}</span>
                 </div>
               </div>
             </div>
@@ -650,12 +681,6 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             <div className="flex flex-col space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-caption text-muted uppercase">Product Scope & Exclusions</span>
-                <button
-                  onClick={() => onShowToast?.(`Editing SKU scope for ${selectedCampaign.code}`)}
-                  className="text-accent hover:underline text-micro font-semibold"
-                >
-                  Modify SKU Scope
-                </button>
               </div>
               <div className="p-space-sm bg-surface-canvas rounded-xl border border-subtle flex flex-col space-y-2">
                 {/* Included */}
@@ -663,9 +688,9 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                   <Icon name="check_circle" className="material-symbols-outlined text-icon text-success shrink-0 mt-0.5" />
                   <div className="flex flex-col min-w-0">
                     <span className="text-label font-semibold text-primary">
-                      Category: {selectedCampaign.categoryScope}
+                      Category: {selectedCampaign.categoryScope ?? 'Not recorded'}
                     </span>
-                    <span className="text-micro text-muted">{selectedCampaign.scopeSkus}</span>
+                    <span className="text-micro text-muted">{selectedCampaign.scopeSkus ?? 'Not recorded'}</span>
                   </div>
                 </div>
                 {/* Excluded SKU Badges */}
@@ -674,11 +699,16 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
                   <div className="flex flex-col min-w-0 space-y-1">
                     <span className="text-label font-semibold text-primary">Target Exclusions</span>
                     <div className="flex flex-wrap gap-1">
-                      {selectedCampaign.exclusions.map((ex, idx) => (
+                      {(selectedCampaign.exclusions ?? []).map((ex, idx) => (
                         <span key={idx} className="px-2 py-0.5 rounded-full bg-status-danger-bg text-danger text-micro">
                           {ex}
                         </span>
                       ))}
+                      {(selectedCampaign.exclusions ?? []).length === 0 && (
+                        <span className="text-micro text-muted">
+                          No exclusion rules recorded for this promotion.
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -696,15 +726,15 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
               <div className="p-space-sm bg-surface-canvas rounded-xl border border-subtle space-y-2">
                 <div className="flex items-center justify-between text-meta">
                   <span className="text-muted">Device Fingerprint Cap</span>
-                  <span className="font-semibold text-primary">{selectedCampaign.fraudDevice}</span>
+                  <span className="font-semibold text-primary">{selectedCampaign.fraudDevice ?? 'Not recorded'}</span>
                 </div>
                 <div className="flex items-center justify-between text-meta">
                   <span className="text-muted">Customer Identity</span>
-                  <span className="font-semibold text-primary">{selectedCampaign.fraudAuth}</span>
+                  <span className="font-semibold text-primary">{selectedCampaign.fraudAuth ?? 'Not recorded'}</span>
                 </div>
                 <div className="flex items-center justify-between text-meta">
                   <span className="text-muted">Min Cart Qualifying Value</span>
-                  <span className="font-semibold text-primary">{selectedCampaign.fraudMinCart}</span>
+                  <span className="font-semibold text-primary">{selectedCampaign.fraudMinCart ?? 'Not recorded'}</span>
                 </div>
               </div>
             </div>
@@ -712,25 +742,12 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             {/* Quick Action Buttons */}
             <div className="pt-2 flex flex-col space-y-2">
               <div className="grid grid-cols-2 gap-space-xs">
-                <button
-                  onClick={() => onShowToast?.(`Editing usage quota cap for ${selectedCampaign.code}`)}
-                  className="h-9 px-3 rounded-lg bg-surface-subtle border border-subtle hover:bg-surface-container-high text-primary text-label font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                  type="button"
-                >
-                  <Icon name="edit" className="material-symbols-outlined text-icon" />
-                  <span>Edit Cap</span>
-                </button>
-                <button
-                  onClick={() => onShowToast?.(`Generated affiliate deep link for ${selectedCampaign.code}`)}
-                  className="h-9 px-3 rounded-lg bg-surface-subtle border border-subtle hover:bg-surface-container-high text-primary text-label font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                  type="button"
-                >
-                  <Icon name="link" className="material-symbols-outlined text-icon" />
-                  <span>Affiliate Link</span>
-                </button>
               </div>
               <button
-                onClick={() => onShowToast?.(`Paused coupon ${selectedCampaign.code} across all edge nodes.`)}
+                onClick={() =>
+                  handleToggleActive(selectedCampaign.id, selectedCampaign.active, selectedCampaign.code)
+                }
+                disabled={!selectedCampaign.isDbPromo || togglePromotionMutation.isPending}
                 className="h-9 px-3 rounded-lg bg-status-danger-bg hover:bg-status-danger text-danger hover:text-on-accent text-label font-semibold flex items-center justify-center gap-1.5 transition-colors active:scale-[0.99] border border-status-danger/20"
                 type="button"
               >
@@ -740,44 +757,8 @@ export function PromotionsAndCoupons({ onNavigate, onShowToast }) {
             </div>
           </div>
 
-          {/* Omnichannel Attribution Preview Card */}
-          <div className="p-space-md rounded-xl bg-surface-container-lowest shadow-sm border border-subtle flex flex-col space-y-space-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-subheading text-primary font-semibold">Channel Attribution Split</span>
-              <span className="text-micro text-muted">30-Day Aggregation</span>
-            </div>
-            {/* Simple Horizontal Bar Chart */}
-            <div className="space-y-2 pt-1 text-meta">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-muted font-medium">iOS & Android Apps</span>
-                  <span className="font-semibold text-primary">62.4% (₹1.21 Cr)</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-subtle">
-                  <div className="bg-primary-container h-full rounded-full" style={{ width: '62.4%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-muted font-medium">Responsive Web (Mobile + Desktop)</span>
-                  <span className="font-semibold text-primary">31.2% (₹60.5 L)</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-subtle">
-                  <div className="bg-fashion-magenta h-full rounded-full" style={{ width: '31.2%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-muted font-medium">POS / In-Store Endless Aisle</span>
-                  <span className="font-semibold text-primary">6.4% (₹12.4 L)</span>
-                </div>
-                <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden border border-subtle">
-                  <div className="bg-status-info h-full rounded-full" style={{ width: '6.4%' }}></div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
+        )}
       </div>
 
       {/* Create Promo Campaign Modal */}

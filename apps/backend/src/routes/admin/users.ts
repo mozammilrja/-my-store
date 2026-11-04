@@ -1,6 +1,6 @@
 import { Router } from "express"
 import { z } from "zod"
-import { db, type AdminUserDoc } from "../../db/schema.js"
+import { db, type AdminUserDoc, type AdminUserRole } from "../../db/schema.js"
 import { hashPassword } from "../../lib/auth.js"
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
@@ -17,9 +17,20 @@ const toAdminUser = (u: AdminUserDoc) => ({
 })
 
 /** Only an owner may change who can sign in, or what they may do. */
-const requireOwner = (role: "owner" | "staff") => {
+const requireOwner = (role: AdminUserRole) => {
   if (role !== "owner") throw forbidden("Only an owner can manage users")
 }
+
+const adminRoleEnum = z.enum([
+  "owner",
+  "staff",
+  "store_admin",
+  "catalog_manager",
+  "inventory_manager",
+  "order_manager",
+  "finance_manager",
+  "customer_support",
+])
 
 /** Refuses to leave the store with no owner, whatever the request says. */
 const assertAnotherOwnerExists = async (exceptId: string) => {
@@ -40,7 +51,7 @@ adminUserRoutes.post("/users", async (req, res) => {
       email,
       password: z.string().min(12).max(200),
       name: z.string().trim().min(1).max(100).optional(),
-      role: z.enum(["owner", "staff"]).default("staff"),
+      role: adminRoleEnum.default("staff"),
     })
     .parse(req.body)
 
@@ -68,7 +79,7 @@ adminUserRoutes.patch("/users/:id", async (req, res) => {
   const body = z
     .object({
       name: z.string().trim().min(1).max(100).optional(),
-      role: z.enum(["owner", "staff"]).optional(),
+      role: adminRoleEnum.optional(),
       password: z.string().min(12).max(200).optional(),
     })
     .strict()

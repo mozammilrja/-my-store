@@ -65,3 +65,13 @@ test("every module renders content rather than an empty main", async ({ page, co
     expect(text, `${path} tripped the error boundary`).not.toMatch(/could not be displayed/i)
   }
 })
+
+test("a legacy #/module link still lands on the right page", async ({ page, context, request }) => {
+  await seed(context, { token: await getAdminToken(request) })
+
+  // The admin routed on the hash before react-router. Those links are still in
+  // bookmarks, so they are rewritten to the path before React mounts.
+  await page.goto("/#/returns-and-exchanges")
+  await expect(page).toHaveURL(/\/returns-and-exchanges$/)
+  await expect(page.locator("main h1")).toHaveText(/returns/i)
+})

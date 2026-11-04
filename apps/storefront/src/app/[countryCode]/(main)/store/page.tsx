@@ -15,6 +15,11 @@ type Props = {
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const { countryCode } = await props.params
   const origin = await getSiteOrigin()
+  const { q } = parseListing(await props.searchParams)
+  if (q) {
+    // Search results are endless permutations: keep them out of the index.
+    return { title: `${q} | ${STORE_NAME}`, robots: { index: false, follow: true } }
+  }
   return {
     title: `All Products | ${STORE_NAME}`,
     description: "Every product at Everwear. Heirloom weaves, fine Chanderi, handcrafted leather, and fine jewelry.",
@@ -30,18 +35,23 @@ export default async function StorePage(props: Props) {
     props.searchParams,
   ])
   if (!region) notFound()
+  const listing = parseListing(searchParams)
 
   return (
     <>
-      <CatalogHeader
-        eyebrow="Catalog"
-        title="All Garments & Artifacts"
-        description="Curated luxury essentials, hand-tailored shirts, heirloom knitwear, and timeless silhouettes."
-      />
+      {listing.q ? (
+        <CatalogHeader eyebrow="Search" title={`Results for “${listing.q}”`} />
+      ) : (
+        <CatalogHeader
+          eyebrow="Catalog"
+          title="All Garments & Artifacts"
+          description="Curated luxury essentials, hand-tailored shirts, heirloom knitwear, and timeless silhouettes."
+        />
+      )}
       <ProductListing
         countryCode={countryCode}
         path="/store"
-        listing={parseListing(searchParams)}
+        listing={listing}
         categories={categories}
       />
     </>

@@ -13,7 +13,8 @@
     "migrate:medusa": "node --env-file=.env --import tsx scripts/migrate-from-medusa.ts",
     "catalog:localize": "node --env-file=.env --import tsx scripts/localize-catalog.ts",
     "admin:create": "node --env-file=.env --import tsx scripts/create-admin.ts",
-    "seed:categories": "node --env-file=.env --import tsx scripts/seed-storefront-categories.ts"
+    "seed:categories": "node --env-file=.env --import tsx scripts/seed-storefront-categories.ts",
+    "seed": "node --env-file=.env --import tsx scripts/seed-operations.ts"
   },
   "engines": {
     "node": ">=22"

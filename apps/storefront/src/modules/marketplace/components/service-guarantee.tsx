@@ -5,7 +5,7 @@ import { Icon } from "@/components/ui/icon"
 
 export function ServiceGuarantee() {
   return (
-    <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin pb-12 w-full">
+    <div className="w-full px-margin-mobile md:px-margin pb-12">
       <div className="p-8 rounded-2xl bg-surface-container-low flex flex-col lg:flex-row items-center justify-between gap-6 shadow-sm">
         <div className="flex items-center gap-5">
           <div className="w-14 h-14 rounded-full bg-surface-container-lowest shadow-sm flex items-center justify-center text-secondary shrink-0">

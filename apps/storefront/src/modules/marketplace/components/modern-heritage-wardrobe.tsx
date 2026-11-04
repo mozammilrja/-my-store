@@ -110,7 +110,7 @@ export function ModernHeritageWardrobe() {
   }
 
   return (
-    <div className="w-full py-12 px-margin-mobile md:px-margin max-w-[1440px] mx-auto flex flex-col gap-10">
+    <div className="w-full py-12 px-margin-mobile md:px-margin flex flex-col gap-10">
       {/* Header Row */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>

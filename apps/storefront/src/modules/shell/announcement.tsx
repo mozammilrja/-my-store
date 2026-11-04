@@ -25,7 +25,7 @@ export function Announcement({
       id="top-promo-banner"
       className="w-full bg-primary text-on-primary py-1.5 px-margin-mobile md:px-margin transition-all duration-300"
     >
-      <div className="max-w-[1440px] mx-auto flex items-center justify-between text-center">
+      <div className="w-full flex items-center justify-between text-center">
         <div className="flex-1 text-center">
           <span className="font-label-caps text-label-caps uppercase tracking-wider text-surface-container-high">
             Mid-Season Spring Edit

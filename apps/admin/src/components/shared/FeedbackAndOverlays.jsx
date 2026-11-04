@@ -60,7 +60,12 @@ export function StatusBadge({
   }[computedVariant] || "bg-status-info";
 
   return (
-    <Badge variant={computedVariant} size={size} className={cn("font-semibold", className)} {...props}>
+    <Badge
+      variant={computedVariant}
+      size={size}
+      className={cn("whitespace-nowrap font-semibold", className)}
+      {...props}
+    >
       {showDot && <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotColor)} />}
       {icon && <Icon name={icon} aria-hidden="true" className="material-symbols-outlined shrink-0 text-icon-sm" />}
       <span>{displayStatus}</span>

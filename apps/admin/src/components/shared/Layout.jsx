@@ -74,6 +74,10 @@ export function PageHeader({
   badge,
   badgeVariant = "info",
   actions,
+  // A reporting screen leads with its title rather than with the first figure
+  // under it, so it takes the larger step of the scale. Everything else keeps
+  // the size the list modules were built against.
+  size = "default",
   className,
   children,
   ...props
@@ -81,12 +85,16 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex flex-col justify-between gap-space-md lg:flex-row lg:items-end",
+        "flex flex-col justify-between gap-space-md",
+        // A reporting header carries a whole filter bar on its right, which
+        // squeezed the title to a two-word column at 1024px. It only goes
+        // side-by-side once there is room for both.
+        size === "lg" ? "xl:flex-row xl:items-end" : "lg:flex-row lg:items-end",
         className
       )}
       {...props}
     >
-      <div className="flex min-w-0 max-w-3xl flex-col gap-1">
+      <div className={cn("flex min-w-0 max-w-3xl flex-col", size === "lg" ? "gap-1.5" : "gap-1")}>
         {(kicker || breadcrumb || badge) && (
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {breadcrumb ? (
@@ -106,19 +114,33 @@ export function PageHeader({
           </div>
         )}
 
-        <h1 className="text-title font-semibold tracking-tight text-primary">
+        <h1
+          className={cn(
+            "font-semibold tracking-tight text-primary",
+            size === "lg" ? "text-display" : "text-title"
+          )}
+        >
           {title}
         </h1>
 
         {description && (
-          <p className="text-body text-secondary">{description}</p>
+          <p className={cn("text-secondary", size === "lg" ? "text-body-lg" : "text-body")}>
+            {description}
+          </p>
         )}
 
         {children}
       </div>
 
       {actions && (
-        <div className="flex min-w-0 flex-wrap items-center gap-2 lg:shrink-0">{actions}</div>
+        <div
+          className={cn(
+            "flex min-w-0 flex-wrap items-center gap-2",
+            size === "lg" ? "xl:shrink-0" : "lg:shrink-0"
+          )}
+        >
+          {actions}
+        </div>
       )}
     </div>
   );
@@ -214,6 +236,9 @@ export function StatsCard({
   changeType,
   trendLabel,
   subtitle,
+  // An optional mark under the value: a sparkline, a meter. The tile stays a
+  // figure — the chart is there for the shape, never to carry the number.
+  visual,
   icon,
   iconColor = "text-accent",
   progress,
@@ -256,9 +281,10 @@ export function StatsCard({
         </div>
 
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="text-kpi tabular-nums text-primary">
-            {value}
-          </span>
+          {/* Proportional figures: tabular digits give `121` the width of
+              `000` and make a headline number look loose. Columns of numbers
+              still align — they use tabular-nums where they sit in a table. */}
+          <span className="text-kpi text-primary">{value}</span>
           {delta && (
             <Badge variant={trendVariant} size="sm" className="shrink-0">
               {direction === "up" && (
@@ -280,6 +306,8 @@ export function StatsCard({
         {trendLabel && (
           <p className="truncate text-micro text-muted">{trendLabel}</p>
         )}
+
+        {visual && <div className="mt-0.5 min-w-0">{visual}</div>}
       </div>
 
       {hasFooter && (
@@ -303,8 +331,12 @@ export function StatsCard({
     </>
   );
 
+  // Cards in a row share a height, so one with a footnote and one without used
+  // to sit as a filled card beside a mostly empty one. Without a footer the
+  // body centres in the card rather than hugging the top and leaving a void.
   const shell = cn(
-    "flex min-h-[7.5rem] min-w-0 flex-col justify-between p-space-md transition-colors",
+    "flex min-h-[7.5rem] min-w-0 flex-col p-space-md transition-colors",
+    hasFooter ? "justify-between" : "justify-center",
     isClickable &&
       "cursor-pointer text-left hover:border-strong hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface-canvas",
     className

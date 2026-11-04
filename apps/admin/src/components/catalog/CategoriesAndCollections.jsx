@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Icon,
   Button,
@@ -14,8 +15,9 @@ import {
   Thumbnail,
   SearchInput,
 } from '../ui';
-import { collectionsData } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
+import { EmptyState } from '../shared/FeedbackAndOverlays';
+import { formatMoney } from '../../lib/format';
 import {
   useCategoriesQuery,
   useCollectionsQuery,
@@ -24,15 +26,29 @@ import {
   useCreateCollectionMutation
 } from '../../hooks/useAdminQueries';
 
+const TABS = ['drops', 'tree'];
+
 export function CategoriesAndCollections({ onNavigate, onShowToast }) {
-  const [activeTab, setActiveTab] = useState('drops'); // 'drops', 'tree', 'rules', 'channels'
-  const [selectedDropId, setSelectedDropId] = useState('col-1');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'drops';
+  // Pushed, not replaced: switching tabs is navigation, so Back returns to the
+  // tab you came from.
+  const setActiveTab = (next) =>
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      if (next === 'drops') params.delete('tab');
+      else params.set('tab', next);
+      return params;
+    });
+
+  const [selectedDropId, setSelectedDropId] = useState(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [seasonFilter, setSeasonFilter] = useState('All Seasons (2024-25)');
-  const [channelFilter, setChannelFilter] = useState('All Omnichannel');
-  const [statusFilter, setStatusFilter] = useState('Active & Scheduled');
+  // Both tabs filter on whether the row actually holds products, which is the
+  // only status either a collection or a category carries.
+  const [statusFilter, setStatusFilter] = useState('all');
   const [viewDensity, setViewDensity] = useState('list'); // 'list' | 'grid'
-  const [selectedCheckboxes, setSelectedCheckboxes] = useState({ 'col-1': true });
+  const [selectedCheckboxes, setSelectedCheckboxes] = useState({});
 
   // TanStack Query for categories and collections
   const {
@@ -151,42 +167,95 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
 
   // Merge live collections with mock collections
   const mergedCollections = useMemo(() => {
-    const fromDb = dbCollections.map((col, idx) => ({
-      id: col.id,
-      code: `DROP-${col.handle.toUpperCase()}`,
-      title: col.title,
-      season: 'Festive Atelier 2024-25',
-      skuCount: col.productCount ? `${col.productCount} SKUs` : '18 SKUs',
-      sellThrough: '92.4%',
-      sellThroughColor: 'bg-status-success-bg text-success',
-      gmv: '₹14.8L',
-      status: 'Live & Active',
-      statusColor: 'bg-status-success-bg text-success',
-      channels: ['Everwear.com', 'Mobile App', 'Flagship BLR'],
-      launchDate: 'Active Now',
-      isHero: idx === 0,
-      image: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&q=80&w=400',
-    }));
+    // A collection carries a handle, a title and how many products are in it.
+    // Sell-through, GMV, season, launch date and channel list were fixed
+    // strings on every row; none of them exist in the data.
+    const fromDb = dbCollections.map((col, idx) => {
+      const products = col.productCount ?? 0;
+      const range = col.priceRange;
+      return {
+        id: col.id,
+        handle: col.handle,
+        code: `DROP-${col.handle.toUpperCase()}`,
+        title: col.title,
+        thumbnail: col.thumbnail ?? null,
+        productCount: products,
+        variantCount: col.variantCount ?? 0,
+        publishedCount: col.publishedCount ?? 0,
+        stock: col.stock ?? 0,
+        productLabel: `${products} ${products === 1 ? 'product' : 'products'}`,
+        variantLabel: `${col.variantCount ?? 0} ${col.variantCount === 1 ? 'SKU' : 'SKUs'}`,
+        priceRange: range
+          ? range.min === range.max
+            ? formatMoney(range.min, 'inr')
+            : `${formatMoney(range.min, 'inr')} - ${formatMoney(range.max, 'inr')}`
+          : null,
+        updatedLabel: col.updatedAt
+          ? new Date(col.updatedAt).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })
+          : null,
+        status: products > 0 ? 'In use' : 'Empty',
+        statusColor:
+          products > 0 ? 'bg-status-success-bg text-success' : 'bg-surface-subtle text-muted',
+        isHero: idx === 0,
+      };
+    });
 
-    return [...fromDb, ...collectionsData.filter(d => !fromDb.some(c => c.id === d.id))];
+    return fromDb;
   }, [dbCollections]);
 
 
 
-  const selectedDrop = useMemo(() => {
-    return mergedCollections.find(d => d.id === selectedDropId) || mergedCollections[0];
-  }, [mergedCollections, selectedDropId]);
+  /** The ribbon and the tab badges, counted off the taxonomy and the drops. */
+  const catalogShape = useMemo(() => {
+    const cats = dbCategories ?? [];
+    return {
+      categories: cats.length,
+      rootCategories: cats.filter((c) => !c.parentId).length,
+      collections: mergedCollections.length,
+      emptyCollections: mergedCollections.filter((c) => c.productCount === 0).length,
+      grouped: mergedCollections.reduce((n, c) => n + c.productCount, 0),
+      variants: mergedCollections.reduce((n, c) => n + c.variantCount, 0),
+      stock: mergedCollections.reduce((n, c) => n + c.stock, 0),
+    };
+  }, [dbCategories, mergedCollections]);
 
   const filteredCollections = useMemo(() => {
-    return mergedCollections.filter(d => {
-      if (seasonFilter !== 'All Seasons (2024-25)' && d.season !== seasonFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        if (!d.title.toLowerCase().includes(q) && !d.code.toLowerCase().includes(q)) return false;
-      }
+    const q = searchQuery.trim().toLowerCase();
+    return mergedCollections.filter((d) => {
+      if (statusFilter === 'in-use' && d.productCount === 0) return false;
+      if (statusFilter === 'empty' && d.productCount > 0) return false;
+      if (q && !d.title.toLowerCase().includes(q) && !d.code.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [mergedCollections, searchQuery, seasonFilter]);
+  }, [mergedCollections, searchQuery, statusFilter]);
+
+  /** The taxonomy list obeys the same search box and status select. */
+  const filteredCategories = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return (dbCategories ?? []).filter((c) => {
+      const products = c.productCount ?? 0;
+      if (statusFilter === 'in-use' && products === 0) return false;
+      if (statusFilter === 'empty' && products > 0) return false;
+      if (q && !c.name.toLowerCase().includes(q) && !c.handle.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [dbCategories, searchQuery, statusFilter]);
+
+  // Resolved against the filtered list, so the inspector never describes a
+  // collection the filters have hidden.
+  const selectedDrop = useMemo(() => {
+    return filteredCollections.find((d) => d.id === selectedDropId) || filteredCollections[0] || null;
+  }, [filteredCollections, selectedDropId]);
+
+  const isTree = activeTab === 'tree';
+
+  const selectedCategory = useMemo(() => {
+    return filteredCategories.find((c) => c.id === selectedCategoryId) || filteredCategories[0] || null;
+  }, [filteredCategories, selectedCategoryId]);
 
   const toggleCheckbox = (id) => {
     setSelectedCheckboxes(prev => ({
@@ -219,22 +288,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onShowToast?.("Exporting taxonomy structure to CSV/JSON format...")}
-              icon="file_download"
-            >
-              Export Taxonomy
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast?.("Opening dynamic visual reordering rules editor...")}
-              icon="reorder"
-            >
-              Reorder Rules
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={() => setIsCategoryModalOpen(true)}
               icon="add"
             >
@@ -253,46 +306,34 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
       />
 
       {/* KPI / Metric Ribbon */}
-      <ContentGrid columns={5}>
+      <ContentGrid columns={4}>
         <StatsCard
-          label="Active Categories"
-          value="142"
-          change="+8 this season"
-          changeType="positive"
+          label="Categories"
+          value={String(catalogShape.categories)}
+          changeType="neutral"
           icon="account_tree"
-          subtitle="4 Global Depts · 18 Sub-nodes"
+          subtitle={`${catalogShape.rootCategories} top level`}
         />
         <StatsCard
-          label="Curated Drops"
-          value="38 drops"
-          change="6 Live"
+          label="Collection drops"
+          value={`${catalogShape.collections} ${catalogShape.collections === 1 ? 'drop' : 'drops'}`}
           changeType="neutral"
           icon="auto_awesome"
-          subtitle="4 Scheduled · 28 Archived"
+          subtitle={`${catalogShape.emptyCollections} with no product`}
         />
         <StatsCard
-          label="Merch Rules"
-          value="24 Active"
-          change="Smart Boost"
+          label="Products in a drop"
+          value={String(catalogShape.grouped)}
           changeType="neutral"
           icon="tune"
-          subtitle="Avg Margin Lift +4.8%"
+          subtitle={`${catalogShape.variants} variants across them`}
         />
         <StatsCard
-          label="Orphan SKUs"
-          value="0 SKUs"
-          change="100% Synced"
-          changeType="positive"
+          label="Units in stock"
+          value={catalogShape.stock.toLocaleString('en-IN')}
+          changeType="neutral"
           icon="verified"
-          subtitle="Strict Taxonomy Gate Active"
-        />
-        <StatsCard
-          label="Omnichannel Feed"
-          value="99.9%"
-          change="Healthy"
-          changeType="positive"
-          icon="cloud_sync"
-          subtitle="Myntra · Nykaa · Web · iOS"
+          subtitle="Tracked variants in collections"
         />
       </ContentGrid>
 
@@ -314,7 +355,7 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               >
                 <span>Curated Drops & Collections</span>
                 <span className={`px-1.5 py-px rounded-full text-micro ${activeTab === 'drops' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'}`}>
-                  38
+                  {filteredCollections.length}
                 </span>
               </button>
               <button
@@ -328,33 +369,8 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               >
                 <span>Taxonomy Hierarchy Tree</span>
                 <span className={`px-1.5 py-px rounded-full text-micro ${activeTab === 'tree' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'}`}>
-                  142
+                  {filteredCategories.length}
                 </span>
-              </button>
-              <button
-                onClick={() => setActiveTab('rules')}
-                className={`px-space-md py-1.5 rounded-lg text-label flex items-center gap-2 transition-all ${
- activeTab === 'rules'
- ? 'bg-primary-container text-on-accent shadow-sm font-semibold'
- : 'hover:bg-surface-subtle text-muted'
- }`}
-                type="button"
-              >
-                <span>Smart Rules Engine</span>
-                <span className={`px-1.5 py-px rounded-full text-micro ${activeTab === 'rules' ? 'bg-scrim/25 text-on-accent' : 'bg-surface-subtle text-muted'}`}>
-                  24
-                </span>
-              </button>
-              <button
-                onClick={() => setActiveTab('channels')}
-                className={`px-space-md py-1.5 rounded-lg text-label transition-all ${
- activeTab === 'channels'
- ? 'bg-primary-container text-on-accent shadow-sm font-semibold'
- : 'hover:bg-surface-subtle text-muted'
- }`}
-                type="button"
-              >
-                <span>Marketplace Channels</span>
               </button>
             </div>
             <div className="flex items-center gap-1 pr-1">
@@ -384,50 +400,26 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                 value={searchQuery}
                 onChange={(value) => setSearchQuery(value)}
                 onClear={() => setSearchQuery('')}
-                placeholder="Search title, slug, tag or hero model"
-                label="Search collections"
+                placeholder={isTree ? 'Search category name or slug' : 'Search collection title or code'}
+                label={isTree ? 'Search categories' : 'Search collections'}
                 className="w-full flex-1"
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Season select */}
+              {/* A collection and a category each carry one real status:
+                  whether any product sits in it. The season and lifecycle
+                  selects that stood here filtered on fields that neither a
+                  collection nor a category holds. */}
               <div className="w-48">
-                <Select
-                  value={seasonFilter}
-                  onChange={(e) => setSeasonFilter(e.target.value)}
-                  className="h-8 text-meta"
-                >
-                  <option>All Seasons (2024-25)</option>
-                  <option>Festive Atelier '24</option>
-                  <option>Autumn/Winter '24</option>
-                  <option>Summer Essentials '24</option>
-                  <option>Core Evergreen</option>
-                </Select>
-              </div>
-              {/* Channel select */}
-              <div className="w-44">
-                <Select
-                  value={channelFilter}
-                  onChange={(e) => setChannelFilter(e.target.value)}
-                  className="h-8 text-meta"
-                >
-                  <option>All Omnichannel</option>
-                  <option>Mobile App Exclusives</option>
-                  <option>Storefront Web</option>
-                  <option>Myntra Syndicate</option>
-                </Select>
-              </div>
-              {/* Status Pill Filter */}
-              <div className="w-44">
                 <Select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="h-8 text-meta"
+                  aria-label={isTree ? 'Filter categories' : 'Filter collections'}
                 >
-                  <option>Active &amp; Scheduled</option>
-                  <option>Active Live Only</option>
-                  <option>Draft / In Review</option>
-                  <option>Archived</option>
+                  <option value="all">{isTree ? 'All categories' : 'All collections'}</option>
+                  <option value="in-use">With products</option>
+                  <option value="empty">Empty</option>
                 </Select>
               </div>
             </div>
@@ -462,11 +454,6 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                         {/* Lookbook Image */}
                         <div className="relative w-20 h-16 rounded-lg overflow-hidden shrink-0 bg-surface-subtle shadow-inner">
                           <Thumbnail src={col.thumbnail} alt={col.title} className="w-full h-full" imgClassName="object-cover" />
-                          <span className={`absolute bottom-1 right-1 px-1 py-px rounded text-caption uppercase ${
- col.tag === 'Oct 15' ? 'bg-status-warning-solid text-on-accent' : 'bg-scrim/70 text-on-accent'
- }`}>
-                            {col.tag}
-                          </span>
                         </div>
                         {/* Metadata & Title */}
                         <div className="flex flex-col min-w-0">
@@ -474,14 +461,10 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                             <span className="text-subheading text-primary font-semibold truncate hover:text-accent">
                               {col.title}
                             </span>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-caption font-semibold ${
- col.badgeType === 'success'
- ? 'bg-status-success-bg text-success'
- : col.badgeType === 'warning'
- ? 'bg-status-warning-bg text-warning'
- : 'bg-surface-subtle text-muted'
- }`}>
-                              {col.badge}
+                            <span
+                              className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-full text-caption font-semibold ${col.statusColor}`}
+                            >
+                              {col.status}
                             </span>
                             <span className="px-1.5 py-0.5 rounded bg-surface-subtle text-caption text-muted">
                               {col.code}
@@ -490,56 +473,46 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                           <div className="flex items-center gap-space-sm mt-1 text-body text-secondary flex-wrap">
                             <span className="flex items-center gap-1 text-primary font-medium">
                               <Icon name="checkroom" className="material-symbols-outlined text-icon-sm text-accent" />
-                              {col.skusCount} SKUs
+                              {col.productLabel}
                             </span>
                             <span>•</span>
-                            <span>
-                              Price Range: <strong className="text-primary font-semibold">{col.priceRange}</strong>
-                            </span>
-                            <span>•</span>
-                            <span className="text-accent font-medium flex items-center gap-0.5">
-                              <Icon name={col.ruleIcon} className="material-symbols-outlined text-icon-sm" />
-                              {col.ruleText}
-                            </span>
+                            <span>{col.variantLabel}</span>
+                            {col.priceRange && (
+                              <>
+                                <span>•</span>
+                                <span>
+                                  Price range:{' '}
+                                  <strong className="whitespace-nowrap text-primary font-semibold">
+                                    {col.priceRange}
+                                  </strong>
+                                </span>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
 
                       {/* Quantitative Metrics Block */}
+                      {/* Collection GMV and a CVR / AOV pair sat here. Neither is
+                          attributed to a collection anywhere, so the two blocks
+                          rendered their labels above empty values. These are
+                          facts the collection does carry. */}
                       <div className="flex items-center gap-space-lg shrink-0 justify-between lg:justify-end pl-6 lg:pl-0">
                         <div className="flex flex-col text-right">
-                          <span className="text-caption text-muted">COLLECTION GMV</span>
-                          <span className="text-subheading text-primary font-semibold">{col.gmv}</span>
-                          <span className={`text-micro ${col.gmvSubColor}`}>{col.gmvSub}</span>
+                          <span className="text-caption text-muted">UNITS IN STOCK</span>
+                          <span className="text-subheading text-primary font-semibold tabular-nums">
+                            {col.stock.toLocaleString('en-IN')}
+                          </span>
+                          <span className="text-micro text-muted">across {col.variantLabel}</span>
                         </div>
                         <div className="hidden sm:flex flex-col text-right">
-                          <span className="text-caption text-muted">CVR / AOV</span>
-                          <span className="text-body text-primary font-medium">{col.cvrAov}</span>
-                          <span className="text-micro text-muted">{col.channelsText}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onShowToast?.(`Editing dynamic rules for ${col.code}...`);
-                            }}
-                            className="p-1.5 rounded-lg bg-surface-subtle text-muted hover:text-primary hover:bg-border-subtle"
-                            title="Edit Rule Set"
-                            type="button"
-                          >
-                            <Icon name="tune" className="material-symbols-outlined text-icon-md" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onShowToast?.(`Opening options for ${col.code}...`);
-                            }}
-                            className="p-1.5 rounded-lg bg-surface-subtle text-muted hover:text-primary hover:bg-border-subtle"
-                            title="View Options"
-                            type="button"
-                          >
-                            <Icon name="more_vert" className="material-symbols-outlined text-icon-md" />
-                          </button>
+                          <span className="text-caption text-muted">PUBLISHED</span>
+                          <span className="text-body text-primary font-medium tabular-nums">
+                            {col.publishedCount} of {col.productCount}
+                          </span>
+                          <span className="whitespace-nowrap text-micro text-muted">
+                            {col.updatedLabel ? `Updated ${col.updatedLabel}` : 'Never updated'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -554,215 +527,201 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
                     {selectedCount} Collection Selected
                   </span>
                   <span>•</span>
-                  <span>Showing {filteredCollections.length} of 38 Active Drops</span>
-                </div>
-                <div className="flex items-center gap-space-xs">
-                  <button
-                    onClick={() => onShowToast?.(`Bulk rule applied to ${selectedCount} selected collections.`)}
-                    className="px-space-sm py-1 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary text-label border border-subtle transition-colors"
-                    type="button"
-                  >
-                    Bulk Rule Apply
-                  </button>
-                  <button
-                    onClick={() => onShowToast?.(`Omnichannel sync triggered for active catalog drops.`)}
-                    className="px-space-sm py-1 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary text-label border border-subtle transition-colors"
-                    type="button"
-                  >
-                    Sync Channels
-                  </button>
+                  <span>Showing {filteredCollections.length} of {mergedCollections.length} drops</span>
                 </div>
               </div>
             </div>
           )}
 
           {/* TAB 2: Taxonomy Hierarchy Tree */}
+          {/* TAB 2: Taxonomy Hierarchy Tree. The two hand-written trees that
+              stood below the live list ("Women's Ethnic Atelier, 48
+              sub-categories, 1,280 SKUs" and a men's equivalent) described a
+              taxonomy that does not exist: categories are flat in the database
+              and carry their own product counts. */}
           {activeTab === 'tree' && (
-            <div className="bg-surface-container-lowest p-5 rounded-xl border border-subtle shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
+            <div className="bg-surface-container-lowest p-space-md rounded-xl border border-subtle shadow-sm flex flex-col gap-space-sm">
+              <div className="flex items-center justify-between gap-space-md">
                 <div>
-                  <h3 className="font-semibold text-primary">Everwear Apparel Master Hierarchy</h3>
-                  <p className="text-meta text-muted">{dbCategories.length} Active Master Categories · Synchronized with MongoDB</p>
+                  <h3 className="font-semibold text-primary">Apparel taxonomy</h3>
+                  <p className="text-meta text-muted">
+                    {filteredCategories.length === dbCategories.length
+                      ? `${dbCategories.length} ${dbCategories.length === 1 ? 'category' : 'categories'} in the catalog`
+                      : `Showing ${filteredCategories.length} of ${dbCategories.length} categories`}
+                  </p>
                 </div>
-                <button
-                  onClick={() => setIsCategoryModalOpen(true)}
-                  className="px-3 py-1.5 bg-primary-container hover:bg-primary-container-hover text-on-accent text-meta font-semibold rounded-lg shadow-sm cursor-pointer transition-colors"
-                >
-                  + Add Root Node
-                </button>
+                <Button variant="outline" size="sm" icon="add" onClick={() => setIsCategoryModalOpen(true)}>
+                  Add category
+                </Button>
               </div>
 
-              <div className="space-y-3 text-meta">
-                {/* Live MongoDB Categories */}
-                {dbCategories.length > 0 && (
-                  <div className="p-3 bg-surface-canvas rounded-lg border border-primary-container/20 space-y-2">
-                    <div className="flex items-center justify-between font-semibold text-primary">
-                      <div className="flex items-center gap-2">
-                        <Icon name="database" className="material-symbols-outlined text-icon text-accent" />
-                        <span>Active Database Categories ({dbCategories.length})</span>
-                      </div>
-                      <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed text-micro font-semibold">Live in API</span>
-                    </div>
-                    <div className="space-y-1.5 pt-1">
-                      {dbCategories.map(cat => (
-                        <div key={cat.id} className="flex items-center justify-between py-1.5 px-2 bg-surface-container-lowest rounded border border-subtle">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-accent font-semibold whitespace-nowrap">/{cat.handle}</span>
-                            <span className="text-primary font-medium">{cat.name}</span>
-                            {cat.description && <span className="text-muted text-micro">({cat.description})</span>}
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono text-muted whitespace-nowrap">{cat.productCount ?? 0} Products</span>
-                            <button
-                              onClick={() => handleDeleteCategory(cat.id, cat.name)}
-                              className="text-muted hover:text-danger p-0.5 rounded"
-                              title="Delete Category"
-                            >
-                              <Icon name="delete" className="material-symbols-outlined text-icon-sm" />
-                            </button>
+              {filteredCategories.length === 0 ? (
+                <EmptyState
+                  icon="account_tree"
+                  title={dbCategories.length === 0 ? 'No categories yet' : 'No category matches these filters'}
+                  description={
+                    dbCategories.length === 0
+                      ? 'Create a category to start building the catalog taxonomy.'
+                      : 'Clear the search or the status filter to see the rest of the taxonomy.'
+                  }
+                />
+              ) : (
+                <div className="flex flex-col gap-space-xs">
+                  {filteredCategories.map((cat) => {
+                    const isSelected = selectedCategory?.id === cat.id;
+                    const products = cat.productCount ?? 0;
+                    return (
+                      <div
+                        key={cat.id}
+                        onClick={() => setSelectedCategoryId(cat.id)}
+                        className={`flex cursor-pointer items-center justify-between gap-space-md rounded-lg border p-space-sm transition-colors ${
+                          isSelected
+                            ? 'border-primary bg-primary-fixed/40'
+                            : 'border-subtle bg-surface-canvas hover:bg-surface-bright'
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-space-sm">
+                          <Icon name="folder" className="material-symbols-outlined text-icon text-accent" />
+                          <div className="flex min-w-0 flex-col">
+                            <span className="truncate text-body font-medium text-primary">{cat.name}</span>
+                            <span className="truncate font-mono text-micro text-muted">/{cat.handle}</span>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Women's Ethnic */}
-                <div className="p-3 bg-surface-canvas rounded-lg border border-subtle">
-                  <div className="flex items-center justify-between font-semibold text-primary cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <Icon name="folder" className="material-symbols-outlined text-icon text-accent" />
-                      <span>Women's Ethnic Atelier (48 Sub-categories)</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro">1,280 SKUs Active</span>
-                  </div>
-                  <div className="pl-6 mt-2 space-y-1.5 text-muted">
-                    <div className="flex items-center justify-between py-1 border-b border-subtle">
-                      <span>└── Sarees (Chanderi, Banarasi, Raw Silk, Georgette)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">420 SKUs</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 border-b border-subtle">
-                      <span>└── Kurtas & Sets (Anarkali, Straight Fit, Palazzo Combos)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">540 SKUs</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1">
-                      <span>└── Lehengas & Dupattas (Bridal Velvet, Zari Heavy, Festive Organza)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">320 SKUs</span>
-                    </div>
-                  </div>
+                        <div className="flex shrink-0 items-center gap-space-sm">
+                          <span className="whitespace-nowrap font-mono text-meta text-secondary">
+                            {products} {products === 1 ? 'product' : 'products'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCategory(cat.id, cat.name);
+                            }}
+                            className="rounded p-0.5 text-muted hover:text-danger"
+                            title={`Delete ${cat.name}`}
+                            aria-label={`Delete ${cat.name}`}
+                          >
+                            <Icon name="delete" className="material-symbols-outlined text-icon-sm" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                {/* Men's Sartorial & Casual */}
-                <div className="p-3 bg-surface-canvas rounded-lg border border-subtle">
-                  <div className="flex items-center justify-between font-semibold text-primary cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <Icon name="folder" className="material-symbols-outlined text-icon text-accent" />
-                      <span>Men's Sartorial & Casuals (36 Sub-categories)</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-info text-micro">940 SKUs Active</span>
-                  </div>
-                  <div className="pl-6 mt-2 space-y-1.5 text-muted">
-                    <div className="flex items-center justify-between py-1 border-b border-subtle">
-                      <span>└── Shirts & Knits (Supima Cotton, French Linen, Oxford Weave)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">380 SKUs</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1 border-b border-subtle">
-                      <span>└── Outerwear & Tailored (Cashmere Overcoats, Merino Wool, Sherwanis)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">240 SKUs</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1">
-                      <span>└── Denim & Trousers (Shuttle-Loom Selvedge, Pleated Chinos)</span>
-                      <span className="font-mono text-primary whitespace-nowrap">320 SKUs</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
-          {/* TAB 3: Smart Rules Engine */}
-          {activeTab === 'rules' && (
-            <div className="bg-surface-container-lowest p-5 rounded-xl border border-subtle shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-primary">Dynamic Merchandising & Re-ranking Rules</h3>
-                  <p className="text-meta text-muted">24 Active visual rules regulating product placements across storefronts</p>
-                </div>
-                <button
-                  onClick={() => onShowToast?.('Creating custom merchandising rule...')}
-                  className="px-3 py-1.5 bg-primary-container text-on-accent text-meta font-semibold rounded-lg shadow-sm"
-                >
-                  + Create Rule
-                </button>
-              </div>
 
-              <div className="space-y-3">
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-meta text-primary">RULE #01: High Gross Margin Booster</span>
-                    <span className="px-2 py-0.5 rounded-full bg-status-success-bg text-success text-micro font-semibold">Active in 18 Collections</span>
-                  </div>
-                  <p className="text-meta text-muted">IF Gross Margin &gt;= 55% AND Local FC Stock &gt; 10 THEN Elevate Rank by +35 positions.</p>
-                  <div className="flex items-center gap-4 text-micro text-muted font-mono whitespace-nowrap">
-                    <span>Lift: +4.8% Net Contribution</span>
-                    <span>Evaluation Latency: 12ms</span>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-meta text-primary">RULE #02: Low Inventory Demotion Guardrail</span>
-                    <span className="px-2 py-0.5 rounded-full bg-status-warning-bg text-warning text-micro font-semibold">Storewide Guard</span>
-                  </div>
-                  <p className="text-meta text-muted">IF Total Size Availability &lt; 2 Sizes THEN Demote to Page 2+ to prevent bounce rate spike.</p>
-                  <div className="flex items-center gap-4 text-micro text-muted font-mono whitespace-nowrap">
-                    <span>Prevents 8.4% Out-of-Stock Clicks</span>
-                    <span>Active 24/7</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: Marketplace Channels */}
-          {activeTab === 'channels' && (
-            <div className="bg-surface-container-lowest p-5 rounded-xl border border-subtle shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-primary">Omnichannel Catalog Feed Syndication</h3>
-                  <p className="text-meta text-muted">Live schema transformation & inventory sync pipelines</p>
-                </div>
-                <button
-                  onClick={() => onShowToast?.('Force syndicating all active channel feeds...')}
-                  className="px-3 py-1.5 bg-primary-container text-on-accent text-meta font-semibold rounded-lg shadow-sm"
-                >
-                  Force Feed Resync
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-meta text-primary">Myntra Brand Store Feed</span>
-                    <span className="w-2 h-2 rounded-full bg-status-success"></span>
-                  </div>
-                  <p className="text-meta text-muted">Synced: 1,480 SKUs · HSN Validation Active · SLA 99.9%</p>
-                  <span className="text-micro font-mono text-success whitespace-nowrap">Last ping: 42s ago</span>
-                </div>
-                <div className="p-4 bg-surface-canvas rounded-xl border border-subtle space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-meta text-primary">Nykaa Fashion Premium API</span>
-                    <span className="w-2 h-2 rounded-full bg-status-success"></span>
-                  </div>
-                  <p className="text-meta text-muted">Synced: 680 Curated Ethnic SKUs · Lookbook Media Synced</p>
-                  <span className="text-micro font-mono text-success whitespace-nowrap">Last ping: 2m ago</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* RIGHT 4-COLUMNS: Visual Merchandising Inspector Drawer (Exact 1:1 with Stitch design) */}
+        {/* RIGHT 4-COLUMNS: the inspector describes whatever the active tab
+            lists. It used to render the collection inspector on every tab, so
+            selecting Taxonomy left a collection's details on screen beside a
+            list of categories. */}
+        {isTree ? (
+          !selectedCategory ? (
+            <div className="xl:col-span-4">
+              <EmptyState
+                icon="account_tree"
+                title="No category selected"
+                description="Pick a category from the taxonomy to inspect it."
+              />
+            </div>
+          ) : (
+            <div className="xl:col-span-4 flex flex-col space-y-space-sm">
+              <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-md flex flex-col space-y-space-md">
+                <div className="flex items-start justify-between gap-space-sm">
+                  <div className="flex min-w-0 flex-col">
+                    <div className="flex items-center gap-1.5 text-caption text-accent uppercase font-semibold">
+                      <Icon name="account_tree" className="material-symbols-outlined text-icon-sm" />
+                      Category Inspector
+                    </div>
+                    <h2 className="text-heading text-primary font-semibold tracking-tight mt-0.5 truncate">
+                      {selectedCategory.name}
+                    </h2>
+                    <span className="font-mono text-body text-secondary">/{selectedCategory.handle}</span>
+                  </div>
+                  <span
+                    className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-caption font-semibold ${
+                      (selectedCategory.productCount ?? 0) > 0
+                        ? 'bg-status-success-bg text-success'
+                        : 'bg-surface-subtle text-muted'
+                    }`}
+                  >
+                    {(selectedCategory.productCount ?? 0) > 0 ? 'IN USE' : 'EMPTY'}
+                  </span>
+                </div>
+
+                {selectedCategory.description && (
+                  <p className="text-meta text-secondary">{selectedCategory.description}</p>
+                )}
+
+                <div className="space-y-space-xs pt-1">
+                  <span className="text-caption text-muted uppercase">Details</span>
+                  <dl className="flex flex-col gap-space-sm rounded-lg border border-subtle bg-surface-canvas p-space-sm">
+                    {[
+                      ['Products', `${selectedCategory.productCount ?? 0}`],
+                      [
+                        'Parent',
+                        selectedCategory.parentId
+                          ? dbCategories.find((c) => c.id === selectedCategory.parentId)?.name ??
+                            selectedCategory.parentId
+                          : 'Top level',
+                      ],
+                      [
+                        'Last updated',
+                        selectedCategory.updatedAt
+                          ? new Date(selectedCategory.updatedAt).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : 'Never',
+                      ],
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex items-center justify-between gap-space-md">
+                        <dt className="text-meta text-muted">{label}</dt>
+                        <dd className="truncate text-body text-primary">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+
+                <div className="flex items-center gap-space-xs border-t border-subtle pt-space-sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon="inventory_2"
+                    onClick={() => onNavigate?.('product-catalog')}
+                  >
+                    View products
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon="delete"
+                    onClick={() => handleDeleteCategory(selectedCategory.id, selectedCategory.name)}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )
+        ) : !selectedDrop ? (
+          <div className="xl:col-span-4">
+            <EmptyState
+              icon="collections_bookmark"
+              title={mergedCollections.length === 0 ? 'No collections yet' : 'No collection selected'}
+              description={
+                mergedCollections.length === 0
+                  ? 'Create a collection drop to start grouping products.'
+                  : 'Pick a collection from the list to inspect it.'
+              }
+            />
+          </div>
+        ) : (
         <div className="xl:col-span-4 flex flex-col space-y-space-sm">
           <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-md flex flex-col space-y-space-md">
             {/* Inspector Top Header */}
@@ -784,201 +743,55 @@ export function CategoriesAndCollections({ onNavigate, onShowToast }) {
               </div>
             </div>
 
-            {/* Banner & Media Lookbook Preview Container */}
+            {/* The hero image, the sorting weights and the placement targets
+                were `heroBanner`, `marginWeight`, `velocityWeight` and three
+                fixed channel rows. A collection stores none of them, so the
+                panel rendered an empty frame, three labels reading "%" and a
+                slider at zero. These are what it does hold. */}
             <div className="space-y-space-xs">
               <div className="flex items-center justify-between text-caption text-muted">
-                <span>STOREFRONT HERO MEDIA</span>
-                <span>1920×600 (Desktop) · 1080×1350 (App)</span>
+                <span>COLLECTION IMAGE</span>
+                <span>From the first product in the drop</span>
               </div>
-              <div className="relative rounded-lg overflow-hidden bg-surface-canvas shadow-inner group border border-subtle">
-                <div
-                  className="w-full h-32 bg-cover bg-center transition-all duration-300"
-                  style={{ backgroundImage: `url('${selectedDrop.heroBanner}')` }}
-                ></div>
-                <div className="absolute inset-0 bg-gradient-to-t from-scrim/80 via-scrim/20 to-transparent flex flex-col justify-end p-2.5">
-                  <span className="text-on-accent text-subheading font-semibold tracking-tight leading-tight">
-                    {selectedDrop.heroBannerTitle}
-                  </span>
-                  <span className="text-on-accent/80 text-micro">
-                    {selectedDrop.heroBannerSub}
-                  </span>
+              {selectedDrop.thumbnail ? (
+                <div className="relative overflow-hidden rounded-lg border border-subtle bg-surface-canvas shadow-inner">
+                  <img
+                    src={selectedDrop.thumbnail}
+                    alt={selectedDrop.title}
+                    className="h-32 w-full object-cover"
+                  />
                 </div>
-                <button
-                  onClick={() => onShowToast?.('Opening media asset manager to replace storefront hero...')}
-                  className="absolute top-2 right-2 p-1.5 rounded-lg bg-scrim/60 hover:bg-black text-on-accent text-meta flex items-center gap-1 backdrop-blur-sm transition-colors"
-                  type="button"
-                >
-                  <Icon name="photo_camera" className="material-symbols-outlined text-icon-sm" />
-                  <span>Replace Media</span>
-                </button>
-              </div>
+              ) : (
+                <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-subtle bg-surface-canvas text-meta text-muted">
+                  No product in this drop carries an image
+                </div>
+              )}
             </div>
 
-            {/* Merchandising Algorithm Configuration */}
             <div className="space-y-space-xs pt-1">
-              <div className="flex items-center justify-between">
-                <span className="text-caption text-muted uppercase">SORTING & ALGORITHM LOGIC</span>
-                <span className="text-caption text-accent font-semibold">{selectedDrop.engineVersion}</span>
-              </div>
-              <div className="p-space-sm bg-surface-canvas rounded-lg border border-subtle flex flex-col space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Icon name="auto_graph" className="material-symbols-outlined text-icon-md text-accent" />
-                    <span className="text-label font-semibold text-primary">
-                      {selectedDrop.algoTitle}
-                    </span>
-                  </div>
-                  <Icon name="info" className="material-symbols-outlined text-icon text-muted cursor-pointer" />
-                </div>
-                <p className="text-meta text-muted leading-relaxed">
-                  {selectedDrop.algoDesc}
-                </p>
-                <div className="flex items-center justify-between pt-1 text-caption text-muted">
-                  <span>MARGIN WEIGHT: {selectedDrop.marginWeight}%</span>
-                  <span>VELOCITY: {selectedDrop.velocityWeight}%</span>
-                  <span>FRESHNESS: {selectedDrop.freshnessWeight}%</span>
-                </div>
-                {/* Visual Weight Progress Bar */}
-                <div className="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden flex">
-                  <div className="bg-primary-container h-full" style={{ width: `${selectedDrop.marginWeight}%` }}></div>
-                  <div className="bg-fashion-magenta h-full" style={{ width: `${selectedDrop.velocityWeight}%` }}></div>
-                  <div className="bg-status-info h-full" style={{ width: `${selectedDrop.freshnessWeight}%` }}></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Pinned Hero SKUs (Drag & Drop Visual Grid) */}
-            <div className="space-y-space-xs pt-1">
-              <div className="flex items-center justify-between">
-                <span className="text-caption text-muted uppercase">
-                  PINNED HERO ITEMS (SLOTS 1-4)
-                </span>
-                <button
-                  onClick={() => onShowToast?.('Search catalog to pin SKU to hero slot...')}
-                  className="text-caption text-accent font-semibold hover:underline"
-                  type="button"
-                >
-                  + Pin SKU
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-space-xs">
-                {selectedDrop.pinnedItems.map((pin) => (
-                  <div
-                    key={pin.slot}
-                    className="p-2 bg-surface-canvas rounded-lg border border-subtle flex items-center gap-2 relative group hover:bg-surface-bright transition-colors"
-                  >
-                    <span className="absolute top-1 left-1 w-4 h-4 rounded-full bg-primary-container text-on-accent text-micro flex items-center justify-center font-semibold">
-                      {pin.slot}
-                    </span>
-                    <Thumbnail src={pin.image} alt={pin.name} className="w-10 h-12 shrink-0" imgClassName="object-cover" />
-                    <div className="flex flex-col min-w-0 pr-1">
-                      <span className="text-micro font-semibold text-primary truncate">{pin.name}</span>
-                      <span className="text-micro text-muted">{pin.price} · {pin.margin}</span>
-                      <span className="text-micro text-success">{pin.stock}</span>
-                    </div>
-                    <Icon name="drag_indicator" className="material-symbols-outlined text-icon-sm text-outline ml-auto group-hover:text-primary cursor-grab" />
+              <span className="text-caption text-muted uppercase">Composition</span>
+              <dl className="flex flex-col gap-space-sm rounded-lg border border-subtle bg-surface-canvas p-space-sm">
+                {[
+                  ['Products', `${selectedDrop.productCount}`],
+                  ['Variants', `${selectedDrop.variantCount}`],
+                  ['Published', `${selectedDrop.publishedCount} of ${selectedDrop.productCount}`],
+                  ['Units in stock', selectedDrop.stock.toLocaleString('en-IN')],
+                  ['Price range', selectedDrop.priceRange ?? 'No priced variant'],
+                  ['Last updated', selectedDrop.updatedLabel ?? 'Never'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between gap-space-md">
+                    <dt className="text-meta text-muted">{label}</dt>
+                    <dd className="whitespace-nowrap text-body text-primary">{value}</dd>
                   </div>
                 ))}
-                {/* Empty slot */}
-                <div
-                  onClick={() => onShowToast?.(`Pin SKU to Slot 4 for ${selectedDrop.code}`)}
-                  className="p-2 bg-surface-canvas rounded-lg flex items-center justify-center border-dashed border-2 border-subtle hover:border-primary-container text-muted hover:text-accent cursor-pointer transition-colors h-16"
-                >
-                  <div className="flex items-center gap-1 text-caption font-semibold">
-                    <Icon name="add_circle" className="material-symbols-outlined text-icon" />
-                    <span>Pin Slot {selectedDrop.pinnedItems.length + 1}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Facets & Filters Allowed on Storefront */}
-            <div className="space-y-space-xs pt-1">
-              <span className="text-caption text-muted uppercase">
-                ACTIVE COLLECTION FACETS
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {selectedDrop.facets.map((facet, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-canvas border border-subtle text-body text-meta font-medium text-primary"
-                  >
-                    <Icon name={idx === 0 ? 'palette' : idx === 1 ? 'straighten' : 'sell'} className="material-symbols-outlined text-icon-sm text-muted" />
-                    {facet}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Omnichannel Visibility Matrix */}
-            <div className="space-y-space-xs pt-1">
-              <span className="text-caption text-muted uppercase">
-                STOREFRONT PLACEMENT TARGETS
-              </span>
-              <div className="space-y-1.5">
-                <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
-                  <div className="flex items-center gap-2">
-                    <Icon name="smartphone" className="material-symbols-outlined text-icon text-accent" />
-                    <span className="text-body font-medium text-primary">iOS & Android App (Slot A)</span>
-                  </div>
-                  <input defaultChecked className="w-4 h-4 rounded text-accent accent-primary-container cursor-pointer" type="checkbox" />
-                </label>
-                <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
-                  <div className="flex items-center gap-2">
-                    <Icon name="desktop_windows" className="material-symbols-outlined text-icon text-info" />
-                    <span className="text-body font-medium text-primary">Desktop Web Top Carousel</span>
-                  </div>
-                  <input defaultChecked className="w-4 h-4 rounded text-accent accent-primary-container cursor-pointer" type="checkbox" />
-                </label>
-                <label className="flex items-center justify-between p-2 rounded-lg bg-surface-canvas border border-subtle cursor-pointer hover:bg-surface-subtle transition-colors">
-                  <div className="flex items-center gap-2">
-                    <Icon name="storefront" className="material-symbols-outlined text-icon text-muted" />
-                    <span className="text-body font-medium text-primary">Myntra Brand Store Landing</span>
-                  </div>
-                  <input defaultChecked className="w-4 h-4 rounded text-accent accent-primary-container cursor-pointer" type="checkbox" />
-                </label>
-              </div>
+              </dl>
             </div>
 
             {/* Bottom Action Commit Button */}
-            <div className="pt-2 flex flex-col space-y-2">
-              <button
-                onClick={() => onShowToast?.(`Published ${selectedDrop.title} changes to live storefronts.`)}
-                className="w-full h-9 rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-accent text-label-lg font-semibold flex items-center justify-center gap-2 shadow-sm transition-colors"
-                type="button"
-              >
-                <Icon name="publish" className="material-symbols-outlined text-icon-md" />
-                <span>Save & Publish to Live Storefront</span>
-              </button>
-              <button
-                onClick={() => onShowToast?.(`Opening live storefront preview modal...`)}
-                className="w-full h-8 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary text-label flex items-center justify-center gap-1.5 transition-colors border border-subtle"
-                type="button"
-              >
-                <Icon name="visibility" className="material-symbols-outlined text-icon text-muted" />
-                <span>Preview Live Storefront Experience</span>
-              </button>
-            </div>
           </div>
 
-          {/* Quick Micro-Widget: Feed Syndication Sync Status */}
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-subtle p-space-sm flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-status-success animate-pulse"></span>
-              <div className="flex flex-col">
-                <span className="text-meta font-semibold text-primary">Edge Cache & CDN Invalidation</span>
-                <span className="text-micro text-muted">Last purged 4 mins ago across 14 Cloudflare nodes</span>
-              </div>
-            </div>
-            <button
-              onClick={() => onShowToast?.('Cloudflare CDN edge cache purged for collections.')}
-              className="text-muted hover:text-primary text-meta uppercase underline"
-              type="button"
-            >
-              Purge
-            </button>
-          </div>
         </div>
+        )}
       </div>
 
       {/* New Category Modal */}

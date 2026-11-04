@@ -36,6 +36,9 @@ export default async function SearchPage(props: Props) {
     notFound()
   }
 
+  // A non-empty query never reaches this page: proxy.ts sends it to the
+  // filterable listing (`/store?rawQuery=`). This is the empty state.
+
   const result = query
     ? await listProducts({ country: countryCode, q: query, limit: RESULT_LIMIT }).catch(() => null)
     : { products: [], count: 0 }
@@ -113,7 +116,10 @@ export default async function SearchPage(props: Props) {
               {result.count} {result.count === 1 ? "product" : "products"}
             </p>
           )}
-          <ul className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:gap-x-6 xl:grid-cols-4" data-testid="search-results">
+          <ul
+            className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 sm:gap-x-4 lg:grid-cols-4 xl:grid-cols-5"
+            data-testid="search-results"
+          >
             {result.products.map((product) => (
               <li key={product.id}>
                 <ProductCard product={product} headingLevel="h2" />

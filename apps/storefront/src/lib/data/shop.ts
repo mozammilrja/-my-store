@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import { api, ApiError } from "../api/client"
 import type { Address, Cart, Order } from "../api/types"
 import { getCartId, getToken, removeCartId, setCartId, setOrderAccess } from "./session"
+import { checkoutAddressStepSchema } from "../validation/checkout-schemas"
 
 export type ActionResult = { error: string | null }
 
@@ -86,6 +87,19 @@ export async function deleteLineItem(lineId: string) {
   refresh()
 }
 
+export async function clearCart() {
+  const cart = await retrieveCart()
+  if (!cart) return
+  for (const item of cart.items) {
+    try {
+      await deleteLineItem(item.id)
+    } catch {
+      // ignore
+    }
+  }
+  refresh()
+}
+
 export async function applyPromotions(codes: string[]) {
   const id = await requireCartId()
   try {
@@ -143,9 +157,23 @@ export async function saveAddresses(_: ActionResult, form: FormData): Promise<Ac
   const id = await getCartId()
   if (!id) return { error: "Your bag has expired. Please add the items again." }
   const shippingAddress = readAddress(form, "shipping")
-  const billingAddress = form.get("sameAsShipping") === "on" ? shippingAddress : readAddress(form, "billing")
+  const sameAsShipping = form.get("sameAsShipping") === "on"
+  const billingAddress = sameAsShipping ? shippingAddress : readAddress(form, "billing")
+  const emailVal = text(form, "email")
+
+  // Zod Server Validation
+  const validation = checkoutAddressStepSchema.safeParse({
+    email: emailVal,
+    shipping: shippingAddress,
+    sameAsShipping,
+    billing: sameAsShipping ? undefined : billingAddress,
+  })
+  if (!validation.success) {
+    return { error: validation.error.issues[0]?.message || "Please fill in all required address fields." }
+  }
+
   try {
-    await api(`/store/carts/${id}`, { method: "PATCH", body: { email: text(form, "email"), shippingAddress, billingAddress } })
+    await api(`/store/carts/${id}`, { method: "PATCH", body: { email: emailVal, shippingAddress, billingAddress } })
   } catch (e) {
     return { error: message(e) }
   }
@@ -153,6 +181,23 @@ export async function saveAddresses(_: ActionResult, form: FormData): Promise<Ac
 }
 
 /** Checkout step 2: delivery option. */
+/**
+ * Set the cart's shipping option without navigating. `saveShipping` ends in a
+ * redirect to the review step, which is right for the stepped checkout but
+ * aborts a caller that still has work to do: the single-page flow persists the
+ * delivery choice and then places the order in the same action.
+ */
+export async function setShippingOption(optionId: string): Promise<ActionResult> {
+  const id = await getCartId()
+  if (!id) return { error: "Your bag has expired. Please add the items again." }
+  try {
+    await api(`/store/carts/${id}/shipping`, { method: "POST", body: { optionId } })
+  } catch (e) {
+    return { error: message(e) }
+  }
+  return { error: null }
+}
+
 export async function saveShipping(_: ActionResult, form: FormData): Promise<ActionResult> {
   const id = await getCartId()
   if (!id) return { error: "Your bag has expired. Please add the items again." }

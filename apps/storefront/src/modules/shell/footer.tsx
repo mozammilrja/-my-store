@@ -16,7 +16,7 @@ export function Footer() {
   }
   return (
     <footer className="w-full bg-surface-container-low pt-space-xl pb-12 mt-space-xl border-t border-surface-container">
-      <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+      <div className="w-full px-margin-mobile md:px-margin">
         {/* Top Feature Badges */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-space-lg pb-space-xl border-b border-surface-container">
           <div className="flex items-start gap-space-sm">

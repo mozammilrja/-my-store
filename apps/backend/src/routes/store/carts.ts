@@ -10,6 +10,7 @@ import { regionForCountry } from "../../lib/regions.js"
 import { assetUrl, isInStock, toStoreOrder } from "../../lib/serialize.js"
 import { computeTotals, promotionUsable } from "../../lib/totals.js"
 import { address, email } from "../../lib/validation.js"
+import { executeIdempotent } from "../../lib/idempotency.js"
 
 /** Most units of one variant a single cart line may hold. */
 export const MAX_LINE_QUANTITY = 10
@@ -290,91 +291,209 @@ cartRoutes.post("/carts/:id/promotions", async (req, res) => {
 cartRoutes.post("/carts/:id/complete", async (req, res) => {
   const id = cartId.parse(req.params.id)
   const actorId = req.actorId
+  const idempotencyKey = (req.headers["idempotency-key"] as string) || (req.body as any)?.idempotencyKey
 
-  const order = await withTransaction(async (session) => {
-    const cart = await loadCart(id, session)
-    if (cart.completedAt) {
-      // Completing twice returns the same order instead of charging twice.
-      const existing = await db.orders().findOne({ cartId: cart._id }, { session })
-      if (existing) return existing
-    }
-    const region = await loadRegion(cart.regionId, session)
-    const { items, removed } = await refreshItems(cart.items, cart.currency, session)
-    if (removed.length) throw conflict(`Some items are no longer available: ${removed.join(", ")}`, "items_unavailable")
-    if (!items.length) throw badRequest("Your bag is empty", "empty_cart")
-    if (!cart.email) throw badRequest("An email address is required", "missing_email")
-    if (!cart.shippingAddress) throw badRequest("A delivery address is required", "missing_address")
-    if (!region.countries.some((r) => r.code === cart.shippingAddress!.countryCode)) {
-      throw badRequest("We don't deliver to that country from this region", "unsupported_country")
-    }
-    const shippingOption = region.shippingOptions.find((s) => s._id === cart.shippingOptionId)
-    if (!shippingOption) throw badRequest("Choose a delivery option", "missing_shipping")
+  const placeCodOrder = async () => {
+    const order = await withTransaction(async (session) => {
+      const cart = await loadCart(id, session)
+      if (cart.completedAt) {
+        // Completing twice returns the same order instead of charging twice.
+        const existing = await db.orders().findOne({ cartId: cart._id }, { session })
+        if (existing) return existing
+      }
+      const region = await loadRegion(cart.regionId, session)
+      const { items, removed } = await refreshItems(cart.items, cart.currency, session)
+      if (removed.length) throw conflict(`Some items are no longer available: ${removed.join(", ")}`, "items_unavailable")
+      if (!items.length) throw badRequest("Your bag is empty", "empty_cart")
+      if (!cart.email) throw badRequest("An email address is required", "missing_email")
+      if (!cart.shippingAddress) throw badRequest("A delivery address is required", "missing_address")
+      if (!region.countries.some((r) => r.code === cart.shippingAddress!.countryCode)) {
+        throw badRequest("We don't deliver to that country from this region", "unsupported_country")
+      }
+      const shippingOption = region.shippingOptions.find((s) => s._id === cart.shippingOptionId)
+      if (!shippingOption) throw badRequest("Choose a delivery option", "missing_shipping")
 
-    for (const item of items) {
-      const taken = await db.products().updateOne(
-        {
-          _id: item.productId,
-          variants: {
-            $elemMatch: {
-              _id: item.variantId,
-              $or: [{ manageInventory: false }, { allowBackorder: true }, { stock: { $gte: item.quantity } }],
+      for (const item of items) {
+        const taken = await db.products().updateOne(
+          {
+            _id: item.productId,
+            variants: {
+              $elemMatch: {
+                _id: item.variantId,
+                $or: [{ manageInventory: false }, { allowBackorder: true }, { stock: { $gte: item.quantity } }],
+              },
             },
           },
-        },
-        { $inc: { "variants.$[v].stock": -item.quantity } },
-        { arrayFilters: [{ "v._id": item.variantId, "v.manageInventory": true, "v.allowBackorder": false }], session }
-      )
-      if (!taken.matchedCount) throw conflict(`${item.productTitle} (${item.variantTitle}) just sold out`, "out_of_stock")
-    }
+          { $inc: { "variants.$[v].stock": -item.quantity } },
+          { arrayFilters: [{ "v._id": item.variantId, "v.manageInventory": true, "v.allowBackorder": false }], session }
+        )
+        if (!taken.matchedCount) throw conflict(`${item.productTitle} (${item.variantTitle}) just sold out`, "out_of_stock")
+      }
 
-    const promotions = cart.promoCodes.length ? await db.promotions().find({ code: { $in: cart.promoCodes } }, { session }).toArray() : []
-    for (const promo of promotions) {
-      if (!promotionUsable(promo, cart.currency)) throw conflict(`The code ${promo.code} can no longer be used`, "invalid_promotion")
-      const used = await db.promotions().updateOne(
-        { _id: promo._id, $or: [{ usageLimit: null }, { usageLimit: { $exists: false } }, { $expr: { $lt: ["$usageCount", "$usageLimit"] } }] },
-        { $inc: { usageCount: 1 } },
+      const promotions = cart.promoCodes.length ? await db.promotions().find({ code: { $in: cart.promoCodes } }, { session }).toArray() : []
+      for (const promo of promotions) {
+        if (!promotionUsable(promo, cart.currency)) throw conflict(`The code ${promo.code} can no longer be used`, "invalid_promotion")
+        const used = await db.promotions().updateOne(
+          { _id: promo._id, $or: [{ usageLimit: null }, { usageLimit: { $exists: false } }, { $expr: { $lt: ["$usageCount", "$usageLimit"] } }] },
+          { $inc: { usageCount: 1 } },
+          { session }
+        )
+        if (!used.matchedCount) throw conflict(`The code ${promo.code} has been used up`, "invalid_promotion")
+      }
+
+      const counter = await db.counters().findOneAndUpdate(
+        { _id: "order" },
+        { $inc: { seq: 1 } },
+        { upsert: true, returnDocument: "after", session }
+      )
+      const now = new Date()
+      const customerId = cart.customerId ?? actorId ?? null
+      const doc: OrderDoc = {
+        _id: newId("order"),
+        displayId: 1000 + (counter?.seq ?? 1),
+        cartId: cart._id,
+        regionId: region._id,
+        currency: cart.currency,
+        customerId,
+        email: cart.email,
+        items,
+        shippingAddress: cart.shippingAddress,
+        billingAddress: cart.billingAddress ?? cart.shippingAddress,
+        shippingOption,
+        promoCodes: cart.promoCodes,
+        totals: computeTotals({ ...cart, items }, region, promotions),
+        paymentMethod: "cod",
+        paymentStatus: "awaiting",
+        fulfillmentStatus: "unfulfilled",
+        status: "pending",
+        createdAt: now,
+        updatedAt: now,
+      }
+      await db.orders().insertOne(doc, { session })
+      const closed = await db
+        .carts()
+        .updateOne({ _id: cart._id, completedAt: null }, { $set: { completedAt: now, orderId: doc._id, items, updatedAt: now } }, { session })
+      if (!closed.matchedCount) throw conflict("This cart has already been checked out", "cart_completed")
+
+      // Ledger: Immutable inventory movements
+      for (const item of items) {
+        await db.inventoryMovements().insertOne(
+          {
+            _id: newId("mov"),
+            sku: `SKU-${item.variantId.slice(-6)}`,
+            variantId: item.variantId,
+            hubId: "BLR-FC1",
+            type: "outbound",
+            quantity: item.quantity,
+            referenceType: "order",
+            referenceId: doc._id,
+            reason: `Order #${doc.displayId} placement (COD)`,
+            balanceAfter: 0,
+            createdAt: now,
+          },
+          { session }
+        )
+      }
+
+      // Record coupon redemptions
+      for (const promo of promotions) {
+        await db.couponRedemptions().insertOne(
+          {
+            _id: newId("crm"),
+            code: promo.code,
+            promotionId: promo._id,
+            customerId: doc.customerId,
+            cartId: cart._id,
+            orderId: doc._id,
+            status: "redeemed",
+            createdAt: now,
+          },
+          { session }
+        )
+      }
+
+      // Generate initial Invoice
+      const invoiceNumber = `INV-${new Date().getFullYear()}-${doc.displayId}`
+      await db.invoices().insertOne(
+        {
+          _id: newId("inv"),
+          invoiceNumber,
+          orderId: doc._id,
+          displayId: doc.displayId,
+          customerName: `${doc.shippingAddress.firstName} ${doc.shippingAddress.lastName}`,
+          shippingAddress: doc.shippingAddress,
+          billingAddress: doc.billingAddress,
+          items: doc.items.map((i) => ({
+            name: i.productTitle,
+            sku: `SKU-${i.variantId.slice(-6)}`,
+            hsn: "6204",
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            taxableValue: Math.round((i.unitPrice * i.quantity) / 1.12),
+            gstRate: 12,
+            cgst: Math.round((i.unitPrice * i.quantity * 0.06) / 1.12),
+            sgst: Math.round((i.unitPrice * i.quantity * 0.06) / 1.12),
+            igst: 0,
+          })),
+          subtotal: doc.totals.itemSubtotal,
+          cgstTotal: Math.round((doc.totals.taxTotal || 0) / 2),
+          sgstTotal: Math.round((doc.totals.taxTotal || 0) / 2),
+          igstTotal: 0,
+          grandTotal: doc.totals.total,
+          currency: doc.currency,
+          status: "issued",
+          issuedAt: now,
+        },
         { session }
       )
-      if (!used.matchedCount) throw conflict(`The code ${promo.code} has been used up`, "invalid_promotion")
-    }
 
-    const counter = await db.counters().findOneAndUpdate(
-      { _id: "order" },
-      { $inc: { seq: 1 } },
-      { upsert: true, returnDocument: "after", session }
-    )
-    const now = new Date()
-    const customerId = cart.customerId ?? actorId ?? null
-    const doc: OrderDoc = {
-      _id: newId("order"),
-      displayId: 1000 + (counter?.seq ?? 1),
-      cartId: cart._id,
-      regionId: region._id,
-      currency: cart.currency,
-      customerId,
-      email: cart.email,
-      items,
-      shippingAddress: cart.shippingAddress,
-      billingAddress: cart.billingAddress ?? cart.shippingAddress,
-      shippingOption,
-      promoCodes: cart.promoCodes,
-      totals: computeTotals({ ...cart, items }, region, promotions),
-      paymentMethod: "cod",
-      paymentStatus: "awaiting",
-      fulfillmentStatus: "unfulfilled",
-      status: "pending",
-      createdAt: now,
-      updatedAt: now,
-    }
-    await db.orders().insertOne(doc, { session })
-    const closed = await db
-      .carts()
-      .updateOne({ _id: cart._id, completedAt: null }, { $set: { completedAt: now, orderId: doc._id, items, updatedAt: now } }, { session })
-    if (!closed.matchedCount) throw conflict("This cart has already been checked out", "cart_completed")
-    return doc
-  })
+      // Transactional Outbox Event
+      await db.outboxEvents().insertOne(
+        {
+          _id: newId("outbox"),
+          topic: "order.placed",
+          payload: { orderId: doc._id, displayId: doc.displayId, email: doc.email, total: doc.totals.total, paymentMethod: "cod" },
+          status: "pending",
+          retryCount: 0,
+          createdAt: now,
+        },
+        { session }
+      )
 
-  res.status(201).json({ order: toStoreOrder(order) })
+      // In-app Notification
+      await db.notifications().insertOne(
+        {
+          _id: newId("notif"),
+          recipientType: "customer",
+          recipientId: doc.customerId ?? doc.email,
+          type: "order_confirmation",
+          title: `Order #${doc.displayId} Placed (COD)`,
+          message: `Your Cash on Delivery order #${doc.displayId} has been confirmed.`,
+          channel: "in_app",
+          status: "unread",
+          metadata: { orderId: doc._id, displayId: doc.displayId },
+          createdAt: now,
+        },
+        { session }
+      )
+
+      return doc
+    })
+
+    return {
+      status: 201,
+      body: { order: toStoreOrder(order) },
+    }
+  }
+
+  if (idempotencyKey) {
+    const result = await executeIdempotent(idempotencyKey, "cart_checkout", { cartId: id, actorId }, placeCodOrder)
+    res.status(result.status).json(result.body)
+    return
+  }
+
+  const result = await placeCodOrder()
+  res.status(result.status).json(result.body)
 })
 
 export { toStoreOrder }

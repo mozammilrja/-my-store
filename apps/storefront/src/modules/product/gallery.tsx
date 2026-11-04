@@ -1,10 +1,9 @@
 "use client"
 
-import { cn } from "@/lib/utils"
 import type { Product } from "@lib/api/types"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 
 const imagesFor = (product: Product, variantId?: string | null) => {
   const variant = variantId ? product.variants.find((v) => v.id === variantId) : undefined
@@ -12,8 +11,8 @@ const imagesFor = (product: Product, variantId?: string | null) => {
 }
 
 /**
- * Product images, 4:5. Shows the images of the variant chosen with `?v_id=`;
- * the page is static, so the variant filter applies after hydration.
+ * Myntra-style gallery: a 2-column image grid that scrolls with the page.
+ * The buy column stays sticky beside it on desktop.
  */
 export function Gallery({ product }: { product: Product }) {
   const searchParams = useSearchParams()
@@ -24,57 +23,37 @@ export function Gallery({ product }: { product: Product }) {
     return list.length ? list : product.thumbnail ? [product.thumbnail] : []
   }, [product, variantId])
 
-  const [active, setActive] = useState(0)
-  const [prevVariantId, setPrevVariantId] = useState(variantId)
-  if (variantId !== prevVariantId) {
-    setPrevVariantId(variantId)
-    setActive(0)
-  }
-
-  const current = images[Math.min(active, images.length - 1)]
-
-  if (!current) {
+  if (!images.length) {
     return (
-      <div className="flex aspect-[4/5] items-center justify-center bg-muted text-sm text-muted-foreground">
+      <div className="flex aspect-[3/4] items-center justify-center bg-muted text-sm text-muted-foreground">
         No image available
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-3 lg:flex-row-reverse lg:gap-4" data-testid="product-gallery">
-      <div className="relative aspect-[4/5] flex-1 overflow-hidden rounded-2xl bg-surface-container-low border border-border/50 shadow-xs">
-        <Image
-          src={current}
-          alt={`${product.title}${images.length > 1 ? `, image ${active + 1} of ${images.length}` : ""}`}
-          fill
-          preload
-          loading="eager"
-          fetchPriority="high"
-          sizes="(min-width: 1024px) 55vw, 100vw"
-          className="object-cover"
-        />
-      </div>
-      {images.length > 1 && (
-        <ul className="flex gap-2.5 overflow-x-auto lg:w-20 lg:flex-col lg:overflow-visible no-scrollbar" aria-label="Product images">
-          {images.map((image, index) => (
-            <li key={image} className="shrink-0">
-              <button
-                type="button"
-                onClick={() => setActive(index)}
-                aria-label={`Show image ${index + 1}`}
-                aria-current={index === active ? "true" : undefined}
-                className={cn(
-                  "relative block aspect-[4/5] w-16 overflow-hidden rounded-lg bg-surface-container-low border outline-none ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring lg:w-20 transition-all",
-                  index === active ? "border-primary ring-1 ring-primary shadow-xs" : "border-border/60 opacity-70 hover:opacity-100"
-                )}
-              >
-                <Image src={image} alt="" fill sizes="80px" className="object-cover" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <ul
+      className="grid grid-cols-2 gap-1 sm:gap-2"
+      aria-label="Product images"
+      data-testid="product-gallery"
+    >
+      {images.map((image, index) => (
+        <li
+          key={`${image}-${index}`}
+          className="relative aspect-[3/4] overflow-hidden bg-surface-container-low"
+        >
+          <Image
+            src={image}
+            alt={`${product.title}, view ${index + 1} of ${images.length}`}
+            fill
+            preload={index < 2}
+            loading={index < 2 ? "eager" : "lazy"}
+            fetchPriority={index === 0 ? "high" : "auto"}
+            sizes="(min-width: 1024px) 28vw, 50vw"
+            className="object-cover transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-[1.02]"
+          />
+        </li>
+      ))}
+    </ul>
   )
 }

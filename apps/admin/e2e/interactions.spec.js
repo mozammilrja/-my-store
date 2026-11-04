@@ -25,9 +25,13 @@ test("the orders table filters, searches and pages", async ({ page, context, req
   await search.fill("")
   await expect(rows).toHaveCount(initial)
 
-  // A single short page carries no pagination strip at all.
-  await expect(page.getByRole("button", { name: /previous page/i })).toHaveCount(0)
+  // The default page holds ten rows, and the pager appears only when there is
+  // more than one page to move between.
   expect(await rows.count()).toBeLessThanOrEqual(10)
+
+  const summary = await page.locator("main").innerText()
+  const total = Number(summary.match(/of (\d+)/)?.[1] ?? (await rows.count()))
+  await expect(page.getByRole("button", { name: /previous page/i })).toHaveCount(total > 10 ? 1 : 0)
 })
 
 test("pagination pages through a larger result set", async ({ page, context, request }) => {
@@ -185,12 +189,12 @@ test("no uncaught errors while moving around and interacting", async ({ page, co
   const entries = watchConsole(page)
 
   await gotoModule(page, "overview")
-  await page.getByRole("button", { name: /^Analytics & Reports/ }).click()
+  await page.getByRole("link", { name: /^Analytics & Reports/ }).click()
   await expect(page.locator("main h1")).toHaveText(/analytics/i)
-  await page.getByRole("button", { name: /^Inventory & Warehouses/ }).click()
+  await page.getByRole("link", { name: /^Inventory & Warehouses/ }).click()
   await expect(page.locator("main h1")).toHaveText(/inventory/i)
   await page.getByRole("button", { name: /^Theme:/ }).click()
-  await page.getByRole("button", { name: /^System Settings/ }).click()
+  await page.getByRole("link", { name: /^System Settings/ }).click()
   await expect(page.locator("main h1")).toHaveText(/setting|governance/i)
 
   expect(entries).toEqual([])

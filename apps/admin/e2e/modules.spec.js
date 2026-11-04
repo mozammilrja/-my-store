@@ -50,22 +50,22 @@ test("sidebar navigation moves between modules and marks the current one", async
   await seed(context, { token: await getAdminToken(request) })
   await gotoModule(page, "overview")
 
-  await expect(page.getByRole("button", { name: /^Overview/ })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: /^Overview/ })).toHaveAttribute(
     "aria-current",
     "page"
   )
 
-  await page.getByRole("button", { name: /^Order Management/ }).click()
+  await page.getByRole("link", { name: /^Order Management/ }).click()
   await expect(page.locator("main h1")).toHaveText(/order management/i)
-  expect(page.url()).toContain("#/order-management")
-  await expect(page.getByRole("button", { name: /^Order Management/ })).toHaveAttribute(
+  expect(new URL(page.url()).pathname).toBe("/order-management")
+  await expect(page.getByRole("link", { name: /^Order Management/ })).toHaveAttribute(
     "aria-current",
     "page"
   )
 
-  await page.getByRole("button", { name: /^Products/ }).click()
+  await page.getByRole("link", { name: /^Products/ }).click()
   await expect(page.locator("main h1")).toHaveText(/catalog/i)
-  await expect(page.getByRole("button", { name: /^Overview/ })).not.toHaveAttribute(
+  await expect(page.getByRole("link", { name: /^Overview/ })).not.toHaveAttribute(
     "aria-current",
     "page"
   )

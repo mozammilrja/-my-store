@@ -2,7 +2,7 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 
 export function BespokeService() {
   return (
-    <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin mb-8">
+    <section className="w-full px-margin-mobile md:px-margin mb-8">
       <div className="bg-primary text-on-primary rounded-xl p-8 sm:p-12 relative overflow-hidden flex flex-col lg:flex-row items-center justify-between gap-8">
         <div className="max-w-xl flex flex-col gap-3 relative z-10">
           <span className="px-2.5 py-1 rounded bg-surface-container-lowest/15 backdrop-blur-md w-fit font-label-caps text-label-caps uppercase tracking-widest text-surface-container-high font-semibold">

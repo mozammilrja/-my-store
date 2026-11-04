@@ -7,6 +7,8 @@ import { createDelhiveryShipment, trackDelhiveryShipment } from "../../lib/logis
 import { createBlueDartShipment, trackBlueDartShipment } from "../../lib/logistics/bluedart.js"
 import { createRazorpayRefund } from "../../lib/payments/razorpay.js"
 import { createStripeRefund } from "../../lib/payments/stripe.js"
+import { assetUrl } from "../../lib/serialize.js"
+import { getSettings } from "./settings.js"
 
 export const adminLogisticsRoutes = Router()
 
@@ -147,6 +149,7 @@ adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
     .object({
       reason: z.string().min(1).max(500),
       action: z.enum(["approve", "schedule_pickup", "received", "refund", "reject"]),
+      amount: z.number().int().positive().optional(),
     })
     .parse(req.body)
 
@@ -179,10 +182,19 @@ adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
   }
 
   if (body.action === "refund") {
-    if (order.paymentStatus === "refunded") {
-      const existingCn = await db.creditNotes().findOne({ orderId: order._id })
-      res.json({ success: true, status: "refunded", creditNoteNumber: existingCn?.creditNoteNumber })
-      return
+    const totalCaptured = order.totals.total
+    const priorRefunds = order.paymentDetails?.refunds?.reduce((s, r) => s + r.amount, 0) ?? (order.paymentStatus === "refunded" ? totalCaptured : 0)
+
+    if (priorRefunds >= totalCaptured) {
+      throw conflict(`Order #${order.displayId} has already been fully refunded`, "refund_ceiling_exceeded")
+    }
+
+    const requestedAmount = body.amount ?? (totalCaptured - priorRefunds)
+    if (priorRefunds + requestedAmount > totalCaptured) {
+      throw conflict(
+        `Refund amount (${requestedAmount}) plus prior refunds (${priorRefunds}) exceeds captured payment ceiling (${totalCaptured})`,
+        "refund_ceiling_exceeded"
+      )
     }
 
     let gatewayRefundId: string | undefined = undefined
@@ -190,13 +202,13 @@ adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
       if (order.paymentDetails?.razorpayPaymentId) {
         const rzpRefund = await createRazorpayRefund({
           paymentId: order.paymentDetails.razorpayPaymentId,
-          amount: order.totals.total,
+          amount: requestedAmount,
         })
         gatewayRefundId = rzpRefund.id
       } else if (order.paymentDetails?.paymentIntentId) {
         const stripeRefund = await createStripeRefund({
           paymentIntentId: order.paymentDetails.paymentIntentId,
-          amount: order.totals.total,
+          amount: requestedAmount,
         })
         gatewayRefundId = stripeRefund.id
       }
@@ -204,11 +216,21 @@ adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
       console.warn("Gateway refund warning (proceeding with store ledger refund):", err?.message)
     }
 
+    const newRefundEntry = {
+      id: newId("rf"),
+      amount: requestedAmount,
+      reason: body.reason,
+      createdAt: now,
+      providerRefundId: gatewayRefundId,
+    }
+
+    const isFullyRefunded = priorRefunds + requestedAmount >= totalCaptured
+
     await db.orders().updateOne(
       { _id: order._id },
       {
         $set: {
-          paymentStatus: "refunded",
+          paymentStatus: isFullyRefunded ? "refunded" : "paid",
           fulfillmentStatus: "returned",
           status: "completed",
           ...(gatewayRefundId ? { "paymentDetails.refundId": gatewayRefundId } : {}),
@@ -216,10 +238,13 @@ adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
           "returnRequest.updatedAt": now,
           updatedAt: now,
         },
+        $push: {
+          "paymentDetails.refunds": newRefundEntry,
+        },
       }
     )
 
-    // Automatically issue Credit Note
+    // Automatically issue sequential Credit Note
     const creditNoteNumber = `CN-${now.getFullYear()}-${order.displayId}`
     await db.creditNotes().insertOne({
       _id: newId("cn"),
@@ -227,13 +252,36 @@ adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
       invoiceNumber: `INV-${now.getFullYear()}-${order.displayId}`,
       orderId: order._id,
       customerName: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
-      refundAmount: order.totals.total,
+      refundAmount: requestedAmount,
       reason: body.reason || "Return inspection passed & approved",
       status: "settled",
       createdAt: now,
     })
 
-    res.json({ success: true, status: "refunded", creditNoteNumber, refundId: gatewayRefundId })
+    // Inventory movement for returned goods back to hub
+    for (const item of order.items) {
+      await db.inventoryMovements().insertOne({
+        _id: newId("mov"),
+        sku: `SKU-${item.variantId.slice(-6)}`,
+        variantId: item.variantId,
+        hubId: "BLR-FC1",
+        type: "return",
+        quantity: item.quantity,
+        referenceType: "return",
+        referenceId: order._id,
+        reason: body.reason,
+        balanceAfter: 0,
+        createdAt: now,
+      })
+    }
+
+    res.json({
+      success: true,
+      status: isFullyRefunded ? "refunded" : "partially_refunded",
+      refundAmount: requestedAmount,
+      creditNoteNumber,
+      refundId: gatewayRefundId,
+    })
     return
   }
 
@@ -323,23 +371,58 @@ adminLogisticsRoutes.post("/purchase-orders", async (req, res) => {
 
 /* ---------- Inventory & Warehouse Telemetry ---------- */
 
+/**
+ * Stock on hand per variant.
+ *
+ * It used to also return `allocated: Math.floor(Math.random() * 5)` with a
+ * fixed reorder point and hub, so the figure changed on every refresh and the
+ * other two described a warehouse model the data does not have. Only what a
+ * variant really carries is returned.
+ *
+ * The product's categories, thumbnail and option values come along with it:
+ * the ledger has to group, filter and identify a variant on screen, and those
+ * are the only fields it can do that with that are real. The low stock
+ * threshold rides along so the ledger marks the same variants the dashboard
+ * does instead of hard-coding a number of its own.
+ */
 adminLogisticsRoutes.get("/inventory", async (req, res) => {
-  const products = await db.products().find({ status: "published" }).toArray()
-  const inventoryItems = products.flatMap((p) =>
-    p.variants.map((v) => ({
-      id: v._id,
-      productId: p._id,
-      productTitle: p.title,
-      variantTitle: v.title,
-      sku: v.sku ?? `SKU-${v._id.slice(-6)}`,
-      stock: v.stock,
-      manageInventory: v.manageInventory,
-      reorderPoint: 15,
-      allocated: Math.floor(Math.random() * 5),
-      hubId: "BLR-FC1",
-    }))
-  )
-  res.json({ inventory: inventoryItems })
+  const [products, { lowStockThreshold }] = await Promise.all([
+    db.products().find({ status: "published" }).toArray(),
+    getSettings(),
+  ])
+
+  const categoryIds = [...new Set(products.flatMap((p) => p.categoryIds))]
+  const categoryDocs = categoryIds.length
+    ? await db.categories().find({ _id: { $in: categoryIds } }).toArray()
+    : []
+  const categoryName = new Map(categoryDocs.map((c) => [c._id, c.name]))
+
+  const inventoryItems = products.flatMap((p) => {
+    const categories = p.categoryIds
+      .map((id) => categoryName.get(id))
+      .filter((name): name is string => Boolean(name))
+    const productImage = p.thumbnail ?? p.images[0]
+    return p.variants.map((v) => {
+      const image = v.images?.[0] ?? productImage
+      return {
+        id: v._id,
+        productId: p._id,
+        productTitle: p.title,
+        productHandle: p.handle,
+        variantTitle: v.title,
+        options: v.options,
+        sku: v.sku ?? `SKU-${v._id.slice(-6)}`,
+        stock: v.stock,
+        manageInventory: v.manageInventory,
+        allowBackorder: v.allowBackorder,
+        categories,
+        thumbnail: image ? assetUrl(image) : null,
+        updatedAt: p.updatedAt,
+      }
+    })
+  })
+
+  res.json({ inventory: inventoryItems, lowStockThreshold })
 })
 
 adminLogisticsRoutes.post("/inventory/adjust", async (req, res) => {
@@ -348,14 +431,42 @@ adminLogisticsRoutes.post("/inventory/adjust", async (req, res) => {
       productId: z.string(),
       variantId: z.string(),
       adjustment: z.number().int(),
+      hubId: z.string().default("BLR-FC1"),
       reason: z.string().optional(),
     })
     .parse(req.body)
 
+  const product = await db.products().findOne({ _id: body.productId, "variants._id": body.variantId })
+  if (!product) throw notFound("Product or variant")
+  const variant = product.variants.find((v) => v._id === body.variantId)
+  if (!variant) throw notFound("Variant")
+
+  const newStock = Math.max(0, variant.stock + body.adjustment)
+
   await db.products().updateOne(
     { _id: body.productId, "variants._id": body.variantId },
-    { $inc: { "variants.$.stock": body.adjustment }, $set: { updatedAt: new Date() } }
+    { $set: { "variants.$.stock": newStock, updatedAt: new Date() } }
   )
 
-  res.json({ success: true, adjustment: body.adjustment })
+  // Record immutable movement in ledger
+  await db.inventoryMovements().insertOne({
+    _id: newId("mov"),
+    sku: variant.sku ?? `SKU-${variant._id.slice(-6)}`,
+    variantId: variant._id,
+    hubId: body.hubId,
+    type: "adjustment",
+    quantity: body.adjustment,
+    referenceType: "manual",
+    referenceId: newId("adj"),
+    reason: body.reason ?? "Manual inventory adjustment",
+    balanceAfter: newStock,
+    createdAt: new Date(),
+  })
+
+  res.json({ success: true, adjustment: body.adjustment, stock: newStock })
+})
+
+adminLogisticsRoutes.get("/inventory/movements", async (_req, res) => {
+  const movements = await db.inventoryMovements().find({}, { sort: { createdAt: -1 }, limit: 100 }).toArray()
+  res.json({ movements })
 })

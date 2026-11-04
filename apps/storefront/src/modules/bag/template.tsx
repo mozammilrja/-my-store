@@ -1,11 +1,22 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
-import { Container } from "@/components/store/container"
+import { formatMoney } from "@lib/money"
+import { clearCart } from "@lib/data/shop"
+import { notifyCartUpdated } from "@lib/util/cart-events"
 import type { Cart, Customer } from "@lib/api/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { ArrowRightIcon, ShoppingBagIcon } from "lucide-react"
+import { useState, useTransition } from "react"
+import { toast } from "sonner"
 import { LineItem } from "./line-item"
 import { PromoCode } from "./promo-code"
 import { Totals } from "./totals"
+
+const FREE_SHIPPING_THRESHOLDS: Record<string, number> = {
+  inr: 199900, // ₹1,999
+  eur: 5000, // €50
+  dkk: 37500, // 375 kr
+}
 
 const checkoutStep = (cart: Cart) => {
   if (!cart.shippingAddress || !cart.email) return "address"
@@ -22,69 +33,240 @@ export function BagTemplate({
   customer: Customer | null
   error?: string
 }) {
+  const [giftPackaging, setGiftPackaging] = useState(false)
+  const [isPending, startTransition] = useTransition()
+
   // Newest first: the API keeps items in the order they were added.
   const items = [...(cart?.items ?? [])].reverse()
+  const count = items.reduce((n, item) => n + item.quantity, 0)
+  const currency = cart?.currency ?? "inr"
+
+  const threshold = FREE_SHIPPING_THRESHOLDS[currency.toLowerCase()] ?? 199900
+  const subtotal = cart?.totals.itemSubtotal ?? 0
+  const isFreeUnlocked = subtotal >= threshold
+  const remaining = Math.max(0, threshold - subtotal)
+  const progressPercent = Math.min(100, Math.round((subtotal / threshold) * 100))
+
+  const handleClearBag = () => {
+    if (confirm("Are you sure you want to remove all items from your shopping bag?")) {
+      startTransition(async () => {
+        try {
+          await clearCart()
+          notifyCartUpdated()
+          toast.success("Shopping bag cleared")
+        } catch {
+          toast.error("Could not clear bag. Please try again.")
+        }
+      })
+    }
+  }
+
+  const handleToggleGiftPackaging = () => {
+    setGiftPackaging(!giftPackaging)
+    toast.success(!giftPackaging ? "Signature gift packaging added" : "Gift packaging removed")
+  }
 
   return (
-    <Container className="py-12 lg:py-16" data-testid="cart-container">
-      <div className="flex flex-col gap-1 pb-6 border-b border-border/50">
-        <span className="font-label-caps text-[10px] text-secondary font-bold uppercase tracking-widest">
-          Checkout Review
-        </span>
-        <h1 className="font-display-hero text-3xl sm:text-5xl font-light tracking-tight text-foreground">
-          Shopping Bag
-        </h1>
-      </div>
-
-      {error && (
-        <p role="alert" className="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive font-body-sm" data-testid="cart-error">
-          {error}
-        </p>
-      )}
-
-      {!cart || items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-6 py-20 text-center bg-surface-container-low/40 rounded-2xl border border-dashed border-border mt-8" data-testid="empty-cart-message">
-          <div className="size-16 rounded-full bg-surface-container flex items-center justify-center text-muted-foreground">
-            <ShoppingBagIcon className="size-8" />
+    <div className="w-full bg-surface min-h-[calc(100vh-20rem)]" data-testid="cart-container">
+      <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin py-space-xl w-full">
+        {/* 1. Breadcrumb & Page Header */}
+        <div className="flex flex-col gap-space-sm mb-space-xl">
+          <div className="flex items-center gap-space-xs font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+            <LocalizedClientLink href="/" className="hover:text-on-surface transition-colors">
+              Home
+            </LocalizedClientLink>
+            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+            <span className="text-on-surface font-semibold">Shopping Bag</span>
           </div>
-          <p className="max-w-md text-sm text-muted-foreground font-body-sm">
-            Your shopping bag is currently empty. Explore our tailored garments and essentials.
-          </p>
-          <Button asChild size="lg" className="rounded-lg bg-primary text-primary-foreground font-label-md">
-            <LocalizedClientLink href="/store">Shop All Collections</LocalizedClientLink>
-          </Button>
-        </div>
-      ) : (
-        <div className="mt-8 grid gap-10 lg:grid-cols-12">
-          <div className="lg:col-span-7">
-            {!customer && (
-              <p className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface-container-low p-4 text-xs sm:text-sm border border-border/50 mb-6" data-testid="sign-in-prompt">
-                <span className="text-muted-foreground">Already have an account with us? Sign in for saved delivery addresses.</span>
-                <LocalizedClientLink href="/account" className="font-bold underline underline-offset-4 text-foreground hover:text-secondary">
-                  Sign in &rarr;
-                </LocalizedClientLink>
+
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
+            <div>
+              <h1 className="font-headline-xl md:text-headline-xl text-headline-xl-mobile text-primary font-light">
+                Your Bag
+              </h1>
+              <p className="font-body-md text-body-md text-on-surface-variant mt-space-xs">
+                {count > 0
+                  ? `${count} ${count === 1 ? "curated piece" : "curated pieces"} ready for dispatch. Guaranteed authentic craftsmanship.`
+                  : "0 pieces currently held. Explore our latest arrivals and seasonal curations."}
               </p>
-            )}
-            <ul className="divide-y divide-border/60 border-y border-border/60" data-testid="items-table">
-              {items.map((item) => (
-                <LineItem key={item.id} item={item} currencyCode={cart.currency} />
-              ))}
-            </ul>
-          </div>
-          <aside className="lg:col-span-5" aria-label="Order summary">
-            <div className="flex flex-col gap-6 rounded-2xl border border-border/60 bg-surface-container-lowest p-6 sm:p-8 shadow-xs lg:sticky lg:top-28">
-              <h2 className="font-headline-sm text-xl font-bold tracking-tight text-foreground border-b border-border/40 pb-3">Order Summary</h2>
-              <PromoCode cart={cart} />
-              <Totals totals={cart.totals} currency={cart.currency} shippingChosen={!!cart.shippingOptionId} />
-              <Button asChild size="lg" className="w-full rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-label-md uppercase tracking-wider font-semibold shadow-xs">
-                <LocalizedClientLink href={`/checkout?step=${checkoutStep(cart)}`} data-testid="checkout-button">
-                  Proceed to Checkout <ArrowRightIcon data-icon="inline-end" aria-hidden className="size-4 ml-1.5" />
-                </LocalizedClientLink>
-              </Button>
             </div>
-          </aside>
+
+            <div className="flex items-center gap-space-sm">
+              <span className="inline-flex items-center gap-space-xs px-space-sm py-1.5 rounded-lg bg-surface-container-low text-on-surface font-label-md text-label-md border border-surface-container-high/60">
+                <span className="material-symbols-outlined text-[16px]">lock</span>
+                Secure 256-bit SSL Checkout
+              </span>
+            </div>
+          </div>
         </div>
-      )}
-    </Container>
+
+        {error && (
+          <div
+            role="alert"
+            className="mb-space-lg p-space-md bg-error-container/40 border border-error/30 rounded-xl text-error font-body-sm text-xs flex items-center gap-2"
+            data-testid="cart-error"
+          >
+            <span className="material-symbols-outlined text-[18px]">error</span>
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Sign in prompt for guest shoppers */}
+        {!customer && count > 0 && (
+          <div
+            className="mb-space-lg p-3.5 bg-surface-container-low rounded-xl border border-surface-container-high flex items-center justify-between gap-3 text-body-sm text-xs"
+            data-testid="sign-in-prompt"
+          >
+            <div className="flex items-center gap-2 text-on-surface-variant">
+              <span className="material-symbols-outlined text-[18px]">account_circle</span>
+              <span>Sign in to automatically apply your Atelier Privilege points and saved delivery addresses.</span>
+            </div>
+            <LocalizedClientLink
+              href="/account"
+              className="font-label-sm font-semibold text-primary underline underline-offset-4 shrink-0 uppercase"
+            >
+              Sign In
+            </LocalizedClientLink>
+          </div>
+        )}
+
+        {/* 2. Free Delivery Progress Banner */}
+        {count > 0 && (
+          <div className="w-full bg-surface-container-lowest p-space-lg rounded-xl mb-space-xl shadow-[0_1px_4px_rgba(0,0,0,0.02)] border border-surface-container-high/60">
+            <div className="flex flex-col gap-space-sm">
+              <div className="flex items-center justify-between text-body-sm font-body-sm flex-wrap gap-2">
+                <span className="font-medium text-on-surface flex items-center gap-space-xs">
+                  <span className="material-symbols-outlined text-secondary text-[18px]">local_shipping</span>
+                  {isFreeUnlocked ? (
+                    <span>
+                      You have unlocked <strong className="text-primary font-semibold">Complimentary Express Shipping &amp; 14-day Home Pick-up</strong>!
+                    </span>
+                  ) : (
+                    <span>
+                      Add <strong className="text-primary font-semibold">{formatMoney(remaining, currency)}</strong> more to unlock Complimentary Express Shipping &amp; 14-day Home Pick-up.
+                    </span>
+                  )}
+                </span>
+                <span className="text-on-surface-variant font-label-sm font-semibold">
+                  {progressPercent}% Unlocked
+                </span>
+              </div>
+              <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-500"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3. Empty Bag Experience or 12-Column Grid */}
+        {!cart || items.length === 0 ? (
+          <div
+            className="my-space-xl p-space-xl bg-surface-container-lowest rounded-2xl shadow-xs border border-surface-container-high/60 max-w-xl mx-auto flex flex-col items-center text-center gap-space-md"
+            data-testid="empty-cart-message"
+          >
+            <div className="w-20 h-20 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant">
+              <span className="material-symbols-outlined text-[36px]">shopping_bag</span>
+            </div>
+            <h2 className="font-headline-xl text-headline-xl text-primary font-light">
+              Your Bag is Empty
+            </h2>
+            <p className="font-body-md text-body-md text-on-surface-variant max-w-md">
+              Explore our curated wardrobe capsule pieces, hand-tailored luxury garments, and seasonal essentials.
+            </p>
+            <Button
+              asChild
+              className="mt-space-sm h-12 px-8 bg-primary text-on-primary hover:bg-inverse-surface rounded-lg font-label-md uppercase tracking-wider font-semibold shadow-xs"
+            >
+              <LocalizedClientLink href="/store">Browse the collections</LocalizedClientLink>
+            </Button>
+
+            <div className="pt-space-md border-t border-surface-container-high w-full mt-space-sm flex items-center justify-center gap-space-md text-xs font-label-caps uppercase text-on-surface-variant flex-wrap">
+              <LocalizedClientLink href="/categories/men" className="hover:text-primary transition-colors">
+                Men&apos;s Edit
+              </LocalizedClientLink>
+              <span>&bull;</span>
+              <LocalizedClientLink href="/categories/women" className="hover:text-primary transition-colors">
+                Women&apos;s Edit
+              </LocalizedClientLink>
+              <span>&bull;</span>
+              <LocalizedClientLink href="/store?sort=newest" className="hover:text-primary transition-colors">
+                New Arrivals
+              </LocalizedClientLink>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-xl items-start">
+            {/* Left Column: Items List (7 cols) */}
+            <div className="lg:col-span-7 flex flex-col gap-space-lg">
+              {/* Bag Items Header Bar */}
+              <div className="flex items-center justify-between pb-space-sm border-b border-surface-container-highest">
+                <span className="font-label-caps text-label-caps tracking-wider uppercase text-on-surface-variant font-bold">
+                  Bag Items ({count})
+                </span>
+                <button
+                  type="button"
+                  onClick={handleClearBag}
+                  disabled={isPending}
+                  className="font-label-sm text-label-sm text-on-surface-variant hover:text-error transition-colors flex items-center gap-space-xs cursor-pointer disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[16px]">delete_sweep</span>
+                  <span>Clear Bag</span>
+                </button>
+              </div>
+
+              {/* Items List */}
+              <div className="flex flex-col gap-space-md" data-testid="items-table">
+                {items.map((item) => (
+                  <LineItem key={item.id} item={item} currencyCode={currency} />
+                ))}
+              </div>
+
+              {/* Signature Gift Option Card */}
+              <div className="p-space-lg bg-surface-container-low rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-space-md border border-surface-container-high/60">
+                <div className="flex items-center gap-space-md">
+                  <div className="w-10 h-10 rounded-full bg-surface-container-lowest flex items-center justify-center text-primary shrink-0 shadow-2xs">
+                    <span className="material-symbols-outlined text-[20px]">card_giftcard</span>
+                  </div>
+                  <div>
+                    <h4 className="font-label-md text-label-md text-on-surface font-semibold">
+                      Add Signature Gift Packaging?
+                    </h4>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant">
+                      Includes embossed matte black box, silk ribbon, and personalized card note.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleGiftPackaging}
+                  className={`px-space-md py-2 text-xs font-label-md rounded-lg transition-colors shrink-0 cursor-pointer font-semibold ${
+                    giftPackaging
+                      ? "bg-primary text-on-primary shadow-xs"
+                      : "bg-surface-container-lowest hover:bg-surface-container text-on-surface border border-surface-container-high"
+                  }`}
+                >
+                  {giftPackaging ? "Added ✓ (+₹199)" : "Add (+₹199)"}
+                </button>
+              </div>
+            </div>
+
+            {/* Right Column: Order Summary & Checkout (5 cols sticky) */}
+            <div className="lg:col-span-5 flex flex-col gap-space-lg sticky top-36">
+              <PromoCode cart={cart} />
+              <Totals
+                totals={cart.totals}
+                currency={currency}
+                shippingChosen={!!cart.shippingOptionId}
+                promoCodes={cart.promoCodes}
+                checkoutStep={checkoutStep(cart)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

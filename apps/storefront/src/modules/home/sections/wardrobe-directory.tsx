@@ -59,7 +59,7 @@ const PILLARS = [
 
 export function WardrobeDirectory() {
   return (
-    <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin my-12" id="category-directory">
+    <section className="w-full px-margin-mobile md:px-margin my-12" id="category-directory">
       <div className="bg-surface-container-low rounded-xl p-6 sm:p-10 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-6 border-b border-surface-container">
           <div>

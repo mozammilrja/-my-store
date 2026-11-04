@@ -180,7 +180,7 @@ export function TrendingGrid() {
       : PRODUCTS.filter((p) => p.category === activeFilter)
 
   return (
-    <section className="max-w-[1440px] w-full mx-auto px-margin-mobile md:px-margin my-10" id="trending-catalog">
+    <section className="w-full px-margin-mobile md:px-margin my-10" id="trending-catalog">
       <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">

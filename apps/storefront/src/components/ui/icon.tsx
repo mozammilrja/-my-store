@@ -32,6 +32,7 @@ import {
   Leaf,
   Hammer,
   Compass,
+  Copy,
   type LucideProps,
 } from "lucide-react"
 
@@ -87,6 +88,8 @@ const ICON_MAP: Record<string, IconComponent> = {
   // Marketing & Rating
   local_fire_department: Flame,
   star: Star,
+  auto_awesome: Sparkles,
+  content_copy: Copy,
 }
 
 export interface IconProps extends Omit<LucideProps, "ref"> {

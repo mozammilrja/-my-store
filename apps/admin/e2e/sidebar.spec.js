@@ -14,15 +14,15 @@ const SIDEBAR_SCHEMA = [
     items: [
       { label: "Products", isActive: true },
       { label: "Categories & Collections" },
-      { label: "Inventory & Warehouses", badge: "12" },
+      { label: "Inventory & Warehouses" },
       { label: "Purchase Orders" },
     ],
   },
   {
     title: "Fulfillment & Orders",
     items: [
-      { label: "Order Management", badge: "84" },
-      { label: "Returns & Exchanges", badge: "19" },
+      { label: "Order Management" },
+      { label: "Returns & Exchanges" },
       { label: "Shipments & Dispatch" },
     ],
   },
@@ -96,21 +96,36 @@ test.describe("Sidebar Navigation Verification (Items 1, 2, 3)", () => {
     }
   })
 
-  test("3. Specific menu items display their numerical alert badges accurately", async () => {
-    const badgeChecks = [
-      { label: "Inventory & Warehouses", badge: "12" },
-      { label: "Order Management", badge: "84" },
-      { label: "Returns & Exchanges", badge: "19" },
-    ]
+  test("3. Alert badges report the dashboard's real counts, not typed-in numbers", async ({ page }) => {
+    // The nav used to carry hardcoded counts (12, 84, 19) against a store with
+    // far fewer records. Each badge now reads the same figure the dashboard
+    // reports, and is absent when that figure is zero.
+    const attention = await page.evaluate(async () => {
+      const res = await fetch(`${window.location.origin.replace("7001", "9100")}/admin/dashboard`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("everwear_admin_token")}` },
+      })
+      return (await res.json()).attention
+    })
 
-    for (const { label, badge } of badgeChecks) {
-      const itemRow = sidebar.getByRole("button", { name: new RegExp(label, "i") }).or(
-        sidebar.getByRole("link", { name: new RegExp(label, "i") })
-      ).first()
-
+    for (const [label, count] of [
+      ["Inventory & Warehouses", attention.lowStock],
+      ["Order Management", attention.toShip],
+    ]) {
+      const itemRow = sidebar
+        .getByRole("button", { name: new RegExp(label, "i") })
+        .or(sidebar.getByRole("link", { name: new RegExp(label, "i") }))
+        .first()
       await expect(itemRow).toBeVisible()
-      const badgeLocator = itemRow.locator("span").getByText(badge, { exact: true })
-      await expect(badgeLocator, `Item '${label}' should have badge count '${badge}'`).toBeVisible()
+
+      const badge = itemRow.locator("span").getByText(String(count), { exact: true })
+      if (count > 0) {
+        await expect(badge, `'${label}' should show its real count ${count}`).toBeVisible()
+      } else {
+        await expect(
+          itemRow.locator("span.rounded-full"),
+          `'${label}' should show no badge when the count is zero`
+        ).toHaveCount(0)
+      }
     }
   })
 

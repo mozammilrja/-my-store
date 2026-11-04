@@ -21,7 +21,7 @@ export function Wordmark({
         </span>
       </div>
       {showSubtitle && (
-        <span className="mt-0.5 font-label-caps text-[9px] sm:text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground leading-tight">
+        <span className="mt-0.5 font-label-caps text-[10px] sm:text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground leading-tight">
           Everyday Style. Your Way.
         </span>
       )}

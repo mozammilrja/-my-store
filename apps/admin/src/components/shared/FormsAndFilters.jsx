@@ -276,11 +276,29 @@ export function FormField({
 }
 
 /** Input wrapped in a FormField, so a form row is one call. */
-export function FormInput({ label, required, helperText, error, id, className, inputClassName, ...props }) {
+/**
+ * `onChange` receives `(value, event)`, matching FormTextarea and SearchInput.
+ * This one used to hand back the raw event while its siblings handed back the
+ * value, so the same callback could not be used across two fields of one form.
+ */
+export function FormInput({
+  label,
+  required,
+  helperText,
+  error,
+  value,
+  onChange,
+  id,
+  className,
+  inputClassName,
+  ...props
+}) {
   return (
     <FormField label={label} required={required} helperText={helperText} error={error} id={id} className={className}>
       <Input
         id={id}
+        value={value ?? ""}
+        onChange={(e) => onChange && onChange(e.target.value, e)}
         aria-invalid={error ? true : undefined}
         className={cn(error && "border-status-danger focus-visible:border-status-danger", inputClassName)}
         {...props}

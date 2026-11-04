@@ -14,9 +14,9 @@ const PNG = Buffer.from(
   "base64"
 )
 
-/** The catalog opens with the first product already in the editor. */
+/** Media lives on its own tab now, so open the editor straight at it. */
 async function openFirstProduct(page) {
-  await gotoModule(page, "products")
+  await page.goto("/products?tab=media")
   await expect(page.getByRole("heading", { name: /studio 360/i })).toBeVisible()
 }
 

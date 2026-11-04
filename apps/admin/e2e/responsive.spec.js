@@ -48,7 +48,7 @@ test.describe("mobile shell", () => {
     await page.waitForTimeout(400)
     expect(await aside.evaluate((el) => el.getBoundingClientRect().left)).toBe(0)
 
-    await page.getByRole("button", { name: /^Products/ }).click()
+    await page.getByRole("link", { name: /^Products/ }).click()
     await expect(page.locator("main h1")).toHaveText(/catalog/i)
     await page.waitForTimeout(400)
     expect(await aside.evaluate((el) => el.getBoundingClientRect().right <= 0)).toBe(true)

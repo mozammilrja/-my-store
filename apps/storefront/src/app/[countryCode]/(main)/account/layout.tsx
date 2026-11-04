@@ -2,24 +2,32 @@ import { Container } from "@/components/store/container"
 import { retrieveCustomer } from "@lib/data/account"
 import { AccountNav } from "@modules/account/account-nav"
 
-/** Signed in: the account area. Signed out: the sign-in page at the same URL. */
-export default async function AccountLayout({ dashboard, login }: { dashboard?: React.ReactNode; login?: React.ReactNode }) {
+/** Signed in: the Stitch account area with sidebar. Signed out: the sign-in page at the same URL. */
+export default async function AccountLayout({
+  dashboard,
+  login,
+}: {
+  dashboard?: React.ReactNode
+  login?: React.ReactNode
+}) {
   const customer = await retrieveCustomer().catch(() => null)
 
   if (!customer) {
-    return <Container className="py-16 lg:py-24">{login}</Container>
+    return (
+      <div className="bg-background min-h-[calc(100vh-200px)] py-16 lg:py-24">
+        <Container>{login}</Container>
+      </div>
+    )
   }
 
   return (
-    <Container className="grid gap-8 py-12 lg:grid-cols-[14rem_1fr] lg:gap-14 lg:py-16">
-      <div className="flex flex-col gap-6">
-        <div>
-          <p className="text-xs font-bold tracking-[0.12em] text-muted-foreground uppercase">Account</p>
-          <p className="mt-1 truncate text-sm" data-testid="customer-email">{customer.email}</p>
+    <div className="bg-background min-h-screen">
+      <Container className="py-8 lg:py-12 max-w-[1440px]">
+        <div className="flex flex-col lg:flex-row items-start gap-gutter">
+          <AccountNav customer={customer} />
+          <div className="flex-1 w-full min-w-0">{dashboard}</div>
         </div>
-        <AccountNav />
-      </div>
-      <div className="min-w-0">{dashboard}</div>
-    </Container>
+      </Container>
+    </div>
   )
 }

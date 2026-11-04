@@ -4,7 +4,12 @@ const COUNTRY = "dk"
 const PRODUCT = `/${COUNTRY}/products/t-shirt`
 
 const bagCount = async (page: import("@playwright/test").Page) => {
-  const text = await page.getByTestId("nav-cart-count").first().textContent()
+  // The header badge is omitted entirely when the bag is empty.
+  const badge = page.getByTestId("nav-cart-count").first()
+  if ((await badge.count()) === 0) {
+    return 0
+  }
+  const text = await badge.textContent()
   return Number(text?.replace(/\D/g, "") ?? 0)
 }
 
@@ -68,16 +73,31 @@ test.describe("shopping journey", () => {
     await expect(page.getByTestId("products-list")).toBeVisible()
   })
 
-  test("quick add from a product card adds one item", async ({ page }) => {
-    await page.goto(`/${COUNTRY}`, { waitUntil: "domcontentloaded" })
-    const card = page.getByTestId("product-wrapper").filter({ has: page.getByTestId("quick-add") }).first()
+  test("product card navigates to product detail", async ({ page }) => {
+    await page.goto(`/${COUNTRY}/store`, { waitUntil: "domcontentloaded" })
+    const card = page.getByTestId("product-wrapper").first()
+    await expect(card).toBeVisible()
+    // Hovering swaps brand and title for the wishlist and size controls, so
+    // the image is the pointer's route to the product; the title stays the
+    // keyboard's route and is covered in product-card.spec.ts.
+    await card.getByTestId("product-card-gallery").click()
+    await expect(page).toHaveURL(/\/products\//)
+    await expect(page.getByTestId("product-actions")).toBeVisible()
+  })
+
+  test("product card image gallery dots switch images without navigating", async ({ page }) => {
+    await page.goto(`/${COUNTRY}/store`, { waitUntil: "domcontentloaded" })
+    const card = page.getByTestId("product-wrapper").filter({ has: page.getByTestId("product-card-dot") }).first()
+    if ((await card.count()) === 0) {
+      test.skip(true, "No multi-image products in the listing")
+      return
+    }
     await card.scrollIntoViewIfNeeded()
-    const before = await bagCount(page)
-    await card.hover()
-    const size = card.getByTestId("quick-add").getByRole("button", { name: /^Add size/ }).filter({ hasNot: page.locator("[disabled]") }).first()
-    await expect(size).toBeVisible()
-    await size.click()
-    await expect.poll(() => bagCount(page)).toBe(before + 1)
+    const dots = card.getByTestId("product-card-dot")
+    const urlBefore = page.url()
+    await dots.nth(1).click()
+    await expect(page).toHaveURL(urlBefore)
+    await expect(dots.nth(1)).toHaveAttribute("aria-selected", "true")
   })
 
   test("unknown product shows not found", async ({ page }) => {

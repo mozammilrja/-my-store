@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { INITIAL_RETURNS } from '../../data/mockData';
 import { adminApi } from '../../lib/api';
+import { formatMoney } from '../../lib/format';
 import { useOrdersQuery, useUpdateOrderStatusMutation, useProcessReturnMutation } from '../../hooks/useAdminQueries';
 import { Icon,
   Card,
@@ -42,14 +42,58 @@ import { Icon,
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
+import { EmptyState } from '../shared/FeedbackAndOverlays';
+
+/** The return lifecycle the API models, in order. */
+const RETURN_STAGE = {
+  requested: { label: 'Requested', step: 0 },
+  approved: { label: 'Approved', step: 1 },
+  pickup_scheduled: { label: 'Pickup scheduled', step: 2 },
+  received: { label: 'Received', step: 3 },
+  inspected: { label: 'Inspected', step: 4 },
+  refunded: { label: 'Refunded', step: 5 },
+  rejected: { label: 'Rejected', step: 5 },
+};
+
+const fullDate = (value) =>
+  value
+    ? new Date(value).toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : 'Unknown';
+
+/**
+ * The stages this return has actually reached. The record carries the current
+ * status and two timestamps, so stages up to the current one are marked done
+ * and the rest are shown as still to come, rather than inventing scan times.
+ */
+function buildTimeline(order, returnRequest) {
+  const current = RETURN_STAGE[returnRequest?.status];
+  return Object.entries(RETURN_STAGE)
+    .filter(([key]) => key !== 'rejected' || returnRequest?.status === 'rejected')
+    .map(([key, stage]) => ({
+      label: stage.label,
+      done: current ? stage.step <= current.step : false,
+      isCurrent: returnRequest?.status === key,
+      at:
+        returnRequest?.status === key
+          ? fullDate(returnRequest?.updatedAt ?? returnRequest?.requestedAt)
+          : stage.step === 0 && returnRequest?.requestedAt
+            ? fullDate(returnRequest.requestedAt)
+            : null,
+    }));
+}
 
 export function ReturnsAndExchanges({ onShowToast, currentHub }) {
-  const [returnsList, setReturnsList] = useState(INITIAL_RETURNS);
-  const [selectedReturnId, setSelectedReturnId] = useState('RET-2024-89211');
-  const [activeTab, setActiveTab] = useState('Pending QC');
+  const [returnsList, setReturnsList] = useState([]);
+  const [selectedReturnId, setSelectedReturnId] = useState(null);
+  const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [reasonFilter, setReasonFilter] = useState('All');
-  const [dispositionFilter, setDispositionFilter] = useState('All');
   const [refundFilter, setRefundFilter] = useState('All');
   const [manualReturnOpen, setManualReturnOpen] = useState(false);
 
@@ -67,12 +111,16 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
   // Fetch real returned or canceled orders from query cache
   useEffect(() => {
     if (ordersData?.orders?.length > 0) {
-      const returnOrders = ordersData.orders.filter(o => o.fulfillmentStatus === 'returned' || o.status === 'canceled');
+      // A returns queue is the orders that have a return request on them. The
+      // filter used to sweep in every cancelled order too, which is why most
+      // rows had no reason, no stage and no reverse AWB to show.
+      const returnOrders = ordersData.orders.filter(o => o.returnRequest);
       if (returnOrders.length > 0) {
         const mapped = returnOrders.map((ord, idx) => {
           const amountNum = ord.totals?.total ? ord.totals.total / 100 : 2799;
           const customerName = ord.shippingAddress ? `${ord.shippingAddress.firstName || ''} ${ord.shippingAddress.lastName || ''}`.trim() : ord.email;
           const firstItem = ord.items?.[0];
+          const rr = ord.returnRequest;
 
           return {
             id: `RET-2024-${89000 + (ord.displayId || idx)}`,
@@ -85,32 +133,45 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               upiId: `${customerName.toLowerCase().replace(/\s+/g, '')}@okaxis`,
               tier: 'GOLD VIP',
               tierBadgeClass: 'border-status-warning/25 bg-status-warning-bg text-warning',
-              address: ord.shippingAddress ? `${ord.shippingAddress.address1 || ''}, ${ord.shippingAddress.city || ''}` : 'Bengaluru',
+              address: ord.shippingAddress ? `${ord.shippingAddress.address1 || ''}, ${ord.shippingAddress.city || ''}` : 'Not recorded',
+              location: [ord.shippingAddress?.city, ord.shippingAddress?.province]
+                .filter(Boolean)
+                .join(', ') || 'Not recorded',
             },
+            // The table and the export read these two directly; without them the
+            // Garment & Variant column rendered blank on every row.
+            productTitle: firstItem?.productTitle ?? 'Not recorded',
+            variant: firstItem?.variantTitle ?? 'Not recorded',
             product: {
-              name: firstItem?.productTitle || 'Everwear Silk Ensemble',
-              sku: firstItem?.variantTitle || 'EVR-MXD-SLK-04',
+              name: firstItem?.productTitle || 'Not recorded',
+              sku: firstItem?.variantTitle || 'Not recorded',
               hsn: 'HSN 6204',
               size: 'M',
               color: 'Artisan Finish',
               image: firstItem?.thumbnail || 'https://lh3.googleusercontent.com/aida-public/AB6AXuCRc7p8-sFVXf_4tMKl_INWCswdgvyHVPmUN_QEIGfHhb-FdAAYqf-IJW6dDBOp8Oq8upu2YDuVnnNI_yA6V_cjyzBcP9y2WUAP50JmlnjYjXgR8Xe5UTSI_zsJUdaQeg-KJMo8tCAwhjaXR9V6nKKhmYZJy5F-BcetGkiRPBb41ZlKtAH5QVFcGVl3b8HsgOQEN36lKupdRUArLfZkGbfWb_cJPLWGj371Ao8_U7zJ',
             },
-            returnReason: 'Size/Fit Issue',
-            reasonDetail: 'Customer requested doorstep size exchange / refund inspection.',
-            requestedDate: '24 May 2024, 11:20 IST',
-            qcStatus: 'Pending Inspection',
-            qcGrade: 'Pending',
-            refundStatus: ord.paymentStatus === 'refunded' ? 'Disbursed' : 'Awaiting QC Approval',
+            // From the order's own return request. The reason, the dates and
+            // the reverse AWB used to be fixed strings regardless of the record.
+            returnReason: rr?.reason || 'Not given',
+            reasonDetail: rr?.reason || 'No detail was recorded with this request.',
+            requestedDate: rr?.requestedAt ? fullDate(rr.requestedAt) : fullDate(ord.createdAt),
+            stage: rr?.status ?? null,
+            qcStatus: RETURN_STAGE[rr?.status]?.label ?? 'Not inspected',
+            qcGrade: rr?.status === 'inspected' || rr?.status === 'refunded' ? 'Inspected' : 'Pending',
+            refundStatus: ord.paymentStatus === 'refunded' ? 'Refunded' : 'Awaiting refund',
             refundValue: amountNum,
-            settlementEngine: 'Instant UPI (Razorpay)',
-            channel: 'Storefront Self-Service',
-            hubLocation: 'BLR-FC1 Hub',
-            courier: {
-              partner: 'BlueDart Reverse',
-              awb: `R-BLR-${Math.floor(10000000 + Math.random() * 90000000)}`,
-              pickupTime: 'Today, 17:30 IST',
-            },
-            returnType: 'Refund to Original Source',
+            timeline: buildTimeline(ord, rr),
+            channel: 'Storefront',
+            // The order records how it was paid; the refund goes back the same way.
+            settlementEngine:
+              { cod: 'Bank transfer (was cash on delivery)', razorpay: 'Razorpay', stripe: 'Stripe' }[
+                ord.paymentMethod
+              ] ?? 'Original payment method',
+            customerNote: rr?.reason ?? null,
+            courier: rr?.returnAwb
+              ? { partner: rr.carrier || 'Carrier not set', awb: rr.returnAwb, pickupTime: null }
+              : null,
+            returnType: 'Refund to the original payment method',
           };
         });
         // Replace, never append: under StrictMode this effect runs twice and
@@ -144,22 +205,90 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
   const [selectedGrade, setSelectedGrade] = useState('A');
 
   // Filtered returns
+  // Each triage tab is a question about the return's own stage. They used to be
+  // styling only: `activeTab` was never read, so every tab showed every row.
+  const matchesTab = (item, tab) => {
+    switch (tab) {
+      case 'pending':
+        return item.stage != null && !['inspected', 'refunded', 'rejected'].includes(item.stage);
+      case 'refund':
+        return item.stage === 'inspected';
+      case 'completed':
+        return item.stage === 'refunded';
+      case 'rejected':
+        return item.stage === 'rejected';
+      default:
+        return true;
+    }
+  };
+
   const filteredReturns = useMemo(() => {
     return returnsList.filter(item => {
+      if (!matchesTab(item, activeTab)) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesId = item.id.toLowerCase().includes(q);
         const matchesOrder = item.orderRef.toLowerCase().includes(q);
         const matchesCustomer = item.customer.name.toLowerCase().includes(q);
-        const matchesAwb = item.courier.awb.toLowerCase().includes(q);
+        const matchesAwb = (item.courier?.awb ?? '').toLowerCase().includes(q);
         if (!matchesId && !matchesOrder && !matchesCustomer && !matchesAwb) return false;
       }
-      if (reasonFilter !== 'All' && item.returnReason !== reasonFilter) {
-        return false;
-      }
+      if (reasonFilter !== 'All' && item.returnReason !== reasonFilter) return false;
+      // Previously declared and then never applied, so the control did nothing.
+      if (refundFilter !== 'All' && item.refundStatus !== refundFilter) return false;
       return true;
     });
-  }, [returnsList, searchQuery, reasonFilter]);
+  }, [returnsList, activeTab, searchQuery, reasonFilter, refundFilter]);
+
+  /** Tab counts and dropdown options, both read off the rows themselves. */
+  const tabCounts = useMemo(
+    () => ({
+      all: returnsList.length,
+      pending: returnsList.filter((r) => matchesTab(r, 'pending')).length,
+      refund: returnsList.filter((r) => matchesTab(r, 'refund')).length,
+      completed: returnsList.filter((r) => matchesTab(r, 'completed')).length,
+      rejected: returnsList.filter((r) => matchesTab(r, 'rejected')).length,
+    }),
+    [returnsList]
+  );
+
+  /** Every strip above the queue, counted off the same rows. */
+  const stageCounts = useMemo(() => {
+    const at = (...stages) => returnsList.filter((r) => stages.includes(r.stage));
+    const sum = (rows) => rows.reduce((t, r) => t + (r.refundValue ?? 0), 0);
+    const awaitingRefund = at('inspected');
+    const refunded = at('refunded');
+    return {
+      total: returnsList.length,
+      awaitingPickup: at('requested', 'approved').length,
+      inTransit: at('pickup_scheduled').length,
+      atDock: at('received').length,
+      awaitingRefund: awaitingRefund.length,
+      awaitingRefundValue: sum(awaitingRefund),
+      refunded: refunded.length,
+      refundedValue: sum(refunded),
+    };
+  }, [returnsList]);
+
+  const reasonOptions = useMemo(
+    () => [
+      { value: 'All', label: 'All return reasons' },
+      ...[...new Set(returnsList.map((r) => r.returnReason).filter(Boolean))]
+        .sort()
+        .map((reason) => ({ value: reason, label: reason })),
+    ],
+    [returnsList]
+  );
+
+  const refundOptions = useMemo(
+    () => [
+      { value: 'All', label: 'Any refund status' },
+      ...[...new Set(returnsList.map((r) => r.refundStatus).filter(Boolean))]
+        .sort()
+        .map((status) => ({ value: status, label: status })),
+    ],
+    [returnsList]
+  );
 
   // One shared pager over the rows this module actually holds.
   const returnsPager = useClientTable(filteredReturns);
@@ -213,14 +342,6 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
     });
   };
 
-  const handleConvertToCredit = () => {
-    const bonus = Math.round(activeReturn.refundValue * 1.1);
-    onShowToast({
-      type: 'info',
-      title: 'Store Credit Issued',
-      message: `Added ₹${bonus.toLocaleString('en-IN')} (+10% loyalty bonus) to ${activeReturn.customer.name}'s Everwear Wallet.`,
-    });
-  };
 
   const handleRejectReturn = () => {
     onShowToast({
@@ -249,8 +370,8 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
       `"${r.variant}"`,
       `"${r.returnReason}"`,
       r.refundValue,
-      r.courier.partner,
-      r.courier.awb,
+      r.courier?.partner ?? '',
+      r.courier?.awb ?? '',
       `"${r.qcStatus}"`
     ]);
 
@@ -358,16 +479,6 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
               <span>Export Reverse Manifest (CSV)</span>
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onShowToast({ type: 'info', title: 'RTO Telemetry', message: 'Current RTO Rate is 1.62% nationwide. Top reason: Customer Unreachable.' })}
-              className="gap-1.5 h-9"
-              type="button"
-            >
-              <Icon name="summarize" className="material-symbols-outlined text-icon text-muted" />
-              <span>RTO Summary</span>
-            </Button>
-            <Button
               variant="primary"
               size="sm"
               onClick={() => setManualReturnOpen(true)}
@@ -384,74 +495,68 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
       {/* 6 Metrical Pulse Cards */}
       <ContentGrid cols={6}>
         <StatsCard
-          title="Total Requests"
-          value="1,420"
+          title="Total requests"
+          value={String(stageCounts.total)}
           icon="swap_horizontal_circle"
-          trend="1.8% rate"
-          trendType="up"
-          trendLabel="-0.4% MoM"
+          trendLabel="Returns on record"
         />
 
         <StatsCard
-          title="Awaiting Pickup"
-          value="412"
+          title="Awaiting pickup"
+          value={String(stageCounts.awaitingPickup)}
           icon="schedule"
           iconColor="text-warning"
-          badge="BlueDart SLA"
-          badgeVariant="warning"
-          trendLabel="Carrier dispatch active"
+          trendLabel="Requested or approved"
         />
 
         <StatsCard
-          title="In-Transit to FC"
-          value="328"
+          title="In transit to FC"
+          value={String(stageCounts.inTransit)}
           icon="local_shipping"
           iconColor="text-info"
-          badge="Dock in 24-48h"
-          badgeVariant="info"
+          trendLabel="Pickup booked, not yet received"
         />
 
         <StatsCard
-          title="Inbound QC Dock"
-          value="186"
+          title="Inbound QC dock"
+          value={String(stageCounts.atDock)}
           icon="rule"
           iconColor="text-accent"
-          badge="Grading"
-          badgeVariant="warning"
-          trendLabel="Pending triage"
+          trendLabel="Received, awaiting grading"
         />
 
         <StatsCard
           className="hover:border-status-danger/40"
-          title="Refund Approval"
-          value="94"
+          title="Refund approval"
+          value={String(stageCounts.awaitingRefund)}
           icon="account_balance_wallet"
           iconColor="text-danger"
-          badge="₹3.14L"
+          badge={formatMoney(stageCounts.awaitingRefundValue * 100, 'inr')}
           badgeVariant="destructive"
-          trendLabel="Pending approval"
+          trendLabel="Inspected, refund not yet paid"
         />
 
         <StatsCard
-          title="Restocked (MTD)"
-          value="864 pcs"
+          title="Refunded"
+          value={String(stageCounts.refunded)}
           icon="inventory_2"
           iconColor="text-success"
-          badge="61% Grade A"
+          badge={formatMoney(stageCounts.refundedValue * 100, 'inr')}
           badgeVariant="success"
-          trendLabel="Inventory recovered"
+          trendLabel="Money returned to customers"
         />
       </ContentGrid>
 
       {/* Filter Array & Queue Triage Tabs */}
       <FilterBar
+        // Counted from the rows behind them. There is no Exchanges tab because
+        // nothing on a return record distinguishes an exchange from a refund.
         tabs={[
-          { id: 'All Returns', label: 'All Returns', count: '1,420' },
-          { id: 'Pending QC', label: 'Pending QC', count: '186' },
-          { id: 'Refund Queue', label: 'Refund Queue', count: '94' },
-          { id: 'Exchanges', label: 'Exchanges', count: '142' },
-          { id: 'Completed', label: 'Completed', count: '840' },
-          { id: 'Rejected / Fraud RTO', label: 'Rejected / Fraud RTO', count: '48' },
+          { id: 'all', label: 'All returns', count: String(tabCounts.all) },
+          { id: 'pending', label: 'Awaiting QC', count: String(tabCounts.pending) },
+          { id: 'refund', label: 'Refund queue', count: String(tabCounts.refund) },
+          { id: 'completed', label: 'Refunded', count: String(tabCounts.completed) },
+          { id: 'rejected', label: 'Rejected', count: String(tabCounts.rejected) },
         ]}
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -466,37 +571,20 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
         }
         filters={
           <div className="flex flex-wrap items-center gap-2">
+            {/* Both lists are the distinct values present in the queue, so every
+                choice returns rows. The fixed lists they replace matched
+                nothing a return record actually stores. The disposition
+                dropdown is gone: a grade is chosen during inspection and is
+                never stored against the return, so it was unfilterable. */}
             <FilterDropdown
               value={reasonFilter}
               onChange={(val) => setReasonFilter(val)}
-              options={[
-                { value: 'All', label: 'All Return Reasons' },
-                { value: 'Size/Fit Issue', label: 'Size/Fit Issue' },
-                { value: 'Fabric/Quality Defect', label: 'Fabric/Quality Defect' },
-                { value: 'Color Mismatch', label: 'Color Mismatch' },
-                { value: 'Damaged in Transit', label: 'Damaged in Transit' },
-                { value: 'Buyer Remorse', label: 'Buyer Remorse' },
-              ]}
-            />
-            <FilterDropdown
-              value={dispositionFilter}
-              onChange={(val) => setDispositionFilter(val)}
-              options={[
-                { value: 'All', label: 'All Dispositions' },
-                { value: 'Restock Grade A (Pristine)', label: 'Restock Grade A' },
-                { value: 'Refurbish/Steam Grade B', label: 'Refurbish Grade B' },
-                { value: 'Liquidation/Scrap Grade C', label: 'Scrap Grade C' },
-              ]}
+              options={reasonOptions}
             />
             <FilterDropdown
               value={refundFilter}
               onChange={(val) => setRefundFilter(val)}
-              options={[
-                { value: 'All', label: 'Refund Status' },
-                { value: 'Hold for Inspection', label: 'Hold for Inspection' },
-                { value: 'Refund Initiated', label: 'Refund Initiated' },
-                { value: 'UPI Reconciled', label: 'UPI Reconciled' },
-              ]}
+              options={refundOptions}
             />
           </div>
         }
@@ -510,14 +598,11 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
             <div className="flex items-center gap-space-sm">
               <span className="text-subheading font-semibold text-primary">Inbound Queue & Triage</span>
               <Badge variant="secondary" className="text-caption">
-                Showing {filteredReturns.length} of 186 pending
+                Showing {filteredReturns.length} of {returnsList.length}
               </Badge>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="iconSm" title="Filter queue" aria-label="Filter queue">
-                <Icon name="filter_list" className="material-symbols-outlined text-icon-md" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => onShowToast({ type: 'info', title: 'Queue Refreshed', message: 'Checked latest 3PL reverse manifests.' })} title="Refresh queue" aria-label="Refresh queue">
+              <Button variant="ghost" size="icon" onClick={() => refetchReturns()} title="Refresh queue" aria-label="Refresh queue">
                 <Icon name="refresh" className="material-symbols-outlined text-icon-md" />
               </Button>
             </div>
@@ -585,10 +670,12 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                       <TableCell className="py-3 px-3">
                         <div className="flex flex-col">
                           <span className="text-num text-primary text-meta font-mono whitespace-nowrap">
-                            {item.courier.partner} #{item.courier.awb}
+                            {item.courier
+                              ? `${item.courier.partner} #${item.courier.awb}`
+                              : 'No reverse pickup booked'}
                           </span>
                           <span className="text-micro text-success">
-                            {item.courier.dockStatus}
+                            {item.courier?.dockStatus ?? ''}
                           </span>
                         </div>
                       </TableCell>
@@ -635,6 +722,11 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
         </Card>
 
         {/* Right Pane: Dock Triage & QC Grading Station (4/5 cols) */}
+        {!activeReturn ? (
+          <div className="lg:col-span-5 xl:col-span-4">
+            <EmptyState icon="swap_horizontal_circle" title="No return selected" description="Pick a return from the queue to inspect it." />
+          </div>
+        ) : (
         <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-space-md">
           <Card className="shadow-md">
             <CardContent className="p-space-md flex flex-col gap-space-md">
@@ -642,10 +734,10 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                 <div className="flex min-w-0 flex-col">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge variant="default" className="text-micro font-semibold">
-                      Dock Triage Station #04
+                      Return
                     </Badge>
                     <Badge variant={activeReturn.qcStatus.includes('Passed') ? 'success' : 'warning'} className="text-micro font-semibold">
-                      {activeReturn.qcStatus.toUpperCase()}
+                      {(activeReturn.qcStatus ?? 'Not inspected').toUpperCase()}
                     </Badge>
                   </div>
                   <h2 className="text-subheading font-semibold text-primary mt-1">
@@ -663,160 +755,45 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                 </div>
               </div>
 
-              {/* Garment Image & Customer Note */}
-              <div className="bg-surface-canvas p-space-sm rounded-lg flex gap-space-sm items-center border border-subtle/50">
-                <Thumbnail src={activeReturn.image} alt={activeReturn.productTitle} className="w-16 h-20 rounded-md shrink-0 shadow-xs" imgClassName="object-cover" />
-                <div className="flex flex-col min-w-0">
-                  <span className="text-caption text-muted uppercase font-semibold">
-                    Customer Note & Reason
+              {/* The note is the reason the customer gave. When they gave none
+                  the card said "Not given" above a pair of empty quotes, beside
+                  a placeholder image tile. */}
+              <div className="flex items-center gap-space-sm rounded-lg border border-subtle/50 bg-surface-canvas p-space-sm">
+                {activeReturn.image && (
+                  <Thumbnail
+                    src={activeReturn.image}
+                    alt={activeReturn.productTitle}
+                    className="h-20 w-16 shrink-0 rounded-md shadow-xs"
+                    imgClassName="object-cover"
+                  />
+                )}
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-caption font-semibold uppercase text-muted">
+                    Reason given
                   </span>
-                  <span className="text-label font-semibold text-primary mt-0.5">
-                    {activeReturn.returnReason}
-                  </span>
-                  <p className="text-meta text-muted italic mt-1 line-clamp-2">
-                    "{activeReturn.customerNote}"
-                  </p>
+                  {activeReturn.customerNote ? (
+                    <p className="mt-0.5 text-label font-semibold text-primary">
+                      {activeReturn.customerNote}
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-label text-faint">
+                      The customer did not record a reason.
+                    </p>
+                  )}
                 </div>
               </div>
 
-              {/* Garment Physical Checklist */}
-              <div className="flex flex-col gap-space-xs">
-                <span className="text-caption text-muted uppercase tracking-wider font-semibold">
-                  Garment Physical Checklist
-                </span>
-                <div className="grid grid-cols-3 gap-2">
-                  <label 
-                    onClick={() => setChecklist(prev => ({ ...prev, tags: !prev.tags }))}
-                    className="flex flex-col p-2 rounded-lg bg-surface-subtle cursor-pointer hover:bg-surface-container transition-colors border border-subtle"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-micro text-muted">Brand Tags</span>
-                      <Checkbox checked={checklist.tags} onChange={() => {}} />
-                    </div>
-                    <span className="text-meta font-semibold text-success mt-1">
-                      {checklist.tags ? 'Intact' : 'Missing'}
-                    </span>
-                  </label>
 
-                  <label 
-                    onClick={() => setChecklist(prev => ({ ...prev, clean: !prev.clean }))}
-                    className="flex flex-col p-2 rounded-lg bg-surface-subtle cursor-pointer hover:bg-surface-container transition-colors border border-subtle"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-micro text-muted">Wear / Odor</span>
-                      <Checkbox checked={checklist.clean} onChange={() => {}} />
-                    </div>
-                    <span className="text-meta font-semibold text-success mt-1">
-                      {checklist.clean ? 'Clean' : 'Soiled'}
-                    </span>
-                  </label>
-
-                  <label 
-                    onClick={() => setChecklist(prev => ({ ...prev, zeroDefect: !prev.zeroDefect }))}
-                    className="flex flex-col p-2 rounded-lg bg-surface-subtle cursor-pointer hover:bg-surface-container transition-colors border border-subtle"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-micro text-muted">Seam / Tear</span>
-                      <Checkbox checked={checklist.zeroDefect} onChange={() => {}} />
-                    </div>
-                    <span className="text-meta font-semibold text-success mt-1">
-                      {checklist.zeroDefect ? 'Zero Defect' : 'Damaged'}
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Assigned Disposition Grade */}
-              <div className="flex flex-col gap-space-xs">
-                <span className="text-caption text-muted uppercase tracking-wider font-semibold">
-                  Assigned Disposition Grade
-                </span>
-                <div className="space-y-1.5 mt-1">
-                  <label 
-                    onClick={() => setSelectedGrade('A')}
-                    className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer border transition-colors ${
- selectedGrade === 'A' ? 'bg-status-success-bg border-status-success/30' : 'bg-surface-canvas border-subtle'
- }`}
-                  >
-                    <input 
-                      type="radio" 
-                      name="disposition" 
-                      checked={selectedGrade === 'A'} 
-                      onChange={() => setSelectedGrade('A')}
-                      className="mt-1 accent-primary" 
-                    />
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-label font-semibold text-primary">Grade A — Pristine Restock</span>
-                        <Badge variant="success" className="text-micro py-0 px-1.5">Recommended</Badge>
-                      </div>
-                      <span className="text-micro text-muted mt-0.5">
-                        Route instantly to {currentHub.id} Aisle C-12 / Bin 5 for inventory replenishment.
-                      </span>
-                    </div>
-                  </label>
-
-                  <label 
-                    onClick={() => setSelectedGrade('B')}
-                    className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer border transition-colors ${
- selectedGrade === 'B' ? 'bg-status-warning-bg border-status-warning/30' : 'bg-surface-canvas border-subtle'
- }`}
-                  >
-                    <input 
-                      type="radio" 
-                      name="disposition" 
-                      checked={selectedGrade === 'B'} 
-                      onChange={() => setSelectedGrade('B')}
-                      className="mt-1 accent-primary" 
-                    />
-                    <div className="flex flex-col">
-                      <span className="text-label font-semibold text-primary">Grade B — Refurbish / Steam Required</span>
-                      <span className="text-micro text-muted mt-0.5">
-                        Mild linting or packaging wrinkles. Route to Steam & Polybag Bay.
-                      </span>
-                    </div>
-                  </label>
-
-                  <label 
-                    onClick={() => setSelectedGrade('C')}
-                    className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer border transition-colors ${
- selectedGrade === 'C' ? 'bg-status-danger-bg border-status-danger/30' : 'bg-surface-canvas border-subtle'
- }`}
-                  >
-                    <input 
-                      type="radio" 
-                      name="disposition" 
-                      checked={selectedGrade === 'C'} 
-                      onChange={() => setSelectedGrade('C')}
-                      className="mt-1 accent-primary" 
-                    />
-                    <div className="flex flex-col">
-                      <span className="text-label font-semibold text-primary">Grade C — Liquidation / Salvage Scrap</span>
-                      <span className="text-micro text-muted mt-0.5">
-                        Permanent stains or damaged fibers. Discard or scrap wholesale.
-                      </span>
-                    </div>
-                  </label>
-                </div>
-              </div>
 
               {/* Settlement Engine Summary */}
               <div className="bg-surface-canvas p-space-sm rounded-lg flex flex-col gap-1.5 border border-subtle/50">
                 <div className="flex items-center justify-between text-caption text-muted">
                   <span>SETTLEMENT ENGINE</span>
-                  <span>{activeReturn.settlementEngine.toUpperCase()}</span>
+                  <span>{(activeReturn.settlementEngine ?? 'Original payment method').toUpperCase()}</span>
                 </div>
                 <div className="flex items-center justify-between text-body">
                   <span className="text-muted">Original Transaction:</span>
                   <span className="text-primary font-medium">₹{activeReturn.refundValue.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between text-body">
-                  <span className="text-muted">Return Deductions:</span>
-                  <span className="text-success font-medium">₹0.00 (Everwear Assurance)</span>
-                </div>
-                <div className="flex items-center justify-between text-body">
-                  <span className="text-muted">Customer UPI ID:</span>
-                  <span className="text-primary font-mono text-meta whitespace-nowrap">{activeReturn.customer.upiId}</span>
                 </div>
                 <Separator className="my-0.5" />
                 <div className="flex items-center justify-between pt-0.5 text-subheading text-primary">
@@ -837,16 +814,6 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
                   <span className="truncate">Approve &amp; refund ₹{activeReturn.refundValue}</span>
                 </Button>
                 <Button
-                  variant="outline"
-                  size="default"
-                  onClick={handleConvertToCredit}
-                  className="w-full gap-1.5"
-                  title={`Convert to store credit with a 10% bonus (₹${Math.round(activeReturn.refundValue * 1.1)})`}
-                >
-                  <Icon name="stars" aria-hidden="true" className="material-symbols-outlined text-icon" />
-                  <span className="truncate">Store credit +10% (₹{Math.round(activeReturn.refundValue * 1.1)})</span>
-                </Button>
-                <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleRejectReturn}
@@ -862,21 +829,35 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
           <Card>
             <CardContent className="p-space-md flex flex-col gap-space-sm">
               <div className="flex items-center justify-between">
-                <span className="text-subheading font-semibold text-primary">Audit Trail</span>
-                <Badge variant="secondary" className="text-micro">LIVE LOGS</Badge>
+                <span className="text-subheading font-semibold text-primary">Return progress</span>
               </div>
               <div className="relative pl-5 space-y-3 mt-1 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-border-subtle">
-                {activeReturn.timeline.map((step, idx) => (
+                {(activeReturn.timeline ?? []).map((step, idx) => (
                   <div key={idx} className="relative flex flex-col">
-                    <div className={`absolute -left-5 top-1 w-2.5 h-2.5 rounded-full ${step.color} shadow-xs`}></div>
-                    <span className="text-label font-semibold text-primary">{step.step}</span>
-                    <span className="text-micro text-muted">{step.time} • {step.actor}</span>
+                    <div
+                      className={`absolute -left-5 top-1 h-2.5 w-2.5 rounded-full shadow-xs ${
+                        step.isCurrent
+                          ? 'bg-status-info-solid'
+                          : step.done
+                            ? 'bg-status-success-solid'
+                            : 'bg-surface-container-high'
+                      }`}
+                    />
+                    <span
+                      className={`text-label font-semibold ${step.done ? 'text-primary' : 'text-faint'}`}
+                    >
+                      {step.label}
+                    </span>
+                    <span className="text-micro text-muted">
+                      {step.at ?? (step.done ? 'Completed' : 'Not reached yet')}
+                    </span>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
         </div>
+        )}
       </div>
 
       {/* Manual Return Modal */}

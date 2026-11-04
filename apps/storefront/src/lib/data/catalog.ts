@@ -37,33 +37,62 @@ export const getCollection = cache(async (handle: string) =>
   orNull(api<{ collection: Collection }>(`/store/collections/${encodeURIComponent(handle)}`, { cache: CATALOG }).then((r) => r.collection))
 )
 
+export type ProductSort =
+  | "newest"
+  | "price_asc"
+  | "price_desc"
+  | "title"
+  | "rating"
+  | "popularity"
+  | "discount"
+
 export type ProductQuery = {
   country: string
   q?: string
   category?: string[]
   collection?: string[]
   tag?: string[]
+  brand?: string[]
   option?: string[]
+  size?: string[]
+  color?: string[]
   id?: string[]
   exclude?: string[]
+  /** Inclusive price bounds in the region currency, minor units. */
+  minPrice?: number
+  maxPrice?: number
+  minDiscount?: number
+  minRating?: number
+  inStock?: boolean
   onSale?: boolean
-  sort?: "newest" | "price_asc" | "price_desc" | "title"
+  sort?: ProductSort
   page?: number
   limit?: number
 }
 
 export const listProducts = cache(async (query: ProductQuery) =>
   api<ProductList>("/store/products", {
-    query: { ...query, onSale: query.onSale ? "true" : undefined },
+    query: {
+      ...query,
+      onSale: query.onSale ? "true" : undefined,
+      inStock: query.inStock ? "true" : undefined,
+    },
     cache: CATALOG,
   })
 )
 
+/** Product detail skips the catalog TTL so admin image updates show up immediately. */
 export const getProduct = cache(async (handle: string, country: string) =>
-  orNull(api<{ product: Product }>(`/store/products/${encodeURIComponent(handle)}`, { query: { country }, cache: CATALOG }).then((r) => r.product))
+  orNull(
+    api<{ product: Product }>(`/store/products/${encodeURIComponent(handle)}`, {
+      query: { country },
+      cache: "no-store",
+    }).then((r) => r.product)
+  )
 )
 
-export const getFacets = cache(async (query: { country: string; category?: string[]; collection?: string[] }) =>
+export const getFacets = cache(
+  async (query: { country: string; q?: string; category?: string[]; collection?: string[] }) =>
   api<Facets>("/store/facets", { query, cache: CATALOG })
 )
 

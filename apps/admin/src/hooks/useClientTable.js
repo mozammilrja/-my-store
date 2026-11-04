@@ -1,1 +1,1 @@
-export { useClientTable } from './useServerTable';
+export { useClientTable, useTableSort } from './useServerTable';

@@ -15,8 +15,22 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
+import { DataTable } from '../shared/DataTable';
+import { PersonAvatar } from '../shared/PersonAvatar';
 import { adminApi } from '../../lib/api';
+import { formatMoney } from '../../lib/format';
 import { useOrdersQuery } from '../../hooks/useAdminQueries';
+import { EmptyState } from '../shared/FeedbackAndOverlays';
+import { SectionCard } from '../shared/Layout';
+
+/** The splits a payment record can actually support. */
+const PAYMENT_TABS = [
+  { id: 'all', label: 'All payments' },
+  { id: 'prepaid', label: 'Prepaid' },
+  { id: 'cod', label: 'Cash on delivery' },
+  { id: 'awaiting', label: 'Awaiting' },
+  { id: 'refunded', label: 'Refunded' },
+];
 
 export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'batches', 'cod', 'discrepancies', 'disputes'
@@ -36,49 +50,82 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
     isError: isPaymentsError,
     error: paymentsError,
     refetch: refetchTransactions,
-  } = useOrdersQuery({ limit: 50 });
+  // 100 is the API's ceiling. The ledger's totals and tab counts are summed
+  // from what comes back, so a short page would under-report them.
+  } = useOrdersQuery({ limit: 100 });
 
   // Load real orders from query cache to reconcile live transactions
   useEffect(() => {
     if (ordersData?.orders?.length > 0) {
       const liveTxns = ordersData.orders.map((ord, idx) => {
-        const amountNum = ord.totals?.total ? ord.totals.total / 100 : 2799;
-        const mdrNum = +(amountNum * 0.012).toFixed(2);
-        const netNum = +(amountNum - mdrNum).toFixed(2);
-        const customerName = ord.shippingAddress ? `${ord.shippingAddress.firstName || ''} ${ord.shippingAddress.lastName || ''}`.trim() : ord.email;
-        const initials = customerName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'EW';
+        const amountNum = (ord.totals?.total ?? 0) / 100;
+        const customerName = ord.shippingAddress
+          ? `${ord.shippingAddress.firstName || ''} ${ord.shippingAddress.lastName || ''}`.trim()
+          : ord.email;
+        const initials =
+          customerName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'EW';
+        const details = ord.paymentDetails ?? {};
+        const paidAt = details.paidAt ? new Date(details.paidAt) : null;
 
         return {
           id: ord.id,
-          txnCode: `#TXN-${ord.displayId || idx + 1000}`,
-          orderRef: `ORD-${ord.displayId || idx + 1000}`,
+          txnCode: details.transactionId ? `#${details.transactionId}` : `#ORD-${ord.displayId}`,
+          orderRef: `ORD-${ord.displayId}`,
+          // The gateway's own reference, when it gave one. It used to be
+          // manufactured from the order id and labelled a bank UTR.
+          reference: details.transactionId ?? null,
           customer: customerName,
           initials,
           initialsBg: 'bg-primary-fixed text-on-primary-fixed',
-          method: ord.paymentMethod === 'cod' ? 'Cash on Delivery (Handover)' : 'Razorpay UPI',
+          method: ord.paymentMethod === 'cod' ? 'Cash on delivery' : details.provider === 'stripe' ? 'Stripe' : 'Razorpay',
           methodIcon: ord.paymentMethod === 'cod' ? 'payments' : 'account_balance',
           methodColor: 'text-accent',
-          methodType: ord.paymentMethod === 'cod' ? 'COD' : 'UPI',
+          methodType: ord.paymentMethod === 'cod' ? 'COD' : 'Prepaid',
           gross: `₹${amountNum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
           grossNum: amountNum,
-          mdr: `₹${mdrNum.toFixed(2)}`,
-          mdrNum,
-          mdrBase: `-₹${(mdrNum * 0.82).toFixed(2)}`,
-          gstOnMdr: `-₹${(mdrNum * 0.18).toFixed(2)}`,
-          net: `₹${netNum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
-          netNum,
-          utr: `UTR${ord.id.slice(-8).toUpperCase()}`,
-          status: ord.paymentStatus === 'paid' ? 'Settled' : ord.paymentStatus === 'refunded' ? 'Refunded' : 'Awaiting Settlement',
-          statusBadge: ord.paymentStatus === 'paid' ? 'bg-status-success-bg text-success' : 'bg-status-warning-bg text-warning',
-          reconMatch: ord.paymentStatus === 'paid' ? 'Auto-Matched' : 'Pending Verification',
-          reconIcon: ord.paymentStatus === 'paid' ? 'done_all' : 'schedule',
-          reconBadge: ord.paymentStatus === 'paid' ? 'bg-status-success-bg text-success' : 'bg-status-warning-bg text-warning',
-          batch: `#SETTL-${(ord.displayId || 100) + 89000}`,
-          source: 'Gateway Node',
-          account: 'HDFC •••• 9014',
+          paidAt: paidAt
+            ? paidAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+            : null,
+          refunded: (details.refunds ?? []).reduce((n, r) => n + (r.amount ?? 0), 0) / 100,
+          status:
+            ord.paymentStatus === 'paid'
+              ? 'Paid'
+              : ord.paymentStatus === 'refunded'
+                ? 'Refunded'
+                : 'Awaiting',
+          statusBadge:
+            ord.paymentStatus === 'paid'
+              ? 'bg-status-success-bg text-success'
+              : ord.paymentStatus === 'refunded'
+                ? 'bg-status-info-bg text-info'
+                : 'bg-status-warning-bg text-warning',
+          // What the payment was actually for, and how the amount is made up.
+          // Both come straight off the order; the drawer had room for them and
+          // was showing nothing.
+          lines: (ord.items ?? []).map((it) => ({
+            id: it.id,
+            title: it.productTitle,
+            variant: it.variantTitle,
+            quantity: it.quantity,
+            total: it.total ?? (it.unitPrice ?? 0) * (it.quantity ?? 1),
+          })),
+          totals: ord.totals ?? null,
+          refunds: (details.refunds ?? []).map((r) => ({
+            id: r.id,
+            amount: r.amount,
+            reason: r.reason,
+            createdAt: r.createdAt,
+          })),
           timeline: [
-            { title: `Order Placed (${ord.paymentMethod?.toUpperCase() || 'PREPAID'})`, time: new Date(ord.createdAt).toLocaleDateString(), color: 'bg-status-success' }
-          ]
+            {
+              title: `Order placed (${ord.paymentMethod?.toUpperCase() || 'PREPAID'})`,
+              time: new Date(ord.createdAt).toLocaleDateString('en-IN'),
+              color: 'bg-status-success',
+            },
+            ...(paidAt
+              ? [{ title: 'Payment captured', time: paidAt.toLocaleDateString('en-IN'), color: 'bg-status-success' }]
+              : []),
+          ],
         };
       });
       setDbTransactions(liveTxns);
@@ -88,211 +135,6 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
   // Manual re-match form state
   const [reMatchUtr, setReMatchUtr] = useState('');
 
-  const baseTransactions = [
-    {
-      id: '984210',
-      txnCode: '#TXN-984210',
-      orderRef: 'ORD-2024-88412',
-      customer: 'Rohan Parekh',
-      initials: 'RP',
-      initialsBg: 'bg-primary-fixed text-on-primary-fixed',
-      method: 'Razorpay UPI',
-      methodIcon: 'account_balance',
-      methodColor: 'text-accent',
-      methodType: 'UPI',
-      gross: '₹4,890.00',
-      grossNum: 4890.00,
-      mdr: '₹57.70',
-      mdrNum: 57.70,
-      mdrBase: '-₹48.90',
-      gstOnMdr: '-₹8.80',
-      net: '₹4,832.30',
-      netNum: 4832.30,
-      utr: 'UTR9841220912',
-      status: 'Settled',
-      statusBadge: 'bg-status-success-bg text-success',
-      reconMatch: 'Auto-Matched',
-      reconIcon: 'done_all',
-      reconBadge: 'bg-status-success-bg text-success',
-      batch: '#SETTL-89214',
-      source: 'Razorpay Node-04',
-      account: 'HDFC •••• 9014',
-      timeline: [
-        { title: 'Settlement Ingestion Reconciled', time: 'May 24, 2024 • 14:38:12 IST by AutoWorker', color: 'bg-status-success' },
-        { title: 'Bank Credit Confirmation Received', time: 'May 24, 2024 • 14:15:02 IST via HDFC API', color: 'bg-primary-container' },
-        { title: 'Payment Captured by Gateway', time: 'May 24, 2024 • 11:22:45 IST via UPI App', color: 'bg-secondary' }
-      ]
-    },
-    {
-      id: '984211',
-      txnCode: '#TXN-984211',
-      orderRef: 'ORD-2024-88415',
-      customer: 'Meera Kapoor',
-      initials: 'MK',
-      initialsBg: 'bg-secondary-fixed text-on-secondary-fixed',
-      method: 'PayU Credit Card',
-      methodIcon: 'credit_card',
-      methodColor: 'text-accent',
-      methodType: 'Credit Card',
-      gross: '₹12,400.00',
-      grossNum: 12400.00,
-      mdr: '₹219.48',
-      mdrNum: 219.48,
-      mdrBase: '-₹186.00',
-      gstOnMdr: '-₹33.48',
-      net: '₹12,180.52',
-      netNum: 12180.52,
-      utr: 'UTR9841221104',
-      status: 'Settled',
-      statusBadge: 'bg-status-success-bg text-success',
-      reconMatch: 'Auto-Matched',
-      reconIcon: 'done_all',
-      reconBadge: 'bg-status-success-bg text-success',
-      batch: '#SETTL-89214',
-      source: 'PayU Enterprise PG',
-      account: 'HDFC •••• 9014',
-      timeline: [
-        { title: 'Settlement Ingestion Reconciled', time: 'May 24, 2024 • 14:38:12 IST by AutoWorker', color: 'bg-status-success' },
-        { title: 'Bank Credit Confirmation Received', time: 'May 24, 2024 • 14:12:10 IST via PayU API', color: 'bg-primary-container' },
-        { title: 'Payment Captured by Gateway', time: 'May 24, 2024 • 11:05:19 IST via 3DS2 Visa', color: 'bg-secondary' }
-      ]
-    },
-    {
-      id: '984212',
-      txnCode: '#TXN-984212',
-      orderRef: 'ORD-2024-88420',
-      customer: 'Vikram Nair',
-      initials: 'VN',
-      initialsBg: 'bg-error-container text-on-error-container',
-      method: 'Razorpay UPI',
-      methodIcon: 'account_balance',
-      methodColor: 'text-accent',
-      methodType: 'UPI',
-      gross: '₹3,450.00',
-      grossNum: 3450.00,
-      mdr: '₹40.71',
-      mdrNum: 40.71,
-      mdrBase: '-₹34.50',
-      gstOnMdr: '-₹6.21',
-      net: '₹3,409.29',
-      netNum: 3409.29,
-      utr: 'MISSING_UTR',
-      status: 'Discrepancy',
-      statusBadge: 'bg-status-danger-bg text-danger',
-      reconMatch: 'Manual Review',
-      reconIcon: 'warning',
-      reconBadge: 'bg-status-danger-bg text-danger',
-      batch: '#SETTL-89215-PENDING',
-      source: 'Razorpay Node-04',
-      account: 'HDFC •••• 9014',
-      timeline: [
-        { title: 'Discrepancy Flagged: Missing Bank UTR', time: 'May 24, 2024 • 14:38:15 IST by ReconGuard', color: 'bg-status-danger' },
-        { title: 'Gateway Payload Received without Clearing Ref', time: 'May 24, 2024 • 13:40:00 IST', color: 'bg-status-warning' },
-        { title: 'Order Created in System', time: 'May 24, 2024 • 13:35:10 IST via Web', color: 'bg-secondary' }
-      ]
-    },
-    {
-      id: '984213',
-      txnCode: '#TXN-984213',
-      orderRef: 'ORD-2024-88424',
-      customer: 'Deepak Sen',
-      initials: 'DS',
-      initialsBg: 'bg-surface-subtle text-muted',
-      method: 'COD (BlueDart)',
-      methodIcon: 'local_shipping',
-      methodColor: 'text-warning',
-      methodType: 'COD',
-      gross: '₹1,899.00',
-      grossNum: 1899.00,
-      mdr: '₹45.00',
-      mdrNum: 45.00,
-      mdrBase: '-₹45.00',
-      gstOnMdr: '₹0.00 (Exempt)',
-      net: '₹1,854.00',
-      netNum: 1854.00,
-      utr: 'BD-DEL-40192',
-      status: 'In Clearing',
-      statusBadge: 'bg-status-info-bg text-info',
-      reconMatch: '3PL Clearing',
-      reconIcon: 'sync',
-      reconBadge: 'bg-status-info-bg text-info',
-      batch: '#3PL-BD-DEL-89',
-      source: 'BlueDart Courier Feed',
-      account: 'Cash Remittance Hub',
-      timeline: [
-        { title: 'Cash Ingested at BlueDart Regional Hub', time: 'May 24, 2024 • 12:10:00 IST', color: 'bg-status-info' },
-        { title: 'Doorstep Delivery Completed & Cash Collected', time: 'May 24, 2024 • 10:45:00 IST', color: 'bg-status-success' }
-      ]
-    },
-    {
-      id: '984214',
-      txnCode: '#TXN-984214',
-      orderRef: 'ORD-2024-88429',
-      customer: 'Aarti Gupta',
-      initials: 'AG',
-      initialsBg: 'bg-secondary-fixed text-on-secondary-fixed',
-      method: 'HDFC NetBanking',
-      methodIcon: 'domain',
-      methodColor: 'text-info',
-      methodType: 'NetBanking',
-      gross: '₹6,250.00',
-      grossNum: 6250.00,
-      mdr: '₹18.00',
-      mdrNum: 18.00,
-      mdrBase: '-₹15.25',
-      gstOnMdr: '-₹2.75',
-      net: '₹6,232.00',
-      netNum: 6232.00,
-      utr: 'HDFC9912048',
-      status: 'Settled',
-      statusBadge: 'bg-status-success-bg text-success',
-      reconMatch: 'Auto-Matched',
-      reconIcon: 'done_all',
-      reconBadge: 'bg-status-success-bg text-success',
-      batch: '#SETTL-89214',
-      source: 'HDFC Corporate Aggregator',
-      account: 'HDFC •••• 9014',
-      timeline: [
-        { title: 'Settlement Ingestion Reconciled', time: 'May 24, 2024 • 14:38:12 IST by AutoWorker', color: 'bg-status-success' },
-        { title: 'Host-to-Host Confirmation Cleared', time: 'May 24, 2024 • 14:02:18 IST', color: 'bg-primary-container' },
-        { title: 'NetBanking Auth Successful', time: 'May 24, 2024 • 13:58:00 IST', color: 'bg-secondary' }
-      ]
-    },
-    {
-      id: '984215',
-      txnCode: '#TXN-984215',
-      orderRef: 'ORD-2024-88432',
-      customer: 'Kunal Chawla',
-      initials: 'KC',
-      initialsBg: 'bg-status-warning-bg text-warning',
-      method: 'PayU Credit Card',
-      methodIcon: 'credit_card',
-      methodColor: 'text-accent',
-      methodType: 'Credit Card',
-      gross: '₹8,999.00',
-      grossNum: 8999.00,
-      mdr: '₹159.28',
-      mdrNum: 159.28,
-      mdrBase: '-₹135.00',
-      gstOnMdr: '-₹24.28',
-      net: '₹8,839.72',
-      netNum: 8839.72,
-      utr: 'CB-HOLD-002',
-      status: 'Chargeback Hold',
-      statusBadge: 'bg-status-warning-bg text-warning',
-      reconMatch: 'Disputed',
-      reconIcon: 'flag',
-      reconBadge: 'bg-status-warning-bg text-warning',
-      batch: '#DISPUTE-2024-08',
-      source: 'PayU Dispute Desk',
-      account: 'Escrow Reserve Account',
-      timeline: [
-        { title: 'Card Issuer Chargeback Inquiry Filed', time: 'May 24, 2024 • 13:10:00 IST (Reason: Unrecognized Txn)', color: 'bg-status-warning' },
-        { title: 'Funds Held in Merchant Escrow', time: 'May 24, 2024 • 13:11:00 IST', color: 'bg-status-danger' },
-        { title: 'Original Payment Settled', time: 'May 22, 2024 • 10:00:00 IST', color: 'bg-secondary' }
-      ]
-    }
-  ];
 
   const disputesList = [
     { id: 'DSP-01', order: 'ORD-2024-88432', customer: 'Kunal Chawla', amount: '₹8,999.00', reason: 'Unrecognized Charge', cardBrand: 'Mastercard', daysLeft: '4 Days' },
@@ -301,8 +143,38 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
   ];
 
   const transactions = useMemo(() => {
-    return [...dbTransactions, ...baseTransactions];
+    return dbTransactions;
   }, [dbTransactions]);
+
+  /** Ledger totals, summed from the payments in hand. */
+  const paymentTotals = useMemo(() => {
+    const sum = (rows) => rows.reduce((n, t) => n + (t.grossNum ?? 0), 0);
+    const paid = transactions.filter((t) => t.status === 'Paid');
+    const awaiting = transactions.filter((t) => t.status === 'Awaiting');
+    const cod = transactions.filter((t) => t.methodType === 'COD' && t.status === 'Awaiting');
+    const refunded = transactions.filter((t) => t.status === 'Refunded');
+    return {
+      collected: sum(paid),
+      paidCount: paid.length,
+      awaiting: sum(awaiting),
+      awaitingCount: awaiting.length,
+      cod: sum(cod),
+      codCount: cod.length,
+      refunded: refunded.reduce((n, t) => n + (t.refunded || t.grossNum || 0), 0),
+      refundedCount: refunded.length,
+    };
+  }, [transactions]);
+
+  const tabCounts = useMemo(
+    () => ({
+      all: transactions.length,
+      prepaid: transactions.filter((t) => t.methodType === 'Prepaid').length,
+      cod: transactions.filter((t) => t.methodType === 'COD').length,
+      awaiting: transactions.filter((t) => t.status === 'Awaiting').length,
+      refunded: transactions.filter((t) => t.status === 'Refunded').length,
+    }),
+    [transactions]
+  );
 
   const selectedTxn = useMemo(() => {
     return transactions.find(t => t.id === selectedTxnId) || transactions[0];
@@ -310,9 +182,10 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      if (activeTab === 'discrepancies' && t.status !== 'Discrepancy') return false;
-      if (activeTab === 'disputes' && t.status !== 'Chargeback Hold') return false;
       if (activeTab === 'cod' && t.methodType !== 'COD') return false;
+      if (activeTab === 'prepaid' && t.methodType !== 'Prepaid') return false;
+      if (activeTab === 'awaiting' && t.status !== 'Awaiting') return false;
+      if (activeTab === 'refunded' && t.status !== 'Refunded') return false;
       if (methodFilter !== 'ALL' && t.methodType !== methodFilter) return false;
       if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
       if (searchQuery.trim()) {
@@ -357,18 +230,125 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    if (onShowToast) onShowToast('Tally / Zoho Books XML ledger export generated.');
+    if (onShowToast) onShowToast('Ledger XML written. Import it into your accounting package.');
   };
 
   const handleManualRematchSubmit = (e) => {
     e.preventDefault();
     setIsReMatchModalOpen(false);
-    if (onShowToast) onShowToast(`Bank UTR ${reMatchUtr || 'UTR9841220999'} linked to ${selectedTxn.txnCode}. Status updated to Settled.`);
+    if (onShowToast) onShowToast(`${selectedTxn?.txnCode ?? 'This payment'} was not changed; there is no re-match operation.`);
   };
 
   if (isOrdersLoading) {
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={7} label="Loading settlements" />;
   }
+
+
+  const txnColumns = [
+    {
+      key: 'txn',
+      header: 'Transaction ID / Order',
+      cell: (t) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-accent">{t.txnCode}</span>
+          <span className="text-micro text-muted">{t.orderRef}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'customer',
+      header: 'Customer',
+      cell: (t) => (
+        <div className="flex items-center gap-2">
+          <PersonAvatar
+            name={t.customer}
+            initials={t.initials}
+            tone={t.initialsBg}
+            className="h-6 w-6"
+            fallbackClassName="text-micro"
+          />
+          <span className="font-semibold text-primary truncate max-w-[110px]">{t.customer}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'method',
+      header: 'Method',
+      cell: (t) => (
+        <span className="flex min-w-0 items-center gap-1 font-medium text-primary" title={t.method}>
+          <Icon name={t.methodIcon} aria-hidden="true" className={`material-symbols-outlined shrink-0 text-icon ${t.methodColor}`} />
+          <span className="truncate">{t.method}</span>
+        </span>
+      ),
+    },
+    { key: 'gross', header: 'Gross Amount', align: 'right', className: 'font-semibold', accessor: 'gross' },
+    {
+      key: 'reference',
+      header: 'Gateway reference',
+      className: 'whitespace-nowrap',
+      headerClassName: 'whitespace-nowrap',
+      cell: (t) =>
+        t.reference ? (
+          <span className="font-mono text-num text-secondary">{t.reference}</span>
+        ) : (
+          <span className="text-faint">Not recorded</span>
+        ),
+    },
+    {
+      key: 'paidAt',
+      header: 'Paid',
+      className: 'whitespace-nowrap',
+      headerClassName: 'whitespace-nowrap',
+      width: '9rem',
+      cell: (t) =>
+        t.paidAt ?? <span className="whitespace-nowrap text-faint">Not paid</span>,
+    },
+    {
+      key: 'status',
+      header: 'Gateway Status',
+      cell: (t) => (
+        <span
+          className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-micro font-semibold ${t.statusBadge}`}
+        >
+          {t.status}
+        </span>
+      ),
+    },
+    
+    {
+      key: 'action',
+      fit: true,
+      header: 'Action',
+      align: 'center',
+      cell: (t) =>
+        t.status === 'Discrepancy' ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedTxnId(t.id);
+              setIsReMatchModalOpen(true);
+            }}
+            className="p-1 rounded-md text-danger hover:bg-status-danger-bg transition-colors"
+            title="Resolve Discrepancy"
+            type="button"
+          >
+            <Icon name="build" className="material-symbols-outlined text-icon-md" />
+          </button>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedTxnId(t.id);
+            }}
+            className="p-1 rounded-md text-muted hover:text-primary hover:bg-surface-subtle transition-colors"
+            title="View Breakdown"
+            type="button"
+          >
+            <Icon name="visibility" className="material-symbols-outlined text-icon-md" />
+          </button>
+        ),
+    },
+  ];
 
   return (
     <PageContainer>
@@ -406,7 +386,7 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
               type="button"
             >
               <Icon name="download" className="material-symbols-outlined text-icon text-muted" />
-              <span>Export Tally / Zoho XML</span>
+              <span>Export ledger XML</span>
             </Button>
             <Button
               variant="default"
@@ -425,49 +405,37 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
         }
       />
 
-      {/* 5 Top Summary Metric Cards */}
-      <ContentGrid columns={5}>
+      {/* Summed from the payments in the ledger. These read 12.48 crore,
+          84.2 lakh and 312 hubs before, whatever the ledger held, and the
+          gateway fee was a blended MDR rate nothing records. */}
+      <ContentGrid columns={4}>
         <StatsCard
-          title="Settled Funds (MTD)"
-          value="₹12,48,90,400"
+          title="Collected"
+          value={`₹${paymentTotals.collected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
           icon="verified"
           iconColor="text-success"
-          trend="+14.2%"
-          trendType="up"
-          trendLabel="Razorpay, Cashfree, Stripe, PayU"
+          subtitle={`${paymentTotals.paidCount} payments captured`}
         />
         <StatsCard
-          title="In-Transit / Uncleared"
-          value="₹84,20,500"
+          title="Awaiting payment"
+          value={`₹${paymentTotals.awaiting.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
           icon="hourglass_top"
           iconColor="text-info"
-          badge="1,420 Txns"
-          badgeVariant="info"
-          trendLabel="T+2 Settlement Window"
+          subtitle={`${paymentTotals.awaitingCount} orders not yet paid`}
         />
         <StatsCard
-          title="COD Cash-in-Transit"
-          value="₹32,15,000"
+          title="Cash on delivery"
+          value={`₹${paymentTotals.cod.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
           icon="local_shipping"
           iconColor="text-warning"
-          badge="312 Hubs"
-          badgeVariant="warning"
-          trendLabel="BlueDart, Delhivery, SFX"
+          subtitle={`${paymentTotals.codCount} orders to collect on`}
         />
         <StatsCard
-          title="Gateway Fee & MDR"
-          value="₹18,45,210"
-          icon="pie_chart"
-          trendLabel="Blended Rate: 1.48% MDR"
-        />
-        <StatsCard
-          title="Unreconciled Variance"
-          value="₹12,450"
-          icon="warning"
+          title="Refunded"
+          value={`₹${paymentTotals.refunded.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+          icon="currency_exchange"
           iconColor="text-danger"
-          badge="3 Flagged"
-          badgeVariant="destructive"
-          trendLabel="Manual Action Required"
+          subtitle={`${paymentTotals.refundedCount} payments reversed`}
         />
       </ContentGrid>
 
@@ -569,77 +537,39 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
           <div className="w-full xl:flex-1 bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col border border-subtle">
             {/* Table Filter Tabs */}
             <div className="px-4 pt-3 bg-surface-container-lowest flex items-center justify-between overflow-x-auto select-none border-b border-subtle">
-              <div className="flex items-center gap-1 text-meta whitespace-nowrap">
-                <button
-                  onClick={() => setActiveTab('all')}
-                  className={`px-3.5 py-2.5 rounded-lg font-semibold flex items-center gap-2 transition-all ${
- activeTab === 'all'
- ? 'text-accent bg-surface-subtle shadow-xs'
- : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-                  type="button"
-                >
-                  <span>All Transactions</span>
-                  <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed text-micro font-semibold">
-                    42,190
-                  </span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('batches')}
-                  className={`px-3.5 py-2.5 rounded-lg font-semibold flex items-center gap-2 transition-all ${
- activeTab === 'batches'
- ? 'text-accent bg-surface-subtle shadow-xs'
- : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-                  type="button"
-                >
-                  <span>Gateway Batches</span>
-                  <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-micro font-semibold">
-                    18
-                  </span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('cod')}
-                  className={`px-3.5 py-2.5 rounded-lg font-semibold flex items-center gap-2 transition-all ${
- activeTab === 'cod'
- ? 'text-accent bg-surface-subtle shadow-xs'
- : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-                  type="button"
-                >
-                  <span>3PL COD Remittance</span>
-                  <span className="px-2 py-0.5 rounded-full bg-surface-subtle text-muted text-micro font-semibold">
-                    94
-                  </span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('discrepancies')}
-                  className={`px-3.5 py-2.5 rounded-lg font-semibold flex items-center gap-2 transition-all ${
- activeTab === 'discrepancies'
- ? 'text-danger bg-status-danger-bg shadow-xs'
- : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-                  type="button"
-                >
-                  <span>Discrepancies</span>
-                  <span className="px-2 py-0.5 rounded-full bg-status-danger-bg text-danger text-micro font-semibold">
-                    3 Flagged
-                  </span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('disputes')}
-                  className={`px-3.5 py-2.5 rounded-lg font-semibold flex items-center gap-2 transition-all ${
- activeTab === 'disputes'
- ? 'text-warning bg-status-warning-bg shadow-xs'
- : 'text-muted hover:text-primary hover:bg-surface-subtle'
- }`}
-                  type="button"
-                >
-                  <span>Chargebacks</span>
-                  <span className="px-2 py-0.5 rounded-full bg-status-warning-bg text-warning text-micro font-semibold">
-                    8
-                  </span>
-                </button>
+              {/* Counts come from the transactions in hand. They used to read
+                  56, 18, 94, 3 and 8 regardless, and three of the tabs
+                  filtered on statuses a payment never has. */}
+              <div className="flex items-center gap-1 whitespace-nowrap text-meta">
+                {PAYMENT_TABS.map((tab) => {
+                  const count = tabCounts[tab.id] ?? 0;
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex items-center gap-2 rounded-lg px-3.5 py-2.5 font-semibold transition-all ${
+                        isActive
+                          ? 'bg-surface-subtle text-accent shadow-xs'
+                          : 'text-muted hover:bg-surface-subtle hover:text-primary'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-micro font-semibold tabular-nums ${
+                          isActive
+                            ? 'bg-primary-fixed text-on-primary-fixed'
+                            : 'bg-surface-subtle text-muted'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="flex items-center gap-2 pl-3">
@@ -700,254 +630,190 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
               </div>
             </div>
 
-            {/* Table */}
-            <div className="overflow-x-auto scrollbar-thin w-full">
-              <table className="w-full text-left border-collapse min-w-[1020px]">
-                <thead>
-                  <tr className="bg-surface-subtle text-muted text-caption uppercase tracking-wider border-b border-subtle select-none sticky top-0 z-10">
-                    <th className="py-2.5 px-3 whitespace-nowrap">Transaction ID / Order</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Customer</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Method</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Gross Amount</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">MDR + GST</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Net Settled</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Bank UTR / Ref</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Gateway Status</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">Recon Match</th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle text-meta text-primary">
-                  {txnPager.pageRows.map((t) => {
-                    const isSelected = selectedTxnId === t.id;
-                    const isDiscrepancy = t.status === 'Discrepancy';
-                    const isDisputed = t.status === 'Chargeback Hold';
-
-                    return (
-                      <tr
-                        key={t.id}
-                        onClick={() => setSelectedTxnId(t.id)}
-                        className={`hover:bg-surface-subtle/70 transition-colors cursor-pointer ${
- isSelected
- ? 'bg-primary-fixed/20'
- : isDiscrepancy
- ? 'bg-status-danger-bg/25'
- : isDisputed
- ? 'bg-status-warning-bg/20'
- : ''
- }`}
-                      >
-                        <td className="py-2.5 px-3">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-accent">{t.txnCode}</span>
-                            <span className="text-micro text-muted">{t.orderRef}</span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold text-micro ${t.initialsBg}`}>
-                              {t.initials}
-                            </div>
-                            <span className="font-semibold text-primary truncate max-w-[110px]">{t.customer}</span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className="flex min-w-0 items-center gap-1 font-medium text-primary" title={t.method}>
-                            <Icon name={t.methodIcon} aria-hidden="true" className={`material-symbols-outlined shrink-0 text-icon ${t.methodColor}`} />
-                            <span className="truncate">{t.method}</span>
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-semibold">{t.gross}</td>
-                        <td className="py-2.5 px-3 text-right text-muted font-medium">{t.mdr}</td>
-                        <td className="py-2.5 px-3 text-right font-semibold text-success">{t.net}</td>
-                        <td className="py-2.5 px-3">
-                          <span
-                            className={`font-mono text-micro px-1.5 py-0.5 rounded ${
- t.utr === 'MISSING_UTR'
- ? 'bg-status-danger-bg text-danger font-semibold'
- : 'bg-surface-subtle text-muted border border-subtle'
- }`}
-                          >
-                            {t.utr}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-micro font-semibold ${t.statusBadge}`}>
-                            {t.status}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-semibold ${t.reconBadge}`}>
-                            <Icon name={t.reconIcon} className="material-symbols-outlined text-icon-sm" />
-                            {t.reconMatch}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          {isDiscrepancy ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTxnId(t.id);
-                                setIsReMatchModalOpen(true);
-                              }}
-                              className="p-1 rounded-md text-danger hover:bg-status-danger-bg transition-colors"
-                              title="Resolve Discrepancy"
-                              type="button"
-                            >
-                              <Icon name="build" className="material-symbols-outlined text-icon-md" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTxnId(t.id);
-                              }}
-                              className="p-1 rounded-md text-muted hover:text-primary hover:bg-surface-subtle transition-colors"
-                              title="View Breakdown"
-                              type="button"
-                            >
-                              <Icon name="visibility" className="material-symbols-outlined text-icon-md" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <TablePagination
-              currentPage={txnPager.page}
-              pageSize={txnPager.limit}
-              totalItems={txnPager.total}
-              onPageChange={txnPager.setPage}
-              onPageSizeChange={txnPager.setLimit}
+            <DataTable
+              data={txnPager.pageRows}
+              columns={txnColumns}
+              keyField="id"
+              className="min-w-[1020px]"
+              containerClassName="border-0 bg-transparent shadow-none rounded-none"
+              activeRowId={selectedTxnId}
+              onRowClick={(t) => setSelectedTxnId(t.id)}
+              rowClassName={(t) =>
+                t.status === 'Discrepancy'
+                  ? 'bg-status-danger-bg/25'
+                  : t.status === 'Chargeback Hold'
+                  ? 'bg-status-warning-bg/20'
+                  : ''
+              }
+              emptyIcon="account_balance"
+              emptyTitle="No transactions in this window"
+              emptyMessage="No settlement matches the current search, method or status filter."
+              pagination={{
+                page: txnPager.page,
+                pageSize: txnPager.limit,
+                totalItems: txnPager.total,
+                onPageChange: txnPager.setPage,
+                onPageSizeChange: txnPager.setLimit,
+              }}
             />
           </div>
 
-          {/* Right Side: Detailed Settlement Breakdown Drawer (Sticky) */}
-          <div className="w-full xl:w-[410px] shrink-0 bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden sticky top-20 border border-subtle">
-            <div className="p-4 bg-surface-container-low flex items-center justify-between border-b border-subtle">
-              <div className="flex items-center gap-2">
-                <Icon name="receipt_long" className="material-symbols-outlined text-icon-lg text-accent" />
-                <span className="text-body font-semibold text-primary">Detailed Settlement Breakdown</span>
-              </div>
-              <span className={`px-2 py-0.5 rounded-full text-micro font-semibold ${selectedTxn.statusBadge}`}>
-                {selectedTxn.status.toUpperCase()}
-              </span>
-            </div>
-
-            <div className="p-4 space-y-4">
-              <div className="flex items-center justify-between bg-surface-subtle p-3 rounded-lg border border-subtle">
-                <div className="flex flex-col">
-                  <span className="text-caption text-muted uppercase">CURRENT SELECTION</span>
-                  <span className="text-heading font-semibold text-primary mt-0.5">{selectedTxn.txnCode}</span>
-                  <span className="text-meta text-muted font-medium">Order: {selectedTxn.orderRef}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-caption text-muted uppercase">NET DEPOSITED</span>
-                  <div className="text-kpi-sm font-semibold text-success mt-0.5">{selectedTxn.net}</div>
-                </div>
-              </div>
-
-              {/* Financial Split & Deductions */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-muted text-micro font-semibold tracking-wider">
-                  <span>FINANCIAL SPLIT &amp; DEDUCTIONS</span>
-                  <span>STATUTORY GST (18%)</span>
-                </div>
-                <div className="space-y-2 text-meta">
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-muted font-medium">Cart Gross Total (Customer Paid)</span>
-                    <span className="font-semibold text-primary">{selectedTxn.gross}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-muted font-medium">Gateway MDR Base Rate (1.00%)</span>
-                    <span className="font-semibold text-danger">{selectedTxn.mdrBase}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-muted font-medium">Integrated GST on MDR (18.0%)</span>
-                    <span className="font-semibold text-danger">{selectedTxn.gstOnMdr}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-muted font-medium">Everwear Platform Processing</span>
-                    <span className="font-semibold text-primary">₹0.00 (Waived)</span>
-                  </div>
-                  <div className="pt-2 flex justify-between items-center font-semibold bg-surface-subtle px-2.5 py-1.5 rounded-lg border border-subtle">
-                    <span className="text-primary">Net Bank Credit Amount</span>
-                    <span className="text-success text-body">{selectedTxn.net}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Banking & Batch Telemetry */}
-              <div className="p-3 bg-surface-subtle/70 rounded-lg space-y-2 border border-subtle">
-                <div className="flex items-center justify-between">
-                  <span className="text-caption text-muted uppercase">
-                    BANKING &amp; BATCH TELEMETRY
-                  </span>
-                  <Icon name="account_balance" className="material-symbols-outlined text-icon text-success" />
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-meta">
-                  <div>
-                    <span className="text-micro text-muted block font-semibold">SETTLEMENT BATCH</span>
-                    <span className="font-mono text-meta font-semibold text-accent whitespace-nowrap">{selectedTxn.batch}</span>
-                  </div>
-                  <div>
-                    <span className="text-micro text-muted block font-semibold">GATEWAY SOURCE</span>
-                    <span className="font-semibold text-primary">{selectedTxn.source}</span>
-                  </div>
-                  <div>
-                    <span className="text-micro text-muted block font-semibold">BANK UTR NUMBER</span>
-                    <span className="font-mono text-meta font-medium text-primary whitespace-nowrap">{selectedTxn.utr}</span>
-                  </div>
-                  <div>
-                    <span className="text-micro text-muted block font-semibold">CREDIT ACCOUNT</span>
-                    <span className="font-mono text-meta font-medium text-primary whitespace-nowrap">{selectedTxn.account}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Audit Trail & Compliance Timestamp */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-caption text-muted uppercase">
-                    AUDIT TRAIL &amp; COMPLIANCE TIMESTAMP
-                  </span>
-                  <span className="text-micro font-semibold text-success">VERIFIED LOG</span>
-                </div>
-                <div className="space-y-3 relative pl-3.5 before:absolute before:left-1 before:top-1.5 before:bottom-1.5 before:w-0.5 before:bg-border-subtle">
-                  {selectedTxn.timeline.map((item, idx) => (
-                    <div key={idx} className="relative">
-                      <div className={`absolute -left-[13px] top-1.5 w-2 h-2 rounded-full ${item.color}`}></div>
-                      <div className="text-meta font-semibold text-primary">{item.title}</div>
-                      <div className="text-micro text-muted">{item.time}</div>
+          {/* The drawer used to show an MDR split, a net settled figure, a
+              settlement batch, a gateway node and a bank account. None of
+              those exist on a payment: the MDR was a 1.2% rate applied in the
+              browser and the rest were fixed strings. */}
+          <div className="w-full shrink-0 xl:w-[410px]">
+            {!selectedTxn ? (
+              <EmptyState
+                icon="account_balance_wallet"
+                title="No payment selected"
+                description="Pick a payment from the ledger to see its detail."
+              />
+            ) : (
+              <div className="sticky top-20 flex flex-col gap-space-md">
+                <SectionCard
+                  title={selectedTxn.txnCode}
+                  description={`Order ${selectedTxn.orderRef}`}
+                  action={
+                    <span
+                      className={`whitespace-nowrap rounded-full px-2 py-0.5 text-micro font-semibold ${selectedTxn.statusBadge}`}
+                    >
+                      {selectedTxn.status}
+                    </span>
+                  }
+                >
+                  <dl className="flex flex-col gap-space-sm">
+                    <div className="flex items-center justify-between gap-space-md">
+                      <dt className="text-meta text-muted">Customer</dt>
+                      <dd className="text-body text-primary">{selectedTxn.customer}</dd>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div className="flex items-center justify-between gap-space-md">
+                      <dt className="text-meta text-muted">Method</dt>
+                      <dd className="text-body text-primary">{selectedTxn.method}</dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-space-md">
+                      <dt className="text-meta text-muted">Amount</dt>
+                      <dd className="text-num font-semibold tabular-nums text-primary">
+                        {selectedTxn.gross}
+                      </dd>
+                    </div>
+                    {selectedTxn.refunded > 0 && (
+                      <div className="flex items-center justify-between gap-space-md">
+                        <dt className="text-meta text-muted">Refunded</dt>
+                        <dd className="text-num font-semibold tabular-nums text-danger">
+                          ₹{selectedTxn.refunded.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </dd>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-space-md">
+                      <dt className="text-meta text-muted">Paid</dt>
+                      <dd className="text-body text-primary">
+                        {selectedTxn.paidAt ?? <span className="text-faint">Not paid yet</span>}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-space-md">
+                      <dt className="text-meta text-muted">Gateway reference</dt>
+                      <dd className="font-mono text-num text-secondary">
+                        {selectedTxn.reference ?? <span className="text-faint">Not recorded</span>}
+                      </dd>
+                    </div>
+                  </dl>
+                </SectionCard>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex items-center gap-2">
-                <button
-                  onClick={() => onShowToast && onShowToast(`Tax Invoice PDF compiled for ${selectedTxn.txnCode}.`)}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-surface-subtle hover:bg-border-subtle text-primary text-meta font-semibold transition-colors border border-subtle cursor-pointer"
-                  type="button"
-                >
-                  <Icon name="receipt" className="material-symbols-outlined text-icon" />
-                  <span>Tax Invoice</span>
-                </button>
-                <button
-                  onClick={() => setIsReMatchModalOpen(true)}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-primary-container text-on-accent hover:bg-primary-container-hover text-meta font-semibold transition-colors shadow-sm cursor-pointer"
-                  type="button"
-                >
-                  <Icon name="rule" className="material-symbols-outlined text-icon" />
-                  <span>Manual Re-Match</span>
-                </button>
+                {selectedTxn.totals && (
+                  <SectionCard title="Amount breakdown">
+                    <dl className="flex flex-col gap-space-sm">
+                      {[
+                        ['Items', selectedTxn.totals.itemSubtotal],
+                        ['Discount', -(selectedTxn.totals.discountTotal ?? 0)],
+                        ['Shipping', selectedTxn.totals.shippingTotal],
+                        ['Tax', selectedTxn.totals.taxTotal],
+                      ]
+                        .filter(([, v]) => v)
+                        .map(([label, value]) => (
+                          <div key={label} className="flex items-center justify-between gap-space-md">
+                            <dt className="text-meta text-muted">{label}</dt>
+                            <dd
+                              className={`text-num tabular-nums ${value < 0 ? 'text-success' : 'text-secondary'}`}
+                            >
+                              {formatMoney(value, 'inr')}
+                            </dd>
+                          </div>
+                        ))}
+                      <div className="flex items-center justify-between gap-space-md border-t border-subtle pt-space-sm">
+                        <dt className="text-meta font-semibold text-primary">Total</dt>
+                        <dd className="text-num font-semibold tabular-nums text-primary">
+                          {formatMoney(selectedTxn.totals.total ?? 0, 'inr')}
+                        </dd>
+                      </div>
+                    </dl>
+                  </SectionCard>
+                )}
+
+                {selectedTxn.lines?.length > 0 && (
+                  <SectionCard title={`Paid for (${selectedTxn.lines.length})`}>
+                    <ul className="flex flex-col gap-space-sm">
+                      {selectedTxn.lines.map((line) => (
+                        <li key={line.id} className="flex items-start justify-between gap-space-md">
+                          <div className="flex min-w-0 flex-col">
+                            <span className="truncate text-body text-primary" title={line.title}>
+                              {line.title}
+                            </span>
+                            <span className="text-meta text-muted">
+                              {line.variant} / {line.quantity} pc{line.quantity === 1 ? '' : 's'}
+                            </span>
+                          </div>
+                          <span className="shrink-0 text-num tabular-nums text-secondary">
+                            {formatMoney(line.total, 'inr')}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </SectionCard>
+                )}
+
+                {selectedTxn.refunds?.length > 0 && (
+                  <SectionCard title={`Refunds (${selectedTxn.refunds.length})`}>
+                    <ul className="flex flex-col gap-space-sm">
+                      {selectedTxn.refunds.map((refund) => (
+                        <li key={refund.id} className="flex items-start justify-between gap-space-md">
+                          <div className="flex min-w-0 flex-col">
+                            <span className="text-body text-primary">{refund.reason}</span>
+                            <span className="text-meta text-muted">
+                              {new Date(refund.createdAt).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          </div>
+                          <span className="shrink-0 text-num tabular-nums text-danger">
+                            {formatMoney(refund.amount, 'inr')}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </SectionCard>
+                )}
+
+                <SectionCard title="History">
+                  <ol className="flex flex-col gap-space-sm">
+                    {(selectedTxn.timeline ?? []).map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span
+                          aria-hidden="true"
+                          className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.color}`}
+                        />
+                        <div className="flex min-w-0 flex-col">
+                          <span className="text-body text-primary">{item.title}</span>
+                          <span className="text-meta text-muted">{item.time}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </SectionCard>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -1013,9 +879,6 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-body font-semibold text-primary">Direct ERP Ingestion</h3>
-                <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-info text-micro font-semibold">
-                  ZOHO BOOKS V4
-                </span>
               </div>
               <p className="text-meta text-muted mb-3">
                 Push journal entries for gross sales, payment processor fee ledger, and credit note offsets directly to corporate books.
@@ -1028,13 +891,6 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
                     <span className="text-micro text-muted">Day closing snapshot enabled</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => onShowToast && onShowToast('Ledger sync batch pushed to Zoho Books API successfully.')}
-                  className="px-2.5 py-1 rounded-lg bg-surface-container-lowest text-primary hover:bg-border-subtle text-meta font-semibold border border-subtle transition-colors cursor-pointer"
-                  type="button"
-                >
-                  Push Now
-                </button>
               </div>
             </div>
             <div className="mt-4 pt-3 flex items-center justify-between text-micro text-muted border-t border-surface-subtle">

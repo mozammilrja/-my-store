@@ -228,9 +228,15 @@ describe("orders", () => {
     assert.equal((await call("GET", `/admin/orders?from=${later}&to=${earlier}`)).status, 400)
   })
 
-  test("dashboard reports revenue and work to do", async () => {
+  test("dashboard reports one operating region's revenue and work to do", async () => {
     const { body } = await call("GET", "/admin/dashboard")
-    assert.ok(body.revenue.some((r: Json) => r.currency === "eur" && r.orders >= 1))
+    // One region is operated, so revenue is a single figure rather than a
+    // per-currency comparison, and it is reported in that region's currency.
+    assert.equal(typeof body.currency, "string")
+    assert.equal(body.region.currency, body.currency)
+    assert.equal(typeof body.revenue.total, "number")
+    assert.ok(body.revenue.orders >= 1)
+    assert.ok(body.daily.every((d: Json) => typeof d.day === "string"))
     assert.equal(typeof body.attention.toShip, "number")
   })
 })

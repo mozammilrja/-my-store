@@ -171,6 +171,9 @@ export default {
       },
       fontSize: {
         // role            px   line-height   weight
+        // The one figure a screen leads with. Sits above "display" because a
+        // headline number is the subject here, not a label for one.
+        "figure":    ["36px", { lineHeight: "40px", letterSpacing: "-0.03em", fontWeight: "600" }],
         "display":   ["28px", { lineHeight: "34px", letterSpacing: "-0.02em", fontWeight: "600" }],
         "title":     ["22px", { lineHeight: "28px", letterSpacing: "-0.015em", fontWeight: "600" }],
         "kpi":       ["24px", { lineHeight: "30px", letterSpacing: "-0.02em", fontWeight: "600" }],

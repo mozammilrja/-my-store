@@ -4,6 +4,7 @@ import { z } from "zod"
 import { db, type CustomerDoc, type PromotionDoc } from "../../db/schema.js"
 import { conflict, notFound } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
+import { assetUrl } from "../../lib/serialize.js"
 import { toAdminOrder } from "./orders.js"
 
 const handle = z.string().regex(/^[a-z0-9][a-z0-9-]{0,99}$/, "Use lowercase letters, numbers and dashes")
@@ -28,23 +29,66 @@ const toAdminCustomer = (c: CustomerDoc, orders?: { count: number; spent: { curr
 
 adminStoreRoutes.get("/customers", async (req, res) => {
   const q = z
-    .object({ q: z.string().trim().max(100).optional(), page: z.coerce.number().int().min(1).max(1000).default(1), limit: z.coerce.number().int().min(1).max(100).default(25) })
+    .object({
+      q: z.string().trim().max(100).optional(),
+      /**
+       * How many orders the customer has placed. The admin's segment pills
+       * filtered on this client-side over one page, so a segment whose members
+       * were all on page two came back empty.
+       */
+      segment: z.enum(["all", "repeat", "ordered", "none"]).default("all"),
+      /** Matches the city on any address the customer has on file. */
+      city: z.string().trim().max(80).optional(),
+      page: z.coerce.number().int().min(1).max(1000).default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(25),
+    })
     .parse(req.query)
   const filter: Filter<CustomerDoc> = q.q
     ? { $or: [{ email: { $regex: escape(q.q), $options: "i" } }, { firstName: { $regex: escape(q.q), $options: "i" } }, { lastName: { $regex: escape(q.q), $options: "i" } }] }
     : {}
+
+  // One pass over the orders gives both the segment filter and the counts the
+  // pills show, so neither is limited to the page being displayed.
+  const perCustomer = await db
+    .orders()
+    .aggregate<{ _id: string; count: number }>([
+      { $match: { customerId: { $ne: null }, status: { $ne: "canceled" } } },
+      { $group: { _id: "$customerId", count: { $sum: 1 } } },
+    ])
+    .toArray()
+  const ordersBy = new Map(perCustomer.map((s) => [s._id, s.count]))
+  // A repeat buyer is one who came back: more than a single order.
+  const repeatIds = perCustomer.filter((s) => s.count > 1).map((s) => s._id)
+  const onceIds = perCustomer.filter((s) => s.count === 1).map((s) => s._id)
+  const anyIds = perCustomer.filter((s) => s.count > 0).map((s) => s._id)
+
+  if (q.city) filter["addresses.city"] = q.city
+  if (q.segment === "repeat") filter._id = { $in: repeatIds }
+  else if (q.segment === "ordered") filter._id = { $in: onceIds }
+  else if (q.segment === "none") filter._id = { $nin: anyIds }
+
+  // Segment sizes describe the whole customer base, not the current search,
+  // so all four counts are measured the same way and always add up.
+  const totalCustomers = await db.customers().countDocuments({})
+  // The cities actually on file, so the region picker cannot offer a choice
+  // that returns nothing.
+  const cities = (await db.customers().distinct("addresses.city")).filter(Boolean).sort()
+  const segmentCounts = {
+    all: totalCustomers,
+    repeat: repeatIds.length,
+    ordered: onceIds.length,
+    none: Math.max(0, totalCustomers - anyIds.length),
+  }
+
   const [customers, count] = await Promise.all([
     db.customers().find(filter, { projection: { passwordHash: 0 }, sort: { createdAt: -1 }, skip: (q.page - 1) * q.limit, limit: q.limit }).toArray(),
     db.customers().countDocuments(filter),
   ])
-  const stats = await db
-    .orders()
-    .aggregate<{ _id: string; count: number }>([{ $match: { customerId: { $in: customers.map((x) => x._id) }, status: { $ne: "canceled" } } }, { $group: { _id: "$customerId", count: { $sum: 1 } } }])
-    .toArray()
-  const countBy = new Map(stats.map((s) => [s._id, s.count]))
   res.json({
-    customers: customers.map((x) => ({ ...toAdminCustomer(x), orderCount: countBy.get(x._id) ?? 0 })),
+    customers: customers.map((x) => ({ ...toAdminCustomer(x), orderCount: ordersBy.get(x._id) ?? 0 })),
     count,
+    segmentCounts,
+    cities,
     page: q.page,
     pages: Math.max(1, Math.ceil(count / q.limit)),
   })
@@ -153,7 +197,9 @@ adminStoreRoutes.get("/categories", async (_req, res) => {
       handle: c.handle,
       name: c.name,
       description: c.description ?? null,
+      parentId: c.parentId ?? null,
       productCount: countBy.get(c._id) ?? 0,
+      updatedAt: c.updatedAt ?? null,
     })),
   })
 })
@@ -184,21 +230,49 @@ adminStoreRoutes.delete("/categories/:id", async (req, res) => {
 
 adminStoreRoutes.get("/collections", async (_req, res) => {
   const collections = await db.collections().find({}, { sort: { title: 1 } }).toArray()
-  const counts = await db
+  // The merchandising list shows a thumbnail, a SKU count, a price range and
+  // stock for each drop. Those are all facts about the products in it, so they
+  // are summarised here rather than left for the browser to invent.
+  const products = await db
     .products()
-    .aggregate<{ _id: string; count: number }>([
-      { $match: { collectionId: { $ne: null } } },
-      { $group: { _id: "$collectionId", count: { $sum: 1 } } },
-    ])
+    .find(
+      { collectionId: { $ne: null } },
+      { projection: { collectionId: 1, thumbnail: 1, images: 1, variants: 1, status: 1, updatedAt: 1 } }
+    )
     .toArray()
-  const countBy = new Map(counts.map((c) => [c._id, c.count]))
+
+  const byCollection = new Map<string, typeof products>()
+  for (const p of products) {
+    const key = p.collectionId!
+    const list = byCollection.get(key) ?? []
+    list.push(p)
+    byCollection.set(key, list)
+  }
+
   res.json({
-    collections: collections.map((c) => ({
-      id: c._id,
-      handle: c.handle,
-      title: c.title,
-      productCount: countBy.get(c._id) ?? 0,
-    })),
+    collections: collections.map((c) => {
+      const owned = byCollection.get(c._id) ?? []
+      const variants = owned.flatMap((p) => p.variants ?? [])
+      const prices = variants.map((v) => v.prices?.inr).filter((n): n is number => typeof n === "number")
+      const hero = owned.find((p) => p.thumbnail || p.images?.[0])
+      const image = hero?.thumbnail ?? hero?.images?.[0] ?? null
+      return {
+        id: c._id,
+        handle: c.handle,
+        title: c.title,
+        productCount: owned.length,
+        variantCount: variants.length,
+        publishedCount: owned.filter((p) => p.status === "published").length,
+        stock: variants.reduce((n, v) => n + (v.manageInventory ? v.stock : 0), 0),
+        priceRange: prices.length ? { min: Math.min(...prices), max: Math.max(...prices) } : null,
+        thumbnail: image ? assetUrl(image) : null,
+        updatedAt:
+          owned.reduce<Date | null>(
+            (latest, p) => (!latest || p.updatedAt > latest ? p.updatedAt : latest),
+            null
+          ) ?? c.updatedAt,
+      }
+    }),
   })
 })
 

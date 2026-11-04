@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogContent,
+  DialogBody,
   DialogFooter,
   Alert,
   PageContainer,
@@ -32,18 +33,12 @@ import {
   TablePagination,
 } from '../ui';
 import { useClientTable } from '../../hooks/useClientTable';
-import {
-  INITIAL_GST_METRICS,
-  INITIAL_GST_INVOICES,
-  INITIAL_HSN_MASTER,
-  INITIAL_CREDIT_NOTES,
-  INITIAL_EWAY_BILLS
-} from '../../data/mockData';
+import { DataTable } from '../shared/DataTable';
 import { adminApi } from '../../lib/api';
-import { useInvoicesQuery } from '../../hooks/useAdminQueries';
+import { useInvoicesQuery, useCreditNotesQuery } from '../../hooks/useAdminQueries';
 
 export default function GstInvoiceManagement({ currentHub, onShowToast }) {
-  const [invoices, setInvoices] = useState(INITIAL_GST_INVOICES);
+  const [invoices, setInvoices] = useState([]);
 
   // TanStack Query for GST invoices
   const {
@@ -53,37 +48,139 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
     error: invoicesError,
     refetch: refetchInvoices,
   } = useInvoicesQuery();
+  const { data: creditNotesData, isLoading: isCreditNotesLoading } = useCreditNotesQuery();
+  const creditNotes = creditNotesData?.creditNotes ?? [];
+
+  // The register is the invoices the API holds. Field names here are the ones
+  // the table below reads; the mapper used to emit taxableValue/invoiceTotal
+  // while the markup read taxableVal/total, so every real row rendered
+  // undefined and crashed the module.
+  const formatAddress = (a) =>
+    a
+      ? [a.address1, a.address2, a.city, a.province, a.postalCode].filter(Boolean).join(', ')
+      : 'Not recorded';
+
+  const invoiceRows = useMemo(() => {
+    const paise = (n) => Math.round((Number(n) || 0) / 100);
+    return (invoicesData?.invoices ?? []).map((inv) => {
+      const issued = inv.issuedAt ? new Date(inv.issuedAt) : null;
+      const isIgst = (inv.igstTotal ?? 0) > 0;
+      // GST rate is carried per line; the register shows the slab actually charged.
+      const slabs = [...new Set((inv.items ?? []).map((i) => i.gstRate).filter((r) => r != null))];
+      const hsnCodes = [...new Set((inv.items ?? []).map((i) => i.hsn).filter(Boolean))];
+      return {
+        id: inv._id ?? inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        dateTime: issued
+          ? issued.toLocaleString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : 'Not issued',
+        issuedAt: issued,
+        // Month the invoice falls in, which is the unit a GST return is filed by.
+        period: issued
+          ? issued.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+          : 'Not issued',
+        orderRef: `EVR-${inv.displayId}`,
+        customer: inv.customerName ?? 'Guest',
+        customerGstin: inv.customerGstin || 'Unregistered',
+        state: inv.shippingAddress?.province ?? 'Unknown',
+        posBadge: isIgst ? 'Inter-state (IGST)' : 'Intra-state (CGST + SGST)',
+        type: isIgst ? 'IGST' : 'CGST / SGST',
+        slab: slabs.length === 1 ? `${slabs[0]}%` : slabs.length ? 'Mixed' : '-',
+        hsnCode: hsnCodes[0] ?? '-',
+        hsnSummary: hsnCodes.join(', ') || '-',
+        taxableVal: paise(inv.subtotal),
+        cgst: paise(inv.cgstTotal),
+        sgst: paise(inv.sgstTotal),
+        igst: paise(inv.igstTotal),
+        totalTax: paise((inv.cgstTotal ?? 0) + (inv.sgstTotal ?? 0) + (inv.igstTotal ?? 0)),
+        total: paise(inv.grandTotal),
+        status: inv.status,
+        // Named as the line-item table below reads them, in rupees.
+        items: (inv.items ?? []).map((item, idx) => {
+          const taxAmt = paise((item.cgst ?? 0) + (item.sgst ?? 0) + (item.igst ?? 0));
+          const taxable = paise(item.taxableValue);
+          return {
+            id: `${inv._id ?? inv.id}-${idx}`,
+            desc: item.name ?? 'Item',
+            hsn: item.hsn ?? '-',
+            qty: item.quantity ?? 1,
+            taxable,
+            rate: `${item.gstRate ?? 0}%`,
+            taxAmt,
+            total: taxable + taxAmt,
+          };
+        }),
+        isIntra: !isIgst,
+        customerDetail: {
+          name: inv.customerName ?? 'Guest',
+          address: formatAddress(inv.billingAddress),
+          gstin: inv.customerGstin || 'Unregistered',
+        },
+        shipping: {
+          posState: inv.shippingAddress?.province
+            ? `${inv.shippingAddress.province} (PIN ${inv.shippingAddress.postalCode ?? '-'})`
+            : 'Not recorded',
+          address: formatAddress(inv.shippingAddress),
+        },
+      };
+    });
+  }, [invoicesData]);
 
   useEffect(() => {
-    if (invoicesData?.invoices?.length) {
-      const live = invoicesData.invoices.map(inv => ({
-        id: inv._id,
-        invoiceNo: inv.invoiceNumber,
-        date: new Date(inv.issuedAt).toLocaleDateString(),
-        orderId: `EVR-${inv.displayId}`,
-        customer: inv.customerName,
-        customerGstin: inv.customerGstin || 'Unregistered',
-        placeOfSupply: `${inv.shippingAddress?.city || 'Karnataka'} (${inv.shippingAddress?.postalCode?.slice(0, 2) || '29'})`,
-        taxableValue: Math.round(inv.subtotal / 100),
-        cgst: Math.round(inv.cgstTotal / 100),
-        sgst: Math.round(inv.sgstTotal / 100),
-        igst: Math.round(inv.igstTotal / 100),
-        totalTax: Math.round((inv.cgstTotal + inv.sgstTotal + inv.igstTotal) / 100),
-        invoiceTotal: Math.round(inv.grandTotal / 100),
-        status: inv.status === 'paid' ? 'Active' : 'Generated',
-        ewayBillStatus: 'Not Required (< ₹50k)',
-        ewayBillNo: null,
-        irnStatus: 'Auto-Generated',
-        hsnSummary: inv.items?.map(i => i.hsn).join(', ') || '6204',
-      }));
-      setInvoices(prev => [...live, ...prev.filter(p => !live.some(l => l.invoiceNo === p.invoiceNo))]);
+    setInvoices(invoiceRows);
+  }, [invoiceRows]);
+
+  /**
+   * HSN-wise summary, built from the invoice lines. The tab used to show a
+   * fixed rate card for apparel chapters with invented SKU counts, which told
+   * the operator nothing about what had actually been billed.
+   */
+  const hsnSummary = useMemo(() => {
+    const byKey = new Map();
+    for (const invoice of invoiceRows) {
+      for (const item of invoice.items) {
+        const key = `${item.hsn}|${item.rate}`;
+        const row = byKey.get(key) ?? {
+          hsn: item.hsn, rate: item.rate, qty: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0,
+        };
+        const share = item.taxable > 0 ? item.taxable / (invoice.taxableVal || item.taxable) : 0;
+        row.qty += item.qty;
+        row.taxable += item.taxable;
+        row.cgst += Math.round(invoice.cgst * share);
+        row.sgst += Math.round(invoice.sgst * share);
+        row.igst += Math.round(invoice.igst * share);
+        row.total = row.taxable + row.cgst + row.sgst + row.igst;
+        byKey.set(key, row);
+      }
     }
-  }, [invoicesData]);
-  const [activeTab, setActiveTab] = useState('invoices'); // invoices, hsn, credit-notes, eway-bills, reconciliation
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState('inv-gst-1');
+    return [...byKey.values()].sort((a, b) => b.taxable - a.taxable);
+  }, [invoiceRows]);
+
+  /** Register totals, summed from the invoices on hand. */
+  const gstTotals = useMemo(() => {
+    const sum = (key) => invoiceRows.reduce((n, r) => n + (r[key] ?? 0), 0);
+    return {
+      count: invoiceRows.length,
+      taxable: sum('taxableVal'),
+      totalTax: sum('totalTax'),
+      cgst: sum('cgst'),
+      sgst: sum('sgst'),
+      igst: sum('igst'),
+      intraCount: invoiceRows.filter((r) => r.igst === 0).length,
+      interCount: invoiceRows.filter((r) => r.igst > 0).length,
+    };
+  }, [invoiceRows]);
+  const [activeTab, setActiveTab] = useState('invoices'); // invoices, hsn, credit-notes
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
 
   // Filters
-  const [selectedPeriod, setSelectedPeriod] = useState('May 2024');
+  const [selectedPeriod, setSelectedPeriod] = useState('all');
   const [selectedState, setSelectedState] = useState('all');
   const [selectedHsn, setSelectedHsn] = useState('all');
   const [selectedSlab, setSelectedSlab] = useState('all');
@@ -91,7 +188,6 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
   // Modals
   const [isManualInvoiceModalOpen, setIsManualInvoiceModalOpen] = useState(false);
-  const [isEwayModalOpen, setIsEwayModalOpen] = useState(false);
 
   // Manual Invoice Form State
   const [manualForm, setManualForm] = useState({
@@ -108,24 +204,34 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
     slab: '12%'
   });
 
-  // E-way bill form state
-  const [ewayForm, setEwayForm] = useState({
-    invoiceNumber: 'INV-2024-058912',
-    transporter: 'BlueDart Express (BLURAY)',
-    vehicleNo: 'KA-04-MA-9921',
-    distanceKm: '380',
-    toState: 'Tamil Nadu (33)'
-  });
 
   const selectedInvoice = useMemo(() => {
     return invoices.find(inv => inv.id === selectedInvoiceId) || invoices[0];
   }, [invoices, selectedInvoiceId]);
 
+  /**
+   * Every choice each filter offers, taken from the register itself. The lists
+   * here were fixed: three 2024 financial periods, four states and three HSN
+   * chapters written as `620442`-style codes while an invoice carries
+   * `6204.49.00`. Picking an HSN chapter could therefore never match a row, so
+   * the table emptied; the period control was not read at all.
+   */
+  const filterOptions = useMemo(() => {
+    const uniq = (values) => [...new Set(values.filter(Boolean))].sort();
+    return {
+      periods: uniq(invoices.map((inv) => inv.period)),
+      states: uniq(invoices.map((inv) => inv.state)),
+      hsnCodes: uniq(invoices.flatMap((inv) => (inv.items ?? []).map((item) => item.hsn))),
+      slabs: uniq(invoices.map((inv) => inv.slab)),
+    };
+  }, [invoices]);
+
   // Filtered Invoices
   const filteredInvoices = useMemo(() => {
     return invoices.filter(inv => {
+      if (selectedPeriod !== 'all' && inv.period !== selectedPeriod) return false;
       if (selectedState !== 'all' && inv.state.toLowerCase() !== selectedState.toLowerCase()) return false;
-      if (selectedHsn !== 'all' && inv.hsnCode !== selectedHsn) return false;
+      if (selectedHsn !== 'all' && !(inv.items ?? []).some((item) => item.hsn === selectedHsn)) return false;
       if (selectedSlab !== 'all' && inv.slab !== selectedSlab) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -137,7 +243,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       }
       return true;
     });
-  }, [invoices, selectedState, selectedHsn, selectedSlab, searchQuery]);
+  }, [invoices, selectedPeriod, selectedState, selectedHsn, selectedSlab, searchQuery]);
 
   // One shared pager over the rows this module actually holds.
   const invoicesPager = useClientTable(filteredInvoices);
@@ -172,14 +278,20 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
           }))
         }]
       })),
+      // The HSN section is summarised from the invoice lines being filed,
+      // not from a fixed rate card that had nothing to do with them.
       hsn: {
-        data: INITIAL_HSN_MASTER.map((h, idx) => ({
+        data: hsnSummary.map((row, idx) => ({
           num: idx + 1,
-          hsn_sc: h.code,
-          desc: h.description,
+          hsn_sc: row.hsn,
           uqc: 'PCS',
-          rt: Number(h.rate.replace('%', ''))
-        }))
+          qty: row.qty,
+          rt: Number(String(row.rate).replace('%', '')),
+          txval: row.taxable,
+          camt: row.cgst,
+          samt: row.sgst,
+          iamt: row.igst,
+        })),
       }
     };
 
@@ -289,14 +401,6 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
     if (onShowToast) onShowToast(`Created Tax Invoice ${newInv.invoiceNumber} for ₹${total}`);
   };
 
-  const handleGenerateEwayBill = (e) => {
-    e.preventDefault();
-    setIsEwayModalOpen(false);
-    if (onShowToast) {
-      onShowToast(`E-Way Bill EWB-${Math.floor(100000000000 + Math.random() * 900000000000)} generated with NIC Portal.`);
-    }
-  };
-
   const copyToClipboard = (text, label) => {
     navigator.clipboard.writeText(text);
     if (onShowToast) onShowToast(`${label} copied to clipboard!`);
@@ -305,6 +409,42 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
   if (isInvoicesLoading) {
     return <SkeletonPage variant="table" stats={6} statsCols={6} columns={8} label="Loading tax invoices" />;
   }
+
+
+  const lineItemColumns = [
+    {
+      key: 'desc',
+      header: 'Description & HSN',
+      cell: (item) => (
+        <>
+          <div className="line-clamp-2 font-medium text-primary">{item.desc}</div>
+          <div className="text-micro text-muted font-mono whitespace-nowrap">HSN: {item.hsn}</div>
+        </>
+      ),
+    },
+    { key: 'qty', fit: true, header: 'Qty', align: 'center', className: 'font-mono whitespace-nowrap', accessor: 'qty' },
+    {
+      key: 'taxable',
+      header: 'Taxable',
+      align: 'right',
+      className: 'font-mono whitespace-nowrap',
+      cell: (item) => `\u20B9${Number(item.taxable ?? 0).toFixed(2)}`,
+    },
+    {
+      key: 'gst',
+      header: 'GST',
+      align: 'right',
+      className: 'font-mono text-micro whitespace-nowrap',
+      cell: (item) => `${item.rate} (\u20B9${Number(item.taxAmt ?? 0).toFixed(2)})`,
+    },
+    {
+      key: 'total',
+      header: 'Total',
+      align: 'right',
+      className: 'font-mono font-semibold whitespace-nowrap',
+      cell: (item) => `\u20B9${Number(item.total ?? 0).toFixed(2)}`,
+    },
+  ];
 
   return (
     <PageContainer>
@@ -345,17 +485,6 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
               <span>Export CSV</span>
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEwayModalOpen(true)}
-              className="gap-1.5 shadow-sm"
-              title="NIC Portal Integration"
-              type="button"
-            >
-              <Icon name="local_shipping" className="material-symbols-outlined text-icon text-muted" />
-              <span>E-Way Bill</span>
-            </Button>
-            <Button
               variant="default"
               size="sm"
               onClick={() => setIsManualInvoiceModalOpen(true)}
@@ -369,59 +498,51 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
         }
       />
 
-      {/* Metric Stat Overview (6 KPI modules) */}
-      <ContentGrid columns={6}>
+      {/* Counted from the invoices the API returned. These were six fixed
+          strings before, unchanged by whatever the register actually held. */}
+      <ContentGrid columns={5}>
         <StatsCard
-          title="Gross Taxable Sales"
-          value={INITIAL_GST_METRICS.grossTaxableSales}
-          icon="storefront"
-          trend={INITIAL_GST_METRICS.grossGrowth}
-          trendType="up"
-          trendLabel="May '24 Omnichannel"
+          title="Invoices issued"
+          value={gstTotals.count}
+          icon="receipt_long"
+          subtitle="In the register"
         />
         <StatsCard
-          title="Total GST Liability"
-          value={INITIAL_GST_METRICS.totalGstLiability}
+          title="Taxable value"
+          value={`₹${gstTotals.taxable.toLocaleString('en-IN')}`}
+          icon="storefront"
+          subtitle="Before GST"
+        />
+        <StatsCard
+          title="Total GST"
+          value={`₹${gstTotals.totalTax.toLocaleString('en-IN')}`}
           icon="account_balance"
           iconColor="text-accent"
-          trendLabel={`Avg Effective Rate: ${INITIAL_GST_METRICS.avgEffectiveRate}`}
+          subtitle={
+            gstTotals.taxable > 0
+              ? `Effective rate ${((gstTotals.totalTax / gstTotals.taxable) * 100).toFixed(1)}%`
+              : 'No taxable value yet'
+          }
         />
         <StatsCard
-          title="CGST (Intra 6%)"
-          value={INITIAL_GST_METRICS.cgst}
+          title="CGST + SGST"
+          value={`₹${(gstTotals.cgst + gstTotals.sgst).toLocaleString('en-IN')}`}
           icon="account_balance_wallet"
-          badge="KA - 29"
-          badgeVariant="secondary"
-          trendLabel="Karnataka Base Hub"
+          subtitle={`${gstTotals.intraCount} intra-state invoices`}
         />
         <StatsCard
-          title="SGST (Intra 6%)"
-          value={INITIAL_GST_METRICS.sgst}
-          icon="account_balance_wallet"
-          badge="KA - 29"
-          badgeVariant="secondary"
-          trendLabel="Karnataka Base Hub"
-        />
-        <StatsCard
-          title="IGST (Inter 12%/5%)"
-          value={INITIAL_GST_METRICS.igst}
+          title="IGST"
+          value={`₹${gstTotals.igst.toLocaleString('en-IN')}`}
           icon="flight_takeoff"
           iconColor="text-info"
-          trendLabel="Rest of India Dispatches"
-        />
-        <StatsCard
-          title="Credit Reversals"
-          value={INITIAL_GST_METRICS.creditReversals}
-          icon="sync_alt"
-          iconColor="text-warning"
-          trendLabel={`ITC Reclaimed: ${INITIAL_GST_METRICS.itcReclaimed}`}
+          subtitle={`${gstTotals.interCount} inter-state invoices`}
         />
       </ContentGrid>
 
-      {/* Dual-Pane Layout: 65% Main Register Table / 35% Full Interactive Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Dual-Pane Layout: register table takes the remaining width, preview is a fixed column */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
         {/* LEFT PANEL: Invoices Register & Sub-tabs */}
-        <div className="lg:col-span-7 xl:col-span-8 flex flex-col space-y-4 min-w-0">
+        <div className="w-full lg:flex-1 lg:min-w-0 flex flex-col space-y-4">
           <Card className="border border-subtle bg-surface-container-lowest overflow-hidden">
             {/* Navigation Sub-Tabs */}
             <div className="px-4 pt-2 bg-surface-container-low/50 flex flex-wrap gap-1 border-b border-subtle">
@@ -464,37 +585,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 <Icon name="assignment_return" className="material-symbols-outlined text-icon" />
                 <span>Credit Notes (Returns)</span>
                 <span className="px-1.5 py-px rounded-full bg-surface-subtle text-muted text-micro">
-                  {INITIAL_CREDIT_NOTES.length}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('eway-bills')}
-                className={`px-3 py-2 rounded-t-lg text-meta font-semibold flex items-center gap-1.5 transition-colors ${
- activeTab === 'eway-bills'
- ? 'bg-surface-container-lowest text-accent shadow-sm border-t-2 border-primary-container'
- : 'text-muted hover:text-primary'
- }`}
-              >
-                <Icon name="local_shipping" className="material-symbols-outlined text-icon" />
-                <span>E-Way Bills</span>
-                <span className="px-1.5 py-px rounded-full bg-surface-subtle text-muted text-micro">
-                  {INITIAL_EWAY_BILLS.length}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('reconciliation')}
-                className={`px-3 py-2 rounded-t-lg text-meta font-semibold flex items-center gap-1.5 transition-colors ${
- activeTab === 'reconciliation'
- ? 'bg-surface-container-lowest text-accent shadow-sm border-t-2 border-primary-container'
- : 'text-muted hover:text-primary'
- }`}
-              >
-                <Icon name="fact_check" className="material-symbols-outlined text-icon" />
-                <span>Reconciliation &amp; Mismatches</span>
-                <span className="px-1.5 py-px rounded-full bg-status-success-bg text-success text-micro font-semibold">
-                  0
+                  {creditNotes.length}
                 </span>
               </button>
             </div>
@@ -509,9 +600,12 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     onChange={(e) => setSelectedPeriod(e.target.value)}
                     className="h-8 text-meta font-medium"
                   >
-                    <option value="May 2024">May 2024 (Active)</option>
-                    <option value="April 2024">April 2024 (Filed)</option>
-                    <option value="March 2024">March 2024 (Reconciled)</option>
+                    <option value="all">All periods</option>
+                    {filterOptions.periods.map((period) => (
+                      <option key={period} value={period}>
+                        {period}
+                      </option>
+                    ))}
                   </Select>
                 </div>
                 <div>
@@ -521,11 +615,12 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     onChange={(e) => setSelectedState(e.target.value)}
                     className="h-8 text-meta font-medium"
                   >
-                    <option value="all">All Destination States</option>
-                    <option value="Karnataka">Karnataka (29) - Intra</option>
-                    <option value="Maharashtra">Maharashtra (27)</option>
-                    <option value="Delhi">Delhi (07)</option>
-                    <option value="Telangana">Telangana (36)</option>
+                    <option value="all">All destination states</option>
+                    {filterOptions.states.map((state) => (
+                      <option key={state} value={state}>
+                        {state}
+                      </option>
+                    ))}
                   </Select>
                 </div>
                 <div>
@@ -535,16 +630,18 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     onChange={(e) => setSelectedHsn(e.target.value)}
                     className="h-8 text-meta font-medium"
                   >
-                    <option value="all">All Apparel HSN</option>
-                    <option value="620442">HSN 6204 (Dresses &amp; Ensembles)</option>
-                    <option value="620342">HSN 6203 (Suits &amp; Trousers)</option>
-                    <option value="610910">HSN 6109 (Cotton Tees)</option>
+                    <option value="all">All HSN codes</option>
+                    {filterOptions.hsnCodes.map((code) => (
+                      <option key={code} value={code}>
+                        HSN {code}
+                      </option>
+                    ))}
                   </Select>
                 </div>
                 <div>
                   <label className="block text-caption text-muted uppercase mb-1">GST Tax Slab</label>
                   <div className="flex items-center gap-1">
-                    {['all', '5%', '12%', '18%'].map(slab => (
+                    {['all', ...filterOptions.slabs].map(slab => (
                       <button
                         key={slab}
                         type="button"
@@ -582,6 +679,15 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-border-subtle">
+                    {/* A filter combination with no match used to leave the
+                        header sitting above nothing at all. */}
+                    {invoicesPager.pageRows.length === 0 && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={10} className="py-10 text-center text-body text-muted">
+                          No invoice matches this period, state, HSN code and slab.
+                        </TableCell>
+                      </TableRow>
+                    )}
                     {invoicesPager.pageRows.map(inv => {
                       const isSelected = selectedInvoice?.id === inv.id;
                       return (
@@ -603,7 +709,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                           </TableCell>
                           <TableCell className="py-3 px-3">
                             <div className="font-medium text-meta text-primary">{inv.orderRef}</div>
-                            <div className="text-micro text-muted">{inv.dateTime}</div>
+                            <div className="whitespace-nowrap text-micro text-muted">{inv.dateTime}</div>
                           </TableCell>
                           <TableCell className="py-3 px-3">
                             <div className="font-medium text-meta text-primary">{inv.customer.shortName}</div>
@@ -664,170 +770,130 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
             {/* TAB CONTENT: HSN Rate Master */}
             {activeTab === 'hsn' && (
               <div className="p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-body font-semibold text-primary">Apparel GST Schedule (Notification No. 01/2017)</h3>
-                  <Badge variant="success">GSTN Schedule Active</Badge>
+                <div className="flex flex-col gap-0.5">
+                  <h3 className="text-body font-semibold text-primary">HSN-wise summary</h3>
+                  <p className="text-meta text-muted">
+                    Every line on the invoices in this register, grouped by HSN code and rate.
+                    This is the shape GSTR-1 asks for.
+                  </p>
                 </div>
-                <div className="overflow-x-auto scrollbar-thin">
-                  <Table className="min-w-[850px] w-full border-collapse">
-                    <TableHeader sticky>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="whitespace-nowrap">HSN Code</TableHead>
-                        <TableHead className="whitespace-nowrap">Chapter / Garment Category</TableHead>
-                        <TableHead className="whitespace-nowrap">Rate</TableHead>
-                        <TableHead className="whitespace-nowrap">Threshold Rule</TableHead>
-                        <TableHead className="whitespace-nowrap text-right">Active SKUs</TableHead>
-                        <TableHead className="text-center whitespace-nowrap">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                  <TableBody className="divide-y divide-border-subtle">
-                    {INITIAL_HSN_MASTER.map(hsn => (
-                      <TableRow key={hsn.code} className="hover:bg-surface-subtle">
-                        <TableCell className="font-mono font-semibold text-meta text-accent whitespace-nowrap">{hsn.code}</TableCell>
-                        <TableCell className="text-meta">
-                          <div className="line-clamp-2 font-medium text-primary">{hsn.chapter}</div>
-                          <div className="text-micro text-muted">{hsn.description}</div>
-                        </TableCell>
-                        <TableCell className="font-semibold text-meta text-primary">{hsn.rate}</TableCell>
-                        <TableCell className="text-meta text-muted">{hsn.threshold}</TableCell>
-                        <TableCell className="text-meta text-right font-medium">{hsn.activeItems}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="success" className="text-micro">{hsn.status}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                </div>
+                {hsnSummary.length === 0 ? (
+                  <EmptyState
+                    icon="inventory_2"
+                    title="No invoice lines yet"
+                    description="An HSN summary appears once invoices carry line items."
+                  />
+                ) : (
+                  <div className="scrollbar-thin overflow-x-auto">
+                    <Table className="w-full border-collapse">
+                      <TableHeader sticky>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="whitespace-nowrap">HSN code</TableHead>
+                          <TableHead className="whitespace-nowrap text-right">Rate</TableHead>
+                          <TableHead className="whitespace-nowrap text-right">Quantity</TableHead>
+                          <TableHead className="whitespace-nowrap text-right">Taxable value</TableHead>
+                          <TableHead className="whitespace-nowrap text-right">CGST</TableHead>
+                          <TableHead className="whitespace-nowrap text-right">SGST</TableHead>
+                          <TableHead className="whitespace-nowrap text-right">IGST</TableHead>
+                          <TableHead className="whitespace-nowrap text-right">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody className="divide-y divide-border-subtle">
+                        {hsnSummary.map((row) => (
+                          <TableRow key={`${row.hsn}-${row.rate}`} className="hover:bg-surface-subtle">
+                            <TableCell className="whitespace-nowrap font-mono text-meta font-semibold text-accent">
+                              {row.hsn}
+                            </TableCell>
+                            <TableCell className="text-right text-meta tabular-nums">{row.rate}</TableCell>
+                            <TableCell className="text-right text-meta tabular-nums">{row.qty}</TableCell>
+                            <TableCell className="text-right text-meta tabular-nums">
+                              ₹{row.taxable.toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="text-right text-meta tabular-nums">
+                              ₹{row.cgst.toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="text-right text-meta tabular-nums">
+                              ₹{row.sgst.toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="text-right text-meta tabular-nums">
+                              ₹{row.igst.toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="text-right text-meta font-semibold tabular-nums">
+                              ₹{row.total.toLocaleString('en-IN')}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </div>
             )}
 
             {/* TAB CONTENT: Credit Notes */}
             {activeTab === 'credit-notes' && (
               <div className="p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-body font-semibold text-primary">Returns &amp; Cancellations Credit Ledger</h3>
-                  <Badge variant="secondary">{INITIAL_CREDIT_NOTES.length} Records</Badge>
+                <div className="flex flex-col gap-0.5">
+                  <h3 className="text-body font-semibold text-primary">Credit notes</h3>
+                  <p className="text-meta text-muted">
+                    Issued against invoices in this register. Managed in full under Credit Notes
+                    &amp; Refunds.
+                  </p>
                 </div>
-                <div className="overflow-x-auto scrollbar-thin">
-                  <Table className="min-w-[850px] w-full border-collapse">
-                    <TableHeader sticky>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="whitespace-nowrap">Credit Note No</TableHead>
-                        <TableHead className="whitespace-nowrap">Invoice Ref</TableHead>
-                        <TableHead className="whitespace-nowrap">Customer &amp; State</TableHead>
-                        <TableHead className="whitespace-nowrap">Reason</TableHead>
-                        <TableHead className="whitespace-nowrap text-right">Credit Value</TableHead>
-                        <TableHead className="whitespace-nowrap text-right">Tax Reversal</TableHead>
-                        <TableHead className="text-center whitespace-nowrap">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                  <TableBody className="divide-y divide-border-subtle">
-                    {INITIAL_CREDIT_NOTES.map(crn => (
-                      <TableRow key={crn.id} className="hover:bg-surface-subtle">
-                        <TableCell className="font-mono font-semibold text-meta text-accent whitespace-nowrap">{crn.creditNoteNo}</TableCell>
-                        <TableCell className="font-mono text-meta whitespace-nowrap">{crn.invoiceRef}</TableCell>
-                        <TableCell className="text-meta">
-                          <div className="line-clamp-2 font-medium text-primary">{crn.customer}</div>
-                          <div className="text-micro text-muted">{crn.state}</div>
-                        </TableCell>
-                        <TableCell className="text-meta text-muted">{crn.reason}</TableCell>
-                        <TableCell className="font-mono text-meta text-right font-semibold whitespace-nowrap">₹{crn.amount.toFixed(2)}</TableCell>
-                        <TableCell className="font-mono text-meta text-right text-success font-semibold whitespace-nowrap">₹{crn.taxCredit.toFixed(2)}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="outline" className="text-micro">{crn.status}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                </div>
+                <DataTable
+                  columns={[
+                    {
+                      key: 'number',
+                      header: 'Credit note',
+                      accessor: (c) => <span className="font-mono text-num">{c.creditNoteNumber}</span>,
+                    },
+                    {
+                      key: 'invoice',
+                      header: 'Against invoice',
+                      accessor: (c) => <span className="font-mono text-num">{c.invoiceNumber}</span>,
+                    },
+                    { key: 'customer', header: 'Customer', accessor: (c) => c.customerName },
+                    { key: 'reason', header: 'Reason', accessor: (c) => c.reason },
+                    {
+                      key: 'amount',
+                      header: 'Credit value',
+                      align: 'right',
+                      accessor: (c) => `₹${Math.round((c.refundAmount ?? 0) / 100).toLocaleString('en-IN')}`,
+                    },
+                    {
+                      key: 'status',
+                      header: 'Status',
+                      accessor: (c) => (
+                        <StatusBadge
+                          status={
+                            { issued: 'Issued', settled: 'Settled', canceled: 'Cancelled' }[c.status] ??
+                            c.status
+                          }
+                          variant={
+                            c.status === 'settled'
+                              ? 'success'
+                              : c.status === 'canceled'
+                                ? 'destructive'
+                                : 'info'
+                          }
+                        />
+                      ),
+                    },
+                  ]}
+                  data={creditNotes}
+                  keyField="id"
+                  isLoading={isCreditNotesLoading}
+                  emptyIcon="receipt_long"
+                  emptyTitle="No credit notes yet"
+                  emptyMessage="A credit note is raised when an order is refunded."
+                  caption="Credit notes raised against invoices"
+                />
               </div>
             )}
 
             {/* TAB CONTENT: E-Way Bills */}
-            {activeTab === 'eway-bills' && (
-              <div className="p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-body font-semibold text-primary">Form GST EWB-01 Active Consignments</h3>
-                  <Button size="sm" onClick={() => setIsEwayModalOpen(true)} className="gap-1 bg-primary-container text-on-accent">
-                    <Icon name="add" className="material-symbols-outlined text-icon" />
-                    New E-Way Bill
-                  </Button>
-                </div>
-                <div className="overflow-x-auto scrollbar-thin">
-                  <Table className="min-w-[850px] w-full border-collapse">
-                    <TableHeader sticky>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="whitespace-nowrap">E-Way Bill No</TableHead>
-                        <TableHead className="whitespace-nowrap">Invoice Ref</TableHead>
-                        <TableHead className="whitespace-nowrap">Transporter &amp; Vehicle</TableHead>
-                        <TableHead className="whitespace-nowrap">From / To Route</TableHead>
-                        <TableHead className="whitespace-nowrap text-right">Distance</TableHead>
-                        <TableHead className="whitespace-nowrap">Valid Until</TableHead>
-                        <TableHead className="text-center whitespace-nowrap">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                  <TableBody className="divide-y divide-border-subtle">
-                    {INITIAL_EWAY_BILLS.map(ewb => (
-                      <TableRow key={ewb.id} className="hover:bg-surface-subtle">
-                        <TableCell className="font-mono font-semibold text-meta text-accent whitespace-nowrap">{ewb.ewayBillNo}</TableCell>
-                        <TableCell className="font-mono text-meta whitespace-nowrap">{ewb.invoiceNo}</TableCell>
-                        <TableCell className="text-meta">
-                          <div className="line-clamp-2 font-medium text-primary">{ewb.transporter}</div>
-                          <div className="font-mono text-micro text-muted whitespace-nowrap">{ewb.vehicleNo}</div>
-                        </TableCell>
-                        <TableCell className="text-meta">
-                          <div className="text-primary truncate max-w-[180px]">{ewb.fromGstin}</div>
-                          <div className="text-muted truncate max-w-[180px]">➔ {ewb.toGstin}</div>
-                        </TableCell>
-                        <TableCell className="font-mono text-meta text-right whitespace-nowrap">{ewb.distance}</TableCell>
-                        <TableCell className="text-micro text-muted">{ewb.validUntil}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="success" className="text-micro">{ewb.status}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                </div>
-              </div>
-            )}
 
             {/* TAB CONTENT: Reconciliation */}
-            {activeTab === 'reconciliation' && (
-              <div className="p-6 space-y-4">
-                <Alert variant="success" className="p-4">
-                  <div className="flex items-center gap-3">
-                    <Icon name="verified_user" className="material-symbols-outlined text-icon-xl text-success" />
-                    <div>
-                      <h4 className="text-body font-semibold text-success">GSTR-2B vs Purchase Register 100% Reconciled</h4>
-                      <p className="text-meta text-muted mt-0.5">
-                        Zero ITC discrepancies found for May 2024 filing cycle. All outward sales invoice IRNs matched against GSTN portal.
-                      </p>
-                    </div>
-                  </div>
-                </Alert>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                  <Card className="border border-subtle bg-surface-subtle p-4">
-                    <div className="text-meta font-semibold text-muted uppercase">GSTR-1 Generated</div>
-                    <div className="text-kpi-sm font-semibold text-primary mt-1">1,428 Invoices</div>
-                    <div className="text-micro text-success mt-1">₹4,12,84,900 Sales Value</div>
-                  </Card>
-                  <Card className="border border-subtle bg-surface-subtle p-4">
-                    <div className="text-meta font-semibold text-muted uppercase">E-Way Bills Matched</div>
-                    <div className="text-kpi-sm font-semibold text-primary mt-1">84 Active Trips</div>
-                    <div className="text-micro text-success mt-1">Zero Transporter Slips</div>
-                  </Card>
-                  <Card className="border border-subtle bg-surface-subtle p-4">
-                    <div className="text-meta font-semibold text-muted uppercase">Credit Reversals Reclaimed</div>
-                    <div className="text-kpi-sm font-semibold text-accent mt-1">₹41,137 ITC</div>
-                    <div className="text-micro text-muted mt-1">Auto-adjusted in Table 4B</div>
-                  </Card>
-                </div>
-              </div>
-            )}
 
             <TablePagination
               currentPage={invoicesPager.page}
@@ -861,7 +927,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
         </div>
 
         {/* RIGHT PANEL: E-Invoice IRN & Compliant Tax Invoice Interactive Preview */}
-        <div className="lg:col-span-5 xl:col-span-4 flex flex-col space-y-4">
+        <div className="w-full lg:w-[41.666%] xl:w-[33.333%] lg:max-w-[480px] lg:shrink-0 min-w-0 flex flex-col space-y-4">
           <Card className="border border-subtle bg-surface-container-lowest overflow-hidden shadow-sm">
             {/* Document Action Ribbon */}
             <div className="px-4 py-2 bg-surface-subtle flex items-center justify-between border-b border-subtle">
@@ -880,15 +946,6 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   title="Print Tax Invoice"
                 >
                   <Icon name="print" className="material-symbols-outlined text-icon" />
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => onShowToast && onShowToast(`PDF downloaded for invoice ${selectedInvoice?.invoiceNumber}`)}
-                  className="h-7 text-meta gap-1 bg-primary-container text-on-accent hover:bg-primary-container-hover"
-                >
-                  <Icon name="download" className="material-symbols-outlined text-icon-sm" />
-                  <span>PDF</span>
                 </Button>
               </div>
             </div>
@@ -934,22 +991,19 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
 
                 {/* IRN Hash Metadata Box */}
                 <div className="p-2.5 rounded-lg bg-surface-canvas space-y-1 font-mono text-micro text-muted border border-subtle whitespace-nowrap">
-                  <div className="flex justify-between items-center text-primary">
-                    <span className="text-caption uppercase">IRN (Invoice Ref No.):</span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(selectedInvoice.irn, 'IRN')}
-                      className="text-muted hover:text-primary" title="Copy" aria-label="Copy"
-                    >
-                      <Icon name="content_copy" className="material-symbols-outlined text-icon-sm" />
-                    </button>
-                  </div>
-                  <div className="truncate text-micro text-accent">
-                    {selectedInvoice.irn}
-                  </div>
-                  <div className="flex justify-between text-micro pt-1 border-t border-subtle/50">
-                    <span>Ack No: <strong className="text-primary font-mono whitespace-nowrap">{selectedInvoice.ackNo}</strong></span>
-                    <span>Ack Date: <strong className="text-primary">{selectedInvoice.ackDate}</strong></span>
+                  <div className="flex items-start gap-2 text-primary">
+                    <Icon
+                      name="info"
+                      aria-hidden="true"
+                      className="material-symbols-outlined mt-px text-icon-sm text-muted"
+                    />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-caption uppercase">E-invoice registration</span>
+                      <span className="text-micro text-muted">
+                        This invoice has not been registered with the IRP, so it carries no IRN or
+                        acknowledgement number.
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -969,7 +1023,7 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                   </div>
                   <div>
                     <span className="text-caption text-muted block uppercase">Place of Supply</span>
-                    <span className="text-meta font-semibold text-primary">{selectedInvoice.shipping.posState}</span>
+                    <span className="text-meta font-semibold text-primary">{selectedInvoice.shipping?.posState}</span>
                   </div>
                 </div>
 
@@ -977,9 +1031,9 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 <div className="grid grid-cols-2 gap-2 text-micro">
                   <div className="p-2 rounded-lg bg-surface-canvas space-y-1 border border-subtle">
                     <span className="text-caption text-muted uppercase block">Billed To (Customer)</span>
-                    <div className="font-semibold text-primary">{selectedInvoice.customer.name}</div>
-                    <div className="text-muted leading-snug">{selectedInvoice.customer.address}</div>
-                    <div className="text-muted pt-0.5">GSTIN: {selectedInvoice.customer.gstin}</div>
+                    <div className="font-semibold text-primary">{selectedInvoice.customerDetail?.name}</div>
+                    <div className="text-muted leading-snug">{selectedInvoice.customerDetail?.address}</div>
+                    <div className="text-muted pt-0.5">GSTIN: {selectedInvoice.customerDetail?.gstin}</div>
                   </div>
                   <div className="p-2 rounded-lg bg-surface-canvas space-y-1 border border-subtle">
                     <span className="text-caption text-muted uppercase block">Shipped To (Delivery Point)</span>
@@ -990,35 +1044,16 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
                 </div>
 
                 {/* Itemized Table */}
-                <div className="border border-subtle rounded-lg overflow-hidden">
-                  <table className="w-full text-left text-micro border-collapse">
-                    <thead className="bg-surface-subtle font-semibold text-muted">
-                      <tr>
-                        <th className="p-1.5">Description &amp; HSN</th>
-                        <th className="p-1.5 text-center">Qty</th>
-                        <th className="p-1.5 text-right">Taxable</th>
-                        <th className="p-1.5 text-right">GST</th>
-                        <th className="p-1.5 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-subtle">
-                      {selectedInvoice.items.map(item => (
-                        <tr key={item.id}>
-                          <td className="p-1.5">
-                            <div className="line-clamp-2 font-medium text-primary">{item.desc}</div>
-                            <div className="text-micro text-muted font-mono whitespace-nowrap">HSN: {item.hsn}</div>
-                          </td>
-                          <td className="p-1.5 text-center font-mono whitespace-nowrap">{item.qty}</td>
-                          <td className="p-1.5 text-right font-mono whitespace-nowrap">₹{item.taxable.toFixed(2)}</td>
-                          <td className="p-1.5 text-right font-mono text-micro whitespace-nowrap">
-                            {item.rate} (₹{item.taxAmt.toFixed(2)})
-                          </td>
-                          <td className="p-1.5 text-right font-mono font-semibold whitespace-nowrap">₹{item.total.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  data={selectedInvoice.items ?? []}
+                  columns={lineItemColumns}
+                  keyField="id"
+                  className="text-micro"
+                  containerClassName="border border-subtle rounded-lg"
+                  emptyIcon="receipt_long"
+                  emptyTitle="No line items"
+                  emptyMessage="This invoice records no line items."
+                />
 
                 {/* Tax Breakdown & Computation Box */}
                 <div className="p-3 rounded-lg bg-surface-canvas space-y-1.5 border border-subtle text-meta">
@@ -1071,124 +1106,130 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       </div>
 
       {/* Manual Invoice Creation Modal */}
-      <Dialog open={isManualInvoiceModalOpen} onClose={() => setIsManualInvoiceModalOpen(false)}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Icon name="receipt_long" className="material-symbols-outlined text-accent" />
-            <span>Create Manual Tax Invoice</span>
-          </DialogTitle>
-        </DialogHeader>
-        <DialogContent>
-          <form onSubmit={handleCreateManualInvoice} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+      <Dialog
+        open={isManualInvoiceModalOpen}
+        onOpenChange={(open) => !open && setIsManualInvoiceModalOpen(false)}
+        labelledBy="manual-invoice-title"
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle id="manual-invoice-title" className="flex items-center gap-2">
+              <Icon name="receipt_long" className="material-symbols-outlined text-accent" />
+              <span>Create Manual Tax Invoice</span>
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateManualInvoice} className="flex min-h-0 flex-1 flex-col">
+            <DialogBody className="space-y-4 pb-space-md">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Recipient / Customer Name</label>
+                  <Input
+                    required
+                    value={manualForm.customerName}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, customerName: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Phone Number</label>
+                  <Input
+                    required
+                    value={manualForm.customerPhone}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, customerPhone: e.target.value }))}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Recipient / Customer Name</label>
+                <label className="text-meta font-medium text-muted">Delivery / Billing Address</label>
                 <Input
                   required
-                  value={manualForm.customerName}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, customerName: e.target.value }))}
+                  value={manualForm.customerAddress}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, customerAddress: e.target.value }))}
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Phone Number</label>
-                <Input
-                  required
-                  value={manualForm.customerPhone}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, customerPhone: e.target.value }))}
-                />
-              </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <label className="text-meta font-medium text-muted">Delivery / Billing Address</label>
-              <Input
-                required
-                value={manualForm.customerAddress}
-                onChange={(e) => setManualForm(prev => ({ ...prev, customerAddress: e.target.value }))}
-              />
-            </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Destination State &amp; Code</label>
+                  <Select
+                    value={manualForm.stateCode}
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      let stateName = 'Karnataka';
+                      if (code === '27') stateName = 'Maharashtra';
+                      else if (code === '07') stateName = 'Delhi';
+                      else if (code === '36') stateName = 'Telangana';
+                      else if (code === '33') stateName = 'Tamil Nadu';
+                      setManualForm(prev => ({ ...prev, stateCode: code, state: stateName }));
+                    }}
+                  >
+                    <option value="29">Karnataka (29) - Intra State</option>
+                    <option value="27">Maharashtra (27) - Inter State</option>
+                    <option value="07">Delhi (07) - Inter State</option>
+                    <option value="36">Telangana (36) - Inter State</option>
+                    <option value="33">Tamil Nadu (33) - Inter State</option>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Applicable GST Slab</label>
+                  <Select
+                    value={manualForm.slab}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, slab: e.target.value }))}
+                  >
+                    <option value="12%">12% Standard Apparel</option>
+                    <option value="5%">5% Concessional Standard</option>
+                    <option value="18%">18% Premium Footwear / Accessories</option>
+                  </Select>
+                </div>
+              </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Destination State &amp; Code</label>
-                <Select
-                  value={manualForm.stateCode}
-                  onChange={(e) => {
-                    const code = e.target.value;
-                    let stateName = 'Karnataka';
-                    if (code === '27') stateName = 'Maharashtra';
-                    else if (code === '07') stateName = 'Delhi';
-                    else if (code === '36') stateName = 'Telangana';
-                    else if (code === '33') stateName = 'Tamil Nadu';
-                    setManualForm(prev => ({ ...prev, stateCode: code, state: stateName }));
-                  }}
-                >
-                  <option value="29">Karnataka (29) - Intra State</option>
-                  <option value="27">Maharashtra (27) - Inter State</option>
-                  <option value="07">Delhi (07) - Inter State</option>
-                  <option value="36">Telangana (36) - Inter State</option>
-                  <option value="33">Tamil Nadu (33) - Inter State</option>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Garment / Item Description</label>
+                  <Input
+                    required
+                    value={manualForm.itemDesc}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, itemDesc: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">HSN Code</label>
+                  <Select
+                    value={manualForm.hsnCode}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, hsnCode: e.target.value }))}
+                  >
+                    <option value="620442">620442 - Dresses &amp; Ensembles</option>
+                    <option value="620342">620342 - Suits &amp; Trousers</option>
+                    <option value="610910">610910 - Cotton Tees &amp; Tops</option>
+                    <option value="611010">611010 - Knitwear &amp; Cardigans</option>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Applicable GST Slab</label>
-                <Select
-                  value={manualForm.slab}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, slab: e.target.value }))}
-                >
-                  <option value="12%">12% Standard Apparel</option>
-                  <option value="5%">5% Concessional Standard</option>
-                  <option value="18%">18% Premium Footwear / Accessories</option>
-                </Select>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Garment / Item Description</label>
-                <Input
-                  required
-                  value={manualForm.itemDesc}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, itemDesc: e.target.value }))}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Quantity (Pcs)</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={manualForm.qty}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, qty: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-meta font-medium text-muted">Taxable Value (INR)</label>
+                  <Input
+                    type="number"
+                    min="100"
+                    step="0.01"
+                    value={manualForm.taxableVal}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, taxableVal: Number(e.target.value) }))}
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">HSN Code</label>
-                <Select
-                  value={manualForm.hsnCode}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, hsnCode: e.target.value }))}
-                >
-                  <option value="620442">620442 - Dresses &amp; Ensembles</option>
-                  <option value="620342">620342 - Suits &amp; Trousers</option>
-                  <option value="610910">610910 - Cotton Tees &amp; Tops</option>
-                  <option value="611010">611010 - Knitwear &amp; Cardigans</option>
-                </Select>
-              </div>
-            </div>
+            </DialogBody>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Quantity (Pcs)</label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={manualForm.qty}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, qty: Number(e.target.value) }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Taxable Value (INR)</label>
-                <Input
-                  type="number"
-                  min="100"
-                  step="0.01"
-                  value={manualForm.taxableVal}
-                  onChange={(e) => setManualForm(prev => ({ ...prev, taxableVal: Number(e.target.value) }))}
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="pt-2">
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsManualInvoiceModalOpen(false)}>
                 Cancel
               </Button>
@@ -1201,79 +1242,6 @@ export default function GstInvoiceManagement({ currentHub, onShowToast }) {
       </Dialog>
 
       {/* Generate E-Way Bill Modal */}
-      <Dialog open={isEwayModalOpen} onClose={() => setIsEwayModalOpen(false)}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Icon name="local_shipping" className="material-symbols-outlined text-accent" />
-            <span>Generate E-Way Bill (NIC Portal Integration)</span>
-          </DialogTitle>
-        </DialogHeader>
-        <DialogContent>
-          <form onSubmit={handleGenerateEwayBill} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-meta font-medium text-muted">Source Tax Invoice</label>
-              <Select
-                value={ewayForm.invoiceNumber}
-                onChange={(e) => setEwayForm(prev => ({ ...prev, invoiceNumber: e.target.value }))}
-              >
-                {invoices.map(inv => (
-                  <option key={inv.id} value={inv.invoiceNumber}>
-                    {inv.invoiceNumber} • {inv.customer.name} (₹{inv.total.toFixed(2)})
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Transporter Partner</label>
-                <Input
-                  value={ewayForm.transporter}
-                  onChange={(e) => setEwayForm(prev => ({ ...prev, transporter: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Vehicle Number</label>
-                <Input
-                  value={ewayForm.vehicleNo}
-                  onChange={(e) => setEwayForm(prev => ({ ...prev, vehicleNo: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Approximate Distance (km)</label>
-                <Input
-                  type="number"
-                  value={ewayForm.distanceKm}
-                  onChange={(e) => setEwayForm(prev => ({ ...prev, distanceKm: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-meta font-medium text-muted">Destination State</label>
-                <Input
-                  value={ewayForm.toState}
-                  onChange={(e) => setEwayForm(prev => ({ ...prev, toState: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <Alert variant="info" className="text-meta">
-              Part-A and Part-B will be synchronized directly to the NIC e-Way Bill System under Everwear Retail GSTIN 29AAAAE1234F1Z5.
-            </Alert>
-
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsEwayModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="default" className="bg-primary-container text-on-accent hover:bg-primary-container-hover">
-                Transmit &amp; Print EWB-01
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </PageContainer>
   );
 }

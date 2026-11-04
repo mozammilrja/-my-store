@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { WelcomeExperienceBanner } from "./components/welcome-experience-banner"
 import { CategoryNavPanel } from "./components/category-nav-panel"
 import { QuickPredictionsPanel } from "./components/quick-predictions-panel"
 import { CategoryShortcuts } from "./components/category-shortcuts"
@@ -15,6 +16,9 @@ export function MarketplaceView() {
   return (
     <main className="w-full bg-background">
       <div className="flex flex-col w-full relative">
+        {/* First-Time Visitor Warm Welcome & Feel-Good Invitation Banner */}
+        <WelcomeExperienceBanner />
+
         {/* Interactive Women's Category Mega-Menu Panel */}
         <CategoryNavPanel
           activeTab={activeTab}

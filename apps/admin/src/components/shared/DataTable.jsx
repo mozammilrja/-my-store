@@ -270,6 +270,14 @@ export function DataTable({
   onSelectAll,
   activeRowId,
   onRowClick,
+  // Optional per-row classes: a string, or (row, index) => string. Lets a module
+  // tint rows by state (a discrepancy, a suspension) without forking the table.
+  rowClassName,
+  // Sorting is driven from outside: the module already holds the rows, so the
+  // table only draws the control and reports the column that was asked for.
+  sortKey,
+  sortDirection = 'desc',
+  onSort,
   isLoading = false,
   isError = false,
   errorTitle,
@@ -285,6 +293,7 @@ export function DataTable({
   toolbar,
   caption,
   stickyHeader = true,
+  maxHeight,
   containerClassName,
   className,
   ...props
@@ -311,7 +320,13 @@ export function DataTable({
 
       <Table
         className={className}
-        containerClassName={cn("max-h-[70vh]", stickyHeader && "overflow-y-auto")}
+        /*
+         * No inner vertical scroller by default. These tables paginate, so a
+         * 70vh box only produced a second scrollbar inside the page's own and
+         * clipped rows that had room to show. A caller that really holds a
+         * long list can still pass one through `maxHeight`.
+         */
+        containerClassName={cn(maxHeight && "overflow-y-auto", maxHeight)}
         {...props}
       >
         {caption && <caption className="sr-only">{caption}</caption>}
@@ -329,19 +344,58 @@ export function DataTable({
                 />
               </TableHead>
             )}
-            {columns.map((col, idx) => (
-              <TableHead
-                key={col.key || idx}
-                className={cn(
-                  col.align === "center" && "text-center",
-                  col.align === "right" && "text-right",
-                  col.headerClassName
-                )}
-                style={{ width: col.width }}
-              >
-                {col.header}
-              </TableHead>
-            ))}
+            {columns.map((col, idx) => {
+              const columnKey = col.sortKey ?? col.key;
+              const sortable = Boolean(col.sortable && onSort);
+              const isSorted = sortable && sortKey === columnKey;
+              return (
+                <TableHead
+                  key={col.key || idx}
+                  aria-sort={
+                    isSorted ? (sortDirection === "asc" ? "ascending" : "descending") : sortable ? "none" : undefined
+                  }
+                  className={cn(
+                    col.align === "center" && "text-center",
+                    col.align === "right" && "text-right",
+                    // `fit` columns hug their content instead of taking a share of
+                    // the slack: a 1px width plus nowrap is the auto-layout idiom
+                    // for "as narrow as the text allows".
+                    col.fit && "w-px whitespace-nowrap",
+                    // `grow` hands one column all the leftover width. Without it
+                    // the slack is shared between every non-`fit` column, which
+                    // is what a report of mostly text columns wants.
+                    col.grow && "w-full",
+                    col.headerClassName
+                  )}
+                  style={{ width: col.fit ? "1px" : col.width }}
+                >
+                  {sortable ? (
+                    <button
+                      type="button"
+                      onClick={() => onSort(columnKey)}
+                      // The glyph is always in the flow, so a header does not
+                      // reflow the column the first time it is sorted.
+                      className={cn(
+                        "-mx-1 inline-flex max-w-full items-center gap-1 rounded px-1 py-0.5 text-caption uppercase transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        col.align === "right" && "flex-row-reverse",
+                        isSorted ? "text-primary" : "text-secondary"
+                      )}
+                      title={`Sort by ${typeof col.header === "string" ? col.header : columnKey}`}
+                    >
+                      <span className="whitespace-nowrap">{col.header}</span>
+                      <Icon
+                        name={!isSorted ? "swap_vert" : sortDirection === "asc" ? "arrow_upward" : "arrow_downward"}
+                        aria-hidden="true"
+                        size={14}
+                        className={cn("shrink-0", isSorted ? "text-accent" : "text-faint")}
+                      />
+                    </button>
+                  ) : (
+                    col.header
+                  )}
+                </TableHead>
+              );
+            })}
           </TableRow>
         </TableHeader>
 
@@ -378,7 +432,8 @@ export function DataTable({
                   aria-current={isActive ? "true" : undefined}
                   className={cn(
                     isClickable && "cursor-pointer",
-                    isActive && "bg-primary-fixed/50 hover:bg-primary-fixed/60"
+                    isActive && "bg-primary-fixed/50 hover:bg-primary-fixed/60",
+                    typeof rowClassName === "function" ? rowClassName(row, rIdx) : rowClassName
                   )}
                 >
                   {selectable && (
@@ -408,6 +463,8 @@ export function DataTable({
                         className={cn(
                           col.align === "center" && "text-center",
                           col.align === "right" && "text-right tabular-nums",
+                          col.fit && "w-px whitespace-nowrap",
+                          col.grow && "w-full",
                           col.className
                         )}
                       >

@@ -6,6 +6,18 @@ const client = new MongoClient(env.MONGODB_URI, {
   // Orders and stock must never be read from a stale or rolled-back write.
   readConcern: { level: "majority" },
   writeConcern: { w: "majority" },
+  /*
+   * The driver defaults to 100 sockets per client. With the API, the test
+   * runners and any scripts all connected at once that is enough to exhaust
+   * the server's file descriptors, which showed up as a browser suite failing
+   * in a different module on each run while every test passed on its own.
+   * A smaller ceiling is still far more concurrency than this API needs, and
+   * idle sockets are handed back rather than held open.
+   */
+  maxPoolSize: 20,
+  minPoolSize: 0,
+  maxIdleTimeMS: 30_000,
+  waitQueueTimeoutMS: 10_000,
 })
 
 let db: Db | null = null

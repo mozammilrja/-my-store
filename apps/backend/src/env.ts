@@ -14,6 +14,8 @@ const schema = z.object({
   UPLOADS_DIR: z.string().default("uploads"),
   MONGODB_URI: z.string().min(1),
   MONGODB_DB: z.string().min(1).default("everwear"),
+  /** Currency of the single region this store trades in. Admin reporting is scoped to it. */
+  OPERATING_REGION_CURRENCY: z.string().min(3).max(3).default("inr"),
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
   STORE_CORS: list,
   ADMIN_CORS: list,

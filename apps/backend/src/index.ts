@@ -9,6 +9,7 @@ import { reconcileRefunds } from "./lib/payments/refunds.js"
 import { reconcilePaymentAttempts } from "./lib/payments/settle.js"
 import { syncStaleShipments } from "./lib/shipping/service.js"
 import { sweepDispatch } from "./lib/fleet/dispatch.js"
+import { deliverDue } from "./lib/notify/index.js"
 
 await connect()
 await ensureIndexes()
@@ -24,6 +25,21 @@ const outboxTimer = setInterval(async () => {
   }
 }, 10000)
 outboxTimer.unref()
+
+// Notifications: send what's due, every 5 seconds; retries are scheduled per message.
+let delivering = false
+const notifyTimer = setInterval(async () => {
+  if (delivering) return
+  delivering = true
+  try {
+    await deliverDue()
+  } catch (e) {
+    log.error("notify.sweep_failed", { error: (e as Error).message })
+  } finally {
+    delivering = false
+  }
+}, 5_000)
+notifyTimer.unref()
 
 // Own fleet: lapse unanswered offers and offer waiting parcels to riders who came online.
 let dispatching = false
@@ -67,6 +83,7 @@ const shutdown = (signal: string) => {
   clearInterval(outboxTimer)
   clearInterval(providerTimer)
   clearInterval(dispatchTimer)
+  clearInterval(notifyTimer)
   server.close(async () => {
     await disconnect()
     process.exit(0)

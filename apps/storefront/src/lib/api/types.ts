@@ -360,3 +360,17 @@ export type StoreReturn = {
   canCancel: boolean
   canAddShipping: boolean
 }
+
+/** One entry in the customer's in-app feed. */
+export type FeedNotification = {
+  _id: string
+  type: "order_confirmation" | "shipment_update" | "return_status" | "refund_processed" | "low_stock" | "ticket_reply" | "promotion"
+  title: string
+  message: string
+  status: "unread" | "read" | "sent" | "failed"
+  metadata?: { orderId?: string; returnId?: string; displayId?: number; event?: string }
+  createdAt: string
+}
+
+/** Which channels order and delivery updates may use (no marketing). */
+export type NotificationPrefs = { email: boolean; sms: boolean; whatsapp: boolean; push: boolean }

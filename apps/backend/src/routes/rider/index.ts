@@ -14,6 +14,7 @@ import { acceptOffer, declineOffer, offerTask, releaseOffer, routeFor } from "..
 import { fleetSettings } from "../../lib/fleet/support.js"
 import { deliver, failAttempt, pickupScan, reissueOtp, startDelivery } from "../../lib/fleet/tasks.js"
 import { email } from "../../lib/validation.js"
+import { removeSubscription, saveSubscription, subscriptionSchema, vapidPublicKey } from "../../lib/notify/subscriptions.js"
 
 /*
  * The delivery partner API, for apps/rider. Riders are their own account
@@ -335,6 +336,22 @@ riderRoutes.post("/cash/remit", async (req, res) => {
   const rider = approved(req)
   const { declared } = z.object({ declared: z.number().int().min(0) }).parse(req.body)
   res.status(201).json({ remittance: await submitRemittance(rider, declared) })
+})
+
+/* ---------- Push notifications on this device ---------- */
+
+riderRoutes.get("/push/key", (_req, res) => {
+  res.json({ publicKey: vapidPublicKey() })
+})
+
+riderRoutes.post("/push-subscriptions", async (req, res) => {
+  await saveSubscription("rider", req.rider!._id, subscriptionSchema.parse(req.body), req.get("user-agent"))
+  res.status(201).json({ subscribed: true })
+})
+
+riderRoutes.delete("/push-subscriptions", async (req, res) => {
+  await removeSubscription("rider", req.rider!._id, z.object({ endpoint: z.string().optional(), token: z.string().optional() }).parse(req.body ?? {}))
+  res.json({ subscribed: false })
 })
 
 declare global {

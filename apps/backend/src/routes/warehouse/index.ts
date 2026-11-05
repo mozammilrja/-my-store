@@ -20,6 +20,7 @@ import {
 } from "../../lib/fulfilment/workflow.js"
 import { runStockOperation, stockOperationSchema } from "../../lib/inventory/operations.js"
 import { email } from "../../lib/validation.js"
+import { removeSubscription, saveSubscription, subscriptionSchema, vapidPublicKey } from "../../lib/notify/subscriptions.js"
 import { inspectReturn } from "../../lib/returns/inspect.js"
 import { currentReturn, REASON_TEXT } from "../../lib/returns/returns.js"
 import { skuOf } from "../../lib/inventory/stock.js"
@@ -444,6 +445,22 @@ warehouseRoutes.post("/returns/:id/inspect", async (req, res) => {
   if (!ret) throw notFound("Return")
   const done = await inspectReturn(ret._id, body.warehouseId, body.lines, actorOf(req))
   res.json({ status: done.status, inspection: done.inspection })
+})
+
+/* ---------- Push notifications on this device ---------- */
+
+warehouseRoutes.get("/push/key", (_req, res) => {
+  res.json({ publicKey: vapidPublicKey() })
+})
+
+warehouseRoutes.post("/push-subscriptions", async (req, res) => {
+  await saveSubscription("warehouse", req.warehouseUser!.id, subscriptionSchema.parse(req.body), req.get("user-agent"))
+  res.status(201).json({ subscribed: true })
+})
+
+warehouseRoutes.delete("/push-subscriptions", async (req, res) => {
+  await removeSubscription("warehouse", req.warehouseUser!.id, z.object({ endpoint: z.string().optional(), token: z.string().optional() }).parse(req.body ?? {}))
+  res.json({ subscribed: false })
 })
 
 declare global {

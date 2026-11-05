@@ -105,6 +105,8 @@ export type CustomerDoc = {
   lastName?: string
   phone?: string
   addresses: (Address & { _id: string })[]
+  /** Which channels order and delivery updates may use. WhatsApp only after an explicit opt-in (Meta policy). */
+  notificationPrefs?: { email: boolean; sms: boolean; whatsapp: boolean; push: boolean; whatsappOptInAt?: Date }
   createdAt: Date
   updatedAt: Date
 }
@@ -154,6 +156,12 @@ export type SettingsDoc = {
   allowSplitFulfilment?: boolean
   /** Own delivery fleet rules; defaults in lib/fleet/settings.ts. */
   fleet?: Partial<FleetSettings>
+  /**
+   * Provider-side templates per notification event: DLT-registered MSG91
+   * flow ids and approved WhatsApp templates. A channel whose provider needs
+   * a template is skipped for events that have none.
+   */
+  notificationTemplates?: Partial<Record<NotificationEvent, ProviderTemplates>>
   /** The seller's legal details, printed on every GST tax invoice. */
   seller?: SellerDetails
   updatedAt: Date
@@ -890,6 +898,90 @@ export type ReturnDoc = {
   updatedAt: Date
 }
 
+/* ---------- Outbound notifications ---------- */
+
+export const NOTIFICATION_EVENTS = [
+  "order_confirmed",
+  "payment_received",
+  "order_packed",
+  "order_shipped",
+  "out_for_delivery",
+  "delivery_otp",
+  "delivered",
+  "delivery_failed",
+  "return_update",
+  "refund_processed",
+  "fulfilment_assigned",
+  "delivery_offered",
+  "delivery_assigned",
+  "delivery_unassigned",
+] as const
+export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number]
+export type NotificationChannel = "email" | "sms" | "whatsapp" | "push"
+
+export type ProviderTemplates = {
+  /** MSG91 Flow id (DLT-approved); variables are sent as var1, var2, ... */
+  msg91FlowId?: string
+  /** Approved WhatsApp template; body parameters are filled in order. */
+  whatsapp?: { name: string; language: string }
+  /** Gupshup template id (its own registry of approved WhatsApp templates). */
+  gupshupTemplateId?: string
+}
+
+/**
+ * One message to one recipient on one channel. Created when something
+ * happens; sent by the delivery worker with retries; never sent twice for the
+ * same `key` (unique). Content is rendered at enqueue time except secrets
+ * (a delivery OTP is fetched and decrypted only when sending).
+ */
+export type NotificationDeliveryDoc = {
+  _id: string
+  key: string
+  event: NotificationEvent
+  channel: NotificationChannel
+  recipient: { type: "customer" | "rider" | "warehouse" | "guest"; id: string; to: string }
+  content: {
+    subject?: string
+    text: string
+    html?: string
+    title?: string
+    url?: string
+    /** Ordered values for SMS/WhatsApp provider templates. */
+    params: string[]
+  }
+  /** Values resolved only at send time, never stored in clear. */
+  secret?: { otpTaskId: string }
+  status: "queued" | "sending" | "sent" | "skipped" | "dead"
+  provider?: string
+  providerMessageId?: string
+  attempts: number
+  nextAttemptAt: Date
+  lockedUntil?: Date | null
+  lastError?: string
+  skipReason?: string
+  orderId?: string
+  sentAt?: Date
+  createdAt: Date
+  updatedAt: Date
+}
+
+/** A device or browser that receives push notifications for its owner. */
+export type PushSubscriptionDoc = {
+  _id: string
+  ownerType: "customer" | "rider" | "warehouse"
+  ownerId: string
+  kind: "webpush" | "fcm"
+  /** Web push: the push service endpoint and its keys. */
+  endpoint?: string
+  keys?: { p256dh: string; auth: string }
+  /** FCM: the device registration token. */
+  token?: string
+  userAgent?: string
+  failures: number
+  lastSuccessAt?: Date
+  createdAt: Date
+}
+
 export type InventoryReservationDoc = {
   _id: string
   cartId: string
@@ -1184,6 +1276,8 @@ export const db = {
   deliveryTasks: (): Collection<DeliveryTaskDoc> => getDb().collection("delivery_tasks"),
   codRemittances: (): Collection<CodRemittanceDoc> => getDb().collection("cod_remittances"),
   returns: (): Collection<ReturnDoc> => getDb().collection("returns"),
+  notificationDeliveries: (): Collection<NotificationDeliveryDoc> => getDb().collection("notification_deliveries"),
+  pushSubscriptions: (): Collection<PushSubscriptionDoc> => getDb().collection("push_subscriptions"),
 }
 
 /**
@@ -1372,6 +1466,18 @@ export async function ensureIndexes() {
       { orderId: 1 },
       { unique: true, partialFilterExpression: { status: { $in: ["requested", "approved", "pickup_scheduled", "in_transit", "received", "inspected", "refund_pending"] } }, name: "one_open_return_per_order" }
     ),
+  ])
+  await Promise.all([
+    db.notificationDeliveries().createIndex({ key: 1 }, { unique: true }),
+    db.notificationDeliveries().createIndex({ status: 1, nextAttemptAt: 1 }),
+    db.notificationDeliveries().createIndex({ orderId: 1, createdAt: -1 }),
+    db.notificationDeliveries().createIndex({ "recipient.id": 1, createdAt: -1 }),
+    // Delivered messages are kept 180 days for support; dead letters stay until handled.
+    db.notificationDeliveries().createIndex({ sentAt: 1 }, { expireAfterSeconds: 180 * 86_400, partialFilterExpression: { status: { $in: ["sent", "skipped"] } }, name: "sent_retention" }),
+    db.pushSubscriptions().createIndex({ endpoint: 1 }, { unique: true, partialFilterExpression: { endpoint: { $type: "string" } } }),
+    db.pushSubscriptions().createIndex({ token: 1 }, { unique: true, partialFilterExpression: { token: { $type: "string" } } }),
+    db.pushSubscriptions().createIndex({ ownerType: 1, ownerId: 1 }),
+    db.notifications().createIndex({ "metadata.key": 1 }, { unique: true, partialFilterExpression: { "metadata.key": { $type: "string" } }, name: "feed_event_key" }),
   ])
   await migrateEmbeddedReturns()
 

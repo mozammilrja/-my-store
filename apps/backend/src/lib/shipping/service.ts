@@ -23,6 +23,7 @@ import {
 import { fulfillmentFor, mapShiprocketStatus, shouldAdvance } from "./status.js"
 import { recordTransition, SYSTEM } from "../state/machines.js"
 import { moveReturnIfAllowed } from "../returns/returns.js"
+import { announce, notifyCustomer } from "../notify/index.js"
 
 /*
  * Shipments end to end. With Shiprocket configured every AWB, label, pickup
@@ -106,7 +107,22 @@ async function syncOrder(shipment: ShipmentDoc) {
   // Delivered completes the order only once it is also paid (a COD order waits for its cash).
   if (overall === "delivered" && order.paymentStatus === "paid" && order.status === "pending") set.status = "completed"
   await db.orders().updateOne({ _id: order._id }, { $set: set })
+  await announce("shipment status", () => announceShipment(order, shipment))
   if (set.status === "completed") await recordTransition({ machine: "order", entityId: order._id, orderId: order._id, from: "pending", to: "completed", actor: SYSTEM, reason: "Delivered and paid" })
+}
+
+/** The customer message for an outbound parcel's status, once per parcel and status (repeat scans send nothing). */
+async function announceShipment(order: OrderDoc, s: ShipmentDoc) {
+  const base = { carrier: s.carrier, awb: s.awb }
+  if (s.status === "picked_up" || s.status === "in_transit") return notifyCustomer(order, "order_shipped", `ship:${s._id}:shipped`, base)
+  if (s.status === "delivered") return notifyCustomer(order, "delivered", `ship:${s._id}:delivered`, base)
+  const round = s.trackingEvents.filter((e) => e.internalStatus === s.status).length
+  if (s.status === "out_for_delivery") {
+    const task = s.provider === "own_fleet" ? await db.deliveryTasks().findOne({ shipmentId: s._id }) : null
+    const rider = task?.riderId ? await db.riders().findOne({ _id: task.riderId }, { projection: { name: 1 } }) : null
+    return notifyCustomer(order, "out_for_delivery", `ship:${s._id}:ofd:${round}`, { ...base, riderFirstName: rider?.name.split(" ")[0], cashDue: task?.cod && task.cod.collected === undefined ? task.cod.due : null })
+  }
+  if (s.status === "delivery_failed") return notifyCustomer(order, "delivery_failed", `ship:${s._id}:failed:${round}`, { ...base, reason: s.ndr?.reason?.toLowerCase() })
 }
 
 /**

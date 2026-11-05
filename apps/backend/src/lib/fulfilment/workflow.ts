@@ -9,6 +9,7 @@ import { log } from "../log.js"
 import { assignCourier, courierManifest, createFulfilmentShipment, generateLabel, recordManualShipment, schedulePickup, shippingConfigured } from "../shipping/service.js"
 import { assertTransition, recordTransition } from "../state/machines.js"
 import { allocate } from "./allocate.js"
+import { announce, notifyCustomer } from "../notify/index.js"
 import { bookOwnFleet } from "../fleet/tasks.js"
 
 /*
@@ -220,6 +221,15 @@ export async function qualityCheck(id: string, input: { result: "passed" | "fail
  * one or a different variant is refused and nothing is packed.
  */
 export async function pack(id: string, input: { orderCode: string; scans: string[]; weightKg: number; lengthCm: number; breadthCm: number; heightCm: number }, actor: ActorRef) {
+  const packed = await packInTransaction(id, input, actor)
+  await announce("packed", async () => {
+    const order = await db.orders().findOne({ _id: packed.orderId })
+    if (order) await notifyCustomer(order, "order_packed", `order:${order._id}:packed`)
+  })
+  return packed
+}
+
+function packInTransaction(id: string, input: { orderCode: string; scans: string[]; weightKg: number; lengthCm: number; breadthCm: number; heightCm: number }, actor: ActorRef) {
   return withTransaction(async (session) => {
     const f = await loadFulfilment(id, session)
     if (norm(input.orderCode) !== norm(f.code)) throw new ScanError("wrong_order", `That slip is for another order; this is ${f.code}.`)

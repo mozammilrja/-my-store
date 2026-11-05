@@ -2,6 +2,7 @@ import { Router, type Request } from "express"
 import { z } from "zod"
 import { createReturn, recordSelfShip, REASON_TEXT, returnOptions } from "../../lib/returns/returns.js"
 import { cancelReturn } from "../../lib/returns/resolve.js"
+import { removeSubscription, saveSubscription, subscriptionSchema, vapidPublicKey } from "../../lib/notify/subscriptions.js"
 import { db, RETURN_REASONS, type CustomerDoc, type OrderDoc, type ReturnDoc, type SupportTicketDoc, type LoyaltyAccountDoc, type NotificationDoc, type WishlistDoc } from "../../db/schema.js"
 import { assetUrl, toStoreOrder, toStoreProduct, toStoreTrackingEvents } from "../../lib/serialize.js"
 import { clientKey, hashPassword, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
@@ -482,6 +483,40 @@ customerRoutes.post("/customers/me/tickets/:ticketId/messages", async (req, res)
 
 /* ---------- Notifications ---------- */
 
+/** The public VAPID key the storefront subscribes with (null when web push isn't set up). */
+customerRoutes.get("/push/key", (_req, res) => {
+  res.json({ publicKey: vapidPublicKey() })
+})
+
+customerRoutes.post("/customers/me/push-subscriptions", async (req, res) => {
+  await saveSubscription("customer", req.actorId!, subscriptionSchema.parse(req.body), req.get("user-agent"))
+  res.status(201).json({ subscribed: true })
+})
+
+customerRoutes.delete("/customers/me/push-subscriptions", async (req, res) => {
+  await removeSubscription("customer", req.actorId!, z.object({ endpoint: z.string().optional(), token: z.string().optional() }).parse(req.body ?? {}))
+  res.json({ subscribed: false })
+})
+
+const DEFAULT_PREFS = { email: true, sms: true, whatsapp: false, push: true }
+
+customerRoutes.get("/customers/me/notification-preferences", async (req, res) => {
+  const c = await db.customers().findOne({ _id: req.actorId! }, { projection: { notificationPrefs: 1 } })
+  const devices = await db.pushSubscriptions().countDocuments({ ownerType: "customer", ownerId: req.actorId! })
+  res.json({ preferences: { ...DEFAULT_PREFS, ...(c?.notificationPrefs ?? {}) }, pushDevices: devices })
+})
+
+/** Order and delivery updates only (no marketing). WhatsApp is off until the customer opts in here. */
+customerRoutes.patch("/customers/me/notification-preferences", async (req, res) => {
+  const body = z.object({ email: z.boolean(), sms: z.boolean(), whatsapp: z.boolean(), push: z.boolean() }).partial().parse(req.body)
+  const c = await db.customers().findOne({ _id: req.actorId! }, { projection: { notificationPrefs: 1 } })
+  const next = { ...DEFAULT_PREFS, ...(c?.notificationPrefs ?? {}), ...body }
+  if (body.whatsapp && !c?.notificationPrefs?.whatsapp) next.whatsappOptInAt = new Date()
+  await db.customers().updateOne({ _id: req.actorId! }, { $set: { notificationPrefs: next, updatedAt: new Date() } })
+  const { whatsappOptInAt: _w, ...preferences } = next
+  res.json({ preferences })
+})
+
 customerRoutes.get("/customers/me/notifications", async (req, res) => {
   const customerId = req.actorId!
   const notifications = await db
@@ -489,6 +524,11 @@ customerRoutes.get("/customers/me/notifications", async (req, res) => {
     .find({ recipientId: customerId }, { sort: { createdAt: -1 }, limit: 50 })
     .toArray()
   res.json({ notifications })
+})
+
+customerRoutes.post("/customers/me/notifications/read-all", async (req, res) => {
+  const r = await db.notifications().updateMany({ recipientId: req.actorId!, status: "unread" }, { $set: { status: "read" } })
+  res.json({ updated: r.modifiedCount })
 })
 
 customerRoutes.post("/customers/me/notifications/:id/read", async (req, res) => {

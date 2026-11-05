@@ -247,4 +247,9 @@ export async function syncOrderRefundStatus(orderId: string) {
   const settledRefunds = await db.refunds().find({ orderId, status: { $in: ["processed", "failed"] } }, { projection: { _id: 1 } }).toArray()
   const { settleReturnRefund } = await import("../returns/resolve.js")
   for (const r of settledRefunds) await settleReturnRefund(r._id)
+  // The customer hears about each processed refund once (keyed by the refund).
+  const { announce, notifyCustomer } = await import("../notify/index.js")
+  const processed = await db.refunds().find({ orderId, status: "processed" }).toArray()
+  const fresh = (await db.orders().findOne({ _id: orderId }))!
+  for (const r of processed) await announce("refund", () => notifyCustomer(fresh, "refund_processed", `refund:${r._id}`, { amount: r.amount }))
 }

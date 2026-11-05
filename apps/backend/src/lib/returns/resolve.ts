@@ -6,7 +6,7 @@ import { newId } from "../ids.js"
 import { refundOrder } from "../payments/refunds.js"
 import { cancelShipment, createReturnShipment } from "../shipping/service.js"
 import { recordTransition } from "../state/machines.js"
-import { moveReturn } from "./returns.js"
+import { announceReturn, moveReturn } from "./returns.js"
 
 /*
  * What the store decides about a return: approve or reject the request,
@@ -152,5 +152,7 @@ export async function exchangeReturn(ret: ReturnDoc, actor: Admin, note?: string
     return order
   })
   await markReturnedIfComplete(ret.orderId)
-  return { ret: (await db.returns().findOne({ _id: ret._id }))!, order: created }
+  const done = (await db.returns().findOne({ _id: ret._id }))!
+  await announceReturn(done, "exchanged")
+  return { ret: done, order: created }
 }

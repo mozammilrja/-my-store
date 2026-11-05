@@ -54,6 +54,54 @@ const schema = z.object({
   /** Parcel defaults when products carry no weight or size. */
   SHIPPING_DEFAULT_WEIGHT_KG: z.coerce.number().positive().default(0.5),
   SHIPPING_DEFAULT_DIMENSIONS_CM: z.string().regex(/^\d+x\d+x\d+$/).default("30x25x5"),
+
+  // Notifications. Each channel uses its chosen provider, or the first one configured.
+  /** Links in messages: the storefront (with its country path), rider app and warehouse app. */
+  STOREFRONT_URL: z.url().default("http://localhost:8001/in"),
+  RIDER_APP_URL: z.url().default("http://localhost:7201"),
+  WAREHOUSE_APP_URL: z.url().default("http://localhost:7101"),
+  NOTIFY_EMAIL_PROVIDER: z.enum(["smtp", "ses", "none"]).optional(),
+  NOTIFY_SMS_PROVIDER: z.enum(["msg91", "twilio", "none"]).optional(),
+  NOTIFY_WHATSAPP_PROVIDER: z.enum(["meta", "gupshup", "none"]).optional(),
+  /** From address for email, e.g. "Everwear <orders@everwear.com>". */
+  MAIL_FROM: z.string().optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  /** true for implicit TLS (port 465); otherwise STARTTLS is required. */
+  SMTP_SECURE: z.enum(["true", "false"]).default("false"),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SES_REGION: z.string().optional(),
+  SES_ACCESS_KEY_ID: z.string().optional(),
+  SES_SECRET_ACCESS_KEY: z.string().optional(),
+  /** Override only for tests. */
+  SES_API_BASE: z.url().optional(),
+  MSG91_AUTH_KEY: z.string().optional(),
+  MSG91_API_BASE: z.url().default("https://control.msg91.com"),
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  /** Sender: a number in E.164, or use a messaging service. */
+  TWILIO_FROM: z.string().optional(),
+  TWILIO_MESSAGING_SERVICE_SID: z.string().optional(),
+  TWILIO_API_BASE: z.url().default("https://api.twilio.com"),
+  WHATSAPP_META_TOKEN: z.string().optional(),
+  WHATSAPP_META_PHONE_NUMBER_ID: z.string().optional(),
+  WHATSAPP_META_API_VERSION: z.string().default("v21.0"),
+  WHATSAPP_META_API_BASE: z.url().default("https://graph.facebook.com"),
+  GUPSHUP_API_KEY: z.string().optional(),
+  /** The WhatsApp business number registered with Gupshup (digits, with country code). */
+  GUPSHUP_SOURCE: z.string().optional(),
+  GUPSHUP_APP_NAME: z.string().optional(),
+  GUPSHUP_API_BASE: z.url().default("https://api.gupshup.io"),
+  /** Web push (VAPID). Generate once with: npx web-push generate-vapid-keys */
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:support@everwear.com"),
+  /** Firebase Cloud Messaging (HTTP v1): the service account JSON, base64-encoded. */
+  FCM_SERVICE_ACCOUNT_BASE64: z.string().optional(),
+  /** Overrides only for tests. */
+  FCM_API_BASE: z.url().default("https://fcm.googleapis.com"),
+  FCM_TOKEN_URL: z.url().default("https://oauth2.googleapis.com/token"),
 })
 
 const parsed = schema.safeParse(process.env)

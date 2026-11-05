@@ -1,4 +1,7 @@
-import { ClipboardList, LogOut, Moon, PackageSearch, Truck, Undo2 } from "lucide-react"
+import { Bell, BellOff, ClipboardList, LogOut, Moon, PackageSearch, Truck, Undo2 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { disablePush, enablePush, PUSH_NOTE, pushState, type PushState } from "@/lib/push"
+import { useFeedback } from "./feedback"
 import { NavLink, Outlet } from "react-router"
 import { toggleTheme, useSession } from "@/lib/session"
 import { cn, Select } from "./ui"
@@ -63,6 +66,7 @@ export function Layout() {
           </p>
         )}
         <div className="ml-auto flex items-center gap-1">
+          <PushButton />
           <button onClick={toggleTheme} className="grid size-10 place-items-center rounded-control text-ink-2 hover:bg-panel-muted" aria-label="Switch light or dark theme">
             <Moon className="size-4" aria-hidden />
           </button>
@@ -85,5 +89,32 @@ export function Layout() {
         ))}
       </nav>
     </div>
+  )
+}
+
+/** New orders for this warehouse as device notifications. Hidden where the browser can't show them. */
+function PushButton() {
+  const feedback = useFeedback()
+  const [state, setState] = useState<PushState | "checking">("checking")
+  useEffect(() => {
+    pushState().then(setState, () => setState("unavailable"))
+  }, [])
+  if (state !== "on" && state !== "off" && state !== "denied") return null
+  const toggle = async () => {
+    try {
+      const next = state === "on" ? await disablePush() : await enablePush()
+      setState(next)
+      if (next === "on") feedback.ok("New orders will notify this device.")
+      else if (next === "denied") feedback.bad(PUSH_NOTE.denied)
+      else feedback.ok("Notifications off on this device.")
+    } catch (e) {
+      feedback.bad((e as Error).message)
+    }
+  }
+  const on = state === "on"
+  return (
+    <button onClick={toggle} disabled={state === "denied"} className="grid size-10 place-items-center rounded-control text-ink-2 hover:bg-panel-muted disabled:opacity-50" aria-label={on ? "Turn off new-order notifications" : state === "denied" ? PUSH_NOTE.denied : "Turn on new-order notifications"} aria-pressed={on} title={on ? "New-order notifications on" : PUSH_NOTE[state]}>
+      {on ? <Bell className="size-4" aria-hidden /> : <BellOff className="size-4" aria-hidden />}
+    </button>
   )
 }

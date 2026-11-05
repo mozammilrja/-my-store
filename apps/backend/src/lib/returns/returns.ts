@@ -3,6 +3,7 @@ import { db, migrateEmbeddedReturns, RETURN_REASONS, type ActorRef, type OrderDo
 import { badRequest, conflict, notFound } from "../errors.js"
 import { newId } from "../ids.js"
 import { assertTransition, recordTransition, sourcesOf } from "../state/machines.js"
+import { announce, notifyCustomer } from "../notify/index.js"
 
 /*
  * Returns and exchanges. A ReturnDoc is the record of one return; the
@@ -206,6 +207,27 @@ export async function moveReturnIfAllowed(returnId: string, to: ReturnStatus, ac
   return true
 }
 
+/** How each step reads in a message: "RET-1042-1: Pickup booked". */
+const STEP_TEXT: Partial<Record<ReturnStatus, string>> = {
+  requested: "Request received",
+  approved: "Approved",
+  pickup_scheduled: "Pickup booked",
+  received: "Received at our warehouse",
+  refund_pending: "Refund started",
+  refunded: "Refunded",
+  exchanged: "Replacement sent",
+  rejected: "Not accepted",
+}
+
+/** The customer message for a return step that matters to them (see NOTICE). Keyed per return and status. */
+export async function announceReturn(ret: ReturnDoc, status: ReturnStatus) {
+  if (!NOTICE[status]) return
+  await announce("return update", async () => {
+    const order = await db.orders().findOne({ _id: ret.orderId })
+    if (order) await notifyCustomer(order, "return_update", `ret:${ret._id}:${status}`, { returnCode: ret.code, returnStatus: STEP_TEXT[status] ?? status })
+  })
+}
+
 export async function loadReturn(id: string) {
   const ret = await db.returns().findOne({ _id: id })
   if (!ret) throw notFound("Return")
@@ -239,7 +261,10 @@ const NOTICE: Partial<Record<ReturnStatus, (r: ReturnDoc) => { title: string; me
 
 async function notify(ret: ReturnDoc, status: ReturnStatus, session?: ClientSession) {
   const make = NOTICE[status]
-  if (!make || !ret.customerId) return
+  if (!make) return
+  // Email/SMS/WhatsApp/push only once the change is committed; transactional callers announce afterwards.
+  if (!session) await announceReturn(ret, status)
+  if (!ret.customerId) return
   const { title, message } = make(ret)
   await db.notifications().insertOne(
     { _id: newId("notif"), recipientType: "customer", recipientId: ret.customerId, type: status === "refunded" || status === "refund_pending" ? "refund_processed" : "return_status", title, message, channel: "in_app", status: "unread", metadata: { returnId: ret._id, orderId: ret.orderId, status }, createdAt: new Date() },

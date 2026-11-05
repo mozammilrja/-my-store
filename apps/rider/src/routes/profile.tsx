@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query"
 import { BadgeCheck, Clock3, LogOut } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { disablePush, enablePush, PUSH_NOTE, pushState, type PushState } from "@/lib/push"
 import { useFeedback } from "@/components/feedback"
 import { Button, Input, Label, Panel, Select } from "@/components/ui"
 import { api, errorMessage } from "@/lib/api"
@@ -141,9 +142,46 @@ export function Profile() {
         </div>
       </Panel>
 
+      <PushPanel />
+
       <Button variant="secondary" className="w-full" onClick={signOut}>
         <LogOut className="size-4" aria-hidden /> Sign out
       </Button>
     </div>
+  )
+}
+
+/** New offers and changes to your route, on this phone even when the app is closed. */
+function PushPanel() {
+  const feedback = useFeedback()
+  const [state, setState] = useState<PushState | "checking">("checking")
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    pushState().then(setState, () => setState("unavailable"))
+  }, [])
+  const toggle = async () => {
+    setBusy(true)
+    try {
+      const next = state === "on" ? await disablePush() : await enablePush()
+      setState(next)
+      if (next === "on") feedback.ok("You'll get new offers on this phone.")
+      if (next === "denied") feedback.bad(PUSH_NOTE.denied)
+    } catch (e) {
+      feedback.bad((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Panel title="Notifications on this phone">
+      <p className="mb-3 text-sm text-ink-2" role="status">
+        New offers and changes to your route. {PUSH_NOTE[state]}
+      </p>
+      {state === "on" || state === "off" ? (
+        <Button variant={state === "on" ? "secondary" : "primary"} busy={busy} onClick={toggle}>
+          {state === "on" ? "Turn off" : "Turn on notifications"}
+        </Button>
+      ) : null}
+    </Panel>
   )
 }

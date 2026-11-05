@@ -279,10 +279,7 @@ Each later phase builds on the models here:
   [FLEET.md](./FLEET.md). It also added RTO receiving at the warehouse
   (`/warehouse/rto/:awb`), for courier parcels too.
 - **Phase 4 (done):** returns and exchanges; see [RETURNS.md](./RETURNS.md).
-- **Phase 5:** notifications. Email, SMS, WhatsApp and push through
-  providers, driven by `outbox_events` (`order.placed` and
-  `fulfilment.assigned` are emitted today). The outbox worker currently only
-  marks events published and sends nothing.
+- **Phase 5 (done):** notifications; see [NOTIFICATIONS.md](./NOTIFICATIONS.md).
 - **Phase 6:** seller marketplace (`apps/seller`): KYC, seller-fulfilled
   orders, commissions and settlements.
 - **Phase 7:** a direct Delhivery adapter behind the same shipping interface,

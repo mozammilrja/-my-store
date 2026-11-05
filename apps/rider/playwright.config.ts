@@ -21,7 +21,7 @@ export default defineConfig({
     baseURL: "http://localhost:7201",
     channel: "chrome",
     geolocation: { latitude: 12.9719, longitude: 77.6412 },
-    permissions: ["geolocation"],
+    permissions: ["geolocation", "notifications"],
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

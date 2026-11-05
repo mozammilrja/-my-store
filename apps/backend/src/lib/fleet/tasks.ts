@@ -4,6 +4,7 @@ import { newId } from "../ids.js"
 import { log } from "../log.js"
 import { applyOwnFleetStatus, syncOrderFromShipment } from "../shipping/service.js"
 import { offerTask, moveTask } from "./dispatch.js"
+import { announce, notifyCustomer } from "../notify/index.js"
 import { fleetSettings, newOtp, OTP_MAX_FAILURES, otpMatches } from "./support.js"
 
 /*
@@ -137,6 +138,7 @@ export async function startDelivery(rider: RiderDoc, taskIds: string[]) {
     const { sealed } = newOtp()
     out.push(await moveTask(t, "out_for_delivery", riderActor(rider), undefined, { otp: sealed }))
     await applyOwnFleetStatus(t.shipmentId, "out_for_delivery", "Out for delivery", `With ${rider.name.split(" ")[0]}`)
+    await announce("delivery otp", () => sendOtp(t.orderId, t._id, sealed.issuedAt))
   }
   return out
 }
@@ -147,6 +149,7 @@ export async function reissueOtp(rider: RiderDoc, taskId: string) {
   if (task.status !== "out_for_delivery") throw conflict("Only a parcel out for delivery has an OTP.", "not_out_for_delivery")
   const { sealed } = newOtp()
   await db.deliveryTasks().updateOne({ _id: task._id, status: "out_for_delivery" }, { $set: { otp: sealed, updatedAt: new Date() } })
+  await announce("delivery otp", () => sendOtp(task.orderId, task._id, sealed.issuedAt))
   return { reissued: true }
 }
 
@@ -219,6 +222,12 @@ export async function startRto(taskId: string, actor: { type: "admin"; id: strin
   const next = await moveTask(task, "rto", actor, reason)
   await applyOwnFleetStatus(task.shipmentId, "rto_initiated", "Returning to warehouse", reason)
   return next
+}
+
+/** Sends the customer their delivery code. The message holds only a reference; the code is decrypted when it's sent. */
+async function sendOtp(orderId: string, taskId: string, issuedAt: Date) {
+  const order = await db.orders().findOne({ _id: orderId })
+  if (order) await notifyCustomer(order, "delivery_otp", `otp:${taskId}:${issuedAt.getTime()}`, {}, { secret: { otpTaskId: taskId } })
 }
 
 /** A scan the rider must act on (wrong parcel, wrong OTP), shown as is. */

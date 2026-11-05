@@ -1,442 +1,286 @@
 "use client"
 
+import type { FeedNotification, NotificationPrefs } from "@lib/api/types"
+import { getPushKey, markAllNotificationsRead, markNotificationRead, removePushSubscription, savePushSubscription, updateNotificationPreferences } from "@lib/data/account"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { useState } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { toast } from "sonner"
-import { z } from "zod"
 
-const preferencesSchema = z.object({
-  orderUpdates: z.boolean(),
-  shippingAlerts: z.boolean(),
-  exclusiveOffers: z.boolean(),
-  securityAlerts: z.boolean(),
-  channelEmail: z.boolean(),
-  channelSms: z.boolean(),
-  channelWhatsapp: z.boolean(),
-})
+/*
+ * The customer's notifications: the in-app feed (orders, deliveries,
+ * returns and refunds, newest first) and how they want updates sent:
+ * email, SMS, WhatsApp (only after they opt in) and this browser's push
+ * notifications. Order and delivery updates only; nothing promotional.
+ */
 
-type NotificationCategory = "all" | "orders" | "shipping" | "returns" | "offers" | "security"
+type Category = "all" | "orders" | "shipping" | "returns"
 
-type NotificationCard = {
-  id: string
-  category: "orders" | "shipping" | "returns" | "offers" | "security"
-  categoryLabel: string
-  timeAgo: string
-  isUnread: boolean
-  title: string
-  description: string
-  icon: string
-  actionHref: string
-  actionLabel: string
-  actionIsPrimary?: boolean
+const CATEGORY: Record<FeedNotification["type"], { key: Exclude<Category, "all">; label: string; icon: string }> = {
+  order_confirmation: { key: "orders", label: "Orders", icon: "inventory_2" },
+  shipment_update: { key: "shipping", label: "Delivery", icon: "local_shipping" },
+  return_status: { key: "returns", label: "Returns", icon: "assignment_return" },
+  refund_processed: { key: "returns", label: "Refunds", icon: "payments" },
+  low_stock: { key: "orders", label: "Orders", icon: "inventory_2" },
+  ticket_reply: { key: "orders", label: "Support", icon: "support_agent" },
+  promotion: { key: "orders", label: "Orders", icon: "inventory_2" },
 }
 
-const INITIAL_CARDS: NotificationCard[] = [
-  {
-    id: "notif-1",
-    category: "orders",
-    categoryLabel: "Orders",
-    timeAgo: "10 mins ago",
-    isUnread: true,
-    title: "Order #EV-8842-IN Successfully Confirmed",
-    description:
-      "Your curation of Mulberry Silk Pleated Midi Dress and 1 other item has been securely registered. Our atelier artisans are currently reviewing your selection.",
-    icon: "inventory_2",
-    actionHref: "/account/orders",
-    actionLabel: "View Order",
-  },
-  {
-    id: "notif-2",
-    category: "offers",
-    categoryLabel: "Offers",
-    timeAgo: "2 hours ago",
-    isUnread: true,
-    title: "Privilege Gold Perk: Mid-Season Preview Unlocked",
-    description:
-      "As an esteemed Privilege Gold member, enjoy exclusive early access to the upcoming Autumn Linen Curation with complimentary express delivery using code EVERSPRING.",
-    icon: "workspace_premium",
-    actionHref: "/store?sale=true",
-    actionLabel: "Explore Edit",
-    actionIsPrimary: true,
-  },
-  {
-    id: "notif-3",
-    category: "shipping",
-    categoryLabel: "Shipping",
-    timeAgo: "Yesterday at 4:15 PM",
-    isUnread: false,
-    title: "Your Package is Out for Delivery",
-    description:
-      "Consignment #AW-99201 dispatched via BlueDart Courier. Estimated arrival at your designated New Delhi residence by 6:00 PM today.",
-    icon: "local_shipping",
-    actionHref: "/account/track-orders",
-    actionLabel: "Track Consignment",
-  },
-  {
-    id: "notif-4",
-    category: "returns",
-    categoryLabel: "Returns & Refunds",
-    timeAgo: "3 days ago",
-    isUnread: false,
-    title: "Refund Processed Successfully (₹2,100)",
-    description:
-      "The refund for your returned Structured Linen Blazer has been initiated to your original HDFC Bank Visa ending in 4092. Expect reflection within 2-4 business days.",
-    icon: "published_with_changes",
-    actionHref: "/account/returns",
-    actionLabel: "View Receipt",
-  },
-  {
-    id: "notif-5",
-    category: "security",
-    categoryLabel: "Account Security",
-    timeAgo: "5 days ago",
-    isUnread: false,
-    title: "New Sign-in from macOS Safari (New Delhi, IN)",
-    description:
-      "We noticed a successful login to your Everwear Atelier account from a recognized device and location. If this was you, no action is required.",
-    icon: "shield",
-    actionHref: "/account/profile",
-    actionLabel: "Review Activity",
-  },
-  {
-    id: "notif-6",
-    category: "orders",
-    categoryLabel: "Orders",
-    timeAgo: "1 week ago",
-    isUnread: false,
-    title: "Delivery Completed: Sculpted Boyfriend Blazer",
-    description:
-      "Delivered to your residence. 14-day complimentary doorstep exchanges and alteration pickups are active.",
-    icon: "inventory_2",
-    actionHref: "/account/orders",
-    actionLabel: "View Order",
-  },
-]
+function ago(iso: string) {
+  const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000)
+  if (s < 60) return "just now"
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`
+  if (s < 86_400) return `${Math.floor(s / 3600)} h ago`
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: Date.parse(iso) < Date.now() - 300 * 86_400_000 ? "numeric" : undefined })
+}
 
-export function NotificationsView() {
-  const [cards, setCards] = useState<NotificationCard[]>(INITIAL_CARDS)
-  const [activeTab, setActiveTab] = useState<NotificationCategory>("all")
-  const [showPreferences, setShowPreferences] = useState(false)
-  const [preferences, setPreferences] = useState({
-    orderUpdates: true,
-    shippingAlerts: true,
-    exclusiveOffers: true,
-    securityAlerts: true,
-    channelEmail: true,
-    channelSms: true,
-    channelWhatsapp: false,
-  })
+const linkFor = (n: FeedNotification) =>
+  n.type === "return_status" || n.type === "refund_processed" ? { href: "/account/returns", label: "See returns" } : n.metadata?.orderId ? { href: `/order/${n.metadata.orderId}/track`, label: "View order" } : { href: "/account/orders", label: "Your orders" }
 
-  const markAllAsRead = () => {
-    setCards((prev) => prev.map((c) => ({ ...c, isUnread: false })))
-    toast.success("All communications marked as read")
+const b64ToBytes = (b64: string) => {
+  const s = atob((b64 + "=".repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/"))
+  return Uint8Array.from(s, (c) => c.charCodeAt(0))
+}
+
+export function NotificationsView({ notifications, preferences, hasPhone }: { notifications: FeedNotification[]; preferences: NotificationPrefs; hasPhone: boolean }) {
+  const [tab, setTab] = useState<Category>("all")
+  const [prefs, setPrefs] = useState(preferences)
+  const [pending, startTransition] = useTransition()
+  const unread = notifications.filter((n) => n.status === "unread")
+  const shown = notifications.filter((n) => tab === "all" || CATEGORY[n.type]?.key === tab)
+  const count = (k: Exclude<Category, "all">) => notifications.filter((n) => CATEGORY[n.type]?.key === k).length
+
+  const savePref = (patch: Partial<NotificationPrefs>) => {
+    const before = prefs
+    setPrefs({ ...prefs, ...patch })
+    startTransition(async () => {
+      const r = await updateNotificationPreferences(patch)
+      if (r.error) {
+        setPrefs(before)
+        toast.error(r.error)
+      } else toast.success("Saved")
+    })
   }
-
-  const markAsRead = (id: string) => {
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, isUnread: false } : c)))
-    toast.success("Marked as read")
-  }
-
-  const handleSavePreferences = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Zod validation
-    const result = preferencesSchema.safeParse(preferences)
-    if (!result.success) {
-      toast.error("Invalid notification preferences")
-      return
-    }
-    toast.success("Notification preferences updated successfully")
-    setShowPreferences(false)
-  }
-
-  const counts = {
-    all: cards.length,
-    orders: cards.filter((c) => c.category === "orders").length,
-    shipping: cards.filter((c) => c.category === "shipping").length,
-    returns: cards.filter((c) => c.category === "returns").length,
-    offers: cards.filter((c) => c.category === "offers").length,
-    security: cards.filter((c) => c.category === "security").length,
-  }
-
-  const displayedCards = cards.filter((c) =>
-    activeTab === "all" ? true : c.category === activeTab
-  )
 
   return (
-    <div className="flex flex-col w-full" data-testid="notifications-view">
-      {/* Header & Actions Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md mb-space-xl pb-space-md border-b border-surface-container-high">
+    <div className="flex flex-col w-full gap-space-xl" data-testid="notifications-view">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md pb-space-md border-b border-surface-container-high">
         <div>
-          <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest block mb-1">
-            Atelier Communications
-          </span>
-          <h1 className="font-headline-xl text-headline-xl text-on-surface uppercase">
-            NOTIFICATIONS
-          </h1>
+          <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest block mb-1">Account</span>
+          <h1 className="font-headline-xl text-headline-xl text-on-surface uppercase">Notifications</h1>
         </div>
-        <div className="flex items-center gap-space-md">
-          <button
-            type="button"
-            onClick={markAllAsRead}
-            className="h-11 px-5 bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-label-sm rounded uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer font-medium"
-          >
-            <span className="material-symbols-outlined text-[18px]">done_all</span>
-            Mark All as Read
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowPreferences(true)}
-            className="h-11 px-5 bg-primary hover:bg-inverse-surface text-on-primary font-label-sm text-label-sm rounded uppercase tracking-wider transition-colors flex items-center gap-2 shadow-sm cursor-pointer font-medium"
-          >
-            <span className="material-symbols-outlined text-[18px]">tune</span>
-            Preferences
-          </button>
-        </div>
+        <button
+          type="button"
+          disabled={!unread.length || pending}
+          onClick={() =>
+            startTransition(async () => {
+              const r = await markAllNotificationsRead()
+              if (r.error) toast.error(r.error)
+            })
+          }
+          className="h-11 px-5 bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-label-sm rounded uppercase tracking-wider transition-colors flex items-center gap-2 font-medium disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-[18px]">done_all</span>
+          Mark all as read
+        </button>
       </div>
 
-      {/* Category Filter Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-space-md mb-space-lg no-scrollbar">
+      <section aria-labelledby="channels-heading" className="bg-surface-container-lowest rounded-xl p-space-lg border border-surface-container-high/60 flex flex-col gap-space-md">
+        <div>
+          <h2 id="channels-heading" className="font-headline-sm text-headline-sm text-on-surface font-semibold">
+            How we keep you posted
+          </h2>
+          <p className="font-body-sm text-body-sm text-on-surface-variant">Order confirmations, delivery updates, your delivery code, returns and refunds. Never offers.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {(
+            [
+              ["email", "Email", "To your account email"],
+              ["sms", "SMS", hasPhone ? "To the phone on your order" : "Add a phone to an address first"],
+              ["whatsapp", "WhatsApp", "Updates on WhatsApp, only if you turn this on"],
+            ] as const
+          ).map(([key, label, note]) => (
+            <label key={key} className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer ${prefs[key] ? "border-primary bg-surface-container-lowest" : "border-surface-container-high bg-surface-container-low"}`}>
+              <input type="checkbox" className="mt-0.5 w-4 h-4 accent-primary" checked={prefs[key]} disabled={pending} onChange={(e) => savePref({ [key]: e.target.checked })} data-testid={`pref-${key}`} />
+              <span className="flex flex-col">
+                <span className="font-body-sm text-body-sm font-semibold text-on-surface">{label}</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant">{note}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <BrowserPush enabled={prefs.push} onToggle={(push) => savePref({ push })} />
+      </section>
+
+      <div role="tablist" aria-label="Notification type" className="flex items-center gap-2 overflow-x-auto no-scrollbar">
         {(
           [
-            { key: "all", label: `All (${counts.all})` },
-            { key: "orders", label: `Orders (${counts.orders})` },
-            { key: "shipping", label: `Shipping (${counts.shipping})` },
-            { key: "returns", label: `Returns & Refunds (${counts.returns})` },
-            { key: "offers", label: `Offers (${counts.offers})` },
-            { key: "security", label: `Account Security (${counts.security})` },
+            ["all", `All (${notifications.length})`],
+            ["orders", `Orders (${count("orders")})`],
+            ["shipping", `Delivery (${count("shipping")})`],
+            ["returns", `Returns & refunds (${count("returns")})`],
           ] as const
-        ).map((tab) => {
-          const isActive = activeTab === tab.key
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`h-9 px-4 rounded font-label-sm text-label-sm uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-                isActive
-                  ? "bg-primary text-on-primary font-semibold"
-                  : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-              }`}
-            >
-              {tab.label}
-            </button>
-          )
-        })}
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={`h-9 px-4 rounded font-label-sm text-label-sm uppercase tracking-wider whitespace-nowrap ${tab === key ? "bg-primary text-on-primary font-semibold" : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"}`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* Notifications List Container */}
-      <div className="flex flex-col gap-space-md" id="notifications-list">
-        {displayedCards.length === 0 ? (
-          <div className="p-space-xl bg-surface-container-lowest rounded-xl text-center border border-surface-container-high/60">
-            <span className="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">
-              notifications_off
-            </span>
-            <p className="font-body-md text-body-md text-on-surface-variant">
-              No notifications found in this category.
-            </p>
-          </div>
+      <ul className="flex flex-col gap-space-md" id="notifications-list">
+        {shown.length === 0 ? (
+          <li className="p-space-xl bg-surface-container-lowest rounded-xl text-center border border-surface-container-high/60">
+            <span className="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">notifications_off</span>
+            <p className="font-body-md text-body-md text-on-surface-variant">{notifications.length ? "Nothing here in this category." : "Updates about your orders will appear here."}</p>
+          </li>
         ) : (
-          displayedCards.map((card) => (
-            <div
-              key={card.id}
-              className={`bg-surface-container-lowest p-space-lg rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.03)] hover:shadow-md transition-all relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md border border-surface-container-high/60 ${
-                !card.isUnread ? "opacity-85" : ""
-              }`}
-            >
-              {card.isUnread && (
-                <div className="absolute top-0 left-0 bottom-1 w-1 bg-secondary" />
-              )}
-              <div className="flex items-start gap-space-md">
-                <div
-                  className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                    card.isUnread
-                      ? "bg-secondary-fixed text-on-secondary-fixed"
-                      : "bg-surface-container text-on-surface-variant"
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[24px]">
-                    {card.icon}
-                  </span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span
-                      className={`font-label-caps text-label-caps uppercase tracking-wider ${
-                        card.isUnread
-                          ? "text-secondary font-bold"
-                          : "text-on-surface-variant font-semibold"
-                      }`}
-                    >
-                      {card.categoryLabel}
+          shown.map((n) => {
+            const c = CATEGORY[n.type] ?? CATEGORY.order_confirmation
+            const isUnread = n.status === "unread"
+            const link = linkFor(n)
+            return (
+              <li key={n._id} className="bg-surface-container-lowest p-space-lg rounded-xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md border border-surface-container-high/60" data-testid="notification-card">
+                {isUnread && <div className="absolute top-0 left-0 bottom-0 w-1 bg-secondary" aria-hidden />}
+                <div className="flex items-start gap-space-md">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isUnread ? "bg-secondary-fixed text-on-secondary-fixed" : "bg-surface-container text-on-surface-variant"}`}>
+                    <span className="material-symbols-outlined text-[24px]" aria-hidden>
+                      {c.icon}
                     </span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-outline-variant" />
-                    <span className="font-body-sm text-body-sm text-on-surface-variant">
-                      {card.timeAgo}
-                    </span>
-                    {card.isUnread && (
-                      <span className="bg-secondary text-on-secondary font-label-caps text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                        New
-                      </span>
-                    )}
                   </div>
-                  <h2 className="font-headline-sm text-headline-sm text-on-surface font-semibold mb-1">
-                    {card.title}
-                  </h2>
-                  <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">
-                    {card.description}
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className={`font-label-caps text-label-caps uppercase tracking-wider ${isUnread ? "text-secondary font-bold" : "text-on-surface-variant font-semibold"}`}>{c.label}</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-outline-variant" aria-hidden />
+                      <time dateTime={n.createdAt} className="font-body-sm text-body-sm text-on-surface-variant">
+                        {ago(n.createdAt)}
+                      </time>
+                      {isUnread && <span className="bg-secondary text-on-secondary font-label-caps text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">New</span>}
+                    </div>
+                    <h2 className="font-headline-sm text-headline-sm text-on-surface font-semibold mb-1">{n.title}</h2>
+                    <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">{n.message}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 w-full md:w-auto justify-end pt-2 md:pt-0 border-t md:border-t-0 border-surface-container-high">
-                <LocalizedClientLink
-                  href={card.actionHref}
-                  className={`h-9 px-4 font-label-sm text-label-sm rounded uppercase tracking-wider transition-colors flex items-center justify-center font-medium ${
-                    card.actionIsPrimary
-                      ? "bg-primary hover:bg-inverse-surface text-on-primary shadow-xs"
-                      : "bg-surface-container hover:bg-surface-container-high text-on-surface"
-                  }`}
-                >
-                  {card.actionLabel}
-                </LocalizedClientLink>
-                {card.isUnread && (
-                  <button
-                    type="button"
-                    onClick={() => markAsRead(card.id)}
-                    className="h-9 w-9 bg-surface-container hover:bg-surface-container-high text-on-surface rounded flex items-center justify-center transition-colors cursor-pointer"
-                    title="Mark as read"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">done</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          ))
+                <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                  <LocalizedClientLink href={link.href} className="h-9 px-4 font-label-sm text-label-sm rounded uppercase tracking-wider flex items-center font-medium bg-surface-container hover:bg-surface-container-high text-on-surface">
+                    {link.label}
+                  </LocalizedClientLink>
+                  {isUnread && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        startTransition(async () => {
+                          const r = await markNotificationRead(n._id)
+                          if (r.error) toast.error(r.error)
+                        })
+                      }
+                      className="h-9 w-9 bg-surface-container hover:bg-surface-container-high text-on-surface rounded flex items-center justify-center"
+                      aria-label={`Mark "${n.title}" as read`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]" aria-hidden>
+                        done
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </li>
+            )
+          })
         )}
+      </ul>
+    </div>
+  )
+}
+
+/** Push on this browser: registers the service worker, asks permission, and saves the subscription. */
+function BrowserPush({ enabled, onToggle }: { enabled: boolean; onToggle: (on: boolean) => void }) {
+  const [state, setState] = useState<"checking" | "unsupported" | "unavailable" | "denied" | "off" | "on">("checking")
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let live = true
+    ;(async () => {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return live && setState("unsupported")
+      if (!(await getPushKey().catch(() => null))) return live && setState("unavailable")
+      if (Notification.permission === "denied") return live && setState("denied")
+      const reg = await navigator.serviceWorker.getRegistration("/")
+      const sub = await reg?.pushManager.getSubscription()
+      if (live) setState(sub ? "on" : "off")
+    })()
+    return () => {
+      live = false
+    }
+  }, [])
+
+  const turnOn = async () => {
+    setBusy(true)
+    try {
+      const key = await getPushKey()
+      if (!key) return setState("unavailable")
+      if ((await Notification.requestPermission()) !== "granted") return setState("denied")
+      const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" })
+      await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) })
+      const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } }
+      const r = await savePushSubscription({ endpoint: json.endpoint, keys: json.keys })
+      if (r.error) throw new Error(r.error)
+      setState("on")
+      if (!enabled) onToggle(true)
+      toast.success("Notifications are on for this browser")
+    } catch (e) {
+      toast.error((e as Error).message || "Couldn't turn on notifications")
+    } finally {
+      setBusy(false)
+    }
+  }
+  const turnOff = async () => {
+    setBusy(true)
+    try {
+      const reg = await navigator.serviceWorker.getRegistration("/")
+      const sub = await reg?.pushManager.getSubscription()
+      if (sub) {
+        await removePushSubscription(sub.endpoint)
+        await sub.unsubscribe()
+      }
+      setState("off")
+      toast.success("Notifications are off for this browser")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const note = {
+    checking: "Checking this browser…",
+    unsupported: "This browser can't show notifications.",
+    unavailable: "Browser notifications aren't available right now.",
+    denied: "Notifications are blocked for this site. Allow them in your browser's site settings.",
+    off: "Get delivery updates on this browser, even when the site is closed.",
+    on: "This browser shows your delivery updates.",
+  }[state]
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg bg-surface-container-low p-4">
+      <div>
+        <p className="font-body-sm text-body-sm font-semibold text-on-surface">Browser notifications</p>
+        <p className="font-label-sm text-label-sm text-on-surface-variant" role="status">
+          {note}
+        </p>
       </div>
-
-      {/* Preferences Modal (Validated via Zod) */}
-      {showPreferences && (
-        <div className="fixed inset-0 bg-inverse-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest w-full max-w-md rounded-xl shadow-[0_20px_40px_-15px_rgba(24,24,27,0.2)] p-space-lg border border-surface-container-high/80">
-            <div className="flex items-center justify-between pb-space-md mb-space-md border-b border-surface-container-high">
-              <h3 className="font-headline-sm text-headline-sm text-on-surface font-semibold">
-                Notification Preferences
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowPreferences(false)}
-                className="text-outline hover:text-on-surface transition-colors p-1 cursor-pointer"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            <form onSubmit={handleSavePreferences} className="flex flex-col gap-4">
-              <span className="font-label-caps text-label-caps uppercase text-on-surface-variant font-bold tracking-wider">
-                Event Categories
-              </span>
-              <label className="flex items-center justify-between text-body-sm text-on-surface cursor-pointer">
-                <span>Order Placement &amp; Dispatch Updates</span>
-                <input
-                  type="checkbox"
-                  checked={preferences.orderUpdates}
-                  onChange={(e) =>
-                    setPreferences({ ...preferences, orderUpdates: e.target.checked })
-                  }
-                  className="accent-primary size-4.5"
-                />
-              </label>
-              <label className="flex items-center justify-between text-body-sm text-on-surface cursor-pointer">
-                <span>Live Consignment &amp; Delivery Tracking</span>
-                <input
-                  type="checkbox"
-                  checked={preferences.shippingAlerts}
-                  onChange={(e) =>
-                    setPreferences({ ...preferences, shippingAlerts: e.target.checked })
-                  }
-                  className="accent-primary size-4.5"
-                />
-              </label>
-              <label className="flex items-center justify-between text-body-sm text-on-surface cursor-pointer">
-                <span>Atelier Privilege Club Early Access</span>
-                <input
-                  type="checkbox"
-                  checked={preferences.exclusiveOffers}
-                  onChange={(e) =>
-                    setPreferences({ ...preferences, exclusiveOffers: e.target.checked })
-                  }
-                  className="accent-primary size-4.5"
-                />
-              </label>
-              <label className="flex items-center justify-between text-body-sm text-on-surface cursor-pointer">
-                <span>Account Security &amp; Biometric Sessions</span>
-                <input
-                  type="checkbox"
-                  checked={preferences.securityAlerts}
-                  onChange={(e) =>
-                    setPreferences({ ...preferences, securityAlerts: e.target.checked })
-                  }
-                  className="accent-primary size-4.5"
-                />
-              </label>
-
-              <span className="font-label-caps text-label-caps uppercase text-on-surface-variant font-bold tracking-wider mt-2">
-                Delivery Channels
-              </span>
-              <div className="grid grid-cols-3 gap-2">
-                <label className="p-2.5 rounded bg-surface-container-low border border-surface-container-high text-xs flex items-center justify-between cursor-pointer">
-                  <span>Email</span>
-                  <input
-                    type="checkbox"
-                    checked={preferences.channelEmail}
-                    onChange={(e) =>
-                      setPreferences({ ...preferences, channelEmail: e.target.checked })
-                    }
-                    className="accent-primary"
-                  />
-                </label>
-                <label className="p-2.5 rounded bg-surface-container-low border border-surface-container-high text-xs flex items-center justify-between cursor-pointer">
-                  <span>SMS</span>
-                  <input
-                    type="checkbox"
-                    checked={preferences.channelSms}
-                    onChange={(e) =>
-                      setPreferences({ ...preferences, channelSms: e.target.checked })
-                    }
-                    className="accent-primary"
-                  />
-                </label>
-                <label className="p-2.5 rounded bg-surface-container-low border border-surface-container-high text-xs flex items-center justify-between cursor-pointer">
-                  <span>WhatsApp</span>
-                  <input
-                    type="checkbox"
-                    checked={preferences.channelWhatsapp}
-                    onChange={(e) =>
-                      setPreferences({ ...preferences, channelWhatsapp: e.target.checked })
-                    }
-                    className="accent-primary"
-                  />
-                </label>
-              </div>
-
-              <div className="pt-space-md flex items-center justify-end gap-3 border-t border-surface-container-high mt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPreferences(false)}
-                  className="h-10 px-5 bg-surface-container text-on-surface font-label-sm text-label-sm uppercase rounded hover:bg-surface-container-high transition-colors font-medium cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="h-10 px-5 bg-primary text-on-primary font-label-sm text-label-sm uppercase rounded hover:bg-inverse-surface transition-colors font-medium shadow-sm cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {(state === "off" || state === "on") && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={state === "on" ? turnOff : turnOn}
+          className={`h-10 px-4 rounded font-label-sm text-label-sm uppercase tracking-wider font-semibold disabled:opacity-60 ${state === "on" ? "border border-surface-container-high text-on-surface" : "bg-primary text-on-primary"}`}
+          data-testid="push-toggle"
+        >
+          {state === "on" ? "Turn off" : "Turn on"}
+        </button>
       )}
     </div>
   )

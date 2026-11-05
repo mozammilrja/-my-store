@@ -31,6 +31,7 @@ import { adminFulfilmentRoutes } from "./routes/admin/fulfilment.js"
 import { warehouseRoutes } from "./routes/warehouse/index.js"
 import { riderRoutes } from "./routes/rider/index.js"
 import { adminFleetRoutes } from "./routes/admin/fleet.js"
+import { adminNotificationRoutes } from "./routes/admin/notifications.js"
 
 /** Turns anything thrown by a route into the API's error shape. */
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
@@ -107,7 +108,7 @@ export function createApp(): Express {
 
   app.use("/admin", adminAuthRoutes)
   // Everything past the login route needs a signed-in admin.
-  app.use("/admin", ...requireAdmin, adminAnalyticsRoutes, adminOrderRoutes, adminProductRoutes, adminStoreRoutes, adminSettingsRoutes, adminUserRoutes, adminLogisticsRoutes, adminWarehouseRoutes, adminSiteMediaRoutes, adminPaymentRoutes, adminFulfilmentRoutes, adminFleetRoutes)
+  app.use("/admin", ...requireAdmin, adminAnalyticsRoutes, adminOrderRoutes, adminProductRoutes, adminStoreRoutes, adminSettingsRoutes, adminUserRoutes, adminLogisticsRoutes, adminWarehouseRoutes, adminSiteMediaRoutes, adminPaymentRoutes, adminFulfilmentRoutes, adminFleetRoutes, adminNotificationRoutes)
 
   // Warehouse floor staff: their own accounts, scoped to their warehouses.
   app.use("/warehouse", warehouseRoutes)

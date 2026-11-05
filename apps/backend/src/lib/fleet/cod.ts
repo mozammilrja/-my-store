@@ -4,6 +4,7 @@ import { db, type ActorRef, type CodRemittanceDoc, type RiderDoc } from "../../d
 import { conflict, notFound } from "../errors.js"
 import { newId } from "../ids.js"
 import { assertTransition, recordTransition } from "../state/machines.js"
+import { announce, notifyCustomer } from "../notify/index.js"
 
 /*
  * Cash on delivery collected by our riders. A rider's cash in hand is the
@@ -47,6 +48,19 @@ export async function submitRemittance(rider: RiderDoc, declared: number) {
 }
 
 export async function reconcileRemittance(id: string, counted: number, actor: ActorRef, note?: string) {
+  const r = await reconcileInTransaction(id, counted, actor, note)
+  if (r.status === "reconciled") {
+    await announce("payment received", async () => {
+      for (const t of await db.deliveryTasks().find({ _id: { $in: r.taskIds } }).toArray()) {
+        const order = await db.orders().findOne({ _id: t.orderId, paymentStatus: "paid" })
+        if (order) await notifyCustomer(order, "payment_received", `order:${order._id}:paid`, { amount: t.cod?.collected ?? order.totals.total })
+      }
+    })
+  }
+  return r
+}
+
+function reconcileInTransaction(id: string, counted: number, actor: ActorRef, note?: string) {
   return withTransaction(async (session) => {
     const r = await db.codRemittances().findOne({ _id: id }, { session })
     if (!r) throw notFound("Remittance")

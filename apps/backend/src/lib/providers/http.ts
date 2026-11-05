@@ -22,6 +22,8 @@ type Options = {
   method?: "GET" | "POST" | "PATCH" | "DELETE"
   headers?: Record<string, string>
   body?: unknown
+  /** Sent as application/x-www-form-urlencoded instead of JSON (Twilio, Gupshup). */
+  form?: Record<string, string>
   timeoutMs?: number
   retries?: number
 }
@@ -29,7 +31,7 @@ type Options = {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 export async function providerJson<T>(provider: string, url: string, options: Options = {}): Promise<T> {
-  const { method = "GET", headers = {}, body, timeoutMs = 15_000 } = options
+  const { method = "GET", headers = {}, body, form, timeoutMs = 15_000 } = options
   const retries = options.retries ?? (method === "GET" ? 2 : 0)
   let lastError: ProviderError | null = null
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -38,8 +40,8 @@ export async function providerJson<T>(provider: string, url: string, options: Op
     try {
       res = await fetch(url, {
         method,
-        headers: { accept: "application/json", ...(body !== undefined ? { "content-type": "application/json" } : {}), ...headers },
-        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        headers: { accept: "application/json", ...(form ? { "content-type": "application/x-www-form-urlencoded" } : body !== undefined ? { "content-type": "application/json" } : {}), ...headers },
+        ...(form ? { body: new URLSearchParams(form).toString() } : body !== undefined ? { body: JSON.stringify(body) } : {}),
         signal: AbortSignal.timeout(timeoutMs),
       })
     } catch (e) {
@@ -56,6 +58,7 @@ export async function providerJson<T>(provider: string, url: string, options: Op
     if (res.ok) return data as T
     const message =
       (data as { error?: { description?: string } })?.error?.description ??
+      (data as { error?: { message?: string } })?.error?.message ??
       (data as { message?: string })?.message ??
       `HTTP ${res.status}`
     lastError = new ProviderError(provider, res.status, `${provider}: ${message}`, data)

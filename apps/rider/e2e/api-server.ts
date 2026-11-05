@@ -13,6 +13,8 @@ import { writeFile } from "node:fs/promises"
 import { createServer } from "node:http"
 
 const PORT = Number(process.env.E2E_API_PORT ?? 9192)
+const { default: webpush } = await import("web-push")
+const vapid = webpush.generateVAPIDKeys()
 Object.assign(process.env, {
   NODE_ENV: "test",
   MONGODB_DB: "everwear_e2e_rider",
@@ -22,6 +24,8 @@ Object.assign(process.env, {
   ADMIN_CORS: "",
   SHIPPING_PROVIDER: "none",
   PRIVATE_UPLOADS_DIR: "/tmp/everwear-e2e-rider-private",
+  VAPID_PUBLIC_KEY: vapid.publicKey,
+  VAPID_PRIVATE_KEY: vapid.privateKey,
   RAZORPAY_KEY_ID: "",
   RAZORPAY_KEY_SECRET: "",
 })

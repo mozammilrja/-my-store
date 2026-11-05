@@ -46,6 +46,7 @@ Architecture, design tokens and known issues: [`docs/PROJECT.md`](./docs/PROJECT
 | Warehouse app screens | `apps/warehouse/src/routes/` (orders, fulfilment work screen, dispatch, stock, returns); API client `src/lib/api.ts`, types `src/lib/types.ts` |
 | Warehouse app scanning and printing | `apps/warehouse/src/components/scan-field.tsx` (keyboard-wedge scanners, camera through the Barcode Detection API), `src/lib/code128.ts` (pick slip and parcel barcodes) |
 | Warehouse browser tests | `apps/warehouse/e2e/` (`api-server.ts` runs the real API on `everwear_e2e_warehouse` with the courier stand-in) |
+| Notifications: email, SMS, WhatsApp, push | `apps/backend/src/lib/notify/` (`index.ts` recipients, queue and worker; `templates.ts` wording and template variables; `providers/` one file per channel); admin API `src/routes/admin/notifications.ts`; design in [`docs/NOTIFICATIONS.md`](./docs/NOTIFICATIONS.md) |
 | Returns and exchanges: rules, refunds, replacement orders | `apps/backend/src/lib/returns/` (`returns.ts` rules and lifecycle, `resolve.ts` decisions, `inspect.ts` warehouse grading); design in [`docs/RETURNS.md`](./docs/RETURNS.md) |
 | Own delivery fleet: zones, riders, dispatch, OTP delivery, cash, RTO | `apps/backend/src/lib/fleet/`; rider API `src/routes/rider/`, admin API `src/routes/admin/fleet.ts`; design in [`docs/FLEET.md`](./docs/FLEET.md) |
 | Rider app screens | `apps/rider/src/routes/` (today, task, money, profile, auth); location sharing in `src/lib/session.tsx` |
@@ -202,6 +203,7 @@ The checkout and account e2e tests create real orders and customers in the local
 
 - Changing a warehouse-managed variant's stock any way other than `lib/inventory/stock.ts#moveStock`. The product's `stock` must equal the sum of `available` in `stock_levels`, and every move needs a ledger row.
 - Exposing a delivery's address, phone or OTP beyond `riderView` in `routes/rider/index.ts`, or serving proof photos from `/uploads`. They live in `PRIVATE_UPLOADS_DIR` and go to admins only.
+- Calling a messaging provider directly from a route. Use `notifyCustomer`/`notifyWarehouse`/`notifyRider` with a stable key (it de-duplicates and retries), and wrap the call in `announce()` so a notification failure can't fail the business action.
 - Writing `order.returnRequest` directly. Returns live in the `returns` collection; the order field is a mirror written by `lib/returns/returns.ts#mirror`.
 - Setting a fulfilment or return status with a plain `$set`. Go through the state machine helpers so the move is checked and recorded.
 

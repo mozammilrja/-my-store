@@ -1,6 +1,7 @@
 import { db, type ActorRef, type DeliveryTaskDoc, type RiderDoc } from "../../db/schema.js"
 import { badRequest, conflict, notFound } from "../errors.js"
 import { newId } from "../ids.js"
+import { announce, notifyRider } from "../notify/index.js"
 import { log } from "../log.js"
 import { assertTransition, recordTransition, SYSTEM } from "../state/machines.js"
 import { fleetSettings, onShift, orderStops } from "./support.js"
@@ -108,14 +109,23 @@ export async function assignTask(taskId: string, riderId: string, actor: ActorRe
   if (task.status === "assigned" && task.riderId === riderId) throw conflict("Already assigned to that rider.", "invalid_transition")
   let current = task
   // From an open offer or another rider, it goes back to the pool first so the history shows both steps.
+  const previous = current.status === "assigned" ? current.riderId : null
   if (current.status === "offered" || current.status === "assigned") current = await moveTask(current, "unassigned", actor, `Reassigned: ${reason}`, { offer: null, riderId: null })
-  return moveTask(current, "assigned", actor, reason, { riderId, offer: null })
+  const assigned = await moveTask(current, "assigned", actor, reason, { riderId, offer: null })
+  const n = await db.statusEvents().countDocuments({ entityId: task._id, to: "assigned" })
+  await announce("delivery assigned", async () => {
+    await notifyRider(riderId, "delivery_assigned", `dlv:${task._id}:assigned:${n}`, { awb: task.code })
+    if (previous && previous !== riderId) await notifyRider(previous, "delivery_unassigned", `dlv:${task._id}:unassigned:${n}`, { awb: task.code })
+  })
+  return assigned
 }
 
 export async function unassignTask(taskId: string, actor: ActorRef, reason: string) {
   const task = await db.deliveryTasks().findOne({ _id: taskId })
   if (!task) throw notFound("Delivery")
-  return moveTask(task, "unassigned", actor, reason, { offer: null, riderId: null })
+  const next = await moveTask(task, "unassigned", actor, reason, { offer: null, riderId: null })
+  if (task.riderId) await announce("delivery unassigned", () => notifyRider(task.riderId!, "delivery_unassigned", `dlv:${task._id}:unassigned:${task.updatedAt.getTime()}`, { awb: task.code }))
+  return next
 }
 
 /** The rider's run in stop order, written back as `sequence`. */

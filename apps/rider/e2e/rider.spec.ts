@@ -132,6 +132,30 @@ test("cash is handed over, and earnings show the day", async ({ page }) => {
   await axe(page)
 })
 
+/*
+ * Automated Chrome can't register with a push service, so it refuses the
+ * subscription. What this checks is that the app reports the browser's
+ * answer and never claims notifications are on when they aren't. Delivery
+ * itself (encryption, VAPID, the push service call) is tested in the
+ * backend suite, which decrypts the payload as a browser would.
+ */
+test("turning on notifications asks the browser and reports its answer truthfully", async ({ page }) => {
+  await signIn(page)
+  await page.getByRole("link", { name: "Profile" }).click()
+  await expect(page.getByText(/New offers and changes to your route\. Off on this device\./)).toBeVisible()
+  await page.getByRole("button", { name: "Turn on notifications" }).click()
+  const on = page.getByText(/On for this device\./)
+  const refused = toast(page, /Registration failed|push service/i)
+  await expect(on.or(refused)).toBeVisible({ timeout: 20_000 })
+  if (await refused.isVisible()) {
+    // Still off, and the button still offers to turn it on: no false "on".
+    await expect(page.getByText(/Off on this device\./)).toBeVisible()
+    await expect(page.getByRole("button", { name: "Turn on notifications" })).toBeVisible()
+  } else {
+    await expect(page.getByRole("button", { name: "Turn off" })).toBeVisible()
+  }
+})
+
 test("a new rider signs up and waits for approval", async ({ page }) => {
   await page.goto("/")
   await page.getByRole("button", { name: "Create an account" }).click()

@@ -5,7 +5,7 @@ import { refresh, revalidatePath } from "next/cache"
 // cached route (revalidatePath "/" layout). Edits to the account only
 // re-render the page that made them (refresh).
 import { api, ApiError } from "../api/client"
-import type { Address, Customer, Invoice, Order, OrderSummary, ReturnOptions, StoreReturn } from "../api/types"
+import type { Address, Customer, FeedNotification, Invoice, NotificationPrefs, Order, OrderSummary, ReturnOptions, StoreReturn } from "../api/types"
 import { getOrderAccess, getToken, removeCartId, removeToken, setToken } from "./session"
 import { linkCartToCustomer, type ActionResult } from "./shop"
 import { fieldErrorsFrom, savedAddressSchema, type FieldErrors } from "../validation/checkout-schemas"
@@ -161,6 +161,66 @@ export async function requestReturn(orderId: string, reason: string, items?: { i
       body: { reason, items },
     })
     refresh()
+    return { error: null }
+  } catch (e) {
+    return { error: message(e) }
+  }
+}
+
+export async function listNotifications(): Promise<FeedNotification[]> {
+  return (await api<{ notifications: FeedNotification[] }>("/store/customers/me/notifications", { token: await authed() })).notifications
+}
+
+export async function markNotificationRead(id: string): Promise<ActionResult> {
+  try {
+    await api(`/store/customers/me/notifications/${encodeURIComponent(id)}/read`, { method: "POST", token: await authed(), body: {} })
+    refresh()
+    return { error: null }
+  } catch (e) {
+    return { error: message(e) }
+  }
+}
+
+export async function markAllNotificationsRead(): Promise<ActionResult> {
+  try {
+    await api("/store/customers/me/notifications/read-all", { method: "POST", token: await authed(), body: {} })
+    refresh()
+    return { error: null }
+  } catch (e) {
+    return { error: message(e) }
+  }
+}
+
+export async function getNotificationPreferences(): Promise<{ preferences: NotificationPrefs; pushDevices: number }> {
+  return api("/store/customers/me/notification-preferences", { token: await authed() })
+}
+
+export async function updateNotificationPreferences(prefs: Partial<NotificationPrefs>): Promise<ActionResult & { preferences?: NotificationPrefs }> {
+  try {
+    const r = await api<{ preferences: NotificationPrefs }>("/store/customers/me/notification-preferences", { method: "PATCH", token: await authed(), body: prefs })
+    return { error: null, preferences: r.preferences }
+  } catch (e) {
+    return { error: message(e) }
+  }
+}
+
+/** The VAPID key this browser subscribes with; null when push isn't set up on the API. */
+export async function getPushKey(): Promise<string | null> {
+  return (await api<{ publicKey: string | null }>("/store/push/key")).publicKey
+}
+
+export async function savePushSubscription(sub: { endpoint: string; keys: { p256dh: string; auth: string } }): Promise<ActionResult> {
+  try {
+    await api("/store/customers/me/push-subscriptions", { method: "POST", token: await authed(), body: sub })
+    return { error: null }
+  } catch (e) {
+    return { error: message(e) }
+  }
+}
+
+export async function removePushSubscription(endpoint: string): Promise<ActionResult> {
+  try {
+    await api("/store/customers/me/push-subscriptions", { method: "DELETE", token: await authed(), body: { endpoint } })
     return { error: null }
   } catch (e) {
     return { error: message(e) }

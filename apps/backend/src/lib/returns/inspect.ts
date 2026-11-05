@@ -2,7 +2,7 @@ import { withTransaction } from "../../db/client.js"
 import { db, type ActorRef } from "../../db/schema.js"
 import { badRequest, conflict, notFound } from "../errors.js"
 import { moveStock, trackedVariants } from "../inventory/stock.js"
-import { moveReturn } from "./returns.js"
+import { announceReturn, moveReturn } from "./returns.js"
 
 /*
  * The returned parcel is opened at a warehouse. Each unit is received into
@@ -15,6 +15,14 @@ import { moveReturn } from "./returns.js"
 export type InspectionLine = { itemId: string; quantity: number; condition: "sellable" | "damaged"; notes?: string }
 
 export async function inspectReturn(returnId: string, warehouseId: string, lines: InspectionLine[], actor: ActorRef) {
+  const before = await db.returns().findOne({ _id: returnId }, { projection: { status: 1 } })
+  const done = await inspectInTransaction(returnId, warehouseId, lines, actor)
+  // "Received" is the step the customer hears about; it happened inside the transaction.
+  if (before && before.status !== "received") await announceReturn(done, "received")
+  return done
+}
+
+function inspectInTransaction(returnId: string, warehouseId: string, lines: InspectionLine[], actor: ActorRef) {
   return withTransaction(async (session) => {
     let ret = await db.returns().findOne({ _id: returnId }, { session })
     if (!ret) throw notFound("Return")

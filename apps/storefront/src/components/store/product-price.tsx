@@ -66,7 +66,7 @@ export function ProductPrice({
           </span>
           {discountPercent !== null && (
             <span
-              className="text-[12px] font-semibold text-[#ff905a]"
+              className="text-[12px] font-semibold text-[#c84100]"
               data-testid="discount-percent"
             >
               ({discountPercent}% OFF)

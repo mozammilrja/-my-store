@@ -139,9 +139,9 @@ export async function ProductListing({
           {/* Sort Menu */}
           <nav aria-label="Sort products" data-testid="sort-by-container" className="self-end md:self-auto">
             <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-label-sm">
-              <span className="font-label-caps text-[10px] text-muted-foreground uppercase tracking-widest mr-1">
+              <li aria-hidden className="font-label-caps text-[10px] text-muted-foreground uppercase tracking-widest mr-1">
                 Sort:
-              </span>
+              </li>
               {SORTS.map((s) => (
                 <li key={s.value}>
                   <LocalizedClientLink

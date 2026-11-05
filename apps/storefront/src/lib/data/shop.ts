@@ -309,15 +309,16 @@ export async function startOnlinePayment(): Promise<ActionResult & { intent?: On
 }
 
 /** Sets the cart's delivery option (checkout's delivery and review steps). */
-export async function setShippingOption(optionId: string): Promise<ActionResult> {
+/** Chooses the delivery method; returns the updated bag so a caller mid-render needn't re-read it. */
+export async function setShippingOption(optionId: string): Promise<ActionResult & { cart?: Cart }> {
   const id = await getCartId()
   if (!id) return { error: "Your bag has expired. Please add the items again." }
   try {
-    await cartApi(`/store/carts/${id}/shipping`, { method: "POST", body: { optionId } })
+    const { cart } = await cartApi<{ cart: Cart }>(`/store/carts/${id}/shipping`, { method: "POST", body: { optionId } })
+    return { error: null, cart }
   } catch (e) {
     return { error: message(e) }
   }
-  return { error: null }
 }
 
 /**

@@ -69,6 +69,16 @@ export default async function Checkout(props: {
   }
   const countries = regions.flatMap((r) => r.countries).sort((a, b) => a.name.localeCompare(b.name))
 
+  // The delivery step opens with the cheapest option chosen and recorded, so
+  // the summary's fee and total are the API's, not a guess.
+  if (stage === "delivery" && !cart.shippingOptionId && cart.shippingOptions.length) {
+    const cheapest = cart.shippingOptions.reduce((m, o) => (o.amount < m.amount ? o : m))
+    // Use the bag the save returns: a second retrieveCart() in this render
+    // would get the memoized first response, from before the save.
+    const saved = await setShippingOption(cheapest.id)
+    if (!saved.error && saved.cart) cart = saved.cart
+  }
+
   let body: React.ReactNode
   if (stage === "address") {
     // The export's promo ticker, built from the region's real delivery options and returns policy.
@@ -84,12 +94,6 @@ export default async function Checkout(props: {
       .join(" • ")
     body = <AddressStep cart={cart} customer={customer} countries={countries} region={region} countryCode={countryCode} ticker={ticker} />
   } else if (stage === "delivery") {
-    // The delivery list opens with the cheapest option chosen; record that
-    // choice so the summary's fee and total are the API's, not a guess.
-    if (!cart.shippingOptionId && cart.shippingOptions.length) {
-      const cheapest = cart.shippingOptions.reduce((m, o) => (o.amount < m.amount ? o : m))
-      if (!(await setShippingOption(cheapest.id)).error) cart = (await retrieveCart().catch(() => null)) ?? cart
-    }
     const first = customer?.addresses[0]
     const isDefault = !!first && first.address1 === cart.shippingAddress?.address1 && first.postalCode === cart.shippingAddress?.postalCode
     body = <DeliveryStep cart={cart} region={region} countryCode={countryCode} isDefaultAddress={isDefault} />

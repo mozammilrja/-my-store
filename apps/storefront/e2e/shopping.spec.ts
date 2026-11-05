@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test"
 
 const COUNTRY = "in"
-const PRODUCT = `/${COUNTRY}/products/t-shirt`
+// A product with several sizes in stock in the seeded catalog.
+const PRODUCT = `/${COUNTRY}/products/boxy-heavyweight-organic-tee`
+const PRODUCT_TITLE = "Boxy Heavyweight Organic Tee"
 
 const bagCount = async (page: import("@playwright/test").Page) => {
   // The header badge is omitted entirely when the bag is empty.
@@ -16,10 +18,10 @@ const bagCount = async (page: import("@playwright/test").Page) => {
 test.describe("shopping journey", () => {
   test("home page shows real catalog data", async ({ page }) => {
     await page.goto(`/${COUNTRY}`, { waitUntil: "domcontentloaded" })
-    await expect(page).toHaveTitle(/Everwear/)
+    await expect(page).toHaveTitle(/AVELIQ/)
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
-    await expect(page.getByTestId("product-wrapper").first()).toBeVisible()
-    await expect(page.getByRole("heading", { name: "Shop by category" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "The Modern Heritage Wardrobe" })).toBeVisible()
+    await expect(page.locator('main a[href*="/categories/"]').first()).toBeVisible()
   })
 
   test("variant selection updates the selected variant", async ({ page }) => {
@@ -28,8 +30,7 @@ test.describe("shopping journey", () => {
     await expect(options.first()).toBeVisible()
 
     const form = page.getByTestId("product-actions")
-    await form.getByText("White", { exact: true }).click()
-    await form.getByText("XL", { exact: true }).click()
+    await form.getByText("L", { exact: true }).click()
     await expect(page).toHaveURL(/v_id=variant_/)
     const first = new URL(page.url()).searchParams.get("v_id")
 
@@ -51,7 +52,7 @@ test.describe("shopping journey", () => {
 
     // The quantity buttons only work once the page has hydrated.
     await page.goto(`/${COUNTRY}/cart`, { waitUntil: "networkidle" })
-    const row = page.getByTestId("product-row").filter({ hasText: "Everwear T-Shirt" }).first()
+    const row = page.getByTestId("product-row").filter({ hasText: PRODUCT_TITLE }).first()
     await expect(row).toBeVisible()
     const qty = row.getByTestId("product-quantity")
     const start = Number(await qty.textContent())
@@ -62,7 +63,7 @@ test.describe("shopping journey", () => {
     await expect(total).not.toHaveAttribute("data-value", "0")
 
     await row.getByTestId("product-delete-button").click()
-    await expect(page.getByTestId("product-row").filter({ hasText: "Everwear T-Shirt" })).toHaveCount(0)
+    await expect(page.getByTestId("product-row").filter({ hasText: PRODUCT_TITLE })).toHaveCount(0)
   })
 
   test("store listing filters and sorts", async ({ page }) => {

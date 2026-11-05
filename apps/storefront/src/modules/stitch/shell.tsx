@@ -241,7 +241,7 @@ export function CheckoutFooter() {
             <ul className="space-y-space-xs">
               {care.map((c) => (
                 <li key={c.label} className="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors">
-                  <LocalizedClientLink href={c.href}>{c.label}</LocalizedClientLink>
+                  <LocalizedClientLink className="inline-flex min-h-6 items-center" href={c.href}>{c.label}</LocalizedClientLink>
                 </li>
               ))}
             </ul>
@@ -319,7 +319,7 @@ export function TrackingFooter() {
             <span className="font-label-caps text-label-caps uppercase text-primary">Departments</span>
             <ul className="flex flex-col gap-space-sm">
               {departments.map((d) => (
-                <li key={d.label} className={li}><LocalizedClientLink href={d.href}>{d.label}</LocalizedClientLink></li>
+                <li key={d.label} className={li}><LocalizedClientLink className="inline-flex min-h-6 items-center" href={d.href}>{d.label}</LocalizedClientLink></li>
               ))}
             </ul>
           </div>
@@ -327,7 +327,7 @@ export function TrackingFooter() {
             <span className="font-label-caps text-label-caps uppercase text-primary">Client Care</span>
             <ul className="flex flex-col gap-space-sm">
               {care.map((c) => (
-                <li key={c.label} className={li}><LocalizedClientLink href={c.href}>{c.label}</LocalizedClientLink></li>
+                <li key={c.label} className={li}><LocalizedClientLink className="inline-flex min-h-6 items-center" href={c.href}>{c.label}</LocalizedClientLink></li>
               ))}
             </ul>
           </div>
@@ -374,7 +374,7 @@ export function TrackingFooter() {
 
 /** Footer of the order-confirmed design. */
 export function OrderFooter() {
-  const a = "font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors"
+  const a = "inline-flex min-h-6 items-center font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors"
   const care = [
     { label: "Customer Support", href: "/contact" },
     { label: "Shipping & Delivery", href: "/shipping" },

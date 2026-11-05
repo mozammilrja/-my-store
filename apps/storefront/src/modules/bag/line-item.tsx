@@ -167,7 +167,7 @@ export function LineItem({
             </p>
           )}
           {editable && !soldOut && !overStock && available !== null && available <= 3 && (
-            <p className="mt-space-sm text-[13px] font-medium text-[#ff905a]" data-testid="line-stock-notice">
+            <p className="mt-space-sm text-[13px] font-medium text-[#c84100]" data-testid="line-stock-notice">
               Only {available} left
             </p>
           )}

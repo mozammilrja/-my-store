@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 const COUNTRY = "in"
-const PAGES = ["", "/store", "/categories/shirts", "/products/t-shirt", "/cart", "/account", "/search?q=tee", "/shipping"]
+const PAGES = ["", "/store", "/categories/shirts", "/products/boxy-heavyweight-organic-tee", "/cart", "/account", "/search?q=tee", "/shipping"]
 
 test("mobile menu opens, navigates and closes", async ({ page }) => {
   await page.goto(`/${COUNTRY}`, { waitUntil: "domcontentloaded" })

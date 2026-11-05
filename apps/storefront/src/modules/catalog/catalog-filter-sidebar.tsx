@@ -11,6 +11,8 @@ import { GENDER_HANDLES, listingHref, toggle, type Listing } from "./params"
 
 /** Myntra's accent, used for checks, radios, the slider and "+ more". */
 const ACCENT = "#ff3f6c"
+/** The accent deepened for small text (4.6:1 on white; #ff3f6c is 3.4:1, below WCAG AA). Fills keep ACCENT. */
+const ACCENT_TEXT = "#ea0037"
 
 const SWATCH: Record<string, string> = {
   black: "#36454f",
@@ -146,7 +148,7 @@ export function CatalogFilterSidebar({
               sale: false,
             })}
             className="text-[13px] font-bold uppercase"
-            style={{ color: ACCENT }}
+            style={{ color: ACCENT_TEXT }}
             data-testid="filters-clear-all"
           >
             Clear all
@@ -430,7 +432,7 @@ function FilterList({
           type="button"
           onClick={() => setExpanded(true)}
           className="mt-2 cursor-pointer pl-7 text-[14px]"
-          style={{ color: ACCENT }}
+          style={{ color: ACCENT_TEXT }}
         >
           + {hidden} more
         </button>
@@ -440,7 +442,7 @@ function FilterList({
           type="button"
           onClick={() => setExpanded(false)}
           className="mt-2 cursor-pointer pl-7 text-[14px]"
-          style={{ color: ACCENT }}
+          style={{ color: ACCENT_TEXT }}
         >
           Show less
         </button>
@@ -477,7 +479,7 @@ function Radio({ checked }: { checked: boolean }) {
 }
 
 function Count({ value }: { value: number }) {
-  return <span className="shrink-0 text-[11px] tabular-nums text-[#94969f]">({value})</span>
+  return <span className="shrink-0 text-[11px] tabular-nums text-[#6d6f79]">({value})</span>
 }
 
 const thumb =

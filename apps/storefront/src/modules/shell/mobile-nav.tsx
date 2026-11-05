@@ -25,12 +25,8 @@ import { cn } from "@/lib/utils"
 
 export type NavLink = { href: string; label: string }
 
-export function MobileNav({
-  _links,
-}: {
-  links?: NavLink[]
-  _links?: NavLink[]
-}) {
+/** `links` is accepted for the header's API; the menu draws its own department list. */
+export function MobileNav(_props: { links?: NavLink[] }) {
   const [open, setOpen] = useState(false)
   const [expandedDept, setExpandedDept] = useState<string | null>(null)
 
@@ -138,6 +134,16 @@ export function MobileNav({
               })}
 
               {/* Quick Direct Links */}
+              <li className="py-2.5">
+                <LocalizedClientLink
+                  href="/store"
+                  onClick={() => setOpen(false)}
+                  className="font-headline-sm text-base font-medium text-foreground hover:text-secondary transition-colors"
+                >
+                  Shop all
+                </LocalizedClientLink>
+              </li>
+
               <li className="py-2.5">
                 <LocalizedClientLink
                   href="/store?sort=newest"

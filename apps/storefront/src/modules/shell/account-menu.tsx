@@ -150,7 +150,7 @@ export function AccountMenu() {
                     href="/account"
                     role="menuitem"
                     onClick={() => setOpen(false)}
-                    className="mt-3 flex h-9 items-center justify-center rounded-md border border-[#ff3f6c] text-[13px] font-bold uppercase tracking-wide text-[#ff3f6c] transition-colors hover:bg-[#ff3f6c] hover:text-white"
+                    className="mt-3 flex h-9 items-center justify-center rounded-md border border-[#ff3f6c] text-[13px] font-bold uppercase tracking-wide text-[#ea0037] transition-colors hover:bg-[#ff3f6c] hover:text-white"
                     data-testid="account-menu-login"
                   >
                     Login / Sign up

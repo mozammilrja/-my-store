@@ -38,7 +38,7 @@ export function CheckoutStepper({ current }: { current: CheckoutStep }) {
             {s.label}
           </span>
         )
-        const cls = `flex items-center gap-space-xs ${active ? "text-primary" : done ? "text-on-surface hover:text-primary" : "text-on-surface-variant opacity-60"}`
+        const cls = `flex items-center gap-space-xs ${active ? "text-primary" : done ? "text-on-surface hover:text-primary" : "text-on-surface-variant"}`
         return (
           <div key={s.id} className="contents">
             {i > 0 && <span aria-hidden className={`w-5 sm:w-10 h-px shrink-0 ${i <= at ? "bg-primary" : "bg-outline-variant"}`} />}

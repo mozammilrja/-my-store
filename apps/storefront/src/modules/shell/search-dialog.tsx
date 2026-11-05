@@ -470,16 +470,11 @@ export function SearchDialog({ desktopBar = false }: { desktopBar?: boolean }) {
   return (
     <>
       {desktopBar ? (
+        // Not a role="button" wrapper: the department select inside is its
+        // own control, and a button may not contain one. The search text area
+        // is the real button; a click anywhere else on the bar still opens.
         <div
-          role="button"
-          tabIndex={0}
           onClick={() => setOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault()
-              setOpen(true)
-            }
-          }}
           className="w-full flex items-center bg-surface-container-low hover:bg-surface-container rounded-lg p-1 transition-all cursor-pointer border border-border/50 shadow-xs"
         >
           <div className="shrink-0">
@@ -499,8 +494,16 @@ export function SearchDialog({ desktopBar = false }: { desktopBar?: boolean }) {
             />
           </div>
           <div className="h-4 w-px bg-border mx-1 shrink-0" />
-          <div className="relative flex-1 flex items-center px-2">
-            <SearchIcon className="size-4 text-muted-foreground mr-2 shrink-0" />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setOpen(true)
+            }}
+            aria-label="Search products"
+            className="relative flex-1 flex items-center px-2 text-left cursor-pointer min-w-0 rounded focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <SearchIcon aria-hidden className="size-4 text-muted-foreground mr-2 shrink-0" />
             <span className="w-full font-body-sm text-xs sm:text-sm text-muted-foreground truncate select-none">
               Search linen shirts, leather totes, structured blazers...
             </span>
@@ -509,7 +512,7 @@ export function SearchDialog({ desktopBar = false }: { desktopBar?: boolean }) {
               <span className="text-[8px]">+</span>
               <kbd className="font-sans">K</kbd>
             </div>
-          </div>
+          </button>
         </div>
       ) : (
         <Button variant="ghost" size="icon-sm" asChild>

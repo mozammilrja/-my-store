@@ -9,10 +9,10 @@ import { useLayoutEffect, useState, useTransition } from "react"
 import { toast } from "sonner"
 import {
   type CheckoutRegion,
-  itemCountLabel,
   streetLine,
 } from "./checkout-data"
-import { AddressCard, ConsignmentFrame, consignmentInput, consignmentLabel, ErrorBanner, GstinBlock, OrderConsignment, PhaseOneTitle, RegisterAddressRow } from "./consignment"
+import { AddressOrderSummary, AddressSelectionFrame, AddressSelectionTitle, AddressTile, GstinToggle, PackagingNote, tileNote } from "./address-selection"
+import { consignmentInput, consignmentLabel, ErrorBanner } from "./consignment"
 import { MIcon } from "./m-icon"
 import { StoreSelect } from "@/components/store/store-select"
 
@@ -112,6 +112,7 @@ export function AddressStep({
   const [legalName, setLegalName] = useState(cart.buyerGstin?.legalName ?? "")
 
   const [pending, startTransition] = useTransition()
+
   const [generalError, setGeneralError] = useState<string | null>(null)
 
   // After "Store Address" adds a card, select it once the refreshed list arrives.
@@ -400,40 +401,39 @@ export function AddressStep({
   )
 
   return (
-    <ConsignmentFrame
-      current="address"
-      crumb={`Order Checkout · ${itemCountLabel(cart)}`}
-      testId="address-step"
-      aside={<OrderConsignment cart={cart} region={region} cta={{ label: "Continue to Delivery", onClick: continueToDelivery, pending }} />}
+    <AddressSelectionFrame
+      ticker={ticker}
+      aside={<AddressOrderSummary cart={cart} region={region} cta={{ label: "Continue to Delivery", onClick: continueToDelivery, pending }} />}
     >
-      <p className="sr-only">{ticker}</p>
       <ErrorBanner message={generalError} />
-      <PhaseOneTitle customer={customer} id="checkout-address" />
+      <AddressSelectionTitle id="checkout-address" onAdd={usingForm ? undefined : openNew} expanded={editing?.kind === "new"} />
 
-      <div className="flex flex-col gap-space-md" role="radiogroup" aria-label="Delivery address">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-space-md" role="radiogroup" aria-label="Delivery address">
         {!usingForm &&
           saved.map((a, i) =>
             editing?.kind === "edit" && editing.id === a.id ? (
-              <div key={a.id}>{addressForm}</div>
+              <div key={a.id} className="md:col-span-2">
+                {addressForm}
+              </div>
             ) : (
-              <AddressCard
+              <AddressTile
                 key={a.id}
                 address={a}
                 selected={a.id === selectedId}
                 isDefault={i === 0}
                 onSelect={() => setSelectedId(a.id)}
-                edit={{ onClick: () => openEdit(a) }}
+                onEdit={() => openEdit(a)}
+                onRemove={() => removeAddress(a)}
                 disabled={pending}
-                deliverable={cart.countryCodes.includes(a.countryCode.toLowerCase())}
+                note={cart.countryCodes.includes(a.countryCode.toLowerCase()) ? tileNote(region) : "Outside this store's region"}
               />
             )
           )}
-        {usingForm && addressForm}
-        {!usingForm && editing?.kind === "new" && addressForm}
-        {!usingForm && <RegisterAddressRow onClick={openNew} expanded={editing?.kind === "new"} />}
+        {usingForm && <div className="md:col-span-2">{addressForm}</div>}
+        {!usingForm && editing?.kind === "new" && <div className="md:col-span-2">{addressForm}</div>}
       </div>
 
-      <GstinBlock
+      <GstinToggle
         on={gstOn}
         onToggle={setGstOn}
         gstin={gstin}
@@ -442,6 +442,8 @@ export function AddressStep({
         onLegalName={setLegalName}
         errors={{ gstin: errors["gstin.gstin"], legalName: errors["gstin.legalName"] }}
       />
-    </ConsignmentFrame>
+
+      <PackagingNote />
+    </AddressSelectionFrame>
   )
 }

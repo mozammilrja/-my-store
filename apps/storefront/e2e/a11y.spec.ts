@@ -6,7 +6,7 @@ type AxePage = ConstructorParameters<typeof AxeBuilder>[0]["page"]
 const axe = (page: Page) => new AxeBuilder({ page: page as unknown as AxePage })
 
 const COUNTRY = "in"
-const PAGES = ["", "/store", "/categories/shirts", "/collections/winter-layers", "/products/t-shirt", "/cart", "/account", "/search?q=tee", "/shipping", "/returns"]
+const PAGES = ["", "/store", "/categories/shirts", "/collections/winter-layers", "/products/boxy-heavyweight-organic-tee", "/cart", "/account", "/search?q=tee", "/shipping", "/returns"]
 
 for (const path of PAGES) {
   test(`no WCAG 2.2 A/AA violations on ${path || "/"}`, async ({ page }) => {
@@ -31,7 +31,7 @@ test("keyboard: skip to content and visible focus on header controls", async ({ 
 })
 
 test("no WCAG 2.2 A/AA violations on checkout", async ({ page }) => {
-  await page.goto(`/${COUNTRY}/products/t-shirt`, { waitUntil: "domcontentloaded" })
+  await page.goto(`/${COUNTRY}/products/boxy-heavyweight-organic-tee`, { waitUntil: "domcontentloaded" })
   await page.getByTestId("add-product-button").click()
   await expect(page.getByTestId("nav-cart-count").first()).not.toHaveText("0")
   await page.goto(`/${COUNTRY}/checkout?step=address`, { waitUntil: "domcontentloaded" })

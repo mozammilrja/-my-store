@@ -27,10 +27,10 @@ export async function verifyPassword(password: string, stored: string | undefine
   return timingSafeEqual(new Uint8Array(expected), new Uint8Array(actual))
 }
 
-export type Actor = "customer" | "admin" | "warehouse"
+export type Actor = "customer" | "admin" | "warehouse" | "rider"
 
-/** Warehouse staff sign in for a shift: 12 hours, like admins. */
-const LIFETIME: Record<Actor, number> = { customer: 7 * 24 * 3600, admin: 12 * 3600, warehouse: 12 * 3600 }
+/** Warehouse staff and riders sign in for a shift: 12 hours, like admins. */
+const LIFETIME: Record<Actor, number> = { customer: 7 * 24 * 3600, admin: 12 * 3600, warehouse: 12 * 3600, rider: 12 * 3600 }
 
 export function issueToken(actor: Actor, subject: string) {
   const now = Math.floor(Date.now() / 1000)

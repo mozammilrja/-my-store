@@ -1,5 +1,6 @@
 import { Router, type Request } from "express"
 import { buildInvoiceLines, dispatchWarehouse } from "../../lib/invoice.js"
+import { openOtp } from "../../lib/fleet/support.js"
 import type { ClientSession } from "mongodb"
 import { z } from "zod"
 import { withTransaction } from "../../db/client.js"
@@ -359,6 +360,29 @@ cartRoutes.get("/orders/:id/invoice", async (req, res) => {
   res.json({ invoice: { id: _id, ...rest, issuedAt: issuedAt.toISOString(), dispatchFrom } })
 })
 
+/**
+ * For a parcel with our own riders, what only the order's owner may see:
+ * the delivery OTP while it's out for delivery (the rider asks for it at the
+ * door), the rider's first name and, while out for delivery, their latest
+ * position if it's fresh. Null for courier parcels.
+ */
+async function ownFleetDelivery(orderId: string) {
+  const task = await db.deliveryTasks().findOne({ orderId, status: { $nin: ["cancelled"] } }, { sort: { createdAt: -1 } })
+  if (!task) return null
+  const out = task.status === "out_for_delivery"
+  const rider = task.riderId ? await db.riders().findOne({ _id: task.riderId }, { projection: { name: 1, lastLocation: 1 } }) : null
+  const fresh = rider?.lastLocation && Date.now() - rider.lastLocation.at.getTime() < 10 * 60_000
+  return {
+    status: task.status,
+    awb: task.code,
+    otp: out && task.otp ? openOtp(task.otp) : null,
+    rider: rider && ["assigned", "picked_up", "out_for_delivery", "attempt_failed"].includes(task.status) ? { firstName: rider.name.split(" ")[0] } : null,
+    location: out && fresh ? { lat: rider!.lastLocation!.lat, lng: rider!.lastLocation!.lng, at: rider!.lastLocation!.at.toISOString() } : null,
+    attempts: task.attempts.map((a) => ({ at: a.at.toISOString(), reason: a.reason, rescheduledFor: a.rescheduledFor?.toISOString() ?? null })),
+    cashDue: task.cod && task.cod.collected === undefined ? task.cod.due : null,
+  }
+}
+
 cartRoutes.get("/orders/:id", async (req, res) => {
   const order = await db.orders().findOne({ _id: z.string().regex(/^order_[0-9a-z]{16}$/).parse(req.params.id) })
   if (!order) throw notFound("Order")
@@ -372,7 +396,7 @@ cartRoutes.get("/orders/:id", async (req, res) => {
     : null
   // Where it ships from (same rule as the invoice), for the tracking route card.
   const dispatchFrom = await dispatchWarehouse(order._id)
-  res.json({ order: { ...toStoreOrder(order, tracking), dispatchFrom } })
+  res.json({ order: { ...toStoreOrder(order, tracking), dispatchFrom, delivery: await ownFleetDelivery(order._id) } })
 })
 
 const deliveryPreferencesBody = z

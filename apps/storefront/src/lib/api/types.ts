@@ -202,9 +202,24 @@ export type Order = {
   preferencesEditable?: boolean
   /** Where the order ships from (GET /store/orders/:id only). */
   dispatchFrom?: DispatchWarehouse | null
+  /** Delivery by Everwear's own riders: OTP, rider and position (GET /store/orders/:id only; null for courier parcels). */
+  delivery?: OwnFleetDelivery | null
   returnRequest?: { status: string; returnAwb?: string; carrier?: string }
   status: "pending" | "completed" | "canceled"
   createdAt: string
+}
+
+/** A parcel with Everwear's own riders, as its customer sees it. */
+export type OwnFleetDelivery = {
+  status: "unassigned" | "offered" | "assigned" | "picked_up" | "out_for_delivery" | "attempt_failed" | "delivered" | "rto" | "returned"
+  awb: string
+  /** Shown only while the parcel is out for delivery. */
+  otp: string | null
+  rider: { firstName: string } | null
+  /** The rider's latest position while out for delivery, when fresh. */
+  location: { lat: number; lng: number; at: string } | null
+  attempts: { at: string; reason: string; rescheduledFor: string | null }[]
+  cashDue: number | null
 }
 
 /** One carrier scan recorded on a shipment. */

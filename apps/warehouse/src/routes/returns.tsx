@@ -5,7 +5,7 @@ import { ScanField } from "@/components/scan-field"
 import { Button, Input, Label, Notice, Panel, Textarea } from "@/components/ui"
 import { api, errorMessage } from "@/lib/api"
 import { useSession } from "@/lib/session"
-import type { ReturnLookup } from "@/lib/types"
+import type { ReturnLookup, RtoParcel } from "@/lib/types"
 
 /*
  * Returns at the dock: find the parcel by its reverse AWB (or the order
@@ -17,10 +17,18 @@ export function Returns() {
   const { can } = useSession()
   const feedback = useFeedback()
   const [found, setFound] = useState<ReturnLookup | null>(null)
+  const [rto, setRto] = useState<RtoParcel | null>(null)
 
   const lookup = async (code: string) => {
+    setRto(null)
+    setFound(null)
     try {
       const isOrder = /^#?\d{1,8}$/.test(code)
+      // An undelivered parcel coming back (RTO) carries its outbound AWB.
+      if (!isOrder) {
+        const hit = await api<{ rto: RtoParcel }>(`/rto/${encodeURIComponent(code)}`).catch(() => null)
+        if (hit) return setRto(hit.rto)
+      }
       const { return: r } = await api<{ return: ReturnLookup }>("/returns/lookup", { query: isOrder ? { orderNumber: code.replace("#", "") } : { awb: code } })
       setFound(r)
     } catch (e) {
@@ -36,6 +44,7 @@ export function Returns() {
       <h1 className="text-xl font-semibold">Returns</h1>
       <ScanField label="Scan the return parcel's AWB, or type the order number" placeholder="AWB or 1042" onScan={lookup} />
       {found ? <Inspect key={found.orderId} r={found} onDone={() => setFound(null)} /> : null}
+      {rto ? <RtoInspect key={rto.awb} p={rto} onDone={() => setRto(null)} /> : null}
     </div>
   )
 }
@@ -113,6 +122,57 @@ function Inspect({ r, onDone }: { r: ReturnLookup; onDone: () => void }) {
           </Button>
         </form>
       )}
+    </Panel>
+  )
+}
+
+/** An undelivered parcel back from the courier or our rider: grade every unit back into stock. */
+function RtoInspect({ p, onDone }: { p: RtoParcel; onDone: () => void }) {
+  const { warehouseId } = useSession()
+  const feedback = useFeedback()
+  const [sellable, setSellable] = useState<Record<string, number>>(() => Object.fromEntries(p.lines.map((l) => [l.itemId, l.quantity])))
+  const run = useMutation({
+    mutationFn: () =>
+      api<{ displayId: number; prepaidNeedsRefund: boolean }>(`/rto/${encodeURIComponent(p.awb)}/receive`, {
+        body: { warehouseId: p.warehouseId, grades: p.lines.map((l) => ({ itemId: l.itemId, sellable: sellable[l.itemId]!, damaged: l.quantity - sellable[l.itemId]! })) },
+      }),
+    onSuccess: (d) => {
+      feedback.ok(`Order #${d.displayId} received back.${d.prepaidNeedsRefund ? " It was prepaid: the admin team will refund it." : ""}`)
+      onDone()
+    },
+    onError: (e) => feedback.bad(errorMessage(e)),
+  })
+  if (p.received) return <Notice tone="warn">This parcel was already received back.</Notice>
+  if (p.warehouseId !== warehouseId) return <Notice tone="warn">This parcel left from another warehouse; switch to it at the top to receive it.</Notice>
+  return (
+    <Panel title={`Undelivered · order #${p.displayId} · ${p.awb}`}>
+      <p className="mb-4 text-sm text-ink-2">Came back from {p.carrier} without being delivered. Open it and grade every unit.</p>
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault()
+          run.mutate()
+        }}
+      >
+        {p.lines.map((l) => (
+          <div key={l.itemId} className="grid grid-cols-[1fr_6rem_5rem] items-end gap-3 rounded-control border border-line p-3">
+            <p className="text-sm">
+              <span className="font-medium">{l.productTitle}</span> · {l.variantTitle} <span className="font-mono text-xs text-ink-3">{l.sku}</span>
+            </p>
+            <div>
+              <Label htmlFor={`rs-${l.itemId}`}>Sellable</Label>
+              <Input id={`rs-${l.itemId}`} type="number" min={0} max={l.quantity} value={sellable[l.itemId]} onChange={(e) => setSellable((x) => ({ ...x, [l.itemId]: Math.max(0, Math.min(l.quantity, Number(e.target.value) || 0)) }))} />
+            </div>
+            <div>
+              <p className="mb-1.5 text-sm font-medium text-ink-2">Damaged</p>
+              <p className="flex h-10 items-center font-semibold tabular-nums">{l.quantity - sellable[l.itemId]!}</p>
+            </div>
+          </div>
+        ))}
+        <Button type="submit" size="lg" busy={run.isPending}>
+          Receive back into stock
+        </Button>
+      </form>
     </Panel>
   )
 }

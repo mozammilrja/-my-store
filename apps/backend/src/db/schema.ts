@@ -152,6 +152,8 @@ export type SettingsDoc = {
   supportEmail?: string
   /** Whether an order may ship from several warehouses when none holds all of it. Default true. */
   allowSplitFulfilment?: boolean
+  /** Own delivery fleet rules; defaults in lib/fleet/settings.ts. */
+  fleet?: Partial<FleetSettings>
   /** The seller's legal details, printed on every GST tax invoice. */
   seller?: SellerDetails
   updatedAt: Date
@@ -337,8 +339,8 @@ export type ShipmentDoc = {
   _id: string
   orderId: string
   displayId: number
-  /** Who created it: a courier integration, or recorded by hand with details from elsewhere. */
-  provider: "shiprocket" | "manual"
+  /** Who created it: a courier integration, our own delivery fleet, or recorded by hand with details from elsewhere. */
+  provider: "shiprocket" | "manual" | "own_fleet"
   /** Courier name ("Delhivery Surface", "Blue Dart Air"); empty until a courier is assigned. */
   carrier: string
   courierId?: number
@@ -375,6 +377,8 @@ export type ShipmentDoc = {
   returnOf?: string
   /** The warehouse fulfilment this parcel carries; absent for parcels booked straight from the order. */
   fulfilmentId?: string
+  /** When an undelivered parcel was received back and graded at its warehouse. */
+  rtoReceivedAt?: Date
   /** True while not cancelled; a partial unique index allows one live parcel of each kind per order. */
   active: boolean
   lastSyncedAt?: Date
@@ -581,7 +585,7 @@ export type StockLedgerDoc = {
 }
 
 /** Who did something, for ledgers and status history. */
-export type ActorRef = { type: "system" | "admin" | "warehouse" | "customer" | "courier"; id: string; name?: string }
+export type ActorRef = { type: "system" | "admin" | "warehouse" | "customer" | "courier" | "rider"; id: string; name?: string }
 
 export const FULFILMENT_STATUSES = [
   "assigned",
@@ -688,7 +692,7 @@ export type WarehouseUserDoc = {
 /** Immutable status history for every state machine (lib/state/machines.ts). */
 export type StatusEventDoc = {
   _id: string
-  machine: "order" | "payment" | "fulfilment" | "shipment" | "return"
+  machine: "order" | "payment" | "fulfilment" | "shipment" | "return" | "delivery" | "cod"
   entityId: string
   orderId?: string
   from: string | null
@@ -696,6 +700,127 @@ export type StatusEventDoc = {
   actor: ActorRef
   reason?: string
   at: Date
+}
+
+/* ---------- Own delivery fleet ---------- */
+
+export type FleetSettings = {
+  /** Rider earning per delivered parcel, minor units. */
+  payoutPerDelivery: number
+  /** Rider earning per attempted-but-failed delivery, minor units. */
+  payoutPerFailedAttempt: number
+  /** Minutes a rider has to accept an offered task before it goes to someone else. */
+  offerTimeoutMinutes: number
+  /** Failed attempts after which the parcel returns to the warehouse (RTO). */
+  maxAttempts: number
+  /** Tasks a rider may hold at once (assigned, picked up or out for delivery). */
+  maxActiveTasks: number
+}
+
+/** A delivery area served by our riders from one warehouse. */
+export type DeliveryZoneDoc = {
+  _id: string
+  code: string
+  name: string
+  warehouseId: string
+  /** Six-digit PIN codes covered. */
+  pincodes: string[]
+  /** Whether riders here collect cash on delivery. */
+  codAllowed: boolean
+  active: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+export const RIDER_DOCUMENT_TYPES = ["driving_licence", "vehicle_rc", "aadhaar", "pan", "insurance"] as const
+
+export type RiderDoc = {
+  _id: string
+  email: string
+  phone: string
+  passwordHash: string
+  name: string
+  /** pending: registered, awaiting checks; approved: may go online and take tasks. */
+  status: "pending" | "approved" | "suspended" | "rejected"
+  statusReason?: string
+  vehicle: { type: "bicycle" | "bike" | "scooter" | "van"; registration?: string }
+  documents: { type: (typeof RIDER_DOCUMENT_TYPES)[number]; number: string; verified: boolean; verifiedAt?: Date; verifiedBy?: string }[]
+  warehouseId: string | null
+  zoneIds: string[]
+  /** Weekly shifts, local time (Asia/Kolkata). day: 0 = Sunday. */
+  shifts: { day: number; start: string; end: string }[]
+  online: boolean
+  onlineSince?: Date
+  /** Last position, kept only while the rider is online with a parcel out for delivery. */
+  lastLocation?: { lat: number; lng: number; accuracy?: number; at: Date } | null
+  approvedAt?: Date
+  approvedBy?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export const DELIVERY_STATUSES = ["unassigned", "offered", "assigned", "picked_up", "out_for_delivery", "attempt_failed", "delivered", "rto", "returned", "cancelled"] as const
+export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number]
+
+export const FAILED_DELIVERY_REASONS = [
+  "customer_unavailable",
+  "customer_refused",
+  "address_not_found",
+  "customer_rescheduled",
+  "cash_not_ready",
+  "premises_closed",
+  "unsafe_location",
+  "other",
+] as const
+
+/** One parcel delivered by our own fleet. */
+export type DeliveryTaskDoc = {
+  _id: string
+  /** Our tracking number, also the shipment's AWB (EWF...). */
+  code: string
+  shipmentId: string
+  fulfilmentId: string
+  orderId: string
+  displayId: number
+  warehouseId: string
+  zoneId: string
+  status: DeliveryStatus
+  riderId: string | null
+  offer?: { riderId: string; offeredAt: Date; expiresAt: Date } | null
+  /** Riders who declined or let the offer lapse; not offered again. */
+  declinedBy: string[]
+  /** The doorstep. Shown to the assigned rider only; the phone only while out for delivery. */
+  stop: { name: string; phone: string; address1: string; address2?: string; city: string; postalCode: string; instructions?: string; lat?: number; lng?: number }
+  sequence?: number
+  /** Cash to collect, minor units; set from the order, never by the rider. */
+  cod: { due: number; currency: string; collected?: number; collectedAt?: Date; remittanceId?: string | null } | null
+  /** Delivery OTP, encrypted so it can be shown to the customer; attempts counted. */
+  otp?: { cipher: string; iv: string; tag: string; issuedAt: Date; failures: number } | null
+  attempts: { at: Date; reason: (typeof FAILED_DELIVERY_REASONS)[number]; note?: string; lat?: number; lng?: number; rescheduledFor?: Date; riderId: string }[]
+  pod?: { at: Date; riderId: string; receiverName: string; otpVerified: true; lat?: number; lng?: number; photo?: string }
+  /** Rider earnings booked on this task, minor units. */
+  earnings: { kind: "delivery" | "failed_attempt"; amount: number; at: Date; riderId: string }[]
+  createdAt: Date
+  updatedAt: Date
+}
+
+/** Cash a rider hands to finance; reconciled against what the rider collected. */
+export type CodRemittanceDoc = {
+  _id: string
+  code: string
+  riderId: string
+  taskIds: string[]
+  /** Sum of cash collected on those tasks, minor units. */
+  expected: number
+  /** What the rider says they handed over. */
+  declared: number
+  /** What finance counted. */
+  counted?: number
+  status: "submitted" | "reconciled" | "mismatch"
+  note?: string
+  submittedAt: Date
+  reconciledAt?: Date
+  reconciledBy?: string
 }
 
 export type InventoryReservationDoc = {
@@ -987,6 +1112,10 @@ export const db = {
   manifests: (): Collection<ManifestDoc> => getDb().collection("manifests"),
   warehouseUsers: (): Collection<WarehouseUserDoc> => getDb().collection("warehouse_users"),
   statusEvents: (): Collection<StatusEventDoc> => getDb().collection("status_events"),
+  deliveryZones: (): Collection<DeliveryZoneDoc> => getDb().collection("delivery_zones"),
+  riders: (): Collection<RiderDoc> => getDb().collection("riders"),
+  deliveryTasks: (): Collection<DeliveryTaskDoc> => getDb().collection("delivery_tasks"),
+  codRemittances: (): Collection<CodRemittanceDoc> => getDb().collection("cod_remittances"),
 }
 
 /**
@@ -1111,6 +1240,20 @@ export async function ensureIndexes() {
     db.warehouseUsers().createIndex({ email: 1 }, { unique: true }),
     db.statusEvents().createIndex({ entityId: 1, at: 1 }),
     db.statusEvents().createIndex({ orderId: 1, at: 1 }),
+    db.deliveryZones().createIndex({ code: 1 }, { unique: true }),
+    db.deliveryZones().createIndex({ warehouseId: 1, pincodes: 1, active: 1 }),
+    db.riders().createIndex({ email: 1 }, { unique: true }),
+    db.riders().createIndex({ phone: 1 }, { unique: true }),
+    db.riders().createIndex({ status: 1, online: 1, zoneIds: 1 }),
+    db.deliveryTasks().createIndex({ code: 1 }, { unique: true }),
+    db.deliveryTasks().createIndex({ shipmentId: 1 }, { unique: true }),
+    db.deliveryTasks().createIndex({ riderId: 1, status: 1 }),
+    db.deliveryTasks().createIndex({ status: 1, zoneId: 1, createdAt: 1 }),
+    db.deliveryTasks().createIndex({ "offer.expiresAt": 1 }, { sparse: true }),
+    db.deliveryTasks().createIndex({ orderId: 1 }),
+    db.codRemittances().createIndex({ code: 1 }, { unique: true }),
+    db.codRemittances().createIndex({ riderId: 1, submittedAt: -1 }),
+    db.codRemittances().createIndex({ status: 1 }),
   ])
 
   // Seed default fulfillment hubs if not present

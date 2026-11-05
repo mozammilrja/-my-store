@@ -2,7 +2,7 @@
 
 ## Overview
 
-Everwear: an online clothing store for India (one region, prices in INR). A Turborepo monorepo (npm workspaces) with four apps:
+Everwear: an online clothing store for India (one region, prices in INR). A Turborepo monorepo (npm workspaces) with five apps:
 
 | App | Package | What it is | Dev URL |
 | --- | --- | --- | --- |
@@ -10,6 +10,7 @@ Everwear: an online clothing store for India (one region, prices in INR). A Turb
 | `apps/storefront` | `@dtc/storefront` | Shop front. Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui + ReUI. | http://localhost:8001 |
 | `apps/admin` | `@dtc/admin` | Store admin: dashboard, orders, products, customers, each list with a detail page. React 19, Vite 8, React Router, TanStack Query + Table, shadcn/ui + ReUI. | http://localhost:7001 |
 | `apps/warehouse` | `@dtc/warehouse` | Warehouse floor app: incoming orders, picking, inspection, packing, labels, manifests, stock and returns. Scanner-first and mobile-first. React 19, Vite 6, React Router, TanStack Query, Tailwind 4. Talks to the API's `/warehouse` routes with its own staff token. | http://localhost:7101 |
+| `apps/rider` | `@dtc/rider` | Delivery partner app for our own fleet: offers, hub pickup by AWB, route, doorstep OTP with cash and proof photo, failed attempts, cash handover, earnings, profile and documents. Phone-first. Same stack as the warehouse app. Talks to the API's `/rider` routes. | http://localhost:7201 |
 
 The project started from the Medusa DTC starter and has since moved off Medusa. Medusa and PostgreSQL are no longer part of the running stack; the only remaining link is the one-off `migrate:medusa` script that copies data out of an old Medusa database. Ignore Medusa docs, skills and the `@medusajs/*` package `AGENTS.md` files unless you are working on that script.
 
@@ -45,6 +46,9 @@ Architecture, design tokens and known issues: [`docs/PROJECT.md`](./docs/PROJECT
 | Warehouse app screens | `apps/warehouse/src/routes/` (orders, fulfilment work screen, dispatch, stock, returns); API client `src/lib/api.ts`, types `src/lib/types.ts` |
 | Warehouse app scanning and printing | `apps/warehouse/src/components/scan-field.tsx` (keyboard-wedge scanners, camera through the Barcode Detection API), `src/lib/code128.ts` (pick slip and parcel barcodes) |
 | Warehouse browser tests | `apps/warehouse/e2e/` (`api-server.ts` runs the real API on `everwear_e2e_warehouse` with the courier stand-in) |
+| Own delivery fleet: zones, riders, dispatch, OTP delivery, cash, RTO | `apps/backend/src/lib/fleet/`; rider API `src/routes/rider/`, admin API `src/routes/admin/fleet.ts`; design in [`docs/FLEET.md`](./docs/FLEET.md) |
+| Rider app screens | `apps/rider/src/routes/` (today, task, money, profile, auth); location sharing in `src/lib/session.tsx` |
+| Rider browser tests | `apps/rider/e2e/` (`api-server.ts` seeds `everwear_e2e_rider` through the real warehouse API) |
 
 ## Directory Structure
 
@@ -196,6 +200,7 @@ The checkout and account e2e tests create real orders and customers in the local
 ## Common Mistakes
 
 - Changing a warehouse-managed variant's stock any way other than `lib/inventory/stock.ts#moveStock`. The product's `stock` must equal the sum of `available` in `stock_levels`, and every move needs a ledger row.
+- Exposing a delivery's address, phone or OTP beyond `riderView` in `routes/rider/index.ts`, or serving proof photos from `/uploads`. They live in `PRIVATE_UPLOADS_DIR` and go to admins only.
 - Setting a fulfilment or return status with a plain `$set`. Go through the state machine helpers so the move is checked and recorded.
 
 - Following Medusa instructions (`medusa db:migrate`, `medusa user`, `/app`, publishable keys, `@medusajs/framework`). None of that applies to the current stack.

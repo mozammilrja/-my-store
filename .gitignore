@@ -63,3 +63,7 @@ Thumbs.db
 
 # Stitch design exports: downloaded prototypes, not source
 stitch_*/
+
+# Proof-of-delivery photos (private; never commit)
+apps/backend/private-uploads/
+apps/rider/e2e/.state.json

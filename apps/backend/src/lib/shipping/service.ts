@@ -109,7 +109,8 @@ async function syncOrder(shipment: ShipmentDoc) {
 
 /**
  * An order shipped from several warehouses: delivered only when every live
- * fulfilment's parcel is delivered, shipped once any has left.
+ * fulfilment's parcel is delivered, returned when every parcel came back,
+ * shipped once any has left.
  */
 async function splitFulfillment(orderId: string): Promise<OrderDoc["fulfillmentStatus"] | null> {
   const fulfilments = await db.fulfilments().find({ orderId, active: true }).toArray()
@@ -119,6 +120,8 @@ async function splitFulfillment(orderId: string): Promise<OrderDoc["fulfillmentS
     return p ? fulfillmentFor(p.status) : null
   })
   if (states.length && states.every((x) => x === "delivered")) return "delivered"
+  // Every parcel came back undelivered (return to origin).
+  if (states.length && states.every((x) => x === "returned")) return "returned"
   if (states.some((x) => x === "shipped" || x === "delivered")) return "shipped"
   return null
 }
@@ -311,6 +314,17 @@ export async function cancelShipment(id: string) {
   if (f && ["manifested", "handed_over", "dispatched"].includes(f.status)) {
     throw conflict("This parcel is on a manifest. Take it off the manifest at the warehouse first.", "on_manifest")
   }
+  if (s.provider === "own_fleet") {
+    // Only while no rider has it in hand.
+    const task = await db.deliveryTasks().findOne({ shipmentId: s._id })
+    if (task) {
+      const done = await db
+        .deliveryTasks()
+        .updateOne({ _id: task._id, status: { $in: ["unassigned", "offered", "assigned"] } }, { $set: { status: "cancelled", offer: null, updatedAt: new Date() } })
+      if (!done.modifiedCount) throw conflict("The rider already has this parcel; it can't be cancelled now.", "already_picked_up")
+      await recordTransition({ machine: "delivery", entityId: task._id, orderId: task.orderId, from: task.status, to: "cancelled", actor: SYSTEM, reason: "Booking cancelled" })
+    }
+  }
   try {
     if (s.provider === "shiprocket" && s.providerOrderId) await shiprocketCancel(s.providerOrderId)
   } catch (e) {
@@ -327,6 +341,28 @@ export async function cancelShipment(id: string) {
     if (back.modifiedCount) await recordTransition({ machine: "fulfilment", entityId: f._id, orderId: f.orderId, from: f.status, to: "packed", actor: SYSTEM, reason: "Courier booking cancelled" })
   }
   await syncOrder(next)
+  return next
+}
+
+/** Copies a shipment written elsewhere (own fleet booking) onto its order. */
+export const syncOrderFromShipment = (s: ShipmentDoc) => syncOrder(s)
+
+/**
+ * A status from our own fleet (a rider's scan or delivery). Same rules as a
+ * courier scan: forward only, recorded as a tracking event, copied to the order.
+ */
+export async function applyOwnFleetStatus(shipmentId: string, status: ShipmentStatus, label: string, note = "", location = "") {
+  const s = await db.shipments().findOne({ _id: shipmentId })
+  if (!s || s.provider !== "own_fleet") throw notFound("Shipment")
+  if (!shouldAdvance(s.status, status)) return s
+  const now = new Date()
+  const event = { timestamp: now, status: label, internalStatus: status, location, note }
+  const set: Partial<ShipmentDoc> = { status, updatedAt: now, lastSyncedAt: now, ...(status === "delivered" ? { deliveredAt: now } : {}) }
+  const res = await db.shipments().updateOne({ _id: s._id, status: s.status }, { $set: set, $push: { trackingEvents: event } })
+  if (!res.modifiedCount) return (await db.shipments().findOne({ _id: s._id }))!
+  const next = { ...s, ...set, trackingEvents: [...s.trackingEvents, event] } as ShipmentDoc
+  await syncOrder(next)
+  log.info("shipment.status", { shipmentId: s._id, awb: s.awb, from: s.status, to: status })
   return next
 }
 

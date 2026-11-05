@@ -38,8 +38,8 @@ let slip = ""
 test("a picker sees incoming work but can't accept it", async ({ page }) => {
   await signIn(page, "picker@everwear.test")
   const incoming = page.getByRole("tab", { name: /Incoming/ })
-  await expect(incoming).toContainText("1")
-  const row = page.getByRole("link", { name: /FUL-\d+-1/ })
+  await expect(incoming).toContainText("2")
+  const row = page.getByRole("link", { name: /FUL-1001-1/ })
   slip = (await row.locator(".font-mono").first().textContent())!.trim()
   await row.click()
   await expect(page.getByText("Your role (picker) can't do that step.")).toBeVisible()
@@ -87,9 +87,11 @@ test("the order goes from incoming to dispatched on the floor", async ({ page })
   await page.getByLabel("Height (cm)").fill("6")
   await page.getByRole("button", { name: "Finish packing" }).click()
 
-  // Label: scan the parcel's own barcode to book the courier.
+  // Label: this PIN code has our own riders too; this one goes by courier.
   const pkg = page.locator("figcaption").filter({ hasText: /^PKG-/ })
   await expect(pkg).toBeVisible()
+  await expect(page.getByRole("radio", { name: /Everwear Fleet/ })).toBeChecked()
+  await page.getByRole("radio", { name: /Courier/ }).check()
   await expect(page.getByRole("img", { name: /Barcode PKG-/ })).toBeVisible()
   await scan(page, "Scan the parcel label to book the courier", (await pkg.textContent())!)
   await expect(page.getByRole("heading", { name: "Apply the courier label" })).toBeVisible()
@@ -144,6 +146,41 @@ test("a returned parcel is graded; only sellable units go back on the shelf", as
   const xl = page.getByRole("row", { name: /EW-TEE-XL/ })
   await expect(xl.getByRole("cell").nth(2)).toHaveText("3") // 2 received + 1 restocked
   await expect(xl.getByRole("cell").nth(6)).toHaveText("1") // 1 damaged
+})
+
+test("a parcel for our own riders: booked on Everwear Fleet, our label, its own manifest", async ({ page }) => {
+  await signIn(page, "supervisor@everwear.test")
+  await scan(page, "Scan a pick slip to open its order", "FUL-1002-1")
+  await page.getByRole("button", { name: "Accept order" }).click()
+  await page.getByRole("button", { name: "Start picking" }).click()
+  await scan(page, "Scan each item's SKU barcode", "EW-TEE-L")
+  await page.getByRole("button", { name: "Picking complete" }).click()
+  await page.getByRole("button", { name: "All units pass" }).click()
+  await scan(page, "Scan the pick slip", "FUL-1002-1")
+  await scan(page, "Scan each unit into the box", "EW-TEE-L")
+  for (const [label, v] of [["Weight (kg)", "0.4"], ["Length (cm)", "30"], ["Breadth (cm)", "24"], ["Height (cm)", "4"]] as const) await page.getByLabel(label).fill(v)
+  await page.getByRole("button", { name: "Finish packing" }).click()
+  await expect(page.getByRole("radio", { name: /Everwear Fleet.*Bengaluru East/ })).toBeChecked()
+  const pkg = (await page.locator("figcaption").filter({ hasText: /^PKG-/ }).textContent())!
+  await scan(page, "Scan the parcel label to book Everwear Fleet", pkg)
+  await expect(page.getByRole("heading", { name: "Apply the Everwear Fleet label" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Print Everwear Fleet label" })).toBeVisible()
+  const awb = (await page.locator("p", { hasText: "AWB" }).locator(".font-mono").textContent())!.trim()
+  expect(awb).toMatch(/^EWF\d{9}$/)
+  // Our label carries the address, so it isn't on screen until printed.
+  await expect(page.getByText("100 Feet Road")).toHaveCount(0)
+  await scan(page, "Scan the AWB on the applied label", awb)
+  await expect(page.getByText(/Packed and labelled \(Everwear Fleet/)).toBeVisible()
+  await page.getByRole("link", { name: "Dispatch" }).first().click()
+  await expect(page.getByText("Everwear Fleet", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "Create manifest" }).click()
+  await expect(toast(page, "Manifest MAN-")).toBeVisible()
+  await scan(page, /Scan each parcel as the courier takes it/, awb)
+  await page.getByRole("button", { name: "Close manifest" }).click()
+  await page.getByLabel("Courier executive's name").fill("Ravi (Everwear Fleet)")
+  await page.getByRole("button", { name: "Dispatch 1 parcel(s)" }).click()
+  await expect(page.getByText("Ravi (Everwear Fleet)")).toBeVisible()
+  await axe(page)
 })
 
 test("works one-handed on a phone", async ({ page }) => {

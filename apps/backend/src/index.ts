@@ -8,6 +8,7 @@ import { log } from "./lib/log.js"
 import { reconcileRefunds } from "./lib/payments/refunds.js"
 import { reconcilePaymentAttempts } from "./lib/payments/settle.js"
 import { syncStaleShipments } from "./lib/shipping/service.js"
+import { sweepDispatch } from "./lib/fleet/dispatch.js"
 
 await connect()
 await ensureIndexes()
@@ -23,6 +24,21 @@ const outboxTimer = setInterval(async () => {
   }
 }, 10000)
 outboxTimer.unref()
+
+// Own fleet: lapse unanswered offers and offer waiting parcels to riders who came online.
+let dispatching = false
+const dispatchTimer = setInterval(async () => {
+  if (dispatching) return
+  dispatching = true
+  try {
+    await sweepDispatch()
+  } catch (e) {
+    log.error("dispatch.sweep_failed", { error: (e as Error).message })
+  } finally {
+    dispatching = false
+  }
+}, 30_000)
+dispatchTimer.unref()
 
 // Payments and parcels whose outcome we may have missed (closed browser, lost
 // webhook): settled, expired or refreshed from the provider every 2 minutes.
@@ -50,6 +66,7 @@ const shutdown = (signal: string) => {
   console.log(`${signal} received, shutting down`)
   clearInterval(outboxTimer)
   clearInterval(providerTimer)
+  clearInterval(dispatchTimer)
   server.close(async () => {
     await disconnect()
     process.exit(0)

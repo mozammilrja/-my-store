@@ -275,9 +275,9 @@ Each later phase builds on the models here:
 - **Phase 2 (done):** the `apps/warehouse` app, described above. Admin
   screens for warehouse staff, fulfilments and stock are still API-only and
   come with the admin work in Phase 7.
-- **Phase 3:** own delivery fleet. Riders, zones, route grouping, assignment
-  and acceptance, OTP and proof of delivery, COD collection and the COD
-  reconciliation machine, and `apps/rider`.
+- **Phase 3 (done):** own delivery fleet and `apps/rider`; see
+  [FLEET.md](./FLEET.md). It also added RTO receiving at the warehouse
+  (`/warehouse/rto/:awb`), for courier parcels too.
 - **Phase 4:** reverse logistics UI and exchanges. The refund machine as a
   first-class record, and storefront return tracking.
 - **Phase 5:** notifications. Email, SMS, WhatsApp and push through

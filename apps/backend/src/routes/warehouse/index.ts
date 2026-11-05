@@ -22,6 +22,8 @@ import { runStockOperation, stockOperationSchema } from "../../lib/inventory/ope
 import { email } from "../../lib/validation.js"
 import { inspectReturn } from "../../lib/returns/inspect.js"
 import { skuOf } from "../../lib/inventory/stock.js"
+import { zoneFor } from "../../lib/fleet/tasks.js"
+import { findRto, receiveRto } from "../../lib/fleet/rto.js"
 import { adminLoginMaxAttempts } from "../../env.js"
 
 /*
@@ -158,11 +160,36 @@ warehouseRoutes.get("/fulfilments", async (req, res) => {
 
 warehouseRoutes.get("/fulfilments/:id", async (req, res) => {
   const f = await scoped(req, "view")
-  const [history, shipment] = await Promise.all([
+  const [history, shipment, zone] = await Promise.all([
     db.statusEvents().find({ entityId: f._id }, { sort: { at: 1 } }).toArray(),
     f.shipmentId ? db.shipments().findOne({ _id: f.shipmentId }, { projection: { awb: 1, carrier: 1, labelUrl: 1, status: 1, provider: 1 } }) : null,
+    zoneFor(f.warehouseId, f.destination.postalCode),
   ])
-  res.json({ fulfilment: f, history, label: shipment })
+  // Whether our own riders can take it: the destination is in one of this warehouse's zones (and cash can be collected there, for COD).
+  const ownFleet = zone ? { zone: zone.name, codAllowed: zone.codAllowed } : null
+  res.json({ fulfilment: f, history, label: shipment, ownFleet })
+})
+
+/**
+ * Our own shipping label for an own-fleet parcel. It carries the delivery
+ * address, as any courier's label does, so it's available only once the
+ * parcel is booked and until it leaves the building.
+ */
+warehouseRoutes.get("/fulfilments/:id/own-label", async (req, res) => {
+  const f = await scoped(req, "label")
+  if (!["label_generated", "ready_to_dispatch", "manifested", "handed_over"].includes(f.status)) throw notFound("Label")
+  const task = f.shipmentId ? await db.deliveryTasks().findOne({ shipmentId: f.shipmentId }) : null
+  if (!task) throw notFound("Label")
+  res.json({
+    label: {
+      awb: task.code,
+      orderNumber: f.displayId,
+      warehouse: f.warehouseCode,
+      to: { name: task.stop.name, address1: task.stop.address1, address2: task.stop.address2 ?? null, city: task.stop.city, postalCode: task.stop.postalCode },
+      cod: task.cod ? { amount: task.cod.due, currency: task.cod.currency } : null,
+      weightKg: f.package?.weightKg ?? null,
+    },
+  })
 })
 
 /** Finds a fulfilment from its scanned pick slip. */
@@ -235,6 +262,7 @@ warehouseRoutes.post("/fulfilments/:id/label", async (req, res) => {
     .object({
       packageCode: z.string().trim().min(1).max(40),
       courierId: z.number().int().positive().optional(),
+      ownFleet: z.boolean().optional(),
       manual: z.object({ carrier: z.string().trim().min(2).max(80), awb: z.string().trim().min(4).max(40), trackingUrl: z.url().optional() }).optional(),
     })
     .parse(req.body)
@@ -332,6 +360,35 @@ warehouseRoutes.get("/stock/ledger", async (req, res) => {
   inScope(req, q.warehouseId)
   const entries = await db.stockLedger().find({ warehouseId: q.warehouseId, ...(q.variantId ? { variantId: q.variantId } : {}) }, { sort: { createdAt: -1 }, limit: q.limit }).toArray()
   res.json({ entries })
+})
+
+/* ---------- Undelivered parcels (RTO) ---------- */
+
+/** A parcel coming back undelivered, by its outbound AWB. Item details only. */
+warehouseRoutes.get("/rto/:awb", async (req, res) => {
+  can(req, "qc")
+  const found = await findRto(String(req.params.awb))
+  if (!found || !req.warehouseUser!.warehouseIds.includes(found.fulfilment.warehouseId)) throw notFound("Returning parcel")
+  const { shipment, fulfilment: f } = found
+  res.json({
+    rto: {
+      awb: shipment.awb,
+      carrier: shipment.carrier,
+      displayId: f.displayId,
+      warehouseId: f.warehouseId,
+      received: !!shipment.rtoReceivedAt,
+      lines: f.lines.map((l) => ({ itemId: l.itemId, sku: l.sku, productTitle: l.productTitle, variantTitle: l.variantTitle, quantity: l.quantity })),
+    },
+  })
+})
+
+warehouseRoutes.post("/rto/:awb/receive", async (req, res) => {
+  can(req, "qc")
+  const body = z
+    .object({ warehouseId: z.string(), grades: z.array(z.object({ itemId: z.string(), sellable: z.number().int().min(0), damaged: z.number().int().min(0) })).min(1).max(100) })
+    .parse(req.body)
+  inScope(req, body.warehouseId)
+  res.json(await receiveRto(String(req.params.awb), body.warehouseId, body.grades, actorOf(req)))
 })
 
 /* ---------- Returns ---------- */

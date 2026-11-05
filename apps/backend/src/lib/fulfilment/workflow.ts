@@ -9,6 +9,7 @@ import { log } from "../log.js"
 import { assignCourier, courierManifest, createFulfilmentShipment, generateLabel, recordManualShipment, schedulePickup, shippingConfigured } from "../shipping/service.js"
 import { assertTransition, recordTransition } from "../state/machines.js"
 import { allocate } from "./allocate.js"
+import { bookOwnFleet } from "../fleet/tasks.js"
 
 /*
  * The warehouse floor: accept, pick, check, pack, label, manifest, hand over.
@@ -258,14 +259,16 @@ export async function pack(id: string, input: { orderCode: string; scans: string
  * recorded instead (`manual`); nothing is generated here.
  * Safe to retry: a booking already made is reused, and only missing steps run.
  */
-export async function generateFulfilmentLabel(id: string, input: { packageCode: string; courierId?: number; manual?: { carrier: string; awb: string; trackingUrl?: string } }, actor: ActorRef) {
+export async function generateFulfilmentLabel(id: string, input: { packageCode: string; courierId?: number; ownFleet?: boolean; manual?: { carrier: string; awb: string; trackingUrl?: string } }, actor: ActorRef) {
   let f = await loadFulfilment(id)
   if (f.status !== "packed") throw conflict("Pack the parcel before generating its label.", "not_packed")
   if (!f.package || norm(input.packageCode) !== norm(f.package.code)) throw new ScanError("wrong_package", "That parcel barcode isn't this order's parcel.")
 
   let shipment = f.shipmentId ? await db.shipments().findOne({ _id: f.shipmentId, active: true }) : await db.shipments().findOne({ fulfilmentId: f._id, isReturn: false, active: true })
   if (!shipment) {
-    if (input.manual) {
+    if (input.ownFleet) {
+      shipment = await bookOwnFleet(f)
+    } else if (input.manual) {
       const order = await db.orders().findOne({ _id: f.orderId })
       if (!order) throw notFound("Order")
       shipment = await recordManualShipment(order, input.manual, f)

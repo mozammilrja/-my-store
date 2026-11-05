@@ -9,7 +9,9 @@ import { api, ApiError, errorMessage } from "@/lib/api"
 import { useSession } from "@/lib/session"
 import type { Fulfilment, FulfilmentLine, Label as CourierLabel, Permission, StatusEvent } from "@/lib/types"
 
-type Detail = { fulfilment: Fulfilment; history: StatusEvent[]; label: CourierLabel }
+type OwnFleet = { zone: string; codAllowed: boolean } | null
+type Detail = { fulfilment: Fulfilment; history: StatusEvent[]; label: CourierLabel; ownFleet: OwnFleet }
+type OwnLabel = { awb: string; orderNumber: number; warehouse: string; to: { name: string; address1: string; address2: string | null; city: string; postalCode: string }; cod: { amount: number; currency: string } | null; weightKg: number | null }
 
 const norm = (s: string) => s.trim().toUpperCase()
 const units = (f: Fulfilment) => f.lines.reduce((n, l) => n + l.quantity, 0)
@@ -37,7 +39,7 @@ export function FulfilmentWork() {
 
   if (detail.isPending) return <Spinner />
   if (detail.isError) return <Notice>{errorMessage(detail.error)}</Notice>
-  const { fulfilment: f, history, label } = detail.data
+  const { fulfilment: f, history, label, ownFleet } = detail.data
 
   const print = (what: "slip" | "package") => {
     setPrinting(what)
@@ -70,7 +72,7 @@ export function FulfilmentWork() {
         </Button>
       </div>
 
-      <Step f={f} label={label} onPrintPackage={() => print("package")} />
+      <Step f={f} label={label} ownFleet={ownFleet} onPrintPackage={() => print("package")} />
 
       <Panel title="Items">
         <Lines f={f} />
@@ -138,7 +140,7 @@ function NotAllowed({ what }: { what: string }) {
   return <Notice tone="info">This order is waiting to {what}. Your role ({me.user.role}) can't do that step.</Notice>
 }
 
-function Step({ f, label, onPrintPackage }: { f: Fulfilment; label: CourierLabel; onPrintPackage: () => void }) {
+function Step({ f, label, ownFleet, onPrintPackage }: { f: Fulfilment; label: CourierLabel; ownFleet: OwnFleet; onPrintPackage: () => void }) {
   const { can } = useSession()
   const gate = (p: Permission, what: string, el: ReactNode) => (can(p) ? el : <NotAllowed what={what} />)
   switch (f.status) {
@@ -152,7 +154,7 @@ function Step({ f, label, onPrintPackage }: { f: Fulfilment; label: CourierLabel
     case "qc_passed":
       return gate("pack", "be packed", <PackStep f={f} />)
     case "packed":
-      return gate("label", "be labelled", <LabelStep f={f} onPrintPackage={onPrintPackage} />)
+      return gate("label", "be labelled", <LabelStep f={f} ownFleet={ownFleet} onPrintPackage={onPrintPackage} />)
     case "label_generated":
       return gate("label", "have its label checked", <VerifyStep f={f} label={label} />)
     case "ready_to_dispatch":
@@ -424,8 +426,11 @@ function PackStep({ f }: { f: Fulfilment }) {
   )
 }
 
-function LabelStep({ f, onPrintPackage }: { f: Fulfilment; onPrintPackage: () => void }) {
+function LabelStep({ f, ownFleet, onPrintPackage }: { f: Fulfilment; ownFleet: OwnFleet; onPrintPackage: () => void }) {
   const act = useAction(f._id)
+  // Our riders can take it when the destination is in one of this warehouse's zones (and cash is collected there, for COD).
+  const fleetOk = !!ownFleet && (f.paymentMethod !== "cod" || ownFleet.codAllowed)
+  const [via, setVia] = useState<"fleet" | "courier">(fleetOk ? "fleet" : "courier")
   const [packageCode, setPackageCode] = useState<string | null>(null)
   const [manual, setManual] = useState(false)
   const [carrier, setCarrier] = useState("")
@@ -434,6 +439,10 @@ function LabelStep({ f, onPrintPackage }: { f: Fulfilment; onPrintPackage: () =>
   const book = async (code: string) => {
     setPackageCode(code)
     try {
+      if (via === "fleet") {
+        await act.mutateAsync({ path: "/label", body: { packageCode: code, ownFleet: true }, ok: "Booked on Everwear Fleet. Print and apply our label." })
+        return
+      }
       await act.mutateAsync({ path: "/label", body: { packageCode: code }, ok: "Booked with the courier. Print and apply the courier label." })
     } catch (e) {
       // No courier integration here: the AWB comes from wherever the parcel was booked.
@@ -455,8 +464,27 @@ function LabelStep({ f, onPrintPackage }: { f: Fulfilment; onPrintPackage: () =>
             </Button>
           </div>
         </div>
+        {fleetOk && !manual ? (
+          <fieldset className="grid gap-2 sm:grid-cols-2">
+            <legend className="mb-1.5 text-sm font-medium text-ink-2">Deliver with</legend>
+            {(
+              [
+                ["fleet", "Everwear Fleet", `Our riders · ${ownFleet!.zone}`],
+                ["courier", "Courier", "Shiprocket or a courier's portal"],
+              ] as const
+            ).map(([value, title, hint]) => (
+              <label key={value} className={cn("flex cursor-pointer items-start gap-3 rounded-control border p-3", via === value ? "border-accent bg-accent-soft" : "border-line")}>
+                <input type="radio" name="via" value={value} checked={via === value} onChange={() => setVia(value)} className="mt-1 accent-[rgb(var(--accent))]" />
+                <span>
+                  <span className="block text-sm font-medium">{title}</span>
+                  <span className="text-xs text-ink-3">{hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        ) : null}
         {!manual ? (
-          <ScanField label="Scan the parcel label to book the courier" placeholder="PKG-..." onScan={book} />
+          <ScanField label={via === "fleet" ? "Scan the parcel label to book Everwear Fleet" : "Scan the parcel label to book the courier"} placeholder="PKG-..." onScan={book} />
         ) : (
           <form
             className="space-y-3"
@@ -488,13 +516,37 @@ function LabelStep({ f, onPrintPackage }: { f: Fulfilment; onPrintPackage: () =>
 
 function VerifyStep({ f, label }: { f: Fulfilment; label: CourierLabel }) {
   const act = useAction(f._id)
+  const feedback = useFeedback()
+  const [own, setOwn] = useState<OwnLabel | null>(null)
+  const [printingOwn, setPrintingOwn] = useState(false)
+  // Our label carries the address, so it's fetched only to print, never kept on screen.
+  const printOwn = async () => {
+    setPrintingOwn(true)
+    try {
+      const { label: l } = await api<{ label: OwnLabel }>(`/fulfilments/${f._id}/own-label`)
+      setOwn(l)
+      requestAnimationFrame(() => {
+        window.print()
+        setOwn(null)
+      })
+    } catch (e) {
+      feedback.bad(errorMessage(e))
+    } finally {
+      setPrintingOwn(false)
+    }
+  }
   return (
-    <Panel title="Apply the courier label">
+    <Panel title={label?.provider === "own_fleet" ? "Apply the Everwear Fleet label" : "Apply the courier label"}>
+      {own ? <OwnFleetLabel l={own} /> : null}
       <div className="space-y-4">
         <p className="text-sm text-ink-2">
           {f.carrier} · AWB <span className="font-mono font-semibold">{f.awb}</span>
         </p>
-        {label?.labelUrl ? (
+        {label?.provider === "own_fleet" ? (
+          <Button variant="secondary" busy={printingOwn} onClick={printOwn}>
+            <Printer className="size-4" aria-hidden /> Print Everwear Fleet label
+          </Button>
+        ) : label?.labelUrl ? (
           <a href={label.labelUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-control border border-line px-4 text-sm font-medium hover:bg-panel-muted">
             <ExternalLink className="size-4" aria-hidden /> Open courier label (PDF)
           </a>
@@ -508,6 +560,28 @@ function VerifyStep({ f, label }: { f: Fulfilment; label: CourierLabel }) {
 }
 
 /* ---------- Printouts ---------- */
+
+function OwnFleetLabel({ l }: { l: OwnLabel }) {
+  return (
+    <div className="print-area print-only w-[100mm] space-y-2 p-4 font-sans">
+      <p className="text-sm font-bold">Everwear Fleet · from {l.warehouse}</p>
+      <Barcode value={l.awb} height={70} />
+      <div className="border-t border-black pt-2 text-sm">
+        <p className="font-bold">{l.to.name}</p>
+        <p>{l.to.address1}</p>
+        {l.to.address2 ? <p>{l.to.address2}</p> : null}
+        <p className="font-semibold">
+          {l.to.city} {l.to.postalCode}
+        </p>
+      </div>
+      <p className="border-t border-black pt-2 text-sm font-bold">{l.cod ? `COLLECT CASH ₹${(l.cod.amount / 100).toFixed(2)}` : "PREPAID · collect nothing"}</p>
+      <p className="text-xs">
+        Order #{l.orderNumber}
+        {l.weightKg ? ` · ${l.weightKg} kg` : ""}
+      </p>
+    </div>
+  )
+}
 
 function PickSlip({ f }: { f: Fulfilment }) {
   return (

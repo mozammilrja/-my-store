@@ -7,6 +7,7 @@ import { cityInText, destinationPoint } from "@lib/util/india-cities"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { RefreshButton } from "@modules/order/refresh-button"
 import { DoorstepControls } from "@modules/order/track/doorstep-controls"
+import { OwnFleetCard } from "@modules/order/track/own-fleet-card"
 import { RouteMapLazy } from "@modules/order/track/route-map-lazy"
 import { buildTracking, carrierName, longDay, scanTime, shipmentStatusLabel, type TrackNode } from "@modules/order/track/tracking"
 import { MIcon, StitchPage, TrackingFooter, TrackingHeader } from "@modules/stitch/shell"
@@ -211,6 +212,8 @@ export default async function TrackOrder(props: { params: Promise<{ countryCode:
                 </LocalizedClientLink>
               </div>
             </div>
+
+            {order.delivery ? <OwnFleetCard delivery={order.delivery} money={money} /> : null}
 
             {/* Hero Status Bar */}
             <div className="relative overflow-hidden bg-surface-container-low text-on-surface rounded-xl p-space-lg lg:p-space-xl mb-space-xl border border-surface-container-high">

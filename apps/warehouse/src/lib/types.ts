@@ -82,7 +82,7 @@ export type StatusEvent = {
   at: string
 }
 
-export type Label = { _id: string; awb: string; carrier: string; labelUrl?: string; status: string; provider: "shiprocket" | "manual" } | null
+export type Label = { _id: string; awb: string; carrier: string; labelUrl?: string; status: string; provider: "shiprocket" | "manual" | "own_fleet" } | null
 
 export type Summary = {
   byStatus: Partial<Record<FulfilmentStatus, number>>
@@ -151,4 +151,13 @@ export type ReturnLookup = {
   reason: string
   awb: string | null
   items: { itemId: string; quantity: number; productTitle: string; variantTitle: string; variantId: string }[]
+}
+
+export type RtoParcel = {
+  awb: string
+  carrier: string
+  displayId: number
+  warehouseId: string
+  received: boolean
+  lines: { itemId: string; sku: string; productTitle: string; variantTitle: string; quantity: number }[]
 }

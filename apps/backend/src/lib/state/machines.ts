@@ -1,5 +1,5 @@
 import type { ClientSession } from "mongodb"
-import { db, type ActorRef, type FulfilmentStatus, type OrderDoc, type StatusEventDoc } from "../../db/schema.js"
+import { db, type ActorRef, type CodRemittanceDoc, type DeliveryStatus, type FulfilmentStatus, type OrderDoc, type StatusEventDoc } from "../../db/schema.js"
 import { conflict } from "../errors.js"
 import { newId } from "../ids.js"
 
@@ -60,7 +60,31 @@ export const RETURN_MACHINE: Table<ReturnStatus> = {
   rejected: ["approved"],
 }
 
-export const MACHINES = { order: ORDER_MACHINE, payment: PAYMENT_MACHINE, fulfilment: FULFILMENT_MACHINE, return: RETURN_MACHINE }
+/** Own-fleet delivery of one parcel. */
+export const DELIVERY_MACHINE: Table<DeliveryStatus> = {
+  unassigned: ["offered", "assigned", "cancelled"],
+  // Declined or lapsed offers go back to the pool.
+  offered: ["assigned", "unassigned", "cancelled"],
+  assigned: ["picked_up", "unassigned", "cancelled"],
+  picked_up: ["out_for_delivery", "rto"],
+  out_for_delivery: ["delivered", "attempt_failed"],
+  // After a failed attempt the rider tries again, or the parcel goes back.
+  attempt_failed: ["out_for_delivery", "rto"],
+  rto: ["returned"],
+  delivered: [],
+  returned: [],
+  cancelled: [],
+}
+
+/** Cash a rider hands over: counted by finance, matched or flagged. */
+export const COD_MACHINE: Table<CodRemittanceDoc["status"]> = {
+  submitted: ["reconciled", "mismatch"],
+  // A mismatch is recounted once the difference is found.
+  mismatch: ["reconciled", "mismatch"],
+  reconciled: [],
+}
+
+export const MACHINES = { order: ORDER_MACHINE, payment: PAYMENT_MACHINE, fulfilment: FULFILMENT_MACHINE, return: RETURN_MACHINE, delivery: DELIVERY_MACHINE, cod: COD_MACHINE }
 export type MachineName = keyof typeof MACHINES
 
 export function canTransition<M extends MachineName>(machine: M, from: string, to: string) {

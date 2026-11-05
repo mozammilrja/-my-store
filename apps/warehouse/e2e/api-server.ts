@@ -115,6 +115,15 @@ await call("PATCH", `/store/carts/${cart.id}`, { email: "aarav@example.com", shi
 await call("POST", `/store/carts/${cart.id}/shipping`, { optionId: "so_std" })
 const placed = await call("POST", `/store/carts/${cart.id}/complete`)
 
+// Our own riders cover this PIN code from Bengaluru, so the label step offers Everwear Fleet.
+await db.deliveryZones().insertOne({ _id: "zone_east", code: "BLR-EAST", name: "Bengaluru East", warehouseId: "wh_blr", pincodes: ["560038"], codAllowed: true, active: true, createdAt: now, updatedAt: now })
+// A second order, for the own-fleet run.
+const cart2 = (await call("POST", "/store/carts", { country: "in" })).cart
+await call("POST", `/store/carts/${cart2.id}/items`, { variantId: "var_tee_l", quantity: 1 })
+await call("PATCH", `/store/carts/${cart2.id}`, { email: "aarav@example.com", shippingAddress: address, billingAddress: address })
+await call("POST", `/store/carts/${cart2.id}/shipping`, { optionId: "so_std" })
+await call("POST", `/store/carts/${cart2.id}/complete`)
+
 // An earlier order, delivered, whose approved return has just come back.
 await db.orders().insertOne({
   _id: "order_returned",

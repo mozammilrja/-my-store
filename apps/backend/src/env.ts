@@ -26,6 +26,10 @@ const schema = z.object({
   ADMIN_CORS: list,
   /** Browser origins of the warehouse app (apps/warehouse). */
   WAREHOUSE_CORS: list,
+  /** Browser origins of the rider app (apps/rider). */
+  RIDER_CORS: list,
+  /** Folder for private files (proof-of-delivery photos). Never served publicly. */
+  PRIVATE_UPLOADS_DIR: z.string().default("private-uploads"),
   // Razorpay. Online payment is offered only when the key pair is set; the
   // webhook endpoint refuses every event until RAZORPAY_WEBHOOK_SECRET is set.
   RAZORPAY_KEY_ID: z.string().optional(),

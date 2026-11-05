@@ -63,22 +63,22 @@ function Inspect({ r, onDone }: { r: ReturnLookup; onDone: () => void }) {
           ...(damaged > 0 ? [{ itemId: i.itemId, quantity: damaged, condition: "damaged" as const, ...(g.notes ? { notes: g.notes } : {}) }] : []),
         ]
       })
-      return api<{ status: string }>(`/returns/${r.orderId}/inspect`, { body: { warehouseId, lines } })
+      return api<{ status: string }>(`/returns/${r.returnId}/inspect`, { body: { warehouseId, lines } })
     },
     onSuccess: () => {
-      feedback.ok(`Return for order #${r.displayId} inspected. Sellable units are back on the shelf.`)
+      feedback.ok(`${r.code} inspected. Sellable units are back on the shelf.`)
       onDone()
     },
     onError: (e) => feedback.bad(errorMessage(e)),
   })
-  const inspectable = ["approved", "pickup_scheduled", "received"].includes(r.status)
+  const inspectable = ["approved", "pickup_scheduled", "in_transit", "received"].includes(r.status)
   const submit = (e: FormEvent) => {
     e.preventDefault()
     run.mutate()
   }
 
   return (
-    <Panel title={`Order #${r.displayId}${r.awb ? ` · ${r.awb}` : ""}`}>
+    <Panel title={`${r.code} · ${r.type === "exchange" ? "Exchange" : "Return"} · order #${r.displayId}${r.awb ? ` · ${r.awb}` : ""}`}>
       <p className="mb-4 text-sm text-ink-2">
         Customer's reason: “{r.reason}”. Return is <span className="font-medium">{r.status.replace(/_/g, " ")}</span>.
       </p>
@@ -91,7 +91,7 @@ function Inspect({ r, onDone }: { r: ReturnLookup; onDone: () => void }) {
             return (
               <fieldset key={i.itemId} className="space-y-3 rounded-control border border-line p-3">
                 <legend className="px-1 text-sm font-medium">
-                  {i.productTitle} · {i.variantTitle} · {i.quantity} returned
+                  {i.productTitle} · {i.variantTitle} · {i.quantity} returned{i.reason ? ` · ${i.reason}` : ""}
                 </legend>
                 <div className="grid grid-cols-2 gap-3">
                   <div>

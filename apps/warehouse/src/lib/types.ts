@@ -145,12 +145,15 @@ export type LedgerEntry = {
 export type CatalogItem = { productId: string; productTitle: string; variantId: string; variantTitle: string; options: Record<string, string>; sku: string }
 
 export type ReturnLookup = {
+  returnId: string
+  code: string
+  type: "return" | "exchange"
   orderId: string
   displayId: number
   status: string
   reason: string
   awb: string | null
-  items: { itemId: string; quantity: number; productTitle: string; variantTitle: string; variantId: string }[]
+  items: { itemId: string; quantity: number; productTitle: string; variantTitle: string; variantId: string; reason?: string }[]
 }
 
 export type RtoParcel = {

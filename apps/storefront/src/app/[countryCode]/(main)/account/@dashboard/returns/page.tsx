@@ -1,4 +1,4 @@
-import { listOrders, retrieveCustomer } from "@lib/data/account"
+import { listOrders, listReturns, retrieveCustomer } from "@lib/data/account"
 import { getStorePolicies } from "@lib/data/catalog"
 import { ReturnsView } from "@modules/account/returns-view"
 import { Metadata } from "next"
@@ -10,14 +10,15 @@ export default async function ReturnsPage(props: { params: Promise<{ countryCode
   const customer = await retrieveCustomer().catch(() => null)
   if (!customer) return null
 
-  const [orders, policies] = await Promise.all([
+  const [orders, returns, policies] = await Promise.all([
     listOrders().catch(() => []),
+    listReturns().catch(() => []),
     getStorePolicies(countryCode).catch(() => null),
   ])
 
   return (
     <div data-testid="returns-page">
-      <ReturnsView customer={customer} orders={orders} returnWindowDays={policies?.current?.returnWindowDays ?? null} />
+      <ReturnsView customer={customer} orders={orders} returns={returns} returnWindowDays={policies?.current?.returnWindowDays ?? null} />
     </div>
   )
 }

@@ -21,6 +21,7 @@ import {
 import { runStockOperation, stockOperationSchema } from "../../lib/inventory/operations.js"
 import { email } from "../../lib/validation.js"
 import { inspectReturn } from "../../lib/returns/inspect.js"
+import { currentReturn, REASON_TEXT } from "../../lib/returns/returns.js"
 import { skuOf } from "../../lib/inventory/stock.js"
 import { zoneFor } from "../../lib/fleet/tasks.js"
 import { findRto, receiveRto } from "../../lib/fleet/rto.js"
@@ -394,28 +395,42 @@ warehouseRoutes.post("/rto/:awb/receive", async (req, res) => {
 /* ---------- Returns ---------- */
 
 /** A returned parcel at the dock, found by its reverse AWB or the order number. Item details only. */
+/**
+ * A returned parcel at the dock, by its reverse-pickup AWB, the customer's
+ * own courier AWB, the return code (RET-1042-1) or the order number. Item
+ * details only.
+ */
 warehouseRoutes.get("/returns/lookup", async (req, res) => {
   can(req, "qc")
-  const q = z.object({ awb: z.string().trim().min(1).max(40).optional(), orderNumber: z.coerce.number().int().positive().optional() }).refine((x) => x.awb || x.orderNumber, "Scan the AWB or enter the order number").parse(req.query)
-  const shipment = q.awb ? await db.shipments().findOne({ awb: q.awb, isReturn: true }) : null
-  const order = shipment ? await db.orders().findOne({ _id: shipment.orderId }) : q.orderNumber ? await db.orders().findOne({ displayId: q.orderNumber }) : null
-  if (!order?.returnRequest) throw notFound("Return")
+  const q = z
+    .object({ awb: z.string().trim().min(1).max(40).optional(), orderNumber: z.coerce.number().int().positive().optional() })
+    .refine((x) => x.awb || x.orderNumber, "Scan the AWB or enter the order number")
+    .parse(req.query)
+  const code = q.awb?.toUpperCase()
+  const shipment = code ? await db.shipments().findOne({ awb: code, isReturn: true }) : null
+  const ret =
+    (shipment?.returnId ? await db.returns().findOne({ _id: shipment.returnId }) : null) ??
+    (code ? await db.returns().findOne({ $or: [{ "selfShip.awb": code }, { code }] }) : null) ??
+    (shipment ? await currentReturn(shipment.orderId) : null) ??
+    (q.orderNumber ? await db.orders().findOne({ displayId: q.orderNumber }, { projection: { _id: 1 } }).then((o) => (o ? currentReturn(o._id) : null)) : null)
+  if (!ret) throw notFound("Return")
   res.json({
     return: {
-      orderId: order._id,
-      displayId: order.displayId,
-      status: order.returnRequest.status,
-      reason: order.returnRequest.reason,
-      awb: shipment?.awb ?? null,
-      items: order.returnRequest.items.map((r) => {
-        const item = order.items.find((i) => i._id === r.itemId)
-        return { itemId: r.itemId, quantity: r.quantity, productTitle: item?.productTitle ?? "", variantTitle: item?.variantTitle ?? "", variantId: item?.variantId ?? "" }
-      }),
+      returnId: ret._id,
+      code: ret.code,
+      type: ret.type,
+      orderId: ret.orderId,
+      displayId: ret.displayId,
+      status: ret.status,
+      reason: ret.items.map((l) => (l.note ? `${REASON_TEXT[l.reason]}: ${l.note}` : REASON_TEXT[l.reason])).join("; "),
+      awb: shipment?.awb ?? ret.selfShip?.awb ?? null,
+      items: ret.items.map((l) => ({ itemId: l.itemId, quantity: l.quantity, productTitle: l.productTitle, variantTitle: l.variantTitle, variantId: l.variantId, reason: REASON_TEXT[l.reason] })),
     },
   })
 })
 
-warehouseRoutes.post("/returns/:orderId/inspect", async (req, res) => {
+/** `:id` is the return (ret_...); an order id (order_...) means that order's open return. */
+warehouseRoutes.post("/returns/:id/inspect", async (req, res) => {
   can(req, "qc")
   const body = z
     .object({
@@ -424,8 +439,11 @@ warehouseRoutes.post("/returns/:orderId/inspect", async (req, res) => {
     })
     .parse(req.body)
   inScope(req, body.warehouseId)
-  const order = await inspectReturn(String(req.params.orderId), body.warehouseId, body.lines, actorOf(req))
-  res.json({ status: order.returnRequest!.status, inspection: order.returnRequest!.inspection })
+  const id = String(req.params.id)
+  const ret = id.startsWith("order_") ? await currentReturn(id) : await db.returns().findOne({ _id: id })
+  if (!ret) throw notFound("Return")
+  const done = await inspectReturn(ret._id, body.warehouseId, body.lines, actorOf(req))
+  res.json({ status: done.status, inspection: done.inspection })
 })
 
 declare global {

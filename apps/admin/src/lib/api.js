@@ -294,6 +294,11 @@ export const adminApi = {
   webhookEvents: (params = {}) => api('/admin/webhook-events', { query: params }),
   reconcile: () => api('/admin/reconcile', { method: 'POST' }),
   returnAction: (orderId, body) => api(`/admin/orders/${orderId}/return-request`, { method: 'POST', body }),
+  returns: (params = {}) => api('/admin/returns', { query: params }),
+  returnDetail: (id) => api(`/admin/returns/${id}`),
+  returnAct: (id, action, body = {}) => api(`/admin/returns/${id}/${action}`, { method: 'POST', body }),
+  returnOptions: (orderNumber) => api('/admin/return-options', { query: { orderNumber } }),
+  createReturn: (orderId, body) => api(`/admin/orders/${orderId}/returns`, { method: 'POST', body }),
 
   // Invoices & Credit Notes (GST & Tax)
   invoices: () => api('/admin/invoices'),

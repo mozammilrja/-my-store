@@ -1,11 +1,11 @@
 import { Router, type Request } from "express"
 import { z } from "zod"
-import { db, SHIPMENT_STATUSES } from "../../db/schema.js"
-import { conflict, forbidden, notFound } from "../../lib/errors.js"
+import { db, RETURN_REASONS, RETURN_STATUSES, SHIPMENT_STATUSES, type OrderDoc, type RefundDoc } from "../../db/schema.js"
+import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
 import { trackedVariants } from "../../lib/inventory/stock.js"
-import { moveReturn } from "../../lib/returns/inspect.js"
-import { canTransition } from "../../lib/state/machines.js"
+import { createReturn, currentReturn, loadReturn, moveReturn, returnOptions } from "../../lib/returns/returns.js"
+import { approveReturn, bookReturnPickup, cancelReturn, exchangeReturn, refundReturn, rejectReturn } from "../../lib/returns/resolve.js"
 import { refundOrder } from "../../lib/payments/refunds.js"
 import {
   assignCourier,
@@ -136,52 +136,63 @@ adminLogisticsRoutes.post("/shipments/:id/status", async (req, res) => {
 
 /* ---------- Returns, refunds & reverse logistics ---------- */
 
+/**
+ * The order page's return actions, kept for the existing admin screen. They
+ * act on the order's open (else latest) return; `refund` with no return to
+ * settle is a plain refund (goodwill, partial), as before.
+ */
 adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
   requireOwner(req)
   const body = z
     .object({
       reason: z.string().trim().min(1).max(500),
-      action: z.enum(["approve", "schedule_pickup", "received", "refund", "reject"]),
+      action: z.enum(["approve", "schedule_pickup", "received", "refund", "reject", "exchange"]),
       amount: z.number().int().positive().optional(),
     })
     .parse(req.body)
   const order = await loadOrder(req.params.id)
-  const now = new Date()
   const actor = { type: "admin" as const, id: req.admin!.id, name: req.admin!.email }
+  const ret = await currentReturn(order._id)
+  const need = () => {
+    if (!ret) throw conflict("There is no return request on this order.", "no_return_request")
+    return ret
+  }
 
   if (body.action === "approve") {
-    await moveReturn(order, "approved", actor, body.reason)
-    res.json({ success: true, status: "approved" })
+    const r = need()
+    if (!["requested", "rejected"].includes(r.status)) throw conflict("There is no open return request to approve.", "no_return_request")
+    res.json({ success: true, status: (await approveReturn(r, actor, body.reason)).status })
     return
   }
-
   if (body.action === "schedule_pickup") {
-    // A real reverse pickup with the courier; its AWB and tracking come from the courier.
-    const shipment = await createReturnShipment(order)
-    res.json({ success: true, status: "approved", shipment })
+    const { shipment } = await bookReturnPickup(need(), actor)
+    res.json({ success: true, status: "pickup_scheduled", shipment })
     return
   }
-
   if (body.action === "received") {
-    await moveReturn(order, "received", actor, body.reason)
-    res.json({ success: true, status: "received" })
+    res.json({ success: true, status: (await moveReturn(need(), "received", actor, body.reason)).status })
     return
   }
-
   if (body.action === "reject") {
-    await moveReturn(order, "rejected", actor, body.reason)
-    res.json({ success: true, status: "rejected" })
+    res.json({ success: true, status: (await rejectReturn(need(), actor, body.reason)).status })
+    return
+  }
+  if (body.action === "exchange") {
+    const out = await exchangeReturn(need(), actor, body.reason)
+    res.json({ success: true, status: out.ret.status, exchangeOrderId: out.order._id, exchangeDisplayId: out.order.displayId })
     return
   }
 
-  // refund: money goes back through Razorpay (or is recorded as a cash refund for COD) first;
-  // the credit note follows once the refund was accepted. A refund can be issued at any
-  // point (goodwill, partial); the return itself closes as refunded only once the goods
-  // were received. Stock comes back at the warehouse inspection, never here.
-  const refund = await refundOrder(order, { amount: body.amount, reason: body.reason, adminId: req.admin!.id })
-  if (order.returnRequest && canTransition("return", order.returnRequest.status, "refunded")) {
-    await moveReturn(order, "refunded", actor, body.reason, { fulfillmentStatus: "returned" })
-  }
+  // refund: a received or inspected return is refunded for its items; anything else is a plain refund.
+  const settles = ret && ["received", "inspected"].includes(ret.status)
+  const refund = settles ? (await refundReturn(ret, actor, { amount: body.amount, note: body.reason })).refund : await refundOrder(order, { amount: body.amount, reason: body.reason, adminId: req.admin!.id })
+  const creditNoteNumber = await issueCreditNote(order, refund, body.reason)
+  res.json({ success: true, status: refund.status, refund, creditNoteNumber })
+})
+
+/** A credit note against the order's invoice for money returned. */
+async function issueCreditNote(order: OrderDoc, refund: RefundDoc, reason: string) {
+  const now = new Date()
   const creditNoteNumber = `CN-${now.getFullYear()}-${order.displayId}-${refund._id.slice(-4)}`
   await db.creditNotes().insertOne({
     _id: newId("cn"),
@@ -190,11 +201,86 @@ adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
     orderId: order._id,
     customerName: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
     refundAmount: refund.amount,
-    reason: body.reason,
+    reason,
     status: refund.status === "processed" ? "settled" : "issued",
     createdAt: now,
   })
-  res.json({ success: true, status: refund.status, refund, creditNoteNumber })
+  return creditNoteNumber
+}
+
+/* ---------- Returns (the returns screen) ---------- */
+
+adminLogisticsRoutes.get("/returns", async (req, res) => {
+  const q = z.object({ status: z.enum(RETURN_STATUSES).optional(), type: z.enum(["return", "exchange"]).optional(), q: z.string().trim().max(40).optional(), limit: z.coerce.number().int().min(1).max(500).default(100) }).parse(req.query)
+  const num = q.q ? Number(q.q.replace(/^#|^RET-/i, "").split("-")[0]) : NaN
+  const filter = { ...(q.status ? { status: q.status } : {}), ...(q.type ? { type: q.type } : {}), ...(q.q ? { $or: [{ code: q.q.toUpperCase() }, ...(Number.isFinite(num) ? [{ displayId: num }] : [])] } : {}) }
+  const [returns, byStatus] = await Promise.all([
+    db.returns().find(filter, { sort: { requestedAt: -1 }, limit: q.limit }).toArray(),
+    db.returns().aggregate<{ _id: string; n: number }>([{ $group: { _id: "$status", n: { $sum: 1 } } }]).toArray(),
+  ])
+  res.json({ returns, byStatus: Object.fromEntries(byStatus.map((b) => [b._id, b.n])) })
+})
+
+/** Support files a return for a customer (on the phone, at the counter): find the order by its number and see what it can send back. */
+adminLogisticsRoutes.get("/return-options", async (req, res) => {
+  const { orderNumber } = z.object({ orderNumber: z.coerce.number().int().positive() }).parse(req.query)
+  const order = await db.orders().findOne({ displayId: orderNumber })
+  if (!order) throw notFound("Order")
+  const options = await returnOptions(order)
+  res.json({ order: { id: order._id, displayId: order.displayId, customer: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`.trim(), email: order.email, paymentMethod: order.paymentMethod }, ...options })
+})
+
+adminLogisticsRoutes.post("/orders/:id/returns", async (req, res) => {
+  requireOwner(req)
+  const body = z
+    .object({
+      type: z.enum(["return", "exchange"]),
+      method: z.enum(["pickup", "self_ship"]),
+      items: z.array(z.object({ itemId: z.string(), quantity: z.number().int().min(1).max(100), reason: z.enum(RETURN_REASONS), note: z.string().trim().max(500).optional(), exchangeVariantId: z.string().optional() })).min(1).max(50),
+    })
+    .parse(req.body)
+  const order = await loadOrder(req.params.id)
+  const actor = { type: "admin" as const, id: req.admin!.id, name: req.admin!.email }
+  const ret = await createReturn(order, body, actor)
+  await db.auditLogs().insertOne({ _id: newId("audit"), adminId: actor.id, adminEmail: actor.name, action: "return.create", targetCollection: "returns", targetId: ret._id, diff: body, createdAt: new Date() })
+  res.status(201).json({ return: ret })
+})
+
+adminLogisticsRoutes.get("/returns/:id", async (req, res) => {
+  const ret = await loadReturn(req.params.id)
+  const [history, shipment, refund, exchangeOrder] = await Promise.all([
+    db.statusEvents().find({ entityId: ret._id }, { sort: { at: 1 } }).toArray(),
+    ret.shipmentId ? db.shipments().findOne({ _id: ret.shipmentId }) : null,
+    ret.resolution?.refundId ? db.refunds().findOne({ _id: ret.resolution.refundId }) : null,
+    ret.resolution?.exchangeOrderId ? db.orders().findOne({ _id: ret.resolution.exchangeOrderId }, { projection: { displayId: 1, fulfillmentStatus: 1, status: 1 } }) : null,
+  ])
+  res.json({ return: ret, history, shipment, refund, exchangeOrder })
+})
+
+adminLogisticsRoutes.post("/returns/:id/:action", async (req, res) => {
+  requireOwner(req)
+  const action = z.enum(["approve", "reject", "pickup", "receive", "refund", "exchange", "cancel"]).parse(req.params.action)
+  const body = z.object({ note: z.string().trim().min(3).max(300).optional(), amount: z.number().int().positive().optional() }).parse(req.body ?? {})
+  const actor = { type: "admin" as const, id: req.admin!.id, name: req.admin!.email }
+  const ret = await loadReturn(req.params.id)
+  const order = await loadOrder(ret.orderId)
+  const needNote = () => {
+    if (!body.note) throw badRequest("Say why.")
+    return body.note
+  }
+  let out: Record<string, unknown>
+  if (action === "approve") out = { return: await approveReturn(ret, actor, body.note) }
+  else if (action === "reject") out = { return: await rejectReturn(ret, actor, needNote()) }
+  else if (action === "cancel") out = { return: await cancelReturn(ret, actor, needNote()) }
+  else if (action === "pickup") out = await bookReturnPickup(ret, actor).then((r) => ({ return: r.ret, shipment: r.shipment }))
+  else if (action === "receive") out = { return: await moveReturn(ret, "received", actor, body.note ?? "Received at the warehouse") }
+  else if (action === "exchange") out = await exchangeReturn(ret, actor, body.note).then((r) => ({ return: r.ret, exchangeOrder: { id: r.order._id, displayId: r.order.displayId } }))
+  else {
+    const r = await refundReturn(ret, actor, { amount: body.amount, note: body.note })
+    out = { return: r.ret, refund: r.refund, creditNoteNumber: await issueCreditNote(order, r.refund, `Return ${ret.code}`) }
+  }
+  await db.auditLogs().insertOne({ _id: newId("audit"), adminId: actor.id, adminEmail: actor.name, action: `return.${action}`, targetCollection: "returns", targetId: ret._id, diff: body, createdAt: new Date() })
+  res.json(out)
 })
 
 /* ---------- Invoices & Credit Notes (GST & Finance) ---------- */

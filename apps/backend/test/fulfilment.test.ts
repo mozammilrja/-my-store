@@ -318,7 +318,8 @@ describe("scenario 1: prepaid order, Bengaluru warehouse, through to delivery", 
     assert.equal(inspect.status, 200, JSON.stringify(inspect.body))
     assert.equal(inspect.body.status, "inspected")
     assert.equal(await variantStock("var_m"), sellableBefore + 1, "sellable again only after inspection")
-    const reasons = (await db.stockLedger().find({ "ref.id": orderId }).toArray()).map((r) => r.reason)
+    const ret = (await db.returns().findOne({ orderId }))!
+    const reasons = (await db.stockLedger().find({ "ref.id": ret._id }).toArray()).map((r) => r.reason)
     assert.deepEqual(reasons, ["return_receive", "return_restock"])
     const refund = await call("POST", `/admin/orders/${orderId}/return-request`, { action: "refund", reason: "Return inspected" }, owner)
     assert.equal(refund.status, 200, JSON.stringify(refund.body))

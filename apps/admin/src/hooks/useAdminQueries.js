@@ -453,3 +453,35 @@ export function useUpdateSettingsMutation() {
     },
   });
 }
+
+// ==========================================
+// Returns and exchanges (the returns collection)
+// ==========================================
+export function useReturnsQuery(params = {}, options = {}) {
+  return useQuery({ queryKey: ['admin', 'returns', params], queryFn: () => adminApi.returns(params), ...options });
+}
+
+export function useReturnDetailQuery(id, options = {}) {
+  return useQuery({ queryKey: ['admin', 'return', id], queryFn: () => adminApi.returnDetail(id), enabled: Boolean(id), ...options });
+}
+
+/** Approve, reject, book pickup, mark received, refund, send exchange or cancel; refreshes everything a return touches. */
+export function useReturnActMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, action, body }) => adminApi.returnAct(id, action, body),
+    onSuccess: () => {
+      for (const key of [['admin', 'returns'], ['admin', 'return'], ['admin', 'orders'], QUERY_KEYS.creditNotes, QUERY_KEYS.dashboard, QUERY_KEYS.inventory]) {
+        queryClient.invalidateQueries({ queryKey: key });
+      }
+    },
+  });
+}
+
+export function useCreateReturnMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, body }) => adminApi.createReturn(orderId, body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'returns'] }),
+  });
+}

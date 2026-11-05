@@ -1,72 +1,97 @@
 "use client"
 
-import type { Customer, OrderSummary } from "@lib/api/types"
+import type { Customer, OrderSummary, ReturnStatus, StoreReturn } from "@lib/api/types"
+import { addReturnShipping, cancelReturnRequest } from "@lib/data/account"
 import { formatMoney } from "@lib/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
-import { useMemo, useState } from "react"
+import { useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
 import { ReturnRequestDialog } from "./return-request-dialog"
+
+const OPEN: ReturnStatus[] = ["requested", "approved", "pickup_scheduled", "in_transit", "received", "inspected", "refund_pending"]
+
+const STATUS_TEXT: Record<ReturnStatus, string> = {
+  requested: "Requested",
+  approved: "Approved",
+  pickup_scheduled: "Pickup booked",
+  in_transit: "On its way back",
+  received: "Received",
+  inspected: "Inspected",
+  refund_pending: "Refund on its way",
+  refunded: "Refunded",
+  exchanged: "Exchange sent",
+  rejected: "Not accepted",
+  cancelled: "Cancelled",
+}
+
+/** The steps a return goes through, in order; the last depends on refund or exchange. */
+const steps = (r: StoreReturn): { key: ReturnStatus[]; label: string }[] => [
+  { key: ["requested"], label: "Requested" },
+  { key: ["approved"], label: "Approved" },
+  { key: r.method === "pickup" ? ["pickup_scheduled", "in_transit"] : ["in_transit"], label: r.method === "pickup" ? "Picked up" : "Sent back" },
+  { key: ["received"], label: "Received" },
+  { key: ["inspected"], label: "Inspected" },
+  r.type === "exchange" ? { key: ["exchanged"], label: "Exchange sent" } : { key: ["refund_pending", "refunded"], label: "Refunded" },
+]
+
+const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
 
 export function ReturnsView({
   customer,
   orders,
+  returns,
   returnWindowDays = null,
 }: {
   customer: Customer
   orders: OrderSummary[]
+  returns: StoreReturn[]
   returnWindowDays?: number | null
 }) {
   const searchParams = useSearchParams()
   const preselectedOrderId = searchParams.get("orderId")
-
   const [modalOpen, setModalOpen] = useState(!!preselectedOrderId)
-  const [selectedOrderId, setSelectedOrderId] = useState<string>(
-    preselectedOrderId ?? orders[0]?.id ?? ""
-  )
   const [activeTab, setActiveTab] = useState<"active" | "completed" | "eligible">("active")
   const [searchQuery, setSearchQuery] = useState("")
-
-  // Returnable: delivered, not canceled, no request in progress (a rejected
-  // one may be filed again) and, when the delivery date is known, inside the window.
   const [now] = useState(() => Date.now())
-  const eligibleOrders = useMemo(() => {
-    return orders.filter((o) => {
-      if (o.status === "canceled" || o.fulfillmentStatus !== "delivered") return false
-      if (o.returnRequest && o.returnRequest.status !== "rejected") return false
-      const delivered = o.shipment?.deliveredAt ? Date.parse(o.shipment.deliveredAt) : NaN
-      if (returnWindowDays && !Number.isNaN(delivered) && now - delivered > returnWindowDays * 86_400_000) return false
-      return true
-    })
-  }, [orders, returnWindowDays, now])
 
-  // Active returns
-  const activeReturnOrders = useMemo(() => {
-    return orders.filter(
-      (o) =>
-        (o.fulfillmentStatus === "returned" && o.paymentStatus !== "refunded") ||
-        (o.returnRequest && o.returnRequest.status !== "refunded")
-    )
-  }, [orders])
+  // Delivered, not cancelled, not a replacement, no return in progress and, when known, inside the window.
+  const eligibleOrders = useMemo(
+    () =>
+      orders.filter((o) => {
+        if (o.status === "canceled" || o.fulfillmentStatus !== "delivered") return false
+        if (returns.some((r) => r.orderId === o.id && OPEN.includes(r.status))) return false
+        const delivered = o.shipment?.deliveredAt ? Date.parse(o.shipment.deliveredAt) : NaN
+        if (returnWindowDays && !Number.isNaN(delivered) && now - delivered > returnWindowDays * 86_400_000) return false
+        return true
+      }),
+    [orders, returns, returnWindowDays, now]
+  )
+  const [selectedOrderId, setSelectedOrderId] = useState<string>(preselectedOrderId ?? eligibleOrders[0]?.id ?? "")
 
-  // Completed returns
-  const completedReturnOrders = useMemo(() => {
-    return orders.filter(
-      (o) => o.paymentStatus === "refunded" || o.returnRequest?.status === "refunded"
-    )
-  }, [orders])
+  const active = returns.filter((r) => OPEN.includes(r.status))
+  const completed = returns.filter((r) => !OPEN.includes(r.status))
+  const refunded = returns.filter((r) => r.refund?.status === "processed").reduce((s, r) => s + (r.refund?.amount ?? 0), 0)
+  const currency = returns[0]?.currency ?? orders[0]?.currency ?? "inr"
+  const match = (r: StoreReturn) => !searchQuery || r.code.toLowerCase().includes(searchQuery.toLowerCase()) || String(r.displayId).includes(searchQuery) || r.items.some((i) => i.productTitle.toLowerCase().includes(searchQuery.toLowerCase()))
 
-  const totalRefunded = completedReturnOrders.reduce((sum, o) => sum + o.total, 0)
-
-  // Filter list by query
-  const displayedActive = activeReturnOrders.filter((o) =>
-    searchQuery ? String(o.displayId).includes(searchQuery) || o.id.includes(searchQuery) : true
+  const tab = (id: typeof activeTab, label: string) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={activeTab === id}
+      onClick={() => setActiveTab(id)}
+      className={`px-4 py-2 rounded-lg font-label-md text-label-md uppercase tracking-wider transition-colors whitespace-nowrap cursor-pointer ${
+        activeTab === id ? "bg-primary text-on-primary font-semibold" : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container"
+      }`}
+    >
+      {label}
+    </button>
   )
 
   return (
     <div className="flex flex-col gap-space-lg w-full" data-testid="returns-refunds-view">
-      {/* 1. Header & Breadcrumb */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md mb-space-md pb-space-md border-b border-surface-container-high">
         <div>
           <div className="flex items-center gap-2 font-label-caps text-label-caps text-on-surface-variant uppercase mb-2">
@@ -74,386 +99,95 @@ export function ReturnsView({
             <span className="material-symbols-outlined text-[12px]">chevron_right</span>
             <span className="text-on-surface">Returns &amp; Refunds</span>
           </div>
-          <h1 className="font-headline-xl text-headline-xl text-on-surface uppercase font-medium">
-            Returns &amp; Refunds
-          </h1>
+          <h1 className="font-headline-xl text-headline-xl text-on-surface uppercase font-medium">Returns &amp; Refunds</h1>
         </div>
-
         <button
           type="button"
           onClick={() => setModalOpen(true)}
           className="h-11 px-6 bg-primary text-on-primary hover:bg-inverse-surface font-label-md text-label-md rounded-lg transition-all flex items-center gap-2 uppercase tracking-wider font-semibold shadow-xs cursor-pointer"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
-          <span>Initiate New Return / Exchange</span>
+          <span>Return or exchange</span>
         </button>
       </div>
 
-      {/* 2. Summary Metric Cards (Bento Grid) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
-        {/* Eligible */}
-        <div className="bg-surface-container-lowest p-space-lg rounded-xl shadow-xs flex flex-col justify-between relative overflow-hidden group border border-surface-container-high/60">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-all" />
-          <div className="flex items-center justify-between mb-space-md">
-            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold">
-              Eligible For Return
-            </span>
-            <span className="material-symbols-outlined text-primary text-[20px]">inventory_2</span>
-          </div>
-          <div>
-            <div className="font-headline-xl text-headline-xl text-on-surface font-light">
-              {eligibleOrders.length} {eligibleOrders.length === 1 ? "Order" : "Orders"}
+        {[
+          { label: "Eligible for return", icon: "inventory_2", value: `${eligibleOrders.length} ${eligibleOrders.length === 1 ? "order" : "orders"}`, note: returnWindowDays ? `Within ${returnWindowDays} days of delivery` : "Once delivered" },
+          { label: "In progress", icon: "local_shipping", value: `${active.length} ${active.length === 1 ? "request" : "requests"}`, note: active.length ? "Track each one below" : "Nothing on its way back" },
+          { label: "Refunded", icon: "payments", value: formatMoney(refunded, currency), note: "To your original payment method" },
+        ].map((c) => (
+          <div key={c.label} className="bg-surface-container-lowest p-space-lg rounded-xl shadow-xs flex flex-col justify-between border border-surface-container-high/60">
+            <div className="flex items-center justify-between mb-space-md">
+              <span className="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold">{c.label}</span>
+              <span className="material-symbols-outlined text-primary text-[20px]">{c.icon}</span>
             </div>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
-              Within 14-day complimentary window
-            </p>
-          </div>
-        </div>
-
-        {/* Active Requests */}
-        <div className="bg-surface-container-lowest p-space-lg rounded-xl shadow-xs flex flex-col justify-between relative overflow-hidden group border border-surface-container-high/60">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 rounded-full blur-2xl group-hover:bg-secondary/20 transition-all" />
-          <div className="flex items-center justify-between mb-space-md">
-            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold">
-              Active Requests
-            </span>
-            <span className="material-symbols-outlined text-secondary text-[20px]">local_shipping</span>
-          </div>
-          <div>
-            <div className="font-headline-xl text-headline-xl text-on-surface font-light">
-              {activeReturnOrders.length} {activeReturnOrders.length === 1 ? "Request" : "Requests"}
+            <div>
+              <div className="font-headline-xl text-headline-xl text-on-surface font-light" data-testid={`returns-metric-${c.icon}`}>
+                {c.value}
+              </div>
+              <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">{c.note}</p>
             </div>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
-              {activeReturnOrders.length > 0 ? "Pickup scheduled & active" : "No active return pickups"}
-            </p>
           </div>
-        </div>
-
-        {/* Total Refunded */}
-        <div className="bg-surface-container-lowest p-space-lg rounded-xl shadow-xs flex flex-col justify-between relative overflow-hidden group border border-surface-container-high/60">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl transition-all" />
-          <div className="flex items-center justify-between mb-space-md">
-            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold">
-              Total Refunded (YTD)
-            </span>
-            <span className="material-symbols-outlined text-on-surface text-[20px]">payments</span>
-          </div>
-          <div>
-            <div className="font-headline-xl text-headline-xl text-on-surface font-light">
-              {formatMoney(totalRefunded, orders[0]?.currency ?? "inr")}
-            </div>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
-              Credited directly to original source
-            </p>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* 3. Status Tabs & Filter Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-md pt-space-xs">
-        <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto no-scrollbar">
-          <button
-            type="button"
-            onClick={() => setActiveTab("active")}
-            className={`px-4 py-2 rounded-lg font-label-md text-label-md uppercase tracking-wider transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === "active"
-                ? "bg-primary text-on-primary font-semibold"
-                : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container"
-            }`}
-          >
-            Active Requests ({activeReturnOrders.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("completed")}
-            className={`px-4 py-2 rounded-lg font-label-md text-label-md uppercase tracking-wider transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === "completed"
-                ? "bg-primary text-on-primary font-semibold"
-                : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container"
-            }`}
-          >
-            Completed ({completedReturnOrders.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("eligible")}
-            className={`px-4 py-2 rounded-lg font-label-md text-label-md uppercase tracking-wider transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === "eligible"
-                ? "bg-primary text-on-primary font-semibold"
-                : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container"
-            }`}
-          >
-            Eligible Items ({eligibleOrders.length})
-          </button>
+        <div role="tablist" aria-label="Returns" className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto no-scrollbar">
+          {tab("active", `In progress (${active.length})`)}
+          {tab("completed", `Completed (${completed.length})`)}
+          {tab("eligible", `Eligible orders (${eligibleOrders.length})`)}
         </div>
-
         <div className="relative w-full sm:w-64">
           <span className="material-symbols-outlined absolute left-3 top-2.5 text-outline text-[18px]">search</span>
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search returns"
             className="w-full h-10 pl-9 pr-3 bg-surface-container-lowest text-on-surface font-body-sm text-body-sm rounded-lg focus:outline-none focus:ring-1 focus:ring-primary transition-all border border-surface-container-high"
-            placeholder="Search request ID or item..."
+            placeholder="Return code, order or item"
             type="text"
           />
         </div>
       </div>
 
-      {/* 4. Active Return Request Cards */}
-      {activeTab === "active" && (
+      {activeTab !== "eligible" ? (
         <div className="flex flex-col gap-space-lg">
-          {displayedActive.length === 0 ? (
+          {(activeTab === "active" ? active : completed).filter(match).length === 0 ? (
             <div className="bg-surface-container-lowest rounded-xl p-12 text-center flex flex-col items-center border border-dashed border-outline-variant">
-              <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-outline mb-3">
-                <span className="material-symbols-outlined text-[24px]">published_with_changes</span>
-              </div>
-              <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface">No active returns in progress</h3>
-              <p className="font-body-sm text-body-sm text-on-surface-variant max-w-sm mt-1 mb-4">
-                All previous exchange requests have been settled or completed.
-              </p>
-              {eligibleOrders.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(true)}
-                  className="h-10 px-5 bg-primary text-on-primary rounded font-label-sm text-label-sm uppercase font-semibold"
-                >
-                  Initiate Return on Eligible Order
+              <span className="material-symbols-outlined text-[28px] text-outline mb-3">published_with_changes</span>
+              <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface">{activeTab === "active" ? "No returns in progress" : "No completed returns yet"}</h3>
+              {eligibleOrders.length > 0 && activeTab === "active" && (
+                <button type="button" onClick={() => setModalOpen(true)} className="mt-4 h-10 px-5 bg-primary text-on-primary rounded font-label-sm text-label-sm uppercase font-semibold">
+                  Start a return
                 </button>
               )}
             </div>
           ) : (
-            displayedActive.map((order) => {
-              const firstItem = order.items?.[0]
-              const title = firstItem?.productTitle ?? "Atelier Handcrafted Silhouette"
-              const thumbnail =
-                firstItem?.thumbnail ??
-                order.thumbnails[0] ??
-                "https://lh3.googleusercontent.com/aida-public/AB6AXuAA0NSUJ-NgT0DkkNQfyJrj_EZu8YKFxaXrEj9ThG0NAxij8r3wEyzwBO_R3LpqImb3fh6mBCNKh5WjYTQBAB4qXwKatBt0KtwJYFxiUNpwit2At4fKailBZFXQTp5htVX69o5y4Ye8nPqsP4ua6uMWkIwjrSTfGKTJkD0UKluAhniBWgMvXtfGho_xeChliptoJWttn5HI21ygzQC4hARnWhh4Dh65S_QizyP264uz"
-
-              return (
-                <div
-                  key={order.id}
-                  className="bg-surface-container-lowest rounded-xl p-space-lg shadow-xs flex flex-col gap-space-lg border border-surface-container-high/60"
-                >
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md pb-space-md border-b border-surface-container">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="font-label-caps text-label-caps bg-secondary-fixed text-on-secondary-fixed px-2.5 py-1 rounded font-bold uppercase">
-                        Return in Progress
-                      </span>
-                      <span className="font-body-sm text-body-sm text-on-surface-variant">
-                        Request ID: <strong className="text-on-surface font-medium">RET-{order.displayId}-IN</strong>
-                      </span>
-                      <span className="text-outline-variant">&bull;</span>
-                      <span className="font-body-sm text-body-sm text-on-surface-variant">
-                        Order #EVR-{order.displayId}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-body-sm text-body-sm text-on-surface-variant">Refund Amount:</span>
-                      <span className="font-headline-sm text-headline-sm text-on-surface font-semibold">
-                        {formatMoney(order.total, order.currency)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-center pt-2">
-                    {/* Product Info */}
-                    <div className="lg:col-span-4 flex items-center gap-space-md">
-                      <div className="w-20 h-24 bg-surface-container-low rounded-lg overflow-hidden shrink-0 relative shadow-2xs">
-                        <Image src={thumbnail} alt={title} fill sizes="80px" className="object-cover" />
-                      </div>
-                      <div className="space-y-0.5">
-                        <span className="font-label-caps text-label-caps text-secondary font-bold uppercase">
-                          Atelier Tailoring
-                        </span>
-                        <h3 className="font-headline-sm text-base text-on-surface font-medium truncate">{title}</h3>
-                        <p className="font-body-sm text-xs text-on-surface-variant">
-                          Qty: {firstItem?.quantity ?? 1} &bull; Tailored Cut
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Timeline Steps (6 steps matching Stitch) */}
-                    <div className="lg:col-span-8 flex flex-col justify-center">
-                      <div className="text-xs font-label-caps uppercase tracking-wider text-on-surface-variant mb-4 flex items-center justify-between">
-                        <span>Live Return Status Timeline</span>
-                        <span className="text-secondary font-bold">Estimated Pickup: Tomorrow, 10 AM &ndash; 1 PM</span>
-                      </div>
-                      <div className="relative flex items-center justify-between w-full max-w-3xl mx-auto px-2">
-                        {/* Connecting Line */}
-                        <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-0.5 bg-surface-container-high z-0" />
-                        <div className="absolute left-6 top-1/2 -translate-y-1/2 h-0.5 bg-secondary z-0" style={{ width: "35%" }} />
-
-                        {/* Step 1: Requested */}
-                        <div className="relative z-10 flex flex-col items-center">
-                          <div className="w-7 h-7 rounded-full bg-secondary text-on-secondary flex items-center justify-center font-bold text-xs shadow-xs">
-                            <span className="material-symbols-outlined text-[14px]">check</span>
-                          </div>
-                          <span className="font-label-sm text-label-sm text-on-surface mt-2 font-medium">Requested</span>
-                          <span className="text-[10px] text-outline">Verified</span>
-                        </div>
-
-                        {/* Step 2: Approved */}
-                        <div className="relative z-10 flex flex-col items-center">
-                          <div className="w-7 h-7 rounded-full bg-secondary text-on-secondary flex items-center justify-center font-bold text-xs shadow-xs">
-                            <span className="material-symbols-outlined text-[14px]">check</span>
-                          </div>
-                          <span className="font-label-sm text-label-sm text-on-surface mt-2 font-medium">Approved</span>
-                          <span className="text-[10px] text-outline">Verified</span>
-                        </div>
-
-                        {/* Step 3: Pickup Scheduled */}
-                        <div className="relative z-10 flex flex-col items-center">
-                          <div className="w-7 h-7 rounded-full bg-surface-container-lowest border-2 border-secondary text-secondary flex items-center justify-center font-bold text-xs shadow-xs ring-4 ring-secondary/10 animate-pulse">
-                            <span className="material-symbols-outlined text-[14px]">local_shipping</span>
-                          </div>
-                          <span className="font-label-sm text-label-sm text-secondary mt-2 font-bold">Scheduled</span>
-                          <span className="text-[10px] text-secondary font-medium">Tomorrow</span>
-                        </div>
-
-                        {/* Step 4: Picked Up */}
-                        <div className="relative z-10 flex flex-col items-center">
-                          <div className="w-7 h-7 rounded-full bg-surface-container-highest text-outline flex items-center justify-center font-bold text-xs">
-                            4
-                          </div>
-                          <span className="font-label-sm text-label-sm text-outline mt-2">Picked Up</span>
-                          <span className="text-[10px] text-outline">Pending</span>
-                        </div>
-
-                        {/* Step 5: Quality Check */}
-                        <div className="relative z-10 flex flex-col items-center">
-                          <div className="w-7 h-7 rounded-full bg-surface-container-highest text-outline flex items-center justify-center font-bold text-xs">
-                            5
-                          </div>
-                          <span className="font-label-sm text-label-sm text-outline mt-2">Quality Check</span>
-                          <span className="text-[10px] text-outline">Pending</span>
-                        </div>
-
-                        {/* Step 6: Refund */}
-                        <div className="relative z-10 flex flex-col items-center">
-                          <div className="w-7 h-7 rounded-full bg-surface-container-highest text-outline flex items-center justify-center font-bold text-xs">
-                            6
-                          </div>
-                          <span className="font-label-sm text-label-sm text-outline mt-2">Refunded</span>
-                          <span className="text-[10px] text-outline">Pending</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-space-sm pt-space-md border-t border-surface-container-high">
-                    <div className="flex items-center gap-2 font-body-sm text-body-sm text-on-surface-variant">
-                      <span className="material-symbols-outlined text-[16px] text-secondary">info</span>
-                      <span>
-                        Reason: {order.returnRequest?.reason ?? "Incorrect size ordered. Exchange requested for alternative cut."}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => toast.success("Pickup window rescheduled to Friday morning")}
-                        className="px-4 py-2 bg-surface-container text-on-surface hover:bg-surface-container-high rounded-lg font-label-sm text-label-sm transition-colors cursor-pointer"
-                      >
-                        Reschedule Pickup
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })
+            (activeTab === "active" ? active : completed).filter(match).map((r) => <ReturnCard key={r.id} r={r} />)
           )}
         </div>
-      )}
-
-      {/* 5. Completed Returns Table */}
-      {activeTab === "completed" && (
-        <div className="bg-surface-container-lowest rounded-xl shadow-xs overflow-hidden border border-surface-container-high/60">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-surface-container-low font-label-caps text-label-caps text-on-surface-variant uppercase">
-                  <th className="py-3.5 px-6">Request ID</th>
-                  <th className="py-3.5 px-6">Product</th>
-                  <th className="py-3.5 px-6">Settlement Type</th>
-                  <th className="py-3.5 px-6">Refund Amount</th>
-                  <th className="py-3.5 px-6">Status</th>
-                  <th className="py-3.5 px-6 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-container-high font-body-sm text-body-sm text-on-surface">
-                {completedReturnOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-on-surface-variant">
-                      No past completed returns.
-                    </td>
-                  </tr>
-                ) : (
-                  completedReturnOrders.map((o) => (
-                    <tr key={o.id}>
-                      <td className="py-4 px-6 font-medium">RET-{o.displayId}-CC</td>
-                      <td className="py-4 px-6 flex items-center gap-3">
-                        <div className="w-10 h-12 bg-surface-container-low rounded overflow-hidden shrink-0 relative">
-                          <Image
-                            src={
-                              o.thumbnails[0] ??
-                              "https://lh3.googleusercontent.com/aida-public/AB6AXuBMBWLt26p1rDs_HQ26ali2c6lMwhMvmAmEIN20aXZTFTQyXAAq1slAGNvA3pAZVdhFQy_7oQhDZ5ZZ1K32gXoC5AAkieRkoh2q221owYItsDDw1kbp-48udpASbwobN1Kz1eXFvStORMmvGvEDgffCyMaRrWL9nGgGzGP4BfSPlrATwxaScykQgllY20c5N9tCRTXueVAG_4BS-DVYoKmeS4Nz0RtJkqykg2PMshWO"
-                            }
-                            alt=""
-                            fill
-                            sizes="40px"
-                            className="object-cover"
-                          />
-                        </div>
-                        <div>
-                          <div className="font-medium">{o.items?.[0]?.productTitle ?? "Atelier Garment"}</div>
-                          <div className="text-outline text-xs">Order #EVR-{o.displayId}</div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 text-on-surface-variant">Refund to Source</td>
-                      <td className="py-4 px-6 font-semibold">{formatMoney(o.total, o.currency)}</td>
-                      <td className="py-4 px-6">
-                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 px-2.5 py-0.5 rounded font-label-caps text-[10px] uppercase font-bold">
-                          <span className="material-symbols-outlined text-[12px]">check_circle</span> Refunded
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <LocalizedClientLink
-                          href={`/account/orders/details/${o.id}`}
-                          className="text-primary hover:underline font-label-sm uppercase font-semibold text-xs"
-                        >
-                          View Order
-                        </LocalizedClientLink>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 6. Eligible Items List */}
-      {activeTab === "eligible" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+      ) : (
+        <div className="flex flex-col gap-3">
           {eligibleOrders.length === 0 ? (
-            <div className="col-span-2 bg-surface-container-lowest rounded-xl p-12 text-center flex flex-col items-center border border-dashed border-outline-variant">
-              <p className="font-body-sm text-body-sm text-on-surface-variant">No orders currently within the return window.</p>
-            </div>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">No delivered orders can be returned right now.</p>
           ) : (
             eligibleOrders.map((o) => (
-              <div
-                key={o.id}
-                className="bg-surface-container-lowest p-space-md rounded-xl shadow-xs border border-surface-container-high/60 flex items-center justify-between gap-space-md"
-              >
-                <div>
-                  <span className="font-label-caps text-xs text-secondary font-bold uppercase">
-                    Delivered &bull; #EVR-{o.displayId}
-                  </span>
-                  <h4 className="font-headline-sm text-base font-semibold text-on-surface mt-0.5">
-                    {o.items?.[0]?.productTitle ?? "Atelier Order"}
-                  </h4>
-                  <p className="font-label-md text-label-md font-bold text-primary mt-1">{formatMoney(o.total, o.currency)}</p>
+              <div key={o.id} className="flex items-center justify-between gap-4 bg-surface-container-lowest rounded-xl p-space-md border border-surface-container-high/60">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex -space-x-3">
+                    {o.thumbnails.slice(0, 3).map((t, i) => (
+                      <span key={i} className="w-12 h-14 rounded bg-surface-container-high overflow-hidden relative border-2 border-surface-container-lowest">
+                        {t && <Image src={t} alt="" fill sizes="48px" className="object-cover" />}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-body-md text-body-md text-on-surface font-medium">Order #{o.displayId}</p>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant">
+                      {o.itemCount} {o.itemCount === 1 ? "item" : "items"} · delivered {o.shipment?.deliveredAt ? day(o.shipment.deliveredAt) : ""}
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -461,9 +195,9 @@ export function ReturnsView({
                     setSelectedOrderId(o.id)
                     setModalOpen(true)
                   }}
-                  className="h-10 px-4 bg-primary text-on-primary hover:bg-inverse-surface rounded font-label-sm text-label-sm uppercase font-semibold"
+                  className="h-10 px-4 rounded-lg border border-primary text-primary font-label-sm text-label-sm uppercase font-semibold shrink-0"
                 >
-                  Initiate Return
+                  Return or exchange
                 </button>
               </div>
             ))
@@ -481,5 +215,155 @@ export function ReturnsView({
         returnWindowDays={returnWindowDays}
       />
     </div>
+  )
+}
+
+function ReturnCard({ r }: { r: StoreReturn }) {
+  const [pending, startTransition] = useTransition()
+  const [carrier, setCarrier] = useState("")
+  const [awb, setAwb] = useState("")
+  const s = steps(r)
+  const reached = new Map(r.timeline.map((t) => [t.status, t.at]))
+  const doneUpTo = s.reduce((n, st, i) => (st.key.some((k) => reached.has(k)) ? i : n), 0)
+  const ended = r.status === "rejected" || r.status === "cancelled"
+  const tone = ended ? "bg-surface-container-high text-on-surface-variant" : OPEN.includes(r.status) ? "bg-secondary-fixed text-on-secondary-fixed" : "bg-primary text-on-primary"
+
+  const cancel = () =>
+    startTransition(async () => {
+      const res = await cancelReturnRequest(r.id)
+      if (res.error) toast.error(res.error)
+      else toast.success(`${r.code} cancelled`)
+    })
+  const ship = (e: React.FormEvent) => {
+    e.preventDefault()
+    startTransition(async () => {
+      const res = await addReturnShipping(r.id, carrier, awb)
+      if (res.error) toast.error(res.error)
+      else toast.success("Thanks. We'll look out for it.")
+    })
+  }
+
+  return (
+    <article className="bg-surface-container-lowest rounded-xl p-space-lg shadow-xs flex flex-col gap-space-lg border border-surface-container-high/60" data-testid="return-card" aria-label={`${r.type === "exchange" ? "Exchange" : "Return"} ${r.code}`}>
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md pb-space-md border-b border-surface-container">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className={`font-label-caps text-label-caps px-2.5 py-1 rounded font-bold uppercase ${tone}`} data-testid="return-status">
+            {STATUS_TEXT[r.status]}
+          </span>
+          <span className="font-body-sm text-body-sm text-on-surface-variant">
+            {r.type === "exchange" ? "Exchange" : "Return"} <strong className="text-on-surface font-medium">{r.code}</strong>
+          </span>
+          <span className="text-outline-variant">&bull;</span>
+          <LocalizedClientLink href={`/account/orders/details/${r.orderId}`} className="font-body-sm text-body-sm text-on-surface-variant underline underline-offset-4">
+            Order #{r.displayId}
+          </LocalizedClientLink>
+        </div>
+        {r.type === "return" && (
+          <div className="flex items-center gap-2">
+            <span className="font-body-sm text-body-sm text-on-surface-variant">{r.refund ? "Refund" : "Refund after inspection"}:</span>
+            <span className="font-headline-sm text-headline-sm text-on-surface font-semibold">{formatMoney(r.refund?.amount ?? r.refundableAmount, r.currency)}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+        <ul className="lg:col-span-4 flex flex-col gap-3">
+          {r.items.map((i) => (
+            <li key={i.itemId} className="flex items-center gap-space-md">
+              <span className="w-16 h-20 bg-surface-container-low rounded-lg overflow-hidden shrink-0 relative">{i.thumbnail && <Image src={i.thumbnail} alt="" fill sizes="64px" className="object-cover" />}</span>
+              <span className="min-w-0">
+                <span className="block font-body-md text-body-md text-on-surface font-medium truncate">{i.productTitle}</span>
+                <span className="block font-body-sm text-body-sm text-on-surface-variant">
+                  {i.variantTitle}
+                  {i.exchangeFor ? ` → ${i.exchangeFor}` : ""} · Qty {i.quantity}
+                </span>
+                <span className="block font-label-sm text-label-sm text-on-surface-variant">
+                  {i.reason}
+                  {i.note ? `: ${i.note}` : ""}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="lg:col-span-8 flex flex-col gap-space-md">
+          {ended ? (
+            <p className="font-body-sm text-body-sm text-on-surface-variant">
+              {r.status === "cancelled" ? `Cancelled on ${day(r.updatedAt)}.` : `Not accepted${r.rejectionReason ? `: ${r.rejectionReason}` : ""}.`}
+            </p>
+          ) : (
+            <ol className="grid grid-cols-6 gap-1" aria-label="Progress">
+              {s.map((st, i) => {
+                const at = st.key.map((k) => reached.get(k)).find(Boolean)
+                const done = i <= doneUpTo
+                return (
+                  <li key={st.label} className="flex flex-col items-center text-center" aria-current={i === doneUpTo ? "step" : undefined}>
+                    <span className={`w-full h-1 rounded-full mb-2 ${done ? "bg-secondary" : "bg-surface-container-high"}`} />
+                    <span className={`font-label-sm text-label-sm ${done ? "text-on-surface font-medium" : "text-on-surface-variant"}`}>{st.label}</span>
+                    <span className="text-[11px] text-on-surface-variant">{at ? day(at) : ""}</span>
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+
+          {r.pickup?.awb && (
+            <p className="font-body-sm text-body-sm text-on-surface-variant">
+              Pickup by {r.pickup.carrier || "our courier"} · AWB <span className="font-mono text-on-surface">{r.pickup.awb}</span>
+              {r.pickup.events.at(-1) ? ` · ${r.pickup.events.at(-1)!.status}` : ""}
+              {r.pickup.trackingUrl && (
+                <>
+                  {" · "}
+                  <a href={r.pickup.trackingUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                    Track
+                  </a>
+                </>
+              )}
+            </p>
+          )}
+          {r.selfShip && (
+            <p className="font-body-sm text-body-sm text-on-surface-variant">
+              Sent with {r.selfShip.carrier} · AWB <span className="font-mono text-on-surface">{r.selfShip.awb}</span>
+            </p>
+          )}
+          {r.status === "requested" && <p className="font-body-sm text-body-sm text-on-surface-variant">We&apos;re reviewing your request.</p>}
+          {r.status === "approved" && r.method === "pickup" && <p className="font-body-sm text-body-sm text-on-surface-variant">Approved. We&apos;re booking a pickup from your address.</p>}
+          {r.refund && <p className="font-body-sm text-body-sm text-on-surface-variant">Refund of {formatMoney(r.refund.amount, r.currency)} {r.refund.status === "processed" ? `processed on ${day(r.refund.at)}` : "is on its way to your bank"}.</p>}
+          {r.exchangeOrder && (
+            <p className="font-body-sm text-body-sm text-on-surface-variant">
+              Your replacement is order{" "}
+              <LocalizedClientLink href={`/order/${r.exchangeOrder.id}/track`} className="underline underline-offset-4 text-on-surface">
+                #{r.exchangeOrder.displayId}
+              </LocalizedClientLink>
+              {r.exchangeOrder.awb ? ` (AWB ${r.exchangeOrder.awb})` : ""}.
+            </p>
+          )}
+
+          {r.canAddShipping && (
+            <form onSubmit={ship} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end rounded-lg bg-surface-container-low p-space-md">
+              <p className="sm:col-span-3 font-body-sm text-body-sm text-on-surface">Approved. Post it to us, then tell us the courier and AWB.</p>
+              <label className="flex flex-col gap-1 font-label-sm text-label-sm text-on-surface-variant">
+                Courier
+                <input required minLength={2} value={carrier} onChange={(e) => setCarrier(e.target.value)} className="h-10 px-3 rounded bg-surface-container-lowest border border-surface-container-high text-on-surface font-body-sm" />
+              </label>
+              <label className="flex flex-col gap-1 font-label-sm text-label-sm text-on-surface-variant">
+                AWB / tracking number
+                <input required pattern="[A-Za-z0-9-]{4,40}" value={awb} onChange={(e) => setAwb(e.target.value)} className="h-10 px-3 rounded bg-surface-container-lowest border border-surface-container-high text-on-surface font-mono text-sm" />
+              </label>
+              <button type="submit" disabled={pending} className="h-10 px-5 rounded bg-primary text-on-primary font-label-sm text-label-sm uppercase font-semibold disabled:opacity-60">
+                Save
+              </button>
+            </form>
+          )}
+          {r.canCancel && (
+            <div>
+              <button type="button" onClick={cancel} disabled={pending} className="h-10 px-4 rounded-lg border border-surface-container-high font-label-sm text-label-sm uppercase text-on-surface hover:bg-surface-container disabled:opacity-60">
+                Cancel {r.type === "exchange" ? "exchange" : "return"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </article>
   )
 }

@@ -1,5 +1,5 @@
 import { env } from "../../env.js"
-import { db, type FulfilmentDoc, type OrderDoc, type ShipmentDoc, type ShipmentStatus } from "../../db/schema.js"
+import { db, type FulfilmentDoc, type OrderDoc, type ReturnDoc, type ShipmentDoc, type ShipmentStatus } from "../../db/schema.js"
 import { badRequest, conflict, notFound } from "../errors.js"
 import { newId } from "../ids.js"
 import { dispatchWarehouse } from "../invoice.js"
@@ -22,7 +22,7 @@ import {
 } from "./shiprocket.js"
 import { fulfillmentFor, mapShiprocketStatus, shouldAdvance } from "./status.js"
 import { recordTransition, SYSTEM } from "../state/machines.js"
-import { moveReturnIfAllowed } from "../returns/inspect.js"
+import { moveReturnIfAllowed } from "../returns/returns.js"
 
 /*
  * Shipments end to end. With Shiprocket configured every AWB, label, pickup
@@ -74,8 +74,10 @@ const shipmentItems = (order: OrderDoc, lines: { itemId: string; quantity: numbe
 async function syncOrder(shipment: ShipmentDoc) {
   if (shipment.isReturn) {
     const courier = { type: "courier" as const, id: shipment.carrier || shipment.provider }
-    if (shipment.status === "delivered") await moveReturnIfAllowed(shipment.orderId, "received", courier, `Return parcel ${shipment.awb} delivered to the warehouse`)
-    else if (["pickup_scheduled", "picked_up", "in_transit"].includes(shipment.status)) await moveReturnIfAllowed(shipment.orderId, "pickup_scheduled", courier, `Return parcel ${shipment.awb}: ${shipment.status.replace(/_/g, " ")}`)
+    const returnId = shipment.returnId ?? (await db.returns().findOne({ orderId: shipment.orderId, shipmentId: shipment._id }))?._id
+    if (!returnId) return
+    if (shipment.status === "delivered") await moveReturnIfAllowed(returnId, "received", courier, `Return parcel ${shipment.awb} delivered to the warehouse`)
+    else if (shipment.status === "picked_up" || shipment.status === "in_transit" || shipment.status === "out_for_delivery") await moveReturnIfAllowed(returnId, "in_transit", courier, `Return parcel ${shipment.awb}: ${shipment.status.replace(/_/g, " ")}`)
     return
   }
   const order = await db.orders().findOne({ _id: shipment.orderId })
@@ -493,17 +495,17 @@ export async function applyShiprocketWebhook(body: ShiprocketWebhook): Promise<"
  * Reverse pickup for an approved return: the courier collects from the
  * customer and brings it to the dispatching warehouse.
  */
-export async function createReturnShipment(order: OrderDoc): Promise<ShipmentDoc> {
+export async function createReturnShipment(order: OrderDoc, ret: ReturnDoc): Promise<ShipmentDoc> {
   if (!shippingConfigured()) throw badRequest("No courier integration is configured for return pickups.", "shipping_unconfigured")
-  if (order.fulfillmentStatus !== "delivered") throw conflict("Returns are collected only after delivery.", "not_delivered")
-  if (!order.returnRequest || order.returnRequest.status !== "approved") throw conflict("Approve the return request first.", "return_not_approved")
+  if (order.fulfillmentStatus !== "delivered" && order.fulfillmentStatus !== "returned") throw conflict("Returns are collected only after delivery.", "not_delivered")
+  if (ret.status !== "approved") throw conflict("Approve the return request first.", "return_not_approved")
   const warehouse = await dispatchWarehouse(order._id)
   const settings = await db.settings().findOne({ _id: "store" })
   if (!warehouse) throw badRequest("Add a warehouse address before booking return pickups.", "no_warehouse")
   const phone = (settings?.seller?.phone ?? "").replace(/\D/g, "").slice(-10)
   if (!phone) throw badRequest("Add the seller phone number in Settings; couriers require one for returns.", "no_seller_phone")
 
-  const lines = order.returnRequest.items
+  const lines = ret.items.map((l) => ({ itemId: l.itemId, quantity: l.quantity }))
   const outbound = await db.shipments().findOne({ orderId: order._id, isReturn: false, status: "delivered" })
   const now = new Date()
   const shipment: ShipmentDoc = {
@@ -518,6 +520,7 @@ export async function createReturnShipment(order: OrderDoc): Promise<ShipmentDoc
     parcel: await parcelFor(order, order.items.filter((i) => lines.some((l) => l.itemId === i._id))),
     trackingEvents: [],
     isReturn: true,
+    returnId: ret._id,
     ...(outbound ? { returnOf: outbound._id } : {}),
     active: true,
     customer: {
@@ -538,9 +541,10 @@ export async function createReturnShipment(order: OrderDoc): Promise<ShipmentDoc
   }
   try {
     const items = shipmentItems(order, lines)
-    const previousReturns = await db.shipments().countDocuments({ orderId: order._id, isReturn: true, _id: { $ne: shipment._id } })
+    const previousReturns = await db.shipments().countDocuments({ orderId: order._id, isReturn: true, returnId: ret._id, _id: { $ne: shipment._id } })
     const created = await shiprocketCreateReturn({
-      orderRef: previousReturns ? `R${order.displayId}-${previousReturns + 1}` : `R${order.displayId}`,
+      // The return's own code, so a second return on the same order is a new Shiprocket order.
+      orderRef: previousReturns ? `${ret.code}-${previousReturns + 1}` : ret.code,
       orderDate: now,
       customer: customerParty(order),
       warehouse: {

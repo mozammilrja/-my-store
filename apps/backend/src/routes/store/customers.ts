@@ -1,8 +1,9 @@
-import { Router } from "express"
+import { Router, type Request } from "express"
 import { z } from "zod"
-import { recordTransition } from "../../lib/state/machines.js"
-import { db, type CustomerDoc, type OrderDoc, type SupportTicketDoc, type LoyaltyAccountDoc, type NotificationDoc, type WishlistDoc } from "../../db/schema.js"
-import { assetUrl, toStoreOrder, toStoreProduct } from "../../lib/serialize.js"
+import { createReturn, recordSelfShip, REASON_TEXT, returnOptions } from "../../lib/returns/returns.js"
+import { cancelReturn } from "../../lib/returns/resolve.js"
+import { db, RETURN_REASONS, type CustomerDoc, type OrderDoc, type ReturnDoc, type SupportTicketDoc, type LoyaltyAccountDoc, type NotificationDoc, type WishlistDoc } from "../../db/schema.js"
+import { assetUrl, toStoreOrder, toStoreProduct, toStoreTrackingEvents } from "../../lib/serialize.js"
 import { clientKey, hashPassword, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
 import { ApiError, badRequest, conflict, notFound, unauthorized } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
@@ -175,61 +176,133 @@ customerRoutes.get("/customers/me/orders", async (req, res) => {
   res.json({ orders: orders.map(toOrderSummary) })
 })
 
+const orderParam = z.string().regex(/^order_[0-9a-z]{16}$/)
+const customerActor = (req: Request) => ({ type: "customer" as const, id: req.actorId! })
+
+async function ownOrder(req: Request, id: string) {
+  const order = await db.orders().findOne({ _id: orderParam.parse(id), customerId: req.actorId! })
+  if (!order) throw notFound("Order")
+  return order
+}
+
+async function ownReturn(req: Request) {
+  const ret = await db.returns().findOne({ _id: String(req.params.id), customerId: req.actorId! })
+  if (!ret) throw notFound("Return")
+  return ret
+}
+
+/** The first return endpoint: a whole-reason request, collected from the door. Kept for older clients. */
 customerRoutes.post("/customers/me/orders/:id/returns", async (req, res) => {
-  const orderId = z.string().regex(/^order_[0-9a-z]{16}$/).parse(req.params.id)
   const body = z
     .object({
       reason: z.string().trim().min(1).max(500),
       items: z.array(z.object({ itemId: z.string(), quantity: z.number().int().min(1) })).optional(),
     })
     .parse(req.body)
-
-  const order = await db.orders().findOne({ _id: orderId, customerId: req.actorId! })
-  if (!order) throw notFound("Order")
-
-  const now = new Date()
-  if (order.status === "canceled") throw badRequest("A canceled order can't be returned.", "not_returnable")
-  if (order.fulfillmentStatus !== "delivered") throw badRequest("Returns open once the order has been delivered.", "not_returnable")
-  // A rejected request may be filed again; any other one is still in progress or done.
-  if (order.returnRequest && order.returnRequest.status !== "rejected") {
-    throw conflict("A return has already been requested for this order.", "return_exists")
-  }
-  const region = await db.regions().findOne({ _id: order.regionId })
-  const windowDays = region?.policies?.returnWindowDays
-  const deliveredAt = order.shipment?.deliveredAt
-  if (windowDays !== undefined && deliveredAt && now.getTime() - deliveredAt.getTime() > windowDays * 86_400_000) {
-    throw badRequest(`The ${windowDays}-day return window for this order has closed.`, "return_window_closed")
-  }
-
-  // Each requested line must be on the order, at most once, within what was bought.
-  const lines = new Map(order.items.map((i) => [i._id, i.quantity]))
-  const items = body.items ?? order.items.map((i) => ({ itemId: i._id, quantity: i.quantity }))
-  if (!items.length) throw badRequest("Choose at least one item to return.")
-  const seen = new Set<string>()
-  for (const item of items) {
-    const bought = lines.get(item.itemId)
-    if (bought === undefined || seen.has(item.itemId)) throw badRequest("That item isn't on this order.")
-    if (item.quantity > bought) throw badRequest("You can't return more than you bought.")
-    seen.add(item.itemId)
-  }
-
-  const returnRequest = {
-    status: "requested" as const,
-    reason: body.reason,
-    items,
-    requestedAt: now,
-    updatedAt: now,
-  }
-
-  // Conditional on the request we checked, so two submissions can't both open one.
-  const filed = await db
-    .orders()
-    .updateOne({ _id: orderId, ...(order.returnRequest ? { "returnRequest.status": "rejected" } : { returnRequest: { $exists: false } }) }, { $set: { returnRequest, updatedAt: now } })
-  if (!filed.modifiedCount) throw conflict("A return is already open for this order.", "return_exists")
-  await recordTransition({ machine: "return", entityId: orderId, orderId, from: order.returnRequest?.status ?? null, to: "requested", actor: { type: "customer", id: req.actorId! }, reason: body.reason })
-  const updated = await db.orders().findOne({ _id: orderId })
-  res.status(201).json({ order: toStoreOrder(updated!) })
+  const order = await ownOrder(req, String(req.params.id))
+  const items = (body.items ?? order.items.map((i) => ({ itemId: i._id, quantity: i.quantity }))).map((l) => ({ ...l, reason: "other" as const, note: body.reason }))
+  await createReturn(order, { type: "return", method: "pickup", items }, customerActor(req))
+  res.status(201).json({ order: toStoreOrder((await db.orders().findOne({ _id: order._id }))!) })
 })
+
+/** What can be sent back on this order: lines with what's left to return, the refund per unit and sizes to exchange for. */
+customerRoutes.get("/customers/me/orders/:id/return-options", async (req, res) => {
+  const order = await ownOrder(req, String(req.params.id))
+  const options = await returnOptions(order)
+  res.json({ ...options, items: options.items.map((i) => ({ ...i, thumbnail: i.thumbnail ? assetUrl(i.thumbnail) : null })) })
+})
+
+customerRoutes.post("/customers/me/returns", async (req, res) => {
+  const body = z
+    .object({
+      orderId: orderParam,
+      type: z.enum(["return", "exchange"]),
+      method: z.enum(["pickup", "self_ship"]),
+      items: z
+        .array(
+          z.object({
+            itemId: z.string(),
+            quantity: z.number().int().min(1).max(100),
+            reason: z.enum(RETURN_REASONS),
+            note: z.string().trim().max(500).optional(),
+            exchangeVariantId: z.string().optional(),
+          })
+        )
+        .min(1)
+        .max(50),
+    })
+    .parse(req.body)
+  const order = await ownOrder(req, body.orderId)
+  const ret = await createReturn(order, body, customerActor(req))
+  res.status(201).json({ return: await toStoreReturn(ret) })
+})
+
+customerRoutes.get("/customers/me/returns", async (req, res) => {
+  const returns = await db.returns().find({ customerId: req.actorId! }, { sort: { requestedAt: -1 }, limit: 100 }).toArray()
+  res.json({ returns: await Promise.all(returns.map(toStoreReturn)) })
+})
+
+customerRoutes.get("/customers/me/returns/:id", async (req, res) => {
+  res.json({ return: await toStoreReturn(await ownReturn(req)) })
+})
+
+customerRoutes.post("/customers/me/returns/:id/cancel", async (req, res) => {
+  const ret = await ownReturn(req)
+  const { reason } = z.object({ reason: z.string().trim().max(300).optional() }).parse(req.body ?? {})
+  res.json({ return: await toStoreReturn(await cancelReturn(ret, customerActor(req), reason || "Cancelled by the customer")) })
+})
+
+/** Self-ship: the courier and AWB the customer sent it with. */
+customerRoutes.post("/customers/me/returns/:id/ship", async (req, res) => {
+  const ret = await ownReturn(req)
+  const body = z.object({ carrier: z.string().trim().min(2).max(80), awb: z.string().trim().regex(/^[A-Za-z0-9-]{4,40}$/, "Enter the AWB as printed on the receipt") }).parse(req.body)
+  res.json({ return: await toStoreReturn(await recordSelfShip(ret, body, customerActor(req))) })
+})
+
+/** A return as its customer sees it: status history, the parcel's journey, refund or replacement. */
+async function toStoreReturn(r: ReturnDoc) {
+  const [order, events, shipment, refund, exchange] = await Promise.all([
+    db.orders().findOne({ _id: r.orderId }, { projection: { items: 1, currency: 1 } }),
+    db.statusEvents().find({ entityId: r._id, machine: "return" }, { sort: { at: 1 } }).toArray(),
+    r.shipmentId ? db.shipments().findOne({ _id: r.shipmentId }) : null,
+    r.resolution?.refundId ? db.refunds().findOne({ _id: r.resolution.refundId }) : null,
+    r.resolution?.exchangeOrderId ? db.orders().findOne({ _id: r.resolution.exchangeOrderId }) : null,
+  ])
+  return {
+    id: r._id,
+    code: r.code,
+    orderId: r.orderId,
+    displayId: r.displayId,
+    type: r.type,
+    status: r.status,
+    method: r.method,
+    items: r.items.map((l) => {
+      const thumb = order?.items.find((i) => i._id === l.itemId)?.thumbnail
+      return {
+        itemId: l.itemId,
+        productTitle: l.productTitle,
+        variantTitle: l.variantTitle,
+        quantity: l.quantity,
+        reason: REASON_TEXT[l.reason],
+        note: l.note ?? null,
+        exchangeFor: l.exchangeVariantTitle ?? null,
+        thumbnail: thumb ? assetUrl(thumb) : null,
+      }
+    }),
+    refundableAmount: r.refundableAmount,
+    currency: r.currency,
+    requestedAt: r.requestedAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+    timeline: events.map((e) => ({ status: e.to, at: e.at.toISOString() })),
+    pickup: shipment ? { carrier: shipment.carrier, awb: shipment.awb, status: shipment.status, trackingUrl: shipment.trackingUrl ?? null, events: toStoreTrackingEvents(shipment) } : null,
+    selfShip: r.selfShip ? { carrier: r.selfShip.carrier, awb: r.selfShip.awb, at: r.selfShip.at.toISOString() } : null,
+    refund: refund ? { amount: refund.amount, status: refund.status, at: refund.updatedAt.toISOString() } : null,
+    exchangeOrder: exchange ? { id: exchange._id, displayId: exchange.displayId, fulfillmentStatus: exchange.fulfillmentStatus, awb: exchange.shipment?.awb || null } : null,
+    rejectionReason: r.rejectionReason ?? null,
+    canCancel: ["requested", "approved", "pickup_scheduled"].includes(r.status),
+    canAddShipping: r.method === "self_ship" && r.status === "approved",
+  }
+}
 
 /* ---------- Wishlist ---------- */
 

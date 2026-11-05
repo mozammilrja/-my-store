@@ -313,3 +313,50 @@ export type Customer = {
   addresses: (Address & { id: string })[]
   createdAt: string
 }
+
+/** What can be sent back on an order (GET /store/customers/me/orders/:id/return-options). */
+export type ReturnOptions = {
+  windowDays: number | null
+  closesAt: string | null
+  items: {
+    itemId: string
+    productTitle: string
+    variantTitle: string
+    thumbnail: string | null
+    quantity: number
+    /** Units not yet in a return. */
+    returnable: number
+    /** What one unit refunds: its share of what was paid, delivery excluded. */
+    refundPerUnit: number
+    /** Same product, same price, in stock. */
+    exchangeFor: { variantId: string; title: string; options: Record<string, string> }[]
+  }[]
+  reasons: { value: string; label: string }[]
+  methods: ("pickup" | "self_ship")[]
+}
+
+export type ReturnStatus = "requested" | "approved" | "pickup_scheduled" | "in_transit" | "received" | "inspected" | "refund_pending" | "refunded" | "exchanged" | "rejected" | "cancelled"
+
+/** A return or exchange as its customer sees it. */
+export type StoreReturn = {
+  id: string
+  code: string
+  orderId: string
+  displayId: number
+  type: "return" | "exchange"
+  status: ReturnStatus
+  method: "pickup" | "self_ship"
+  items: { itemId: string; productTitle: string; variantTitle: string; quantity: number; reason: string; note: string | null; exchangeFor: string | null; thumbnail: string | null }[]
+  refundableAmount: number
+  currency: string
+  requestedAt: string
+  updatedAt: string
+  timeline: { status: ReturnStatus; at: string }[]
+  pickup: { carrier: string; awb: string; status: string; trackingUrl: string | null; events: TrackingEvent[] } | null
+  selfShip: { carrier: string; awb: string; at: string } | null
+  refund: { amount: number; status: "requested" | "pending" | "processed" | "failed"; at: string } | null
+  exchangeOrder: { id: string; displayId: number; fulfillmentStatus: string; awb: string | null } | null
+  rejectionReason: string | null
+  canCancel: boolean
+  canAddShipping: boolean
+}

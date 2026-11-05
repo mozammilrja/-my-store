@@ -1,5 +1,5 @@
 import type { ClientSession } from "mongodb"
-import { db, type ActorRef, type CodRemittanceDoc, type DeliveryStatus, type FulfilmentStatus, type OrderDoc, type StatusEventDoc } from "../../db/schema.js"
+import { db, type ActorRef, type CodRemittanceDoc, type DeliveryStatus, type FulfilmentStatus, type OrderDoc, type ReturnStatus, type StatusEventDoc } from "../../db/schema.js"
 import { conflict } from "../errors.js"
 import { newId } from "../ids.js"
 
@@ -47,17 +47,24 @@ export const FULFILMENT_MACHINE: Table<FulfilmentStatus> = {
   cancelled: [],
 }
 
-export type ReturnStatus = NonNullable<OrderDoc["returnRequest"]>["status"]
+export type { ReturnStatus }
 
 export const RETURN_MACHINE: Table<ReturnStatus> = {
-  requested: ["approved", "rejected"],
-  approved: ["pickup_scheduled", "received", "rejected"],
-  pickup_scheduled: ["received"],
+  requested: ["approved", "rejected", "cancelled"],
+  approved: ["pickup_scheduled", "in_transit", "received", "rejected", "cancelled"],
+  // The customer can still call it off until the courier has it.
+  pickup_scheduled: ["in_transit", "received", "cancelled"],
+  in_transit: ["received"],
+  // Refunding straight from received is the admin's existing quick path.
   received: ["inspected", "refunded"],
-  inspected: ["refunded"],
-  refunded: [],
+  inspected: ["refund_pending", "refunded", "exchanged", "rejected"],
+  // A refund the gateway refused goes back to be resolved again.
+  refund_pending: ["refunded", "inspected"],
   // A rejected request may be reconsidered.
   rejected: ["approved"],
+  refunded: [],
+  exchanged: [],
+  cancelled: [],
 }
 
 /** Own-fleet delivery of one parcel. */

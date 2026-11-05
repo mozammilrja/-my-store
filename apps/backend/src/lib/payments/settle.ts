@@ -243,4 +243,8 @@ export async function syncOrderRefundStatus(orderId: string) {
   if (paymentStatus !== order.paymentStatus) {
     await db.orders().updateOne({ _id: orderId }, { $set: { paymentStatus, updatedAt: new Date() } })
   }
+  // A return waiting on one of these refunds follows its outcome.
+  const settledRefunds = await db.refunds().find({ orderId, status: { $in: ["processed", "failed"] } }, { projection: { _id: 1 } }).toArray()
+  const { settleReturnRefund } = await import("../returns/resolve.js")
+  for (const r of settledRefunds) await settleReturnRefund(r._id)
 }

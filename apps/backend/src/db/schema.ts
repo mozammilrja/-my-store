@@ -276,7 +276,11 @@ export type OrderDoc = {
     deliveredAt?: Date
   }
   returnRequest?: {
-    status: "requested" | "approved" | "pickup_scheduled" | "received" | "inspected" | "refunded" | "rejected"
+    /** Mirrors the latest ReturnDoc (the returns collection is the source of truth). */
+    status: ReturnStatus
+    /** The ReturnDoc this summarises; absent on summaries written before returns had their own collection. */
+    returnId?: string
+    type?: "return" | "exchange"
     reason: string
     items: { itemId: string; quantity: number }[]
     returnAwb?: string
@@ -286,6 +290,8 @@ export type OrderDoc = {
     requestedAt: Date
     updatedAt: Date
   }
+  /** For a replacement sent for an exchange: the original order and the return it settles. Nothing is charged on it. */
+  exchangeOf?: { orderId: string; displayId: number; returnId: string }
   /** The shopper's doorstep choices, editable until the order ships. */
   deliveryPreferences?: {
     slot: "morning" | "evening" | null
@@ -379,6 +385,8 @@ export type ShipmentDoc = {
   fulfilmentId?: string
   /** When an undelivered parcel was received back and graded at its warehouse. */
   rtoReceivedAt?: Date
+  /** For a reverse pickup: the return it collects. */
+  returnId?: string
   /** True while not cancelled; a partial unique index allows one live parcel of each kind per order. */
   active: boolean
   lastSyncedAt?: Date
@@ -823,6 +831,65 @@ export type CodRemittanceDoc = {
   reconciledBy?: string
 }
 
+/* ---------- Returns and exchanges ---------- */
+
+export const RETURN_STATUSES = [
+  "requested",
+  "approved",
+  "pickup_scheduled",
+  "in_transit",
+  "received",
+  "inspected",
+  "refund_pending",
+  "refunded",
+  "exchanged",
+  "rejected",
+  "cancelled",
+] as const
+export type ReturnStatus = (typeof RETURN_STATUSES)[number]
+
+export const RETURN_REASONS = ["too_small", "too_large", "not_as_pictured", "damaged", "wrong_item", "quality", "changed_mind", "other"] as const
+export type ReturnReason = (typeof RETURN_REASONS)[number]
+
+/** One return or exchange of some of an order's items. An order may have several over time, one open at a time. */
+export type ReturnDoc = {
+  _id: string
+  /** Shown to customers and printed on the parcel, e.g. RET-1042-1. */
+  code: string
+  orderId: string
+  displayId: number
+  customerId: string | null
+  type: "return" | "exchange"
+  status: ReturnStatus
+  items: {
+    itemId: string
+    variantId: string
+    productId: string
+    productTitle: string
+    variantTitle: string
+    quantity: number
+    reason: ReturnReason
+    note?: string
+    /** For an exchange: the variant (same product, same price) the customer wants instead. */
+    exchangeVariantId?: string
+    exchangeVariantTitle?: string
+  }[]
+  /** Courier pickup from the door, or the customer ships it back themselves. */
+  method: "pickup" | "self_ship"
+  /** What the customer would get back for these items: their share of what was paid, minor units. */
+  refundableAmount: number
+  currency: string
+  /** Set when a reverse pickup is booked. */
+  shipmentId?: string
+  /** Customer's own courier booking (self ship). */
+  selfShip?: { carrier: string; awb: string; at: Date }
+  inspection?: { warehouseId: string; at: Date; by: string; lines: { itemId: string; quantity: number; condition: "sellable" | "damaged"; notes?: string }[] }
+  resolution?: { action: "refund" | "exchange" | "reject"; at: Date; by: string; note?: string; refundId?: string; amount?: number; exchangeOrderId?: string }
+  rejectionReason?: string
+  requestedAt: Date
+  updatedAt: Date
+}
+
 export type InventoryReservationDoc = {
   _id: string
   cartId: string
@@ -1116,6 +1183,7 @@ export const db = {
   riders: (): Collection<RiderDoc> => getDb().collection("riders"),
   deliveryTasks: (): Collection<DeliveryTaskDoc> => getDb().collection("delivery_tasks"),
   codRemittances: (): Collection<CodRemittanceDoc> => getDb().collection("cod_remittances"),
+  returns: (): Collection<ReturnDoc> => getDb().collection("returns"),
 }
 
 /**
@@ -1156,6 +1224,47 @@ async function migrateShipments() {
   await col.dropIndex("awb_1").catch(() => {})
   // One live parcel per order became one per fulfilment (a split order ships from several warehouses).
   await col.dropIndex("one_live_parcel_per_order").catch(() => {})
+}
+
+/**
+ * Returns filed before they had their own collection lived only on the
+ * order. Each becomes a ReturnDoc once (deterministic id), so the returns
+ * screens and rules see them. Safe to run on each start.
+ */
+export async function migrateEmbeddedReturns(orderId?: string) {
+  const orders = await db.orders().find({ ...(orderId ? { _id: orderId } : {}), returnRequest: { $exists: true }, "returnRequest.returnId": { $exists: false } }).toArray()
+  for (const o of orders) {
+    const r = o.returnRequest!
+    const _id = `ret_legacy_${o._id.replace(/^order_/, "")}`
+    const items = r.items.map((l) => {
+      const item = o.items.find((i) => i._id === l.itemId)
+      return { itemId: l.itemId, variantId: item?.variantId ?? "", productId: item?.productId ?? "", productTitle: item?.productTitle ?? "", variantTitle: item?.variantTitle ?? "", quantity: l.quantity, reason: "other" as const, note: r.reason }
+    })
+    const value = items.reduce((n, l) => n + (o.items.find((i) => i._id === l.itemId)?.unitPrice ?? 0) * l.quantity, 0)
+    await db.returns().updateOne(
+      { _id },
+      {
+        $setOnInsert: {
+          _id,
+          code: `RET-${o.displayId}-1`,
+          orderId: o._id,
+          displayId: o.displayId,
+          customerId: o.customerId ?? null,
+          type: "return",
+          status: r.status,
+          items,
+          method: "pickup",
+          refundableAmount: Math.min(value, o.totals.total),
+          currency: o.currency,
+          ...(r.inspection ? { inspection: r.inspection } : {}),
+          requestedAt: r.requestedAt,
+          updatedAt: r.updatedAt,
+        },
+      },
+      { upsert: true }
+    )
+    await db.orders().updateOne({ _id: o._id }, { $set: { "returnRequest.returnId": _id, "returnRequest.type": "return" } })
+  }
 }
 
 export async function ensureIndexes() {
@@ -1254,7 +1363,17 @@ export async function ensureIndexes() {
     db.codRemittances().createIndex({ code: 1 }, { unique: true }),
     db.codRemittances().createIndex({ riderId: 1, submittedAt: -1 }),
     db.codRemittances().createIndex({ status: 1 }),
+    db.returns().createIndex({ code: 1 }, { unique: true }),
+    db.returns().createIndex({ orderId: 1, requestedAt: -1 }),
+    db.returns().createIndex({ customerId: 1, requestedAt: -1 }),
+    db.returns().createIndex({ status: 1, requestedAt: -1 }),
+    // One open return per order at a time.
+    db.returns().createIndex(
+      { orderId: 1 },
+      { unique: true, partialFilterExpression: { status: { $in: ["requested", "approved", "pickup_scheduled", "in_transit", "received", "inspected", "refund_pending"] } }, name: "one_open_return_per_order" }
+    ),
   ])
+  await migrateEmbeddedReturns()
 
   // Seed default fulfillment hubs if not present
   const defaultHubs: WarehouseDoc[] = [

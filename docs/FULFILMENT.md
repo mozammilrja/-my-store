@@ -278,8 +278,7 @@ Each later phase builds on the models here:
 - **Phase 3 (done):** own delivery fleet and `apps/rider`; see
   [FLEET.md](./FLEET.md). It also added RTO receiving at the warehouse
   (`/warehouse/rto/:awb`), for courier parcels too.
-- **Phase 4:** reverse logistics UI and exchanges. The refund machine as a
-  first-class record, and storefront return tracking.
+- **Phase 4 (done):** returns and exchanges; see [RETURNS.md](./RETURNS.md).
 - **Phase 5:** notifications. Email, SMS, WhatsApp and push through
   providers, driven by `outbox_events` (`order.placed` and
   `fulfilment.assigned` are emitted today). The outbox worker currently only

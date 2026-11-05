@@ -27,8 +27,8 @@ export function createProviderStub() {
     rzpOrders: new Map<string, { id: string; amount: number; currency: string; receipt: string; notes: Record<string, string> }>(),
     payments: new Map<string, StubPayment>(),
     refunds: new Map<string, { id: string; payment_id: string; amount: number; status: string; notes: Record<string, string>; receipt?: string }>(),
-    /** Next refund call: "ok" | "reject" (400) | "timeout" (500, outcome unknown). */
-    refundMode: "ok" as "ok" | "reject" | "timeout",
+    /** Next refund call: "ok" | "pending" (accepted, settles later) | "reject" (400) | "timeout" (500, outcome unknown). */
+    refundMode: "ok" as "ok" | "pending" | "reject" | "timeout",
     srOrders: new Map<string, { order_id: number; shipment_id: number; ref: string }>(),
     tracking: new Map<string, { shipment_status: number; current_status: string; activities: { date: string; status: string; activity: string; location: string; "sr-status": number; "sr-status-label": string }[] }>(),
     /** Pincodes Shiprocket says no courier serves. */
@@ -85,7 +85,7 @@ export function createProviderStub() {
         if (state.refundMode === "reject" || !p || p.status !== "captured") return json(res, 400, { error: { description: "The payment has been fully refunded already" } })
         if (p.amount_refunded + body.amount > p.amount) return json(res, 400, { error: { description: "The refund amount provided is greater than amount captured" } })
         p.amount_refunded += body.amount
-        const r = { id: `rfnd_${(seq++).toString(36)}`, payment_id: p.id, amount: body.amount, status: "processed", notes: body.notes ?? {}, receipt: body.receipt }
+        const r = { id: `rfnd_${(seq++).toString(36)}`, payment_id: p.id, amount: body.amount, status: state.refundMode === "pending" ? "pending" : "processed", notes: body.notes ?? {}, receipt: body.receipt }
         state.refunds.set(r.id, r)
         return json(res, 200, { ...r, currency: "INR", created_at: Math.floor(Date.now() / 1000) })
       }

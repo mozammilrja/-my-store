@@ -5,7 +5,7 @@ import { refresh, revalidatePath } from "next/cache"
 // cached route (revalidatePath "/" layout). Edits to the account only
 // re-render the page that made them (refresh).
 import { api, ApiError } from "../api/client"
-import type { Address, Customer, Invoice, Order, OrderSummary } from "../api/types"
+import type { Address, Customer, Invoice, Order, OrderSummary, ReturnOptions, StoreReturn } from "../api/types"
 import { getOrderAccess, getToken, removeCartId, removeToken, setToken } from "./session"
 import { linkCartToCustomer, type ActionResult } from "./shop"
 import { fieldErrorsFrom, savedAddressSchema, type FieldErrors } from "../validation/checkout-schemas"
@@ -160,6 +160,57 @@ export async function requestReturn(orderId: string, reason: string, items?: { i
       token: await authed(),
       body: { reason, items },
     })
+    refresh()
+    return { error: null }
+  } catch (e) {
+    return { error: message(e) }
+  }
+}
+
+export async function listReturns(): Promise<StoreReturn[]> {
+  return (await api<{ returns: StoreReturn[] }>("/store/customers/me/returns", { token: await authed() })).returns
+}
+
+/** What this order can still send back, or why it can't. */
+export async function getReturnOptions(orderId: string): Promise<{ options: ReturnOptions | null; error: string | null }> {
+  try {
+    return { options: await api<ReturnOptions>(`/store/customers/me/orders/${encodeURIComponent(orderId)}/return-options`, { token: await authed() }), error: null }
+  } catch (e) {
+    return { options: null, error: message(e) }
+  }
+}
+
+export type ReturnRequestInput = {
+  orderId: string
+  type: "return" | "exchange"
+  method: "pickup" | "self_ship"
+  items: { itemId: string; quantity: number; reason: string; note?: string; exchangeVariantId?: string }[]
+}
+
+export async function createReturnRequest(input: ReturnRequestInput): Promise<ActionResult & { code?: string }> {
+  try {
+    const { return: r } = await api<{ return: StoreReturn }>("/store/customers/me/returns", { method: "POST", token: await authed(), body: input })
+    refresh()
+    return { error: null, code: r.code }
+  } catch (e) {
+    return { error: message(e) }
+  }
+}
+
+export async function cancelReturnRequest(returnId: string): Promise<ActionResult> {
+  try {
+    await api(`/store/customers/me/returns/${encodeURIComponent(returnId)}/cancel`, { method: "POST", token: await authed(), body: {} })
+    refresh()
+    return { error: null }
+  } catch (e) {
+    return { error: message(e) }
+  }
+}
+
+/** Self-ship returns: the courier and AWB the customer sent the parcel with. */
+export async function addReturnShipping(returnId: string, carrier: string, awb: string): Promise<ActionResult> {
+  try {
+    await api(`/store/customers/me/returns/${encodeURIComponent(returnId)}/ship`, { method: "POST", token: await authed(), body: { carrier, awb } })
     refresh()
     return { error: null }
   } catch (e) {

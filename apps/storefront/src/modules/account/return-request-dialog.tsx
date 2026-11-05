@@ -2,36 +2,24 @@
 
 import { StoreSelect } from "@/components/store/store-select"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
-import type { Customer, OrderSummary } from "@lib/api/types"
-import { requestReturn } from "@lib/data/account"
+import type { Customer, OrderSummary, ReturnOptions } from "@lib/api/types"
+import { createReturnRequest, getReturnOptions } from "@lib/data/account"
 import { formatMoney } from "@lib/money"
-import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { toast } from "sonner"
 
-const REASONS = [
-  "Size is too large",
-  "Size is too small",
-  "Colour or fabric differs from the photos",
-  "Received a damaged or faulty item",
-  "Received the wrong item",
-  "No longer needed",
-  "Other",
-]
-
-type RequestType = "refund" | "exchange"
-
-/** Line id -> quantity to send back; a line missing from the map isn't returned. */
-type Picks = Record<string, number>
-
-const allLines = (order: OrderSummary | undefined): Picks =>
-  Object.fromEntries((order?.items ?? []).map((i) => [i.id, i.quantity]))
+type RequestType = "return" | "exchange"
+type Method = "pickup" | "self_ship"
+/** Per line: units going back, why, and for an exchange which size or colour instead. */
+type Pick = { quantity: number; reason: string; note: string; exchangeVariantId: string }
 
 /**
- * "Initiate return or exchange": pick a returnable order, the lines and
- * quantities going back, refund or exchange, and a reason. The API checks
- * the same rules (delivered, inside the window, no open request) again.
+ * "Return or exchange": pick a delivered order, the lines and quantities going
+ * back with a reason each, refund or exchange (another size or colour at the
+ * same price), and door pickup or sending it yourself. What's offered comes
+ * from the API (what's left to return, the refund each unit earns, sizes in
+ * stock), which checks the same rules again on submit.
  */
 export function ReturnRequestDialog({
   open,
@@ -44,7 +32,7 @@ export function ReturnRequestDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Only the orders that can still be returned. */
+  /** Delivered orders with no return in progress. */
   orders: OrderSummary[]
   orderId: string
   onOrderChange: (id: string) => void
@@ -52,52 +40,66 @@ export function ReturnRequestDialog({
   returnWindowDays: number | null
 }) {
   const order = orders.find((o) => o.id === orderId) ?? orders[0]
-  const [picksFor, setPicksFor] = useState<{ orderId: string | undefined; picks: Picks }>(() => ({
-    orderId: order?.id,
-    picks: allLines(order),
-  }))
-  // Switching order starts again with every line of the new one selected.
-  const picks = picksFor.orderId === order?.id ? picksFor.picks : allLines(order)
-  const setPicks = (next: Picks) => setPicksFor({ orderId: order?.id, picks: next })
-
-  const [type, setType] = useState<RequestType>("refund")
-  const [reason, setReason] = useState(REASONS[0]!)
-  const [details, setDetails] = useState("")
+  const [loaded, setLoaded] = useState<{ orderId: string; options: ReturnOptions | null; error: string | null } | null>(null)
+  const [picks, setPicks] = useState<Record<string, Pick>>({})
+  const [type, setType] = useState<RequestType>("return")
+  const [method, setMethod] = useState<Method>("pickup")
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  const address = customer.addresses[0] ?? null
-  const chosen = Object.entries(picks).filter(([, q]) => q > 0)
-  const refundValue = (order?.items ?? []).reduce((sum, i) => sum + (picks[i.id] ?? 0) * i.unitPrice, 0)
-  const needsDetails = reason === "Other" && !details.trim()
+  // Options for the chosen order, fetched when the dialog opens or the order changes.
+  useEffect(() => {
+    if (!open || !order) return
+    let live = true
+    getReturnOptions(order.id).then((r) => {
+      if (!live) return
+      setLoaded({ orderId: order.id, ...r })
+      setPicks({})
+    })
+    return () => {
+      live = false
+    }
+  }, [open, order])
 
-  const toggle = (id: string, max: number) => {
+  // Only what was loaded for the order on screen (none chosen, nothing loaded: neither applies).
+  const current = loaded && order && loaded.orderId === order.id ? loaded : null
+  const options = current?.options ?? null
+  const loadError = current?.error ?? null
+  const items = options?.items.filter((i) => i.returnable > 0) ?? []
+  const chosen = Object.entries(picks).filter(([, p]) => p.quantity > 0)
+  const estimate = chosen.reduce((s, [id, p]) => s + (items.find((i) => i.itemId === id)?.refundPerUnit ?? 0) * p.quantity, 0)
+  const exchangeable = items.some((i) => i.exchangeFor.length > 0)
+  const address = customer.addresses[0] ?? null
+  const firstReason = options?.reasons[0]?.value ?? "other"
+
+  const toggle = (itemId: string, max: number) => {
     const next = { ...picks }
-    if (next[id]) delete next[id]
-    else next[id] = max
+    if (next[itemId]) delete next[itemId]
+    else next[itemId] = { quantity: max, reason: firstReason, note: "", exchangeVariantId: items.find((i) => i.itemId === itemId)?.exchangeFor[0]?.variantId ?? "" }
     setPicks(next)
   }
+  const update = (itemId: string, patch: Partial<Pick>) => setPicks({ ...picks, [itemId]: { ...picks[itemId]!, ...patch } })
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     if (!order) return
-    if (!chosen.length) return setError("Choose at least one item to return.")
-    if (needsDetails) return setError("Tell us a little about the reason.")
-    const text = [type === "exchange" ? "Exchange" : "Refund", reason, details.trim()].filter(Boolean).join(": ")
+    if (!chosen.length) return setError("Choose at least one item.")
+    if (chosen.some(([, p]) => p.reason === "other" && !p.note.trim())) return setError("Tell us a little about the reason.")
+    if (type === "exchange" && chosen.some(([, p]) => !p.exchangeVariantId)) return setError("Choose the size or colour you'd like instead.")
     startTransition(async () => {
-      const res = await requestReturn(
-        order.id,
-        text,
-        chosen.map(([itemId, quantity]) => ({ itemId, quantity }))
-      )
+      const res = await createReturnRequest({
+        orderId: order.id,
+        type,
+        method,
+        items: chosen.map(([itemId, p]) => ({ itemId, quantity: p.quantity, reason: p.reason, ...(p.note.trim() ? { note: p.note.trim() } : {}), ...(type === "exchange" ? { exchangeVariantId: p.exchangeVariantId } : {}) })),
+      })
       if (res.error) {
         setError(res.error)
         toast.error(res.error)
         return
       }
-      toast.success(type === "exchange" ? "Exchange requested. We'll confirm the pickup shortly." : "Return requested. We'll confirm the pickup shortly.")
-      setDetails("")
+      toast.success(`${type === "exchange" ? "Exchange" : "Return"} ${res.code} requested. We'll confirm it shortly.`)
       onOpenChange(false)
     })
   }
@@ -119,8 +121,7 @@ export function ReturnRequestDialog({
           <div className="min-w-0">
             <DialogTitle className="font-headline-sm text-headline-sm text-on-surface font-semibold">Return or exchange</DialogTitle>
             <DialogDescription className="font-body-sm text-body-sm text-on-surface-variant mt-1">
-              {returnWindowDays ? `Items can be sent back within ${returnWindowDays} days of delivery. ` : ""}
-              We collect from your door.
+              {returnWindowDays ? `Items can be sent back within ${returnWindowDays} days of delivery.` : "Items can be sent back once delivered."}
             </DialogDescription>
           </div>
           <button
@@ -144,10 +145,9 @@ export function ReturnRequestDialog({
         ) : (
           <form onSubmit={submit} className="flex flex-col min-h-0 flex-1">
             <div className="overflow-y-auto flex-1 px-6 py-5 flex flex-col gap-6">
-              {/* 1. Order and items */}
               <div>
                 <label htmlFor="return-order" className={sectionLabel}>
-                  1. Order
+                  1. Order and items
                 </label>
                 <StoreSelect
                   id="return-order"
@@ -157,80 +157,110 @@ export function ReturnRequestDialog({
                     setError(null)
                     onOrderChange(id)
                   }}
-                  options={orders.map((o) => ({
-                    value: o.id,
-                    label: `#${o.displayId} · ${o.itemCount} ${o.itemCount === 1 ? "item" : "items"} · ${formatMoney(o.total, o.currency)}`,
-                  }))}
+                  options={orders.map((o) => ({ value: o.id, label: `#${o.displayId} · ${o.itemCount} ${o.itemCount === 1 ? "item" : "items"} · ${formatMoney(o.total, o.currency)}` }))}
                   data-testid="return-order-select"
                 />
-                <fieldset className="mt-3 flex flex-col gap-2">
-                  <legend className="sr-only">Items to return</legend>
-                  {(order.items ?? []).map((item) => {
-                    const qty = picks[item.id] ?? 0
-                    const on = qty > 0
-                    return (
-                      <div
-                        key={item.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                          on ? "border-primary bg-surface-container-lowest" : "border-surface-container-high bg-surface-container-low"
-                        }`}
-                      >
-                        <label className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="w-4 h-4 accent-primary shrink-0"
-                            checked={on}
-                            onChange={() => toggle(item.id, item.quantity)}
-                            data-testid="return-item-checkbox"
-                          />
-                          <span className="w-12 h-14 rounded bg-surface-container-high overflow-hidden relative shrink-0">
-                            {item.thumbnail && <Image src={item.thumbnail} alt="" fill sizes="48px" className="object-cover" />}
-                          </span>
-                          <span className="flex flex-col min-w-0">
-                            <span className="font-body-sm text-body-sm text-on-surface font-medium truncate">{item.productTitle}</span>
-                            <span className="font-label-sm text-label-sm text-on-surface-variant truncate">
-                              {[item.variantTitle && item.variantTitle.toLowerCase() !== "default" ? item.variantTitle : null, formatMoney(item.unitPrice, order.currency)]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </span>
-                          </span>
-                        </label>
-                        {item.quantity > 1 && on && (
-                          <div className="w-20 shrink-0">
-                            <StoreSelect
-                              aria-label={`Quantity of ${item.productTitle} to return`}
-                              className="h-9 px-2 rounded bg-surface-container"
-                              value={String(qty)}
-                              onValueChange={(v) => setPicks({ ...picks, [item.id]: Number(v) })}
-                              options={Array.from({ length: item.quantity }, (_, n) => ({ value: String(n + 1), label: `Qty ${n + 1}` }))}
-                            />
+                {loadError ? (
+                  <p role="alert" className="mt-3 font-body-sm text-body-sm text-error">
+                    {loadError}
+                  </p>
+                ) : !options ? (
+                  <p role="status" className="mt-3 font-body-sm text-body-sm text-on-surface-variant">
+                    Loading the items…
+                  </p>
+                ) : items.length === 0 ? (
+                  <p className="mt-3 font-body-sm text-body-sm text-on-surface-variant">Everything on this order has already been sent back.</p>
+                ) : (
+                  <fieldset className="mt-3 flex flex-col gap-2">
+                    <legend className="sr-only">Items to send back</legend>
+                    {items.map((item) => {
+                      const p = picks[item.itemId]
+                      return (
+                        <div key={item.itemId} className={`rounded-lg border transition-colors ${p ? "border-primary bg-surface-container-lowest" : "border-surface-container-high bg-surface-container-low"}`}>
+                          <div className="flex items-center gap-3 p-3">
+                            <label className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
+                              <input type="checkbox" className="w-4 h-4 accent-primary shrink-0" checked={!!p} onChange={() => toggle(item.itemId, item.returnable)} data-testid="return-item-checkbox" />
+                              <span className="w-12 h-14 rounded bg-surface-container-high overflow-hidden relative shrink-0">
+                                {item.thumbnail && <Image src={item.thumbnail} alt="" fill sizes="48px" className="object-cover" />}
+                              </span>
+                              <span className="flex flex-col min-w-0">
+                                <span className="font-body-sm text-body-sm text-on-surface font-medium truncate">{item.productTitle}</span>
+                                <span className="font-label-sm text-label-sm text-on-surface-variant truncate">
+                                  {[item.variantTitle && item.variantTitle.toLowerCase() !== "default" ? item.variantTitle : null, `refund ${formatMoney(item.refundPerUnit, order.currency)} each`].filter(Boolean).join(" · ")}
+                                </span>
+                              </span>
+                            </label>
+                            {item.returnable > 1 && p && (
+                              <div className="w-20 shrink-0">
+                                <StoreSelect
+                                  aria-label={`Quantity of ${item.productTitle}`}
+                                  className="h-9 px-2 rounded bg-surface-container"
+                                  value={String(p.quantity)}
+                                  onValueChange={(v) => update(item.itemId, { quantity: Number(v) })}
+                                  options={Array.from({ length: item.returnable }, (_, n) => ({ value: String(n + 1), label: `Qty ${n + 1}` }))}
+                                />
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </fieldset>
+                          {p && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 px-3 pb-3">
+                              <div>
+                                <label htmlFor={`reason-${item.itemId}`} className="font-label-sm text-label-sm text-on-surface-variant block mb-1">
+                                  Reason
+                                </label>
+                                <StoreSelect id={`reason-${item.itemId}`} className="h-10 px-3 rounded bg-surface-container" value={p.reason} onValueChange={(v) => update(item.itemId, { reason: v })} options={options.reasons} data-testid="return-reason-select" />
+                              </div>
+                              {type === "exchange" ? (
+                                <div>
+                                  <label htmlFor={`swap-${item.itemId}`} className="font-label-sm text-label-sm text-on-surface-variant block mb-1">
+                                    Exchange for
+                                  </label>
+                                  {item.exchangeFor.length ? (
+                                    <StoreSelect
+                                      id={`swap-${item.itemId}`}
+                                      className="h-10 px-3 rounded bg-surface-container"
+                                      value={p.exchangeVariantId}
+                                      onValueChange={(v) => update(item.itemId, { exchangeVariantId: v })}
+                                      options={item.exchangeFor.map((v) => ({ value: v.variantId, label: v.title }))}
+                                    />
+                                  ) : (
+                                    <p className="font-body-sm text-body-sm text-on-surface-variant pt-2">No other size in stock. Choose a refund for this one.</p>
+                                  )}
+                                </div>
+                              ) : null}
+                              <div className="sm:col-span-2">
+                                <label htmlFor={`note-${item.itemId}`} className="font-label-sm text-label-sm text-on-surface-variant block mb-1">
+                                  {p.reason === "other" ? "Tell us what happened" : "Anything to add (optional)"}
+                                </label>
+                                <textarea
+                                  id={`note-${item.itemId}`}
+                                  value={p.note}
+                                  onChange={(e) => update(item.itemId, { note: e.target.value })}
+                                  rows={2}
+                                  maxLength={500}
+                                  className="w-full p-3 rounded bg-surface-container-low border border-surface-container-high font-body-sm text-body-sm text-on-surface focus:outline-none focus:border-primary"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </fieldset>
+                )}
               </div>
 
-              {/* 2. Refund or exchange */}
               <fieldset>
                 <legend className={sectionLabel}>2. What would you like?</legend>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {(
                     [
-                      { id: "refund", title: "Refund", note: "To your original payment method" },
-                      { id: "exchange", title: "Exchange", note: "Another size or colour" },
+                      { id: "return", title: "Refund", note: "To your original payment method", disabled: false },
+                      { id: "exchange", title: "Exchange", note: exchangeable ? "Another size or colour, same price" : "No other size in stock right now", disabled: !exchangeable },
                     ] as const
                   ).map((o) => (
-                    <label key={o.id} className={optionClass(type === o.id)}>
-                      <input
-                        type="radio"
-                        name="return_type"
-                        className="mt-0.5 w-4 h-4 accent-primary shrink-0"
-                        checked={type === o.id}
-                        onChange={() => setType(o.id)}
-                        data-testid={`return-type-${o.id}`}
-                      />
+                    <label key={o.id} className={`${optionClass(type === o.id)} ${o.disabled ? "opacity-60 cursor-not-allowed" : ""}`}>
+                      <input type="radio" name="return_type" disabled={o.disabled} className="mt-0.5 w-4 h-4 accent-primary shrink-0" checked={type === o.id} onChange={() => setType(o.id)} data-testid={`return-type-${o.id === "return" ? "refund" : "exchange"}`} />
                       <span className="flex flex-col">
                         <span className="font-body-sm text-body-sm font-semibold text-on-surface">{o.title}</span>
                         <span className="font-label-sm text-label-sm text-on-surface-variant">{o.note}</span>
@@ -240,93 +270,47 @@ export function ReturnRequestDialog({
                 </div>
               </fieldset>
 
-              {/* 3. Reason */}
-              <div>
-                <label htmlFor="return-reason" className={sectionLabel}>
-                  3. Reason
-                </label>
-                <StoreSelect
-                  id="return-reason"
-                  className="px-3 rounded-lg bg-surface-container"
-                  value={reason}
-                  onValueChange={setReason}
-                  options={REASONS.map((r) => ({ value: r, label: r }))}
-                  data-testid="return-reason-select"
-                />
-                <textarea
-                  className="mt-3 w-full p-3 rounded-lg bg-surface-container font-body-sm text-body-sm text-on-surface placeholder:text-outline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-none"
-                  rows={2}
-                  maxLength={300}
-                  placeholder={reason === "Other" ? "Tell us what went wrong (required)" : "Anything else we should know? (optional)"}
-                  aria-label="More about the reason"
-                  value={details}
-                  onChange={(e) => setDetails(e.target.value)}
-                  data-testid="return-details-input"
-                />
-              </div>
-
-              {/* 4. Pickup */}
-              <div>
-                <span className={sectionLabel}>4. Pickup address</span>
-                <div className="p-4 rounded-lg bg-surface-container-low border border-surface-container-high flex items-start justify-between gap-4">
-                  {address ? (
-                    <div className="min-w-0">
-                      <p className="font-body-sm text-body-sm font-semibold text-on-surface">
-                        {[address.firstName, address.lastName].filter(Boolean).join(" ")}
-                      </p>
-                      <p className="font-label-sm text-label-sm text-on-surface-variant mt-0.5 break-words">
-                        {[address.address1, address.address2, address.city].filter(Boolean).join(", ")}
-                        {address.postalCode ? ` – ${address.postalCode}` : ""}
-                      </p>
-                      {address.phone && <p className="font-label-sm text-label-sm text-on-surface-variant mt-0.5">{address.phone}</p>}
-                    </div>
-                  ) : (
-                    <p className="font-body-sm text-body-sm text-on-surface-variant">No saved address. We&apos;ll call to arrange the pickup.</p>
-                  )}
-                  <LocalizedClientLink
-                    href="/account/addresses"
-                    className="shrink-0 font-label-caps text-label-caps uppercase text-on-surface-variant hover:text-primary transition-colors"
-                  >
-                    {address ? "Change" : "Add"}
-                  </LocalizedClientLink>
+              <fieldset>
+                <legend className={sectionLabel}>3. How it comes back</legend>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {(
+                    [
+                      { id: "pickup", title: "Pickup from your door", note: address ? `${address.address1}, ${address.city}` : "From your delivery address" },
+                      { id: "self_ship", title: "I'll send it", note: "Post it to us and add the AWB here" },
+                    ] as const
+                  ).map((o) => (
+                    <label key={o.id} className={optionClass(method === o.id)}>
+                      <input type="radio" name="return_method" className="mt-0.5 w-4 h-4 accent-primary shrink-0" checked={method === o.id} onChange={() => setMethod(o.id)} data-testid={`return-method-${o.id}`} />
+                      <span className="flex flex-col min-w-0">
+                        <span className="font-body-sm text-body-sm font-semibold text-on-surface">{o.title}</span>
+                        <span className="font-label-sm text-label-sm text-on-surface-variant">{o.note}</span>
+                      </span>
+                    </label>
+                  ))}
                 </div>
-              </div>
+              </fieldset>
 
+              {type === "return" && chosen.length > 0 && (
+                <div className="flex items-center justify-between rounded-lg bg-surface-container-low px-4 py-3">
+                  <span className="font-body-sm text-body-sm text-on-surface-variant">Refund after inspection</span>
+                  <span className="font-body-md text-body-md font-semibold text-on-surface" data-testid="return-estimate">
+                    {formatMoney(estimate, order.currency)}
+                  </span>
+                </div>
+              )}
               {error && (
-                <p className="p-3 rounded-lg bg-error-container text-on-error-container font-body-sm text-body-sm" role="alert" data-testid="return-error">
+                <p role="alert" className="font-body-sm text-body-sm text-error">
                   {error}
                 </p>
               )}
             </div>
-
-            <div className="px-6 py-4 border-t border-surface-container-high bg-surface-container-low flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3">
-              <p className="font-body-sm text-body-sm text-on-surface-variant">
-                {chosen.length ? (
-                  <>
-                    {type === "refund" ? "Refund value" : "Exchange value"}:{" "}
-                    <span className="font-semibold text-on-surface tabular-nums">{formatMoney(refundValue, order.currency)}</span>
-                  </>
-                ) : (
-                  "No items selected"
-                )}
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => onOpenChange(false)}
-                  className="h-10 px-4 rounded-lg font-label-sm text-label-sm uppercase tracking-wider text-on-surface hover:bg-surface-container transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={pending || !chosen.length || needsDetails}
-                  className="h-10 px-5 rounded-lg bg-primary text-on-primary hover:bg-inverse-surface font-label-sm text-label-sm uppercase tracking-wider font-semibold transition-colors disabled:opacity-50"
-                  data-testid="return-submit"
-                >
-                  {pending ? "Submitting…" : type === "exchange" ? "Request exchange" : "Request return"}
-                </button>
-              </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-surface-container-high">
+              <button type="button" onClick={() => onOpenChange(false)} className="h-11 px-5 rounded-lg font-label-md text-label-md uppercase tracking-wider text-on-surface hover:bg-surface-container">
+                Cancel
+              </button>
+              <button type="submit" disabled={pending || !options || !items.length} className="h-11 px-6 rounded-lg bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider font-semibold disabled:opacity-60" data-testid="return-submit">
+                {pending ? "Sending…" : type === "exchange" ? "Request exchange" : "Request return"}
+              </button>
             </div>
           </form>
         )}

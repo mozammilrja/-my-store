@@ -1,5 +1,6 @@
 "use client"
 
+import { useSiteImage } from "@lib/util/site-media"
 import { cn } from "@/lib/utils"
 import type { Customer } from "@lib/api/types"
 import { signout } from "@lib/data/account"
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
 ]
 
 export function AccountNav({ customer }: { customer?: Customer | null }) {
+  const img = useSiteImage()
   const { countryCode } = useParams<{ countryCode: string }>()
   const router = useRouter()
   const signOut = async () => {
@@ -93,7 +95,7 @@ export function AccountNav({ customer }: { customer?: Customer | null }) {
                   {initials}
                 </div>
               ) : (
-                <Image src={avatarUrl} alt={displayName} fill sizes="36px" className="object-cover" />
+                <Image src={img(avatarUrl)} alt={displayName} fill sizes="36px" className="object-cover" />
               )}
             </div>
             <div className="flex flex-col">
@@ -181,7 +183,7 @@ export function AccountNav({ customer }: { customer?: Customer | null }) {
                   {initials}
                 </div>
               ) : (
-                <Image src={avatarUrl} alt={displayName} fill sizes="64px" className="object-cover" />
+                <Image src={img(avatarUrl)} alt={displayName} fill sizes="64px" className="object-cover" />
               )}
             </div>
             <h2 className="font-headline-sm text-headline-sm text-on-surface font-semibold capitalize truncate max-w-[220px]">

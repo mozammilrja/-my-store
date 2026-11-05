@@ -1084,10 +1084,13 @@ export function MegaMenu({
   // click, Escape or a navigation closes it.
   const [openDept, setOpenDept] = useState<string | null>(null)
   const pathname = usePathname()
-
-  useEffect(() => {
+  // Close on navigation while rendering, not in an effect, so the new page
+  // doesn't paint once with the menu open and then render again to close it.
+  const [shownFor, setShownFor] = useState(pathname)
+  if (shownFor !== pathname) {
+    setShownFor(pathname)
     setOpenDept(null)
-  }, [pathname])
+  }
 
   useEffect(() => {
     if (!openDept) return

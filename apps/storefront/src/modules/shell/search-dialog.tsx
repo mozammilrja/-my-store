@@ -8,11 +8,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  getSearchSuggestions,
-  type SearchHit,
-  type SearchSuggestion,
-} from "@lib/data/search"
+import type { SearchHit, SearchSuggestion, SuggestionResult } from "@lib/data/search"
 import { formatMoney } from "@lib/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import {
@@ -155,20 +151,29 @@ function SearchPanel({
     const query = value.trim()
     if (!query) return
     const ticket = ++latest.current
+    // A newer keystroke cancels the request still in flight.
+    const abort = new AbortController()
     const timer = window.setTimeout(async () => {
       setStatus("loading")
       try {
-        const result = await getSearchSuggestions(query, countryCode, scope)
+        const params = new URLSearchParams({ q: query, country: countryCode })
+        if (scope) params.set("scope", scope)
+        const res = await fetch(`/api/search/suggest?${params}`, { signal: abort.signal })
+        if (!res.ok) throw new Error(`suggest ${res.status}`)
+        const result = (await res.json()) as SuggestionResult
         if (ticket !== latest.current) return
         setSuggestions(result.suggestions)
         setHits(result.products)
         setSearched(query)
         setStatus("done")
       } catch {
-        if (ticket === latest.current) setStatus("error")
+        if (ticket === latest.current && !abort.signal.aborted) setStatus("error")
       }
     }, DEBOUNCE_MS)
-    return () => window.clearTimeout(timer)
+    return () => {
+      window.clearTimeout(timer)
+      abort.abort()
+    }
   }, [value, countryCode, scope])
 
   const trimmed = value.trim()

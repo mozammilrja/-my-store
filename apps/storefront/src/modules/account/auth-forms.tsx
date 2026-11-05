@@ -1,5 +1,6 @@
 "use client"
 
+import { useSiteImage } from "@lib/util/site-media"
 import { cn } from "@/lib/utils"
 import { login, signup } from "@lib/data/account"
 import { notifyCartUpdated } from "@lib/util/cart-events"
@@ -53,6 +54,7 @@ const signupWithBag = withBagRefresh(signup)
  * session cookie on the server and refreshes the page into the account.
  */
 export function AuthForms() {
+  const img = useSiteImage()
   const [mode, setMode] = useState<"login" | "register">("login")
   const router = useRouter()
   const [loginState, loginAction, loggingIn] = useActionState(loginWithBag, { error: null })
@@ -77,10 +79,11 @@ export function AuthForms() {
       {/* Editorial panel */}
       <div className="relative hidden min-h-[560px] md:block">
         <Image
-          src="/images/concierge/hero-salon.jpg"
+          src={img("/images/concierge/hero-salon.jpg")}
           alt=""
           fill
-          priority
+          loading="eager"
+          fetchPriority="high"
           sizes="(min-width: 768px) 40vw, 0px"
           className="object-cover"
         />

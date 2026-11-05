@@ -1,7 +1,7 @@
 "use client"
 
 import type { Customer } from "@lib/api/types"
-import { retrieveCustomer, signout } from "@lib/data/account"
+import { signout } from "@lib/data/account"
 import { notifyCartUpdated } from "@lib/util/cart-events"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import {
@@ -50,8 +50,11 @@ export function AccountMenu() {
   const root = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
-    retrieveCustomer()
-      .then((c) => setCustomer(c))
+    // /api/me, not the retrieveCustomer server action: hovering the icon on
+    // the way to a link must not queue work in front of that click.
+    fetch("/api/me", { cache: "no-store", credentials: "same-origin" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ customer: Customer | null }>) : { customer: null }))
+      .then((r) => setCustomer(r.customer))
       .catch(() => setCustomer(null))
   }, [])
 

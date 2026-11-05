@@ -176,7 +176,7 @@ export default async function TrackOrder(props: { params: Promise<{ countryCode:
     { label: "Shipping Method", value: shortMethod, full: order.shippingOption.name, accent: true },
     { label: "Payment", value: payment.short, full: payment.full },
   ]
-  const underline = "text-surface-bright font-medium underline decoration-secondary decoration-2 underline-offset-4"
+  const underline = "text-on-surface font-medium underline decoration-outline decoration-2 underline-offset-4"
 
   return (
     <StitchPage className="min-h-screen flex flex-col">
@@ -211,18 +211,17 @@ export default async function TrackOrder(props: { params: Promise<{ countryCode:
             </div>
 
             {/* Hero Status Bar */}
-            <div className="relative overflow-hidden bg-primary text-on-primary rounded-xl p-space-lg lg:p-space-xl mb-space-xl shadow-xl">
-              <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 w-96 h-96 bg-secondary/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative overflow-hidden bg-surface-container-low text-on-surface rounded-xl p-space-lg lg:p-space-xl mb-space-xl border border-surface-container-high">
               <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-space-lg">
                 <div className="max-w-2xl">
-                  <div className="inline-flex items-center gap-space-xs bg-surface-container-lowest/15 backdrop-blur-md px-space-md py-1 rounded-full mb-space-md">
-                    <span className={`w-2 h-2 rounded-full bg-secondary-fixed ${t.moving ? "animate-ping" : ""}`} />
-                    <span className="font-label-caps text-label-caps text-surface-bright uppercase" data-testid="track-badge">{t.badge}</span>
+                  <div className="inline-flex items-center gap-space-xs bg-surface-container-lowest border border-surface-container-high px-space-md py-1 rounded-full mb-space-md">
+                    <span className={`w-2 h-2 rounded-full bg-primary ${t.moving ? "animate-pulse" : ""}`} />
+                    <span className="font-label-caps text-label-caps text-on-surface uppercase" data-testid="track-badge">{t.badge}</span>
                   </div>
-                  <h1 className="font-headline-xl text-headline-xl text-surface-bright tracking-tight mb-space-xs" data-testid="track-status">
+                  <h1 className="font-headline-xl text-headline-xl text-primary tracking-tight mb-space-xs" data-testid="track-status">
                     {t.heading}
                   </h1>
-                  <p className="font-body-lg text-body-lg text-surface-container-high opacity-90">
+                  <p className="font-body-lg text-body-lg text-on-surface-variant">
                     {t.phase === "preparing" && (
                       <>
                         Packing order #{order.displayId} for <span className={underline}>{t.destination}</span>. Courier details follow at dispatch.
@@ -253,11 +252,11 @@ export default async function TrackOrder(props: { params: Promise<{ countryCode:
                   </p>
                 </div>
                 {/* Telemetry Key Stats Strip */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-space-md pt-space-md lg:pt-0 border-t lg:border-t-0 border-surface-container-highest/20" data-testid="track-stats">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-space-md pt-space-md lg:pt-0 border-t lg:border-t-0 border-surface-container-high" data-testid="track-stats">
                   {stats.map((x) => (
-                    <div key={x.label} title={x.full} className="bg-surface-container-lowest/10 backdrop-blur-sm p-space-sm rounded lg:w-[130px] flex flex-col justify-between gap-1.5 min-h-[72px]">
-                      <span className="block font-label-caps text-label-caps text-outline-variant uppercase leading-tight">{x.label}</span>
-                      <span className={`block font-label-md text-label-md leading-5 truncate ${x.muted ? "text-outline-variant" : x.accent ? "text-secondary-fixed" : "text-surface-bright"} ${x.mono ? "tracking-wider font-mono text-label-sm" : ""}`}>
+                    <div key={x.label} title={x.full} className="bg-surface-container-lowest border border-surface-container-high p-space-sm rounded lg:w-[130px] flex flex-col justify-between gap-1.5 min-h-[72px]">
+                      <span className="block font-label-caps text-label-caps text-on-surface-variant uppercase leading-tight">{x.label}</span>
+                      <span className={`block font-label-md text-label-md leading-5 truncate ${x.muted ? "text-on-surface-variant" : x.accent ? "text-primary font-semibold" : "text-on-surface"} ${x.mono ? "tracking-wider font-mono text-label-sm" : ""}`}>
                         {x.value}
                       </span>
                     </div>

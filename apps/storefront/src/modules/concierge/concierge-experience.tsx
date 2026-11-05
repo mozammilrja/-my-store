@@ -1,5 +1,6 @@
 "use client"
 
+import { useSiteImage } from "@lib/util/site-media"
 import { cn } from "@/lib/utils"
 import { requestConciergeBooking } from "@lib/data/concierge"
 import {
@@ -42,6 +43,7 @@ const localToday = () => {
  * scrolls to it, the way the design does.
  */
 export function ConciergeExperience() {
+  const img = useSiteImage()
   const formRef = useRef<HTMLElement>(null)
   const [service, setService] = useState<ServiceId>("virtual")
   const [location, setLocation] = useState("Remote Virtual")
@@ -130,7 +132,7 @@ export function ConciergeExperience() {
               <div>
                 <div className="relative mb-space-md h-48 w-full overflow-hidden rounded-lg bg-surface-container">
                   <Image
-                    src={s.image}
+                    src={img(s.image)}
                     alt={s.imageAlt}
                     fill
                     sizes="(min-width: 768px) 30vw, 92vw"
@@ -451,7 +453,7 @@ export function ConciergeExperience() {
             >
               <div className="relative h-80 w-full overflow-hidden bg-surface-container">
                 <Image
-                  src={p.image}
+                  src={img(p.image)}
                   alt={p.imageAlt}
                   fill
                   sizes="(min-width: 768px) 30vw, 92vw"

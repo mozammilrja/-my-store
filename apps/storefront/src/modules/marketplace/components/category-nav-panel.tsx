@@ -1,5 +1,6 @@
 "use client"
 
+import { useSiteImage } from "@lib/util/site-media"
 import { useState } from "react"
 import Image from "next/image"
 import {
@@ -381,6 +382,7 @@ export function CategoryNavPanel({
   onDismiss?: () => void
   dismissed?: boolean
 }) {
+  const img = useSiteImage()
   const [internalTab, setInternalTab] = useState("womens-atelier")
   const [collapsed, setCollapsed] = useState(false)
 
@@ -491,7 +493,7 @@ export function CategoryNavPanel({
                   className="relative h-36 w-full overflow-hidden bg-surface-container-low block"
                 >
                   <Image
-                    src={cat.image}
+                    src={img(cat.image)}
                     alt={cat.title}
                     fill
                     sizes="(max-width: 1024px) 100vw, 260px"
@@ -555,7 +557,7 @@ export function CategoryNavPanel({
             <div className="group relative flex flex-col rounded-xl overflow-hidden bg-foreground text-background shadow-md justify-between p-5 min-h-[360px]">
               <div className="absolute inset-0 pointer-events-none">
                 <Image
-                  src={currentDept.editorial.image}
+                  src={img(currentDept.editorial.image)}
                   alt={currentDept.editorial.title}
                   fill
                   sizes="(max-width: 1024px) 100vw, 300px"

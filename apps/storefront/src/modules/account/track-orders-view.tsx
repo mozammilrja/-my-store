@@ -87,40 +87,39 @@ export function TrackOrdersView({ orders }: { orders: OrderSummary[] }) {
       </section>
 
       {/* 2. Status Hero Card */}
-      <div className="relative overflow-hidden rounded-xl bg-primary text-on-primary p-space-lg lg:p-space-xl shadow-xl">
-        <div className="absolute right-0 top-0 size-96 rounded-full bg-secondary/15 blur-3xl pointer-events-none -translate-y-8 translate-x-12" />
+      <div className="relative overflow-hidden rounded-xl bg-surface-container-low text-on-surface p-space-lg lg:p-space-xl border border-surface-container-high">
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-space-lg">
           <div className="max-w-xl">
-            <div className="inline-flex items-center gap-space-xs px-space-md py-1 rounded-full bg-surface-container-lowest/15 backdrop-blur-md mb-space-md">
-              <span className="size-2 rounded-full bg-secondary-fixed animate-ping" />
-              <span className="font-label-caps text-label-caps uppercase text-surface-bright">
+            <div className="inline-flex items-center gap-space-xs px-space-md py-1 rounded-full bg-surface-container-lowest border border-surface-container-high mb-space-md">
+              <span className="size-2 rounded-full bg-primary animate-pulse" />
+              <span className="font-label-caps text-label-caps uppercase text-on-surface">
                 {isDelivered ? "Delivered to Sanctuary" : `Priority Air Hub • With ${carrier}`}
               </span>
             </div>
-            <h2 className="font-headline-xl text-headline-xl tracking-tight text-surface-bright mb-space-xs">
+            <h2 className="font-headline-xl text-headline-xl tracking-tight text-primary mb-space-xs">
               Consignment #EVR-{selectedOrder.displayId}
             </h2>
-            <p className="font-body-lg text-body-lg text-surface-container-high opacity-90">
+            <p className="font-body-lg text-body-lg text-on-surface-variant">
               Blue Dart Air Express priority corridor. White-glove concierge dispatch.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-space-md border-t border-surface-container-highest/20 pt-space-md lg:border-t-0 lg:pt-0">
-            <div className="bg-surface-container-lowest/10 backdrop-blur-sm p-space-sm rounded">
-              <span className="block font-label-caps text-label-caps text-outline-variant uppercase">Airway Bill</span>
-              <span className="font-label-md text-label-md text-surface-bright font-mono">{awb}</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-space-md border-t border-surface-container-high pt-space-md lg:border-t-0 lg:pt-0">
+            <div className="bg-surface-container-lowest p-space-sm rounded border border-surface-container-high">
+              <span className="block font-label-caps text-label-caps text-on-surface-variant uppercase">Airway Bill</span>
+              <span className="font-label-md text-label-md text-on-surface font-mono">{awb}</span>
             </div>
-            <div className="bg-surface-container-lowest/10 backdrop-blur-sm p-space-sm rounded">
-              <span className="block font-label-caps text-label-caps text-outline-variant uppercase">Carrier</span>
-              <span className="font-label-md text-label-md text-surface-bright">Blue Dart Air</span>
+            <div className="bg-surface-container-lowest p-space-sm rounded border border-surface-container-high">
+              <span className="block font-label-caps text-label-caps text-on-surface-variant uppercase">Carrier</span>
+              <span className="font-label-md text-label-md text-on-surface">Blue Dart Air</span>
             </div>
-            <div className="bg-surface-container-lowest/10 backdrop-blur-sm p-space-sm rounded">
-              <span className="block font-label-caps text-label-caps text-outline-variant uppercase">Security</span>
-              <span className="font-label-md text-label-md text-secondary-fixed">Dual-Seal Sealed</span>
+            <div className="bg-surface-container-lowest p-space-sm rounded border border-surface-container-high">
+              <span className="block font-label-caps text-label-caps text-on-surface-variant uppercase">Security</span>
+              <span className="font-label-md text-label-md text-on-surface">Dual-Seal Sealed</span>
             </div>
-            <div className="bg-surface-container-lowest/10 backdrop-blur-sm p-space-sm rounded">
-              <span className="block font-label-caps text-label-caps text-outline-variant uppercase">Concierge</span>
-              <span className="font-label-md text-label-md text-surface-bright">Included (45m)</span>
+            <div className="bg-surface-container-lowest p-space-sm rounded border border-surface-container-high">
+              <span className="block font-label-caps text-label-caps text-on-surface-variant uppercase">Concierge</span>
+              <span className="font-label-md text-label-md text-on-surface">Included (45m)</span>
             </div>
           </div>
         </div>

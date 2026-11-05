@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { refresh as refreshRoute } from "next/cache"
 import { redirect } from "next/navigation"
 import { api, ApiError } from "../api/client"
 import type { Address, BuyerGstin, Cart, Order } from "../api/types"
@@ -59,30 +59,47 @@ async function cartFor(countryCode: string) {
  */
 export type CartActionResult = { error: string | null }
 
+/** The bag in brief, as the header badge and "Go to bag" buttons need it. */
+const snapshot = (cart: Cart) => ({
+  count: cart.items.reduce((n, i) => n + i.quantity, 0),
+  variantIds: cart.items.map((i) => i.variantId),
+})
+
+/**
+ * Adds a line and returns the new bag. No page re-render: nothing a shopper
+ * adds from (product, listing, account pages) renders the bag on the server,
+ * and the bag and checkout pages are always rendered fresh on arrival. The
+ * caller passes `bag` to notifyCartUpdated so the header needs no refetch.
+ */
 export async function addToCart(input: {
   variantId: string
   quantity: number
   countryCode: string
-}): Promise<CartActionResult> {
+}): Promise<CartActionResult & { bag?: { count: number; variantIds: string[] } }> {
   try {
     const cart = await cartFor(input.countryCode)
+    const body = { variantId: input.variantId, quantity: input.quantity }
+    let updated: Cart
     try {
-      await cartApi(`/store/carts/${cart.id}/items`, { method: "POST", body: { variantId: input.variantId, quantity: input.quantity } })
+      updated = (await cartApi<{ cart: Cart }>(`/store/carts/${cart.id}/items`, { method: "POST", body })).cart
     } catch (e) {
       // The bag was checked out elsewhere: start a new one and retry once.
       if (!(e instanceof ApiError && e.code === "cart_completed")) throw e
       const fresh = await createCart(input.countryCode)
-      await cartApi(`/store/carts/${fresh.id}/items`, { method: "POST", body: { variantId: input.variantId, quantity: input.quantity } })
+      updated = (await cartApi<{ cart: Cart }>(`/store/carts/${fresh.id}/items`, { method: "POST", body })).cart
     }
+    return { error: null, bag: snapshot(updated) }
   } catch (e) {
     return { error: message(e) }
   }
-  refresh()
-  return { error: null }
 }
 
-/** Re-renders pages that show the bag (cart page, checkout) after a change. */
-const refresh = () => revalidatePath("/", "layout")
+/**
+ * Re-renders the current page (the bag or checkout that made the change)
+ * in the action's own response. Only this route: unlike revalidatePath("/",
+ * "layout"), it keeps the cached catalog and the browser's prefetched pages.
+ */
+const refresh = () => refreshRoute()
 
 const EXPIRED = "Your bag has expired. Please add the items again."
 

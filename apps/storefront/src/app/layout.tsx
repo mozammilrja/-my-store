@@ -1,6 +1,8 @@
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { getSiteMedia } from "@lib/data/site-media"
 import { getBaseURL } from "@lib/util/env"
+import { SiteMediaProvider } from "@lib/util/site-media"
 import { STORE_NAME } from "@lib/util/site"
 import { Metadata, Viewport } from "next"
 import { Cormorant_Garamond, Inter } from "next/font/google"
@@ -43,17 +45,24 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
 }
 
-export default function RootLayout(props: { children: React.ReactNode }) {
+export default async function RootLayout(props: { children: React.ReactNode }) {
+  const media = await getSiteMedia()
   return (
     <html
       lang="en"
       data-mode="light"
       className={`${inter.variable} ${display.variable}`}
     >
+      <head>
+        {/* The icon font is small (see scripts/build-icon-font.py) and used above the fold on every page. */}
+        <link rel="preload" href="/fonts/material-symbols-outlined.woff2" as="font" type="font/woff2" crossOrigin="" />
+      </head>
       <body>
-        <TooltipProvider>
-          <main className="relative">{props.children}</main>
-        </TooltipProvider>
+        <SiteMediaProvider media={media}>
+          <TooltipProvider>
+            <main className="relative">{props.children}</main>
+          </TooltipProvider>
+        </SiteMediaProvider>
         <Toaster position="bottom-right" />
       </body>
     </html>

@@ -17,10 +17,10 @@ const api = new URL(API_PUBLIC_URL)
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' https://checkout.razorpay.com${isProd ? "" : " 'unsafe-eval'"}`,
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src 'self' 'unsafe-inline'",
   // OpenStreetMap tiles for the order-tracking map.
   `img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.razorpay.com https://*.tile.openstreetmap.org ${api.origin}`,
-  "font-src 'self' data: https://fonts.gstatic.com",
+  "font-src 'self' data:",
   `connect-src 'self' https://api.razorpay.com${isProd ? "" : " ws: wss:"}`,
   "frame-src 'self' https://checkout.razorpay.com",
   "frame-ancestors 'none'",

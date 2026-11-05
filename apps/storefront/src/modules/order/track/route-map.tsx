@@ -55,7 +55,7 @@ export default function RouteMap({ focus, origin, destination }: { focus: MapPoi
     >
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" className="grayscale contrast-[1.05] brightness-[1.04]" />
       {origin && destination && (
-        <Polyline positions={[[origin.lat, origin.lng], [destination.lat, destination.lng]]} pathOptions={{ color: "#913b94", weight: 2.5, dashArray: "6 6", opacity: 0.9 }} />
+        <Polyline positions={[[origin.lat, origin.lng], [destination.lat, destination.lng]]} pathOptions={{ color: "#1b1c1b", weight: 2.5, dashArray: "6 6", opacity: 0.9 }} />
       )}
       {origin && (
         <Marker position={[origin.lat, origin.lng]} icon={dot("origin")} keyboard={false}>

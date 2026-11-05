@@ -1,10 +1,8 @@
 "use client"
 
-import { retrieveCart } from "@lib/data/shop"
-import { CART_UPDATED_EVENT } from "@lib/util/cart-events"
+import { fetchBag, onCartUpdated } from "@lib/util/cart-events"
 import { useWishlist } from "@lib/util/wishlist"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { AccountMenu } from "./account-menu"
 
@@ -24,30 +22,22 @@ export function HeaderIcons({
 }) {
   const { count: wishlist } = useWishlist()
   const [bag, setBag] = useState(initialBag)
-  const pathname = usePathname()
-
-  // Re-read the bag on every navigation, when the tab regains focus, and
-  // whenever anything changes it, so one failed request can't leave the
-  // badge stale for the rest of the visit.
+  // The server rendered the count; after that it changes only when this tab
+  // changes the bag (the event carries the new bag) or another tab might
+  // have (re-read when this tab is shown again). Reads go through /api/bag,
+  // never a server action, so they can't hold up a click.
   useEffect(() => {
     let alive = true
-    const load = () => {
-      retrieveCart()
-        .then((cart) => alive && setBag(cart?.items.reduce((n, i) => n + i.quantity, 0) ?? 0))
-        .catch(() => {})
-    }
-    load()
-    const onVisible = () => document.visibilityState === "visible" && load()
-    window.addEventListener(CART_UPDATED_EVENT, load)
-    window.addEventListener("focus", load)
+    const apply = (b: { count: number } | null) => alive && b && setBag(b.count)
+    const onVisible = () => document.visibilityState === "visible" && void fetchBag().then(apply)
+    const off = onCartUpdated(apply)
     document.addEventListener("visibilitychange", onVisible)
     return () => {
       alive = false
-      window.removeEventListener(CART_UPDATED_EVENT, load)
-      window.removeEventListener("focus", load)
+      off()
       document.removeEventListener("visibilitychange", onVisible)
     }
-  }, [pathname])
+  }, [])
 
   const icon =
     "relative flex items-center p-2 rounded text-on-surface-variant hover:text-on-surface transition-colors"

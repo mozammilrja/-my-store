@@ -38,6 +38,7 @@ export const toOrderSummary = (o: OrderDoc) => ({
         labelUrl: o.shipment.labelUrl,
         pickupScheduledAt: o.shipment.pickupScheduledAt?.toISOString(),
         estimatedDelivery: o.shipment.estimatedDelivery?.toISOString(),
+        deliveredAt: o.shipment.deliveredAt?.toISOString(),
       }
     : undefined,
   returnRequest: o.returnRequest
@@ -185,10 +186,35 @@ customerRoutes.post("/customers/me/orders/:id/returns", async (req, res) => {
   if (!order) throw notFound("Order")
 
   const now = new Date()
+  if (order.status === "canceled") throw badRequest("A canceled order can't be returned.", "not_returnable")
+  if (order.fulfillmentStatus !== "delivered") throw badRequest("Returns open once the order has been delivered.", "not_returnable")
+  // A rejected request may be filed again; any other one is still in progress or done.
+  if (order.returnRequest && order.returnRequest.status !== "rejected") {
+    throw conflict("A return has already been requested for this order.", "return_exists")
+  }
+  const region = await db.regions().findOne({ _id: order.regionId })
+  const windowDays = region?.policies?.returnWindowDays
+  const deliveredAt = order.shipment?.deliveredAt
+  if (windowDays !== undefined && deliveredAt && now.getTime() - deliveredAt.getTime() > windowDays * 86_400_000) {
+    throw badRequest(`The ${windowDays}-day return window for this order has closed.`, "return_window_closed")
+  }
+
+  // Each requested line must be on the order, at most once, within what was bought.
+  const lines = new Map(order.items.map((i) => [i._id, i.quantity]))
+  const items = body.items ?? order.items.map((i) => ({ itemId: i._id, quantity: i.quantity }))
+  if (!items.length) throw badRequest("Choose at least one item to return.")
+  const seen = new Set<string>()
+  for (const item of items) {
+    const bought = lines.get(item.itemId)
+    if (bought === undefined || seen.has(item.itemId)) throw badRequest("That item isn't on this order.")
+    if (item.quantity > bought) throw badRequest("You can't return more than you bought.")
+    seen.add(item.itemId)
+  }
+
   const returnRequest = {
     status: "requested" as const,
     reason: body.reason,
-    items: body.items ?? order.items.map((i) => ({ itemId: i._id, quantity: i.quantity })),
+    items,
     requestedAt: now,
     updatedAt: now,
   }

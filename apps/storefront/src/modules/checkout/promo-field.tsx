@@ -3,7 +3,6 @@
 import { applyPromotions } from "@lib/data/shop"
 import { notifyCartUpdated } from "@lib/util/cart-events"
 import { MIcon } from "./m-icon"
-import { useRouter } from "next/navigation"
 import { type FormEvent, useState } from "react"
 
 /**
@@ -18,7 +17,6 @@ export function PromoField({
   applied: string[]
   variant: "address" | "delivery" | "shipping" | "payment"
 }) {
-  const router = useRouter()
   const [code, setCode] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -32,8 +30,8 @@ export function PromoField({
       setError(result.error)
       return false
     }
+    // applyPromotions re-renders this page in its own response.
     notifyCartUpdated()
-    router.refresh()
     return true
   }
 

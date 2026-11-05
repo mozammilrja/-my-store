@@ -1,5 +1,6 @@
 "use client"
 
+import { useSiteImage } from "@lib/util/site-media"
 import { ensureOk } from "@lib/util/cart-action"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
@@ -74,6 +75,7 @@ const PRODUCTS = [
 ]
 
 export function ModernHeritageWardrobe() {
+  const img = useSiteImage()
   const router = useRouter()
   const params = useParams()
   const countryCode = (params?.countryCode as string) || "in"
@@ -160,7 +162,7 @@ export function ModernHeritageWardrobe() {
               className="relative aspect-[3/4] bg-surface-container-low overflow-hidden block"
             >
               <Image
-                src={prod.image}
+                src={img(prod.image)}
                 alt={prod.title}
                 fill
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"

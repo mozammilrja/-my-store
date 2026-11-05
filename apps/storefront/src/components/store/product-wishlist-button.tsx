@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { useProductWishlist } from "@lib/util/wishlist"
+import { useSavedProduct } from "@lib/util/wishlist"
 import { HeartIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -24,9 +24,7 @@ export function ProductWishlistButton({
   appearance = "icon",
   className,
 }: ProductWishlistButtonProps) {
-  const { isSaved, isPending, toggle } = useProductWishlist()
-  const saved = isSaved(productId)
-  const pending = isPending(productId)
+  const { saved, pending, toggle } = useSavedProduct(productId)
 
   const onClick = async (event: React.MouseEvent) => {
     // The whole image is a link; saving must not follow it.

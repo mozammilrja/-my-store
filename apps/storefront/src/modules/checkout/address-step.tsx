@@ -73,7 +73,6 @@ export function AddressStep({
   // Signed-in shoppers pick a saved card; the form opens to add or edit one.
   // Guests (and accounts with no saved address) always fill the form.
   const [editing, setEditing] = useState<{ kind: "new" } | { kind: "edit"; id: string } | null>(null)
-  const formOpen = !signedIn || saved.length === 0 || editing !== null
   const usingForm = !signedIn || saved.length === 0
 
   const initial = (usingForm ? cart.shippingAddress : null) ?? null
@@ -180,7 +179,6 @@ export function AddressStep({
       toast.success(editing?.kind === "edit" ? "Address updated" : "Address saved to your account")
       if (editing?.kind === "new") setSelectNewest(true)
       setEditing(null)
-      router.refresh()
     })
   }
 
@@ -195,7 +193,6 @@ export function AddressStep({
       if (selectedId === a.id) setSelectedId(saved.find((x) => x.id !== a.id)?.id ?? null)
       if (editing?.kind === "edit" && editing.id === a.id) setEditing(null)
       toast.success("Address removed")
-      router.refresh()
     })
   }
 
@@ -204,7 +201,6 @@ export function AddressStep({
       const result = await setDefaultAddress(a.id)
       if (result.error) return fail(result.error)
       toast.success("Default address updated")
-      router.refresh()
     })
   }
 

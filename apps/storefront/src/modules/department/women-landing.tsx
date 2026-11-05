@@ -1,4 +1,5 @@
 import Image from "next/image"
+import { siteImages } from "@lib/data/site-media"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { ProductListing } from "@modules/catalog/product-listing"
 import type { Listing } from "@modules/catalog/params"
@@ -36,7 +37,7 @@ const WOMEN_SUBCATEGORIES = [
   },
 ]
 
-export function WomenDepartmentLanding({
+export async function WomenDepartmentLanding({
   countryCode,
   category,
   categories,
@@ -47,6 +48,7 @@ export function WomenDepartmentLanding({
   categories?: Category[]
   listing: Listing
 }) {
+  const img = await siteImages()
   return (
     <div className="flex flex-col w-full pb-16">
       {/* Top Breadcrumb Bar */}
@@ -68,7 +70,7 @@ export function WomenDepartmentLanding({
           <div
             className="w-full min-h-[460px] md:min-h-[520px] bg-cover bg-center flex flex-col justify-end p-6 sm:p-10 md:p-14 relative"
             style={{
-              backgroundImage: "url('/images/women/monsoon-capsule.jpg')",
+              backgroundImage: `url('${img("/images/women/monsoon-capsule.jpg")}')`,
             }}
           >
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
@@ -168,7 +170,7 @@ export function WomenDepartmentLanding({
             >
               <div className="relative w-full aspect-[4/3] bg-surface-container-low overflow-hidden">
                 <Image
-                  src={sub.image}
+                  src={img(sub.image)}
                   alt={sub.title}
                   fill
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 25vw"

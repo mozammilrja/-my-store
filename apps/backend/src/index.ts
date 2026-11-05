@@ -2,11 +2,13 @@ import { createApp } from "./app.js"
 import { connect, disconnect } from "./db/client.js"
 import { ensureIndexes, syncOrderCounter } from "./db/schema.js"
 import { env } from "./env.js"
+import { ensureSiteMedia } from "./lib/site-media.js"
 import { processOutboxEvents, expireStaleReservations } from "./lib/outbox-worker.js"
 
 await connect()
 await ensureIndexes()
 await syncOrderCounter()
+await ensureSiteMedia()
 
 const outboxTimer = setInterval(async () => {
   try {

@@ -29,6 +29,7 @@ export const ReturnsAndExchanges = lazyDefault(
   () => import('./components/returns/ReturnsAndExchanges'),
   'ReturnsAndExchanges'
 );
+export const SiteMedia = lazyDefault(() => import('./components/content/SiteMedia'), 'SiteMedia');
 export const InventoryWarehouseManagement = lazyDefault(
   () => import('./components/inventory/InventoryWarehouseManagement')
 );
@@ -100,6 +101,12 @@ export const MENU_SECTIONS = [
         label: 'Categories & Collections',
         icon: 'folder_open',
         element: CategoriesAndCollections,
+      },
+      {
+        path: 'site-media',
+        label: 'Site Media',
+        icon: 'photo_library',
+        element: SiteMedia,
       },
       {
         path: 'inventory-and-warehouses',

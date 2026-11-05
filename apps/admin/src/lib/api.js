@@ -236,6 +236,11 @@ export const adminApi = {
   deleteProduct: (id) => api(`/admin/products/${id}`, { method: 'DELETE' }),
   uploadImage,
 
+  // Site media (storefront banners and editorial images)
+  siteMedia: () => api('/admin/site-media'),
+  updateSiteMedia: (key, body) => api(`/admin/site-media/${encodeURIComponent(key)}`, { method: 'PATCH', body }),
+  resetSiteMedia: (key) => api(`/admin/site-media/${encodeURIComponent(key)}/reset`, { method: 'POST' }),
+
   // Customers
   customers: (params = {}) => api('/admin/customers', { query: params }),
   customer: (id) => api(`/admin/customers/${id}`),

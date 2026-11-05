@@ -1,11 +1,16 @@
 "use client"
 
+import { useSiteImage } from "@lib/util/site-media"
 import { useState } from "react"
+import Image from "next/image"
 import { Icon } from "@/components/ui/icon"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { toast } from "sonner"
 
+const HERO = "/images/editorial/hero-editorial.jpg"
+
 export function WelcomeExperienceBanner() {
+  const img = useSiteImage()
   const [copied, setCopied] = useState(false)
   const [dismissed, setDismissed] = useState(false)
 
@@ -42,10 +47,12 @@ export function WelcomeExperienceBanner() {
     >
       <div className="relative w-full rounded-2xl overflow-hidden bg-primary text-white border border-border/40 shadow-md">
         {/* Editorial Background Image with Gradient Overlay */}
-        <div
-          className="absolute inset-0 bg-cover bg-center transition-transform duration-700 hover:scale-105"
-          style={{ backgroundImage: "url('/images/editorial/hero-editorial.jpg')" }}
-        />
+        {/* The home page's largest paint: a real <img> (not a CSS background) so
+            the browser finds it in the HTML and fetches it first. object-cover
+            crops exactly like the bg-cover background it replaces. */}
+        <div className="absolute inset-0 transition-transform duration-700 hover:scale-105">
+          <Image src={img(HERO)} alt="" fill loading="eager" fetchPriority="high" sizes="100vw" className="object-cover object-center" />
+        </div>
         <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/80 to-black/40 sm:to-black/30" />
         <div className="absolute inset-0 bg-radial-[at_top_right] from-secondary/15 via-transparent to-transparent pointer-events-none" />
 

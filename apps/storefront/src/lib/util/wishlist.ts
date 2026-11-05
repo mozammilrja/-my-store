@@ -1,9 +1,9 @@
 "use client"
 
 import { useCallback, useSyncExternalStore } from "react"
+import type { WishlistState } from "@lib/data/wishlist"
 import {
   addToWishlist,
-  getWishlist,
   mergeGuestWishlist,
   removeFromWishlist,
 } from "@lib/data/wishlist"
@@ -86,7 +86,11 @@ async function bootstrap() {
   if (local.length) set({ ids: local })
 
   try {
-    const state = await getWishlist()
+    // A GET, not the getWishlist server action: it runs on every page load,
+    // and a queued action would hold up the shopper's first click.
+    const res = await fetch("/api/wishlist", { cache: "no-store", credentials: "same-origin" })
+    if (!res.ok) throw new Error(`wishlist ${res.status}`)
+    const state = (await res.json()) as WishlistState
     if (!state.authenticated) {
       // Re-read: a save made while this was in flight is already on disk, and
       // using the list captured above would silently drop it.
@@ -211,6 +215,21 @@ export function useProductWishlist() {
     remove: removeWishlistItem,
     add: addWishlistItem,
   }
+}
+
+/**
+ * One product's saved / pending state. Subscribes to just that product, so
+ * saving one card re-renders only its own heart, not every card on the grid.
+ */
+export function useSavedProduct(productId: string) {
+  // 0 = not saved, 1 = saved, 2/3 = the same while a write is in flight: a
+  // primitive snapshot, so React skips re-renders when this product is unchanged.
+  const code = useSyncExternalStore(
+    subscribe,
+    () => (snapshot.ids.includes(productId) ? 1 : 0) + (snapshot.pending.includes(productId) ? 2 : 0),
+    () => 0
+  )
+  return { saved: (code & 1) === 1, pending: (code & 2) === 2, toggle: toggleWishlist }
 }
 
 /** The shape the header badge, account nav, bag and product page already use. */

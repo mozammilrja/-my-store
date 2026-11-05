@@ -1,6 +1,9 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { refresh, revalidatePath } from "next/cache"
+// Signing in or out changes whose pages these are, so those purge every
+// cached route (revalidatePath "/" layout). Edits to the account only
+// re-render the page that made them (refresh).
 import { api, ApiError } from "../api/client"
 import type { Address, Customer, Invoice, Order, OrderSummary } from "../api/types"
 import { getOrderAccess, getToken, removeCartId, removeToken, setToken } from "./session"
@@ -83,7 +86,7 @@ export async function updateProfile(_: ActionResult, form: FormData): Promise<Ac
   } catch (e) {
     return { error: message(e) }
   }
-  revalidatePath("/", "layout")
+  refresh()
   return { error: null }
 }
 
@@ -126,7 +129,7 @@ export async function saveAddress(_: AddressActionResult, form: FormData): Promi
   } catch (e) {
     return { error: message(e) }
   }
-  revalidatePath("/", "layout")
+  refresh()
   return { error: null }
 }
 
@@ -137,13 +140,13 @@ export async function setDefaultAddress(addressId: string): Promise<ActionResult
   } catch (e) {
     return { error: message(e) }
   }
-  revalidatePath("/", "layout")
+  refresh()
   return { error: null }
 }
 
 export async function deleteAddress(addressId: string) {
   await api(`/store/customers/me/addresses/${encodeURIComponent(addressId)}`, { method: "DELETE", token: await authed() })
-  revalidatePath("/", "layout")
+  refresh()
 }
 
 export async function listOrders(): Promise<OrderSummary[]> {
@@ -157,7 +160,7 @@ export async function requestReturn(orderId: string, reason: string, items?: { i
       token: await authed(),
       body: { reason, items },
     })
-    revalidatePath("/", "layout")
+    refresh()
     return { error: null }
   } catch (e) {
     return { error: message(e) }

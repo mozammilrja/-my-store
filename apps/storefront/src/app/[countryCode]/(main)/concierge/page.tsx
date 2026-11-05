@@ -1,4 +1,5 @@
 import { Metadata } from "next"
+import { siteImages } from "@lib/data/site-media"
 import Image from "next/image"
 
 import { STORE_NAME } from "@lib/util/site"
@@ -20,7 +21,8 @@ const PILLARS = [
 ]
 
 /** Everwear Concierge: services, booking, stylists, fitting protocol and FAQ. */
-export default function ConciergePage() {
+export default async function ConciergePage() {
+  const img = await siteImages()
   return (
     <div className="flex w-full flex-col bg-surface" data-testid="concierge-page">
       {/* Breadcrumb + hero */}
@@ -76,10 +78,11 @@ export default function ConciergePage() {
 
           <div className="group relative h-[380px] w-full overflow-hidden rounded-xl shadow-sm lg:col-span-5 lg:h-auto">
             <Image
-              src="/images/concierge/hero-salon.jpg"
+              src={img("/images/concierge/hero-salon.jpg")}
               alt="A stylist curating tailored garments on brass rails in a sunlit showroom"
               fill
-              priority
+              loading="eager"
+              fetchPriority="high"
               sizes="(min-width: 1024px) 40vw, 100vw"
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
             />

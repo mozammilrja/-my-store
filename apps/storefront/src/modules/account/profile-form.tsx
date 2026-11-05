@@ -1,5 +1,6 @@
 "use client"
 
+import { useSiteImage } from "@lib/util/site-media"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { Customer } from "@lib/api/types"
@@ -18,6 +19,7 @@ export function ProfileForm({
   customer: Customer
   ordersCount?: number
 }) {
+  const img = useSiteImage()
   const [isEditing, setIsEditing] = useState(false)
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
   const [smsAlerts, setSmsAlerts] = useState(true)
@@ -193,7 +195,7 @@ export function ProfileForm({
                   </div>
                 ) : (
                   <Image
-                    src={imageError ? DEFAULT_AVATAR : avatarUrl}
+                    src={img(imageError ? DEFAULT_AVATAR : avatarUrl)}
                     alt={fullName}
                     fill
                     sizes="128px"
@@ -398,7 +400,7 @@ export function ProfileForm({
                     }`}
                   >
                     <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-container border border-surface-container-high relative shrink-0">
-                      <Image src={DEFAULT_AVATAR} alt="Default Avatar" fill sizes="40px" className="object-cover" />
+                      <Image src={img(DEFAULT_AVATAR)} alt="Default Avatar" fill sizes="40px" className="object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
@@ -451,7 +453,7 @@ export function ProfileForm({
                   >
                     <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-container-high border border-outline-variant flex items-center justify-center relative shrink-0">
                       {avatarStyle === "custom" ? (
-                        <Image src={avatarUrl} alt="Custom avatar" fill sizes="40px" className="object-cover" />
+                        <Image src={img(avatarUrl)} alt="Custom avatar" fill sizes="40px" className="object-cover" />
                       ) : (
                         <span className="material-symbols-outlined text-[18px] text-on-surface-variant">photo_camera</span>
                       )}

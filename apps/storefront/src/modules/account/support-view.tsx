@@ -270,19 +270,18 @@ export function SupportView() {
         {/* Right Column (1 Col) */}
         <div className="flex flex-col gap-space-lg">
           {/* Instant Assistance Card */}
-          <div className="bg-primary text-on-primary p-space-lg rounded-xl shadow-md flex flex-col justify-between relative overflow-hidden">
-            <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-secondary/20 rounded-full blur-2xl pointer-events-none" />
+          <div className="bg-surface-container-low text-on-surface p-space-lg rounded-xl border border-surface-container-high flex flex-col justify-between relative overflow-hidden">
             <div className="relative z-10">
-              <div className="w-12 h-12 rounded-lg bg-surface-container-lowest/10 flex items-center justify-center mb-space-md backdrop-blur-sm">
+              <div className="w-12 h-12 rounded-lg bg-surface-container-lowest border border-surface-container-high flex items-center justify-center mb-space-md text-primary">
                 <span className="material-symbols-outlined text-[26px]">forum</span>
               </div>
-              <span className="font-label-caps text-label-caps text-secondary-fixed uppercase tracking-widest font-bold">
+              <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest font-bold">
                 Instant Assistance
               </span>
-              <h3 className="font-headline-sm text-headline-sm font-semibold mt-1">
+              <h3 className="font-headline-sm text-headline-sm font-semibold text-primary mt-1">
                 Initiate Live Chat
               </h3>
-              <p className="font-body-sm text-body-sm text-on-primary/80 mt-2">
+              <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
                 Connect instantly with an available atelier stylist for personalized sizing, styling advisories, or order modifications.
               </p>
             </div>
@@ -290,7 +289,7 @@ export function SupportView() {
               <button
                 type="button"
                 onClick={() => toast.success("Connecting to next available atelier stylist...")}
-                className="w-full h-11 bg-surface-container-lowest text-on-surface hover:bg-surface-container-low font-label-sm text-label-sm uppercase font-semibold rounded transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full h-11 bg-primary text-on-primary hover:bg-inverse-surface font-label-sm text-label-sm uppercase font-semibold rounded transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[18px]">chat</span>
                 Start Live Chat

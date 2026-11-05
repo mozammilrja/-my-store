@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/ui/icon"
 import { cn } from "@/lib/utils"
 import type { Product, Variant } from "@lib/api/types"
-import { addToCart, retrieveCart } from "@lib/data/shop"
+import { addToCart } from "@lib/data/shop"
 import { formatMoney } from "@lib/money"
-import { CART_UPDATED_EVENT, notifyCartUpdated } from "@lib/util/cart-events"
-import { useWishlist } from "@lib/util/wishlist"
+import { fetchBag, notifyCartUpdated, onCartUpdated } from "@lib/util/cart-events"
+import { useSavedProduct } from "@lib/util/wishlist"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import {
   ArrowRightIcon,
@@ -78,19 +78,17 @@ export function PurchasePanel({ product }: { product: Product }) {
   const [inBag, setInBag] = useState<ReadonlySet<string>>(new Set())
 
   useEffect(() => {
-    const load = () =>
-      retrieveCart()
-        .then((cart) =>
-          setInBag(new Set(cart?.items.map((i) => i.variantId) ?? []))
-        )
-        .catch(() => {})
-    load()
-    window.addEventListener(CART_UPDATED_EVENT, load)
-    return () => window.removeEventListener(CART_UPDATED_EVENT, load)
+    let alive = true
+    const apply = (b: { variantIds: string[] } | null) => alive && b && setInBag(new Set(b.variantIds))
+    void fetchBag().then(apply)
+    const off = onCartUpdated(apply)
+    return () => {
+      alive = false
+      off()
+    }
   }, [])
   const lock = useRef(false)
-  const { isSaved, toggle: toggleWishlist } = useWishlist()
-  const saved = isSaved(product.id)
+  const { saved, toggle: toggleWishlist } = useSavedProduct(product.id)
 
   const handleWishlist = async () => {
     try {
@@ -141,11 +139,10 @@ export function PurchasePanel({ product }: { product: Product }) {
     lock.current = true
     setAdding(true)
     try {
-      ensureOk(
-        await addToCart({ variantId: selected.id, quantity: 1, countryCode })
-      )
+      const result = await addToCart({ variantId: selected.id, quantity: 1, countryCode })
+      ensureOk(result)
       setInBag((ids) => new Set(ids).add(selected.id))
-      notifyCartUpdated()
+      notifyCartUpdated(result.bag)
       setAdded(true)
       setTimeout(() => setAdded(false), 2000)
       toast.success(`${product.title} added to your bag`)
@@ -376,11 +373,11 @@ export function PurchasePanel({ product }: { product: Product }) {
           className={cn(
             "h-12 gap-2 border-border bg-surface-container-lowest",
             saved &&
-              "border-[#913b94]/50 text-[#913b94] hover:bg-[#913b94]/5 hover:text-[#913b94]"
+              "border-primary/50 text-primary hover:bg-primary/5 hover:text-primary"
           )}
         >
           <HeartIcon
-            className={cn(saved && "fill-[#913b94] text-[#913b94]")}
+            className={cn(saved && "fill-primary text-primary")}
             aria-hidden
           />
           {saved ? "Wishlisted" : "Wishlist"}

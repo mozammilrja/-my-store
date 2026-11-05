@@ -1,23 +1,22 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { Customer, OrderSummary } from "@lib/api/types"
-import { requestReturn } from "@lib/data/account"
 import { formatMoney } from "@lib/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
-import { useMemo, useState, useTransition } from "react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
-import { StoreSelect } from "@/components/store/store-select"
+import { ReturnRequestDialog } from "./return-request-dialog"
 
 export function ReturnsView({
   customer,
   orders,
+  returnWindowDays = null,
 }: {
   customer: Customer
   orders: OrderSummary[]
+  returnWindowDays?: number | null
 }) {
   const searchParams = useSearchParams()
   const preselectedOrderId = searchParams.get("orderId")
@@ -26,16 +25,21 @@ export function ReturnsView({
   const [selectedOrderId, setSelectedOrderId] = useState<string>(
     preselectedOrderId ?? orders[0]?.id ?? ""
   )
-  const [requestType, setRequestType] = useState<"refund" | "exchange">("refund")
-  const [reason, setReason] = useState("Size is too large")
   const [activeTab, setActiveTab] = useState<"active" | "completed" | "eligible">("active")
   const [searchQuery, setSearchQuery] = useState("")
-  const [isPending, startTransition] = useTransition()
 
-  // Eligible orders: delivered or completed within return window
+  // Returnable: delivered, not canceled, no request in progress (a rejected
+  // one may be filed again) and, when the delivery date is known, inside the window.
+  const [now] = useState(() => Date.now())
   const eligibleOrders = useMemo(() => {
-    return orders.filter((o) => o.status !== "canceled" && o.fulfillmentStatus === "delivered")
-  }, [orders])
+    return orders.filter((o) => {
+      if (o.status === "canceled" || o.fulfillmentStatus !== "delivered") return false
+      if (o.returnRequest && o.returnRequest.status !== "rejected") return false
+      const delivered = o.shipment?.deliveredAt ? Date.parse(o.shipment.deliveredAt) : NaN
+      if (returnWindowDays && !Number.isNaN(delivered) && now - delivered > returnWindowDays * 86_400_000) return false
+      return true
+    })
+  }, [orders, returnWindowDays, now])
 
   // Active returns
   const activeReturnOrders = useMemo(() => {
@@ -54,25 +58,6 @@ export function ReturnsView({
   }, [orders])
 
   const totalRefunded = completedReturnOrders.reduce((sum, o) => sum + o.total, 0)
-  const defaultAddress = customer.addresses[0] ?? null
-
-  const handleReturnSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedOrderId) {
-      toast.error("Please select an order to return")
-      return
-    }
-
-    startTransition(async () => {
-      const res = await requestReturn(selectedOrderId, `${requestType.toUpperCase()}: ${reason}`)
-      if (res.error) {
-        toast.error(res.error)
-      } else {
-        toast.success("Return request successfully generated! Courier pickup scheduled.")
-        setModalOpen(false)
-      }
-    })
-  }
 
   // Filter list by query
   const displayedActive = activeReturnOrders.filter((o) =>
@@ -486,154 +471,15 @@ export function ReturnsView({
         </div>
       )}
 
-      {/* 7. Initiate Return / Exchange Modal Wireframe */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-2xl bg-surface-container-lowest p-0 rounded-2xl overflow-hidden shadow-2xl border border-surface-container-high max-h-[90vh] flex flex-col">
-          <DialogHeader className="p-space-lg border-b border-surface-container-high bg-surface-container-low">
-            <span className="font-label-caps text-label-caps text-secondary font-bold uppercase tracking-wider block">
-              Atelier Concierge
-            </span>
-            <DialogTitle className="font-headline-lg text-headline-lg text-on-surface font-semibold mt-0.5">
-              Initiate Return or Exchange
-            </DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleReturnSubmit} className="p-space-lg overflow-y-auto flex-1 flex flex-col gap-space-lg">
-            {/* Step 1: Select Order */}
-            <div>
-              <label htmlFor="return-order" className="font-label-caps text-label-caps text-on-surface uppercase block mb-2 font-semibold">
-                1. Select Order &amp; Item to Return
-              </label>
-              <StoreSelect
-                id="return-order"
-                className="px-3 rounded-lg bg-surface-container"
-                value={selectedOrderId}
-                onValueChange={setSelectedOrderId}
-                options={orders.map((o) => ({
-                  value: o.id,
-                  label: `#EVR-${o.displayId} \u2014 ${o.items?.[0]?.productTitle ?? "Atelier Order"} (${formatMoney(o.total, o.currency)})`,
-                }))}
-              />
-            </div>
-
-            {/* Step 2: Request Type */}
-            <div>
-              <label className="font-label-caps text-label-caps text-on-surface uppercase block mb-2 font-semibold">
-                2. Select Request Type
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label
-                  onClick={() => setRequestType("refund")}
-                  className={`border rounded-xl p-4 flex items-center gap-3 cursor-pointer transition-colors ${
-                    requestType === "refund"
-                      ? "border-primary bg-surface-container-lowest shadow-2xs"
-                      : "border-surface-container-high bg-surface-container-low hover:border-primary"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="request_type"
-                    checked={requestType === "refund"}
-                    onChange={() => setRequestType("refund")}
-                    className="accent-primary"
-                  />
-                  <div>
-                    <span className="font-label-md text-label-md font-semibold text-on-surface block">Return &amp; Refund</span>
-                    <span className="text-xs text-on-surface-variant">Original payment source</span>
-                  </div>
-                </label>
-
-                <label
-                  onClick={() => setRequestType("exchange")}
-                  className={`border rounded-xl p-4 flex items-center gap-3 cursor-pointer transition-colors ${
-                    requestType === "exchange"
-                      ? "border-primary bg-surface-container-lowest shadow-2xs"
-                      : "border-surface-container-high bg-surface-container-low hover:border-primary"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="request_type"
-                    checked={requestType === "exchange"}
-                    onChange={() => setRequestType("exchange")}
-                    className="accent-primary"
-                  />
-                  <div>
-                    <span className="font-label-md text-label-md font-semibold text-on-surface block">Size / Color Exchange</span>
-                    <span className="text-xs text-on-surface-variant">Priority replacement</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {/* Step 3: Return Reason */}
-            <div>
-              <label htmlFor="return-reason" className="font-label-caps text-label-caps text-on-surface uppercase block mb-2 font-semibold">
-                3. Primary Reason for Return
-              </label>
-              <StoreSelect
-                id="return-reason"
-                className="px-3 rounded-lg bg-surface-container"
-                value={reason}
-                onValueChange={setReason}
-                options={[
-                  "Size is too large",
-                  "Size is too small",
-                  "Fabric texture / color differs from expectations",
-                  "Received defective or flawed garment",
-                  "Other styling preference",
-                ].map((r) => ({ value: r, label: r }))}
-              />
-            </div>
-
-            {/* Step 4: Pickup Address */}
-            <div>
-              <label className="font-label-caps text-label-caps text-on-surface uppercase block mb-2 font-semibold">
-                4. Complimentary Home Pickup Address
-              </label>
-              <div className="p-4 rounded-xl bg-surface-container-low flex items-center justify-between border border-surface-container-high">
-                <div>
-                  <p className="font-label-md text-label-md font-semibold text-on-surface">
-                    {defaultAddress
-                      ? `${defaultAddress.firstName} ${defaultAddress.lastName} (Primary Atelier Residence)`
-                      : customer.email}
-                  </p>
-                  <p className="text-xs text-on-surface-variant mt-0.5">
-                    {defaultAddress
-                      ? `${defaultAddress.address1}, ${defaultAddress.city} - ${defaultAddress.postalCode}`
-                      : "Standard pickup will be coordinated via phone confirmation"}
-                  </p>
-                </div>
-                <LocalizedClientLink
-                  href="/account/addresses"
-                  className="text-primary font-label-sm uppercase font-bold hover:underline text-xs"
-                >
-                  Change
-                </LocalizedClientLink>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-space-md border-t border-surface-container-high bg-surface-container-low flex items-center justify-end gap-3 -mx-space-lg -mb-space-lg mt-space-md">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setModalOpen(false)}
-                className="h-10 px-5 rounded uppercase font-label-sm text-label-sm"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isPending}
-                className="h-10 px-6 bg-primary text-on-primary hover:bg-inverse-surface rounded uppercase font-label-sm text-label-sm font-semibold"
-              >
-                {isPending ? "Scheduling..." : "Confirm & Schedule Pickup"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <ReturnRequestDialog
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        orders={eligibleOrders}
+        orderId={selectedOrderId}
+        onOrderChange={setSelectedOrderId}
+        customer={customer}
+        returnWindowDays={returnWindowDays}
+      />
     </div>
   )
 }

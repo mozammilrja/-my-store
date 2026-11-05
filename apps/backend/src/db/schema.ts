@@ -129,6 +129,20 @@ export type AdminUserDoc = {
   updatedAt: Date
 }
 
+/** One storefront image slot (see lib/site-media.ts); `_id` is its original path under /images/. */
+export type SiteMediaDoc = {
+  _id: string
+  label: string
+  group: string
+  usedOn: string[]
+  /** Sidebar order in the admin. */
+  order: number
+  /** What the storefront shows: an /uploads/ path, a shipped /images/ path, or an https URL. */
+  url: string
+  createdAt: Date
+  updatedAt: Date
+}
+
 /** One document, id `store`: the knobs an owner can turn without a deploy. */
 export type SettingsDoc = {
   _id: string
@@ -648,6 +662,7 @@ export const db = {
   creditNotes: (): Collection<CreditNoteDoc> => getDb().collection("credit_notes"),
   counters: (): Collection<CounterDoc> => getDb().collection("counters"),
   settings: (): Collection<SettingsDoc> => getDb().collection("settings"),
+  siteMedia: (): Collection<SiteMediaDoc> => getDb().collection("site_media"),
   warehouses: (): Collection<WarehouseDoc> => getDb().collection("warehouses"),
   inventoryReservations: (): Collection<InventoryReservationDoc> => getDb().collection("inventory_reservations"),
   inventoryMovements: (): Collection<InventoryMovementDoc> => getDb().collection("inventory_movements"),

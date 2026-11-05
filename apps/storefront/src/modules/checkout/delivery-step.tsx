@@ -57,8 +57,8 @@ export function DeliveryStep({
       const result = await deleteLineItem(lineId)
       if (result.error) return fail(result.error)
       notifyCartUpdated()
+      // deleteLineItem re-renders this page in its own response.
       if (cart.items.length <= 1) router.push(`/${countryCode}/cart`)
-      else router.refresh()
     })
   }
 

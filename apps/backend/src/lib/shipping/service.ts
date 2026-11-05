@@ -1,5 +1,5 @@
 import { env } from "../../env.js"
-import { db, type FulfilmentDoc, type OrderDoc, type ReturnDoc, type ShipmentDoc, type ShipmentStatus } from "../../db/schema.js"
+import { db, type FulfilmentDoc, type OrderDoc, type ReturnDoc, type ShipmentDoc, type ShipmentStatus, type WarehouseDoc } from "../../db/schema.js"
 import { badRequest, conflict, notFound } from "../errors.js"
 import { newId } from "../ids.js"
 import { dispatchWarehouse } from "../invoice.js"
@@ -17,22 +17,59 @@ import {
   shiprocketSchedulePickup,
   shiprocketServiceability,
   shiprocketTrack,
+  type CourierQuote,
   type ShiprocketParty,
   type TrackingScan,
 } from "./shiprocket.js"
-import { fulfillmentFor, mapShiprocketStatus, shouldAdvance } from "./status.js"
+import { fulfillmentFor, mapDelhiveryStatus, mapShiprocketStatus, shouldAdvance } from "./status.js"
+import {
+  delhiveryCancel,
+  delhiveryCreateShipment,
+  delhiveryLabel,
+  delhiveryMode,
+  delhiveryPickupRequest,
+  delhiveryReattempt,
+  delhiveryServiceability,
+  delhiveryTrack,
+  delhiveryTrackingOf,
+  isDelhiveryConfigured,
+  type DelhiveryShipmentData,
+} from "./delhivery.js"
 import { recordTransition, SYSTEM } from "../state/machines.js"
 import { moveReturnIfAllowed } from "../returns/returns.js"
 import { announce, notifyCustomer } from "../notify/index.js"
 import { postDeliveredSales } from "../marketplace/ledger.js"
 
 /*
- * Shipments end to end. With Shiprocket configured every AWB, label, pickup
- * and tracking scan comes from Shiprocket. Without it, a shipment can only be
- * recorded by hand with details from wherever it was booked; nothing is invented.
+ * Shipments end to end. Every AWB, label, pickup and tracking scan comes from
+ * the courier integration the parcel was booked with: Shiprocket (an
+ * aggregator over many couriers) or Delhivery directly. With neither set up,
+ * a shipment can only be recorded by hand with details from wherever it was
+ * booked; nothing is invented.
  */
 
-export const shippingConfigured = () => isShiprocketConfigured()
+export type Carrier = "shiprocket" | "delhivery"
+export const CARRIERS: Carrier[] = ["shiprocket", "delhivery"]
+const CARRIER_NAMES: Record<Carrier, string> = { shiprocket: "Shiprocket", delhivery: "Delhivery" }
+const isCarrier = (p: string): p is Carrier => (CARRIERS as string[]).includes(p)
+
+/** Courier integrations with credentials set, the default one first. */
+export function configuredCarriers(): Carrier[] {
+  const on = CARRIERS.filter((c) => (c === "shiprocket" ? isShiprocketConfigured() : isDelhiveryConfigured()))
+  return on.sort((a, b) => Number(b === env.SHIPPING_PROVIDER) - Number(a === env.SHIPPING_PROVIDER))
+}
+export const shippingConfigured = () => configuredCarriers().length > 0
+
+/** The integration to book with: the one asked for (which must be set up), else the default. */
+function carrierFor(wanted?: Carrier | null): Carrier {
+  const on = configuredCarriers()
+  if (wanted) {
+    if (!on.includes(wanted)) throw badRequest(`${CARRIER_NAMES[wanted]} isn't set up on this store.`, "carrier_unconfigured")
+    return wanted
+  }
+  if (!on[0]) throw badRequest("No courier integration is configured. Record the shipment by hand instead.", "shipping_unconfigured")
+  return on[0]
+}
 
 const TERMINAL: ShipmentStatus[] = ["delivered", "rto_delivered", "cancelled"]
 
@@ -146,31 +183,65 @@ async function splitFulfillment(orderId: string): Promise<OrderDoc["fulfillmentS
   return null
 }
 
-/** Serviceable couriers and their rates for a delivery pincode. `configured: false` when no courier API is set up. */
-export async function serviceability(pincode: string, opts: { cod: boolean; weightKg?: number }) {
-  if (!shippingConfigured() || !env.SHIPPING_ORIGIN_PINCODE) return { configured: false as const }
-  const result = await shiprocketServiceability({
-    pickupPincode: env.SHIPPING_ORIGIN_PINCODE,
-    deliveryPincode: pincode,
-    weightKg: opts.weightKg ?? env.SHIPPING_DEFAULT_WEIGHT_KG,
-    cod: opts.cod,
+export type Quote = CourierQuote & { provider: Carrier }
+
+/**
+ * Couriers that deliver to a pincode, with live rates, from every configured
+ * integration, cheapest first. One integration failing leaves its quotes out
+ * (listed in `unavailable`); all failing is an error. `configured: false`
+ * when no courier API is set up.
+ */
+export async function serviceability(pincode: string, opts: { cod: boolean; weightKg?: number; codAmount?: number }) {
+  const carriers = configuredCarriers()
+  if (!carriers.length || !env.SHIPPING_ORIGIN_PINCODE) return { configured: false as const }
+  const params = { pickupPincode: env.SHIPPING_ORIGIN_PINCODE, deliveryPincode: pincode, weightKg: opts.weightKg ?? env.SHIPPING_DEFAULT_WEIGHT_KG, cod: opts.cod, codAmount: opts.codAmount }
+  const results = await Promise.allSettled(carriers.map((c) => (c === "shiprocket" ? shiprocketServiceability(params) : delhiveryServiceability(params))))
+  const couriers: Quote[] = []
+  const unavailable: { provider: Carrier; message: string }[] = []
+  let recommended: { provider: Carrier; courierId: number } | null = null
+  results.forEach((r, i) => {
+    const provider = carriers[i]!
+    if (r.status === "rejected") {
+      log.warn("shipping.quote_failed", { provider, pincode, error: (r.reason as Error).message })
+      unavailable.push({ provider, message: (r.reason as Error).message })
+      return
+    }
+    couriers.push(...r.value.couriers.map((c) => ({ ...c, provider })))
+    // The default integration's own recommendation leads.
+    if (!recommended && r.value.recommendedId != null) recommended = { provider, courierId: r.value.recommendedId }
   })
-  return { configured: true as const, serviceable: result.couriers.length > 0, ...result }
+  if (unavailable.length === carriers.length) throw badRequest(`Couriers could not be reached: ${unavailable.map((u) => u.message).join("; ")}`, "courier_error")
+  couriers.sort((a, b) => a.rate - b.rate)
+  const rec = recommended as { provider: Carrier; courierId: number } | null
+  return {
+    configured: true as const,
+    serviceable: couriers.length > 0,
+    couriers,
+    recommended: rec,
+    /** Kept for older clients: the recommended courier when it is the default integration's. */
+    recommendedId: rec && rec.provider === carriers[0] ? rec.courierId : null,
+    unavailable,
+  }
 }
 
 /**
  * Books the order with the courier provider: one live outbound parcel per
  * order (a unique index refuses a second). Online orders must be paid first.
  */
-export async function createShipment(order: OrderDoc, opts: { parcel?: Partial<ShipmentDoc["parcel"]> } = {}): Promise<ShipmentDoc> {
-  if (!shippingConfigured()) throw badRequest("No courier integration is configured. Record the shipment by hand instead.", "shipping_unconfigured")
+export async function createShipment(order: OrderDoc, opts: { parcel?: Partial<ShipmentDoc["parcel"]>; carrier?: Carrier; courierId?: number } = {}): Promise<ShipmentDoc> {
+  const carrier = carrierFor(opts.carrier)
   if (order.status === "canceled") throw conflict("This order is canceled", "order_canceled")
   if (order.paymentMethod !== "cod" && order.paymentStatus !== "paid") throw conflict("Online orders ship only once payment is verified.", "not_paid")
   if (order.fulfillmentStatus !== "unfulfilled") throw conflict("This order has already shipped.", "already_shipped")
   if (await db.fulfilments().countDocuments({ orderId: order._id, active: true })) {
     throw conflict("This order is being fulfilled by a warehouse; its parcel is booked at the packing station.", "warehouse_fulfilment")
   }
+  const from = await dispatchWarehouse(order._id)
+  const warehouse = from ? await db.warehouses().findOne({ code: from.code }) : null
   return book(order, order.items.map((i) => ({ itemId: i._id, quantity: i.quantity })), {
+    carrier,
+    courierId: opts.courierId,
+    warehouse,
     parcel: { ...(await parcelFor(order)), ...opts.parcel },
     orderRef: async (n) => (n ? `${order.displayId}-${n + 1}` : String(order.displayId)),
   })
@@ -181,8 +252,8 @@ export async function createShipment(order: OrderDoc, opts: { parcel?: Partial<S
  * pickup address, with the weight and size measured at the packing station.
  * The order is paid (or COD) by construction: fulfilments exist only for placed orders.
  */
-export async function createFulfilmentShipment(f: FulfilmentDoc): Promise<ShipmentDoc> {
-  if (!shippingConfigured()) throw badRequest("No courier integration is configured. Record the courier's AWB by hand instead.", "shipping_unconfigured")
+export async function createFulfilmentShipment(f: FulfilmentDoc, opts: { carrier?: Carrier; courierId?: number } = {}): Promise<ShipmentDoc> {
+  const carrier = carrierFor(opts.carrier)
   if (!f.package) throw conflict("Pack the parcel before booking it.", "not_packed")
   const order = await db.orders().findOne({ _id: f.orderId })
   if (!order) throw notFound("Order")
@@ -191,9 +262,11 @@ export async function createFulfilmentShipment(f: FulfilmentDoc): Promise<Shipme
   const warehouse = await db.warehouses().findOne({ _id: f.warehouseId })
   const { weightKg, lengthCm, breadthCm, heightCm } = f.package
   return book(order, mergeLines(f), {
+    carrier,
+    courierId: opts.courierId,
+    warehouse,
     parcel: { weightKg, lengthCm, breadthCm, heightCm },
     fulfilmentId: f._id,
-    pickupLocation: warehouse?.shiprocketPickupLocation,
     orderRef: async (n) => (n ? `${f.code}-${n + 1}` : f.code),
   })
 }
@@ -208,14 +281,23 @@ const mergeLines = (f: FulfilmentDoc) => {
 async function book(
   order: OrderDoc,
   lines: { itemId: string; quantity: number }[],
-  o: { parcel: ShipmentDoc["parcel"]; fulfilmentId?: string; pickupLocation?: string; orderRef: (previous: number) => Promise<string> }
+  o: {
+    carrier: Carrier
+    courierId?: number
+    warehouse: WarehouseDoc | null
+    parcel: ShipmentDoc["parcel"]
+    fulfilmentId?: string
+    orderRef: (previous: number) => Promise<string>
+  }
 ): Promise<ShipmentDoc> {
   const now = new Date()
+  const pickupLocation = pickupLocationOf(o.carrier, o.warehouse)
   const shipment: ShipmentDoc = {
     _id: newId("ship"),
     orderId: order._id,
     displayId: order.displayId,
-    provider: "shiprocket",
+    provider: o.carrier,
+    ...(pickupLocation ? { pickupLocation } : {}),
     carrier: "",
     awb: "",
     status: "pending",
@@ -245,19 +327,39 @@ async function book(
   try {
     // Shiprocket never accepts an order reference twice, even after a cancel: re-bookings get "-2", "-3"...
     const previous = await db.shipments().countDocuments({ orderId: order._id, isReturn: false, _id: { $ne: shipment._id }, ...(o.fulfilmentId ? { fulfilmentId: o.fulfilmentId } : { fulfilmentId: { $exists: false } }) })
-    const created = await shiprocketCreateOrder({
+    const input = {
       orderRef: await o.orderRef(previous),
-      ...(o.pickupLocation ? { pickupLocation: o.pickupLocation } : {}),
+      ...(pickupLocation ? { pickupLocation } : {}),
       orderDate: order.createdAt,
       customer: customerParty(order),
       items: shipmentItems(order, lines),
-      paymentMethod: order.paymentMethod === "cod" ? "COD" : "Prepaid",
+      paymentMethod: order.paymentMethod === "cod" ? ("COD" as const) : ("Prepaid" as const),
       subTotal: order.totals.total,
       parcel: shipment.parcel,
-    })
-    Object.assign(shipment, { ...created, status: "ready_to_ship" as const, updatedAt: new Date() })
-    await db.shipments().updateOne({ _id: shipment._id }, { $set: { ...created, status: "ready_to_ship", updatedAt: shipment.updatedAt } })
-    log.info("shipment.created", { shipmentId: shipment._id, orderId: order._id, providerShipmentId: created.providerShipmentId })
+    }
+    let set: Partial<ShipmentDoc>
+    if (o.carrier === "delhivery") {
+      // Delhivery assigns the waybill as it creates the shipment.
+      const mode = delhiveryMode(o.courierId)
+      const created = await delhiveryCreateShipment({ ...input, mode: mode.mode, kind: "forward", seller: await sellerOf(o.warehouse) })
+      set = {
+        providerOrderId: input.orderRef,
+        providerShipmentId: created.awb,
+        awb: created.awb,
+        carrier: `Delhivery ${mode.mode}`,
+        courierId: o.courierId === 2 ? 2 : 1,
+        status: "shipment_created",
+        trackingUrl: `https://www.delhivery.com/track-v2/package/${encodeURIComponent(created.awb)}`,
+        updatedAt: new Date(),
+      }
+    } else {
+      const created = await shiprocketCreateOrder(input)
+      set = { ...created, status: "ready_to_ship", updatedAt: new Date() }
+    }
+    Object.assign(shipment, set)
+    await db.shipments().updateOne({ _id: shipment._id }, { $set: set })
+    log.info("shipment.created", { shipmentId: shipment._id, orderId: order._id, provider: o.carrier, providerShipmentId: shipment.providerShipmentId })
+    if (shipment.awb) await syncOrder(shipment)
     return shipment
   } catch (e) {
     // A definite refusal frees the order to try again; an unknown outcome stays pending for a person to check on Shiprocket.
@@ -276,9 +378,30 @@ const loadLive = async (id: string) => {
 
 const asCourierError = (e: unknown) => (e instanceof ProviderError ? badRequest(e.message, "courier_error") : e)
 
+/** The courier's name for the building a parcel leaves from; each integration has its own. */
+function pickupLocationOf(carrier: Carrier, w: WarehouseDoc | null) {
+  if (carrier === "delhivery") return w?.delhiveryPickupLocation || env.DELHIVERY_PICKUP_LOCATION
+  return w?.shiprocketPickupLocation || undefined
+}
+
+/** Seller of record for the courier's paperwork: a marketplace seller's warehouse, else the store. */
+async function sellerOf(w: WarehouseDoc | null) {
+  if (w?.sellerId) {
+    const seller = await db.sellers().findOne({ _id: w.sellerId })
+    if (seller) return { name: seller.legalName || seller.displayName, address: [w.address, w.city, w.state, w.pincode].filter(Boolean).join(", "), ...(seller.gstin ? { gstin: seller.gstin } : {}) }
+  }
+  const settings = await db.settings().findOne({ _id: "store" })
+  const name = settings?.seller?.legalName ?? settings?.storeName
+  if (!name) return undefined
+  return { name, address: settings?.seller?.address ?? "", ...(w?.gstin || settings?.seller?.gstin ? { gstin: (w?.gstin || settings?.seller?.gstin)! } : {}) }
+}
+
+const isCourier = (s: ShipmentDoc) => isCarrier(s.provider)
+
 /** Assigns a courier (the cheapest-recommended one when none is given) and records the AWB. */
 export async function assignCourier(id: string, courierId?: number) {
   const s = await loadLive(id)
+  if (s.provider === "delhivery") throw conflict("Delhivery assigned the AWB when the parcel was booked.", "awb_assigned")
   if (s.provider !== "shiprocket" || !s.providerShipmentId) throw conflict("This shipment wasn't booked through the courier integration.", "manual_shipment")
   if (s.awb) throw conflict("A courier is already assigned.", "awb_assigned")
   try {
@@ -297,7 +420,8 @@ export async function generateLabel(id: string) {
   const s = await loadLive(id)
   if (!s.providerShipmentId || !s.awb) throw conflict("Assign a courier before generating the label.", "no_awb")
   try {
-    const { labelUrl } = await shiprocketLabel(s.providerShipmentId)
+    if (!isCourier(s)) throw conflict("This shipment wasn't booked through a courier integration.", "manual_shipment")
+    const { labelUrl } = s.provider === "delhivery" ? await delhiveryLabel(s.awb) : await shiprocketLabel(s.providerShipmentId)
     await db.shipments().updateOne({ _id: s._id }, { $set: { labelUrl, updatedAt: new Date() } })
     const next = { ...s, labelUrl }
     await syncOrder(next)
@@ -311,8 +435,12 @@ export async function schedulePickup(id: string) {
   const s = await loadLive(id)
   if (!s.providerShipmentId || !s.awb) throw conflict("Assign a courier before requesting a pickup.", "no_awb")
   if (s.pickup) throw conflict("A pickup is already requested.", "pickup_exists")
+  if (!isCourier(s)) throw conflict("This shipment wasn't booked through a courier integration.", "manual_shipment")
   try {
-    const r = await shiprocketSchedulePickup(s.providerShipmentId)
+    const r =
+      s.provider === "delhivery"
+        ? await delhiveryPickupRequest({ location: s.pickupLocation || env.DELHIVERY_PICKUP_LOCATION!, date: new Date(), count: 1 })
+        : await shiprocketSchedulePickup(s.providerShipmentId)
     const pickup = { requestedAt: new Date(), ...(r.scheduledFor ? { scheduledFor: r.scheduledFor } : {}), ...(r.token ? { token: r.token } : {}) }
     const status: ShipmentStatus = shouldAdvance(s.status, "pickup_scheduled") ? "pickup_scheduled" : s.status
     await db.shipments().updateOne({ _id: s._id }, { $set: { pickup, status, updatedAt: new Date() } })
@@ -321,6 +449,34 @@ export async function schedulePickup(id: string) {
     return next
   } catch (e) {
     throw asCourierError(e)
+  }
+}
+
+/**
+ * Requests courier collection for a batch of booked parcels (a warehouse
+ * manifest). Shiprocket takes one request per parcel; Delhivery one per
+ * building and day, sized to the number of parcels.
+ */
+export async function schedulePickups(shipmentIds: string[]) {
+  const parcels = await db.shipments().find({ _id: { $in: shipmentIds }, active: true, pickup: { $exists: false }, awb: { $gt: "" } }).toArray()
+  for (const s of parcels.filter((p) => p.provider === "shiprocket")) await schedulePickup(s._id)
+  const byLocation = new Map<string, ShipmentDoc[]>()
+  for (const s of parcels.filter((p) => p.provider === "delhivery")) {
+    const key = s.pickupLocation || env.DELHIVERY_PICKUP_LOCATION || ""
+    byLocation.set(key, [...(byLocation.get(key) ?? []), s])
+  }
+  for (const [location, group] of byLocation) {
+    try {
+      const r = await delhiveryPickupRequest({ location, date: new Date(), count: group.length })
+      const pickup = { requestedAt: new Date(), ...(r.scheduledFor ? { scheduledFor: r.scheduledFor } : {}), ...(r.token ? { token: r.token } : {}) }
+      for (const s of group) {
+        const status: ShipmentStatus = shouldAdvance(s.status, "pickup_scheduled") ? "pickup_scheduled" : s.status
+        await db.shipments().updateOne({ _id: s._id }, { $set: { pickup, status, updatedAt: new Date() } })
+        await syncOrder({ ...s, pickup, status })
+      }
+    } catch (e) {
+      throw asCourierError(e)
+    }
   }
 }
 
@@ -347,6 +503,7 @@ export async function cancelShipment(id: string) {
   }
   try {
     if (s.provider === "shiprocket" && s.providerOrderId) await shiprocketCancel(s.providerOrderId)
+    if (s.provider === "delhivery" && s.awb) await delhiveryCancel(s.awb)
   } catch (e) {
     throw asCourierError(e)
   }
@@ -403,6 +560,11 @@ export async function ndrAction(id: string, action: "reattempt" | "return", comm
   if (s.status !== "delivery_failed") throw conflict("Only a failed delivery can be re-attempted or returned.", "not_failed")
   try {
     if (s.provider === "shiprocket") await shiprocketNdrAction(s.awb, action, comment)
+    if (s.provider === "delhivery") {
+      // Delhivery's NDR API takes re-attempts; returning to origin is asked for in its panel, and its scans then show the RTO here.
+      if (action === "return") throw conflict("Delhivery takes return-to-origin requests in Delhivery One (NDR). Its tracking will show the return here.", "courier_unsupported")
+      await delhiveryReattempt(s.awb)
+    }
   } catch (e) {
     throw asCourierError(e)
   }
@@ -418,26 +580,29 @@ export async function ndrAction(id: string, action: "reattempt" | "return", comm
  */
 export async function applyTracking(
   s: ShipmentDoc,
-  t: { statusId?: number | string | null; statusLabel?: string | null; scans: TrackingScan[]; edd?: Date | null; deliveredAt?: Date | null; trackingUrl?: string | null }
+  t: { statusId?: number | string | null; statusLabel?: string | null; statusCode?: string | null; scans: TrackingScan[]; edd?: Date | null; deliveredAt?: Date | null; trackingUrl?: string | null }
 ) {
+  const map = (id: number | string | null | undefined, label: string | null | undefined, code?: string | null) =>
+    s.provider === "delhivery" ? mapDelhiveryStatus(id, label, code) : mapShiprocketStatus(id, label)
   const seen = new Set(s.trackingEvents.map((e) => `${e.timestamp.toISOString()}|${e.status}|${e.location}`))
   const fresh = t.scans
     .map((scan) => {
       const timestamp = new Date(scan.date.includes("T") ? scan.date : scan.date.replace(" ", "T") + "+05:30")
       if (Number.isNaN(timestamp.getTime())) return null
-      const internal = mapShiprocketStatus(scan.statusId, scan.status)
+      const internal = map(scan.statusId, scan.status, scan.code)
       return { timestamp, status: scan.status, ...(internal ? { internalStatus: internal } : {}), location: scan.location ?? "", note: scan.activity ?? "" }
     })
     .filter((e): e is NonNullable<typeof e> => !!e && !seen.has(`${e.timestamp.toISOString()}|${e.status}|${e.location}`))
     .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
 
-  const mapped = mapShiprocketStatus(t.statusId, t.statusLabel) ?? fresh.at(-1)?.internalStatus ?? null
+  const mapped = map(t.statusId, t.statusLabel, t.statusCode) ?? fresh.at(-1)?.internalStatus ?? null
   const status = mapped && shouldAdvance(s.status, mapped) ? mapped : s.status
   const set: Partial<ShipmentDoc> = { status, lastSyncedAt: new Date(), updatedAt: new Date() }
   if (t.statusLabel) set.providerStatus = t.statusLabel
   if (t.edd) set.estimatedDelivery = t.edd
   if (t.trackingUrl) set.trackingUrl = t.trackingUrl
-  if (status === "delivered") set.deliveredAt = t.deliveredAt ?? fresh.at(-1)?.timestamp ?? new Date()
+  // Stamped once: a late or repeated scan after delivery mustn't move the delivery time.
+  if (status === "delivered" && !s.deliveredAt) set.deliveredAt = t.deliveredAt ?? fresh.at(-1)?.timestamp ?? new Date()
   if (status === "delivery_failed" && s.status !== "delivery_failed") {
     const last = fresh.at(-1)
     set.ndr = { reason: last?.note || last?.status || t.statusLabel || "Delivery attempt failed", attempts: (s.ndr?.attempts ?? 0) + 1, updatedAt: new Date() }
@@ -452,29 +617,32 @@ export async function applyTracking(
 /** Pulls tracking from the courier now (admin "Refresh", or the background sweep). */
 export async function syncTracking(id: string) {
   const s = await db.shipments().findOne({ _id: id })
-  if (!s || !s.awb || s.provider !== "shiprocket") throw conflict("This shipment has no courier tracking yet.", "no_tracking")
+  if (!s || !s.awb || !isCourier(s)) throw conflict("This shipment has no courier tracking yet.", "no_tracking")
   try {
-    return await applyTracking(s, await shiprocketTrack(s.awb))
+    return await applyTracking(s, await trackOf(s))
   } catch (e) {
     throw asCourierError(e)
   }
 }
 
+const trackOf = (s: ShipmentDoc) => (s.provider === "delhivery" ? delhiveryTrack(s.awb) : shiprocketTrack(s.awb))
+
 /** Background fallback for missed webhooks: refreshes live parcels not heard from in 30 minutes. */
 export async function syncStaleShipments(limit = 20): Promise<number> {
-  if (!shippingConfigured()) return 0
+  const carriers = configuredCarriers()
+  if (!carriers.length) return 0
   const cutoff = new Date(Date.now() - 30 * 60_000)
   const stale = await db
     .shipments()
     .find(
-      { provider: "shiprocket", awb: { $gt: "" }, status: { $nin: TERMINAL }, $or: [{ lastSyncedAt: { $exists: false } }, { lastSyncedAt: { $lt: cutoff } }] },
+      { provider: { $in: carriers }, awb: { $gt: "" }, status: { $nin: TERMINAL }, $or: [{ lastSyncedAt: { $exists: false } }, { lastSyncedAt: { $lt: cutoff } }] },
       { limit, sort: { lastSyncedAt: 1 } }
     )
     .toArray()
   let n = 0
   for (const s of stale) {
     try {
-      await applyTracking(s, await shiprocketTrack(s.awb))
+      await applyTracking(s, await trackOf(s))
       n++
     } catch (e) {
       log.warn("shipment.sync_failed", { shipmentId: s._id, error: (e as Error).message })
@@ -509,11 +677,29 @@ export async function applyShiprocketWebhook(body: ShiprocketWebhook): Promise<"
   return "processed"
 }
 
+/** Delhivery's scan push: one shipment's latest status (and sometimes its scans). */
+export type DelhiveryWebhook = { Shipment?: DelhiveryShipmentData & { Status?: DelhiveryShipmentData["Status"] } }
+
+export async function applyDelhiveryWebhook(body: DelhiveryWebhook): Promise<"processed" | "ignored"> {
+  const d = body.Shipment
+  const awb = d?.AWB != null ? String(d.AWB) : ""
+  if (!awb) return "ignored"
+  const s = await db.shipments().findOne({ awb, provider: "delhivery" })
+  if (!s) return "ignored"
+  const t = delhiveryTrackingOf(d!)
+  // A push without scans still carries the current status: record it as one.
+  if (!t.scans.length && d!.Status) {
+    t.scans.push({ date: d!.Status.StatusDateTime ?? new Date().toISOString(), status: d!.Status.Status, statusId: d!.Status.StatusType, code: d!.Status.StatusCode ?? d!.NSLCode, activity: d!.Status.Instructions ?? "", location: d!.Status.StatusLocation ?? "" })
+  }
+  await applyTracking(s, t)
+  return "processed"
+}
+
 /**
  * Reverse pickup for an approved return: the courier collects from the
  * customer and brings it to the dispatching warehouse.
  */
-export async function createReturnShipment(order: OrderDoc, ret: ReturnDoc): Promise<ShipmentDoc> {
+export async function createReturnShipment(order: OrderDoc, ret: ReturnDoc, opts: { carrier?: Carrier } = {}): Promise<ShipmentDoc> {
   if (!shippingConfigured()) throw badRequest("No courier integration is configured for return pickups.", "shipping_unconfigured")
   if (order.fulfillmentStatus !== "delivered" && order.fulfillmentStatus !== "returned") throw conflict("Returns are collected only after delivery.", "not_delivered")
   if (ret.status !== "approved") throw conflict("Approve the return request first.", "return_not_approved")
@@ -525,12 +711,16 @@ export async function createReturnShipment(order: OrderDoc, ret: ReturnDoc): Pro
 
   const lines = ret.items.map((l) => ({ itemId: l.itemId, quantity: l.quantity }))
   const outbound = await db.shipments().findOne({ orderId: order._id, isReturn: false, status: "delivered" })
+  // The courier that delivered it collects it, when that integration is still set up.
+  const carrier = carrierFor(opts.carrier ?? (outbound && isCarrier(outbound.provider) && configuredCarriers().includes(outbound.provider) ? outbound.provider : null))
+  const pickupLocation = pickupLocationOf(carrier, await db.warehouses().findOne({ code: warehouse.code }))
   const now = new Date()
   const shipment: ShipmentDoc = {
     _id: newId("ship"),
     orderId: order._id,
     displayId: order.displayId,
-    provider: "shiprocket",
+    provider: carrier,
+    ...(pickupLocation ? { pickupLocation } : {}),
     carrier: "",
     awb: "",
     status: "pending",
@@ -560,28 +750,37 @@ export async function createReturnShipment(order: OrderDoc, ret: ReturnDoc): Pro
   try {
     const items = shipmentItems(order, lines)
     const previousReturns = await db.shipments().countDocuments({ orderId: order._id, isReturn: true, returnId: ret._id, _id: { $ne: shipment._id } })
-    const created = await shiprocketCreateReturn({
-      // The return's own code, so a second return on the same order is a new Shiprocket order.
+    const input = {
+      // The return's own code, so a second return on the same order is a new courier order.
       orderRef: previousReturns ? `${ret.code}-${previousReturns + 1}` : ret.code,
       orderDate: now,
       customer: customerParty(order),
-      warehouse: {
-        name: warehouse.name,
-        address: warehouse.address,
-        city: warehouse.city,
-        state: warehouse.state,
-        pincode: warehouse.pincode,
-        country: "India",
-        email: settings?.seller?.email ?? settings?.supportEmail ?? order.email,
-        phone,
-      },
       items,
-      paymentMethod: "Prepaid",
+      paymentMethod: "Prepaid" as const,
       subTotal: items.reduce((s, i) => s + i.sellingPrice * i.units, 0),
       parcel: shipment.parcel,
-    })
-    await db.shipments().updateOne({ _id: shipment._id }, { $set: { ...created, status: "ready_to_ship", updatedAt: new Date() } })
-    return { ...shipment, ...created, status: "ready_to_ship" }
+    }
+    const to = {
+      name: warehouse.name,
+      address: warehouse.address,
+      city: warehouse.city,
+      state: warehouse.state,
+      pincode: warehouse.pincode,
+      country: "India",
+      email: settings?.seller?.email ?? settings?.supportEmail ?? order.email,
+      phone,
+    }
+    let set: Partial<ShipmentDoc>
+    if (carrier === "delhivery") {
+      // A reverse pickup: collected from the customer, delivered to the registered warehouse.
+      const created = await delhiveryCreateShipment({ ...input, ...(pickupLocation ? { pickupLocation } : {}), mode: "Surface", kind: "reverse", returnTo: to })
+      set = { providerOrderId: input.orderRef, providerShipmentId: created.awb, awb: created.awb, carrier: "Delhivery Surface", courierId: 1, status: "shipment_created", updatedAt: new Date() }
+    } else {
+      const created = await shiprocketCreateReturn({ ...input, warehouse: to })
+      set = { ...created, status: "ready_to_ship", updatedAt: new Date() }
+    }
+    await db.shipments().updateOne({ _id: shipment._id }, { $set: set })
+    return { ...shipment, ...set }
   } catch (e) {
     if (!(e instanceof ProviderError && e.uncertain)) await db.shipments().deleteOne({ _id: shipment._id })
     throw asCourierError(e)

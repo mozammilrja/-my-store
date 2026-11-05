@@ -1,10 +1,15 @@
-import { Router } from "express"
+import { Router, type Request } from "express"
 import { z } from "zod"
 import { db, type WarehouseDoc } from "../../db/schema.js"
-import { conflict, notFound } from "../../lib/errors.js"
+import { conflict, forbidden, notFound } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
 
 export const adminWarehouseRoutes = Router()
+
+/** Changing the buildings orders ship from is for owners, store admins and inventory managers; everyone can look. */
+const requireWriter = (req: Request) => {
+  if (!["owner", "store_admin", "inventory_manager"].includes(req.admin!.role)) throw forbidden("Your role can't change warehouses")
+}
 
 const warehouseSchema = z.object({
   code: z.string().trim().toUpperCase().min(3).max(20),
@@ -13,7 +18,8 @@ const warehouseSchema = z.object({
   state: z.string().trim().min(2).max(80),
   pincode: z.string().trim().min(4).max(10),
   address: z.string().trim().min(5).max(250),
-  leadDispatcher: z.string().trim().max(100).optional(),
+  /** Optional text fields take null to clear them. */
+  leadDispatcher: z.string().trim().min(1).max(100).nullable().optional(),
   /** GSTIN: 2-digit state code, 10-character PAN, entity number, Z, check character. */
   gstin: z
     .string()
@@ -24,14 +30,27 @@ const warehouseSchema = z.object({
     .optional(),
   lat: z.number().min(-90).max(90).nullable().optional(),
   lng: z.number().min(-180).max(180).nullable().optional(),
-  status: z.enum(["active", "inactive"]).default("active"),
-  isDefault: z.boolean().default(false),
+  status: z.enum(["active", "inactive"]).optional(),
+  isDefault: z.boolean().optional(),
   /** PIN codes or prefixes served; empty means anywhere. */
   serviceAreas: z.array(z.string().trim().regex(/^\d{1,6}$/, "Use a PIN code or its first digits")).max(2000).optional(),
   priority: z.number().int().min(0).max(1000).optional(),
   acceptsOrders: z.boolean().optional(),
-  shiprocketPickupLocation: z.string().trim().min(1).max(100).optional(),
+  shiprocketPickupLocation: z.string().trim().min(1).max(100).nullable().optional(),
+  delhiveryPickupLocation: z.string().trim().min(1).max(100).nullable().optional(),
 })
+/** Fields stored only while set: null in a request removes them. */
+const CLEARABLE = ["leadDispatcher", "shiprocketPickupLocation", "delhiveryPickupLocation"] as const
+const split = (body: Record<string, unknown>) => {
+  const set: Record<string, unknown> = {}
+  const unset: Record<string, ""> = {}
+  for (const [k, v] of Object.entries(body)) {
+    if (v === undefined) continue
+    if (v === null && (CLEARABLE as readonly string[]).includes(k)) unset[k] = ""
+    else set[k] = v
+  }
+  return { set, unset }
+}
 
 adminWarehouseRoutes.get("/warehouses", async (_req, res) => {
   const warehouses = await db.warehouses().find({}, { sort: { isDefault: -1, code: 1 } }).toArray()
@@ -39,7 +58,9 @@ adminWarehouseRoutes.get("/warehouses", async (_req, res) => {
 })
 
 adminWarehouseRoutes.post("/warehouses", async (req, res) => {
-  const body = warehouseSchema.parse(req.body)
+  requireWriter(req)
+  const parsed = warehouseSchema.parse(req.body)
+  const body = { ...split(parsed).set, status: parsed.status ?? "active", isDefault: parsed.isDefault ?? false } as typeof parsed & { status: "active" | "inactive"; isDefault: boolean }
   const existing = await db.warehouses().findOne({ code: body.code })
   if (existing) throw conflict(`A warehouse with code ${body.code} already exists`, "duplicate_code")
 
@@ -50,7 +71,7 @@ adminWarehouseRoutes.post("/warehouses", async (req, res) => {
 
   const doc: WarehouseDoc = {
     _id: newId("wh"),
-    ...body,
+    ...(body as Omit<WarehouseDoc, "_id" | "createdAt" | "updatedAt">),
     createdAt: now,
     updatedAt: now,
   }
@@ -59,6 +80,7 @@ adminWarehouseRoutes.post("/warehouses", async (req, res) => {
 })
 
 adminWarehouseRoutes.patch("/warehouses/:id", async (req, res) => {
+  requireWriter(req)
   const body = warehouseSchema.partial().parse(req.body)
   const warehouse = await db.warehouses().findOne({ _id: req.params.id })
   if (!warehouse) throw notFound("Warehouse")
@@ -70,13 +92,14 @@ adminWarehouseRoutes.patch("/warehouses/:id", async (req, res) => {
 
   const updated = await db.warehouses().findOneAndUpdate(
     { _id: warehouse._id },
-    { $set: { ...body, updatedAt: now } },
+    { $set: { ...split(body).set, updatedAt: now }, ...(Object.keys(split(body).unset).length ? { $unset: split(body).unset } : {}) },
     { returnDocument: "after" }
   )
   res.json({ warehouse: updated })
 })
 
 adminWarehouseRoutes.delete("/warehouses/:id", async (req, res) => {
+  requireWriter(req)
   const warehouse = await db.warehouses().findOne({ _id: req.params.id })
   if (!warehouse) throw notFound("Warehouse")
   if (warehouse.isDefault) throw conflict("Cannot delete default fulfillment hub", "default_warehouse")

@@ -281,5 +281,8 @@ Each later phase builds on the models here:
 - **Phase 4 (done):** returns and exchanges; see [RETURNS.md](./RETURNS.md).
 - **Phase 5 (done):** notifications; see [NOTIFICATIONS.md](./NOTIFICATIONS.md).
 - **Phase 6 (done):** seller marketplace and `apps/seller`; see [MARKETPLACE.md](./MARKETPLACE.md).
-- **Phase 7:** a direct Delhivery adapter behind the same shipping interface,
-  logistics analytics dashboards, and admin UI for all of the above.
+- **Phase 7 (done):** Delhivery direct next to Shiprocket, with quotes compared
+  ([PAYMENTS_AND_SHIPPING.md](./PAYMENTS_AND_SHIPPING.md)); logistics analytics
+  ([LOGISTICS_ANALYTICS.md](./LOGISTICS_ANALYTICS.md)); and admin screens for
+  warehouse operations, the delivery fleet, cash on delivery, marketplace
+  sellers, notifications and logistics analytics.

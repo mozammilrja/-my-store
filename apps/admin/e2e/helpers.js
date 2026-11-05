@@ -10,7 +10,7 @@ export const ADMIN_PASSWORD = process.env.ADMIN_E2E_PASSWORD ?? "adminpassword12
 export const THEME_KEY = "everwear_admin_theme"
 export const TOKEN_KEY = "everwear_admin_token"
 
-/** The sixteen modules the nav offers, in nav order. */
+/** The modules the nav offers, in nav order. */
 export const MODULES = [
   { path: "overview", title: /^overview$/i },
   { path: "analytics-and-reports", title: /analytics/i },
@@ -23,10 +23,16 @@ export const MODULES = [
   { path: "payments-and-reconciliation", title: /payment|settlement|reconcil/i },
   { path: "categories-and-collections", title: /categor|collection|taxonomy/i },
   { path: "shipments-and-dispatch", title: /shipment|dispatch/i },
+  { path: "warehouse-operations", title: /^warehouse operations$/i },
+  { path: "delivery-fleet", title: /^delivery fleet$/i },
+  { path: "logistics-analytics", title: /^logistics analytics$/i },
+  { path: "marketplace-sellers", title: /^sellers & settlements$/i },
   { path: "customers-and-loyalty", title: /customer|loyalty|clientel/i },
+  { path: "cash-on-delivery", title: /^cash on delivery$/i },
   { path: "credit-notes-and-refunds", title: /credit note|refund/i },
   { path: "promotions-and-coupons", title: /promotion|coupon|campaign/i },
   { path: "users-and-role-access", title: /user|role|access/i },
+  { path: "notifications", title: /^notifications$/i },
   { path: "system-settings", title: /setting|governance/i },
 ]
 
@@ -173,7 +179,8 @@ export function overlappingControls(page) {
     ].filter((el) => {
       const r = el.getBoundingClientRect()
       const s = getComputedStyle(el)
-      return r.width > 4 && r.height > 4 && s.visibility !== "hidden" && s.opacity !== "0" && s.pointerEvents !== "none"
+      // checkVisibility() is false for controls not rendered, such as those inside a closed <details>.
+      return r.width > 4 && r.height > 4 && s.visibility !== "hidden" && s.opacity !== "0" && s.pointerEvents !== "none" && el.checkVisibility?.() !== false
     })
 
     const hits = []

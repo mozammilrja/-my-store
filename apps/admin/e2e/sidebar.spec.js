@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { getAdminToken, seed, gotoModule } from "./helpers.js"
+import { API_URL, getAdminToken, seed, gotoModule } from "./helpers.js"
 
 const SIDEBAR_SCHEMA = [
   {
@@ -99,12 +99,12 @@ test.describe("Sidebar Navigation Verification (Items 1, 2, 3)", () => {
     // The nav used to carry hardcoded counts (12, 84, 19) against a store with
     // far fewer records. Each badge now reads the same figure the dashboard
     // reports, and is absent when that figure is zero.
-    const attention = await page.evaluate(async () => {
-      const res = await fetch(`${window.location.origin.replace("7001", "9100")}/admin/dashboard`, {
+    const attention = await page.evaluate(async (apiUrl) => {
+      const res = await fetch(`${apiUrl}/admin/dashboard`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("everwear_admin_token")}` },
       })
       return (await res.json()).attention
-    })
+    }, API_URL)
 
     for (const [label, count] of [
       ["Inventory & Warehouses", attention.lowStock],

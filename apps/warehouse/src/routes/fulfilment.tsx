@@ -470,7 +470,7 @@ function LabelStep({ f, ownFleet, onPrintPackage }: { f: Fulfilment; ownFleet: O
             {(
               [
                 ["fleet", "Everwear Fleet", `Our riders · ${ownFleet!.zone}`],
-                ["courier", "Courier", "Shiprocket or a courier's portal"],
+                ["courier", "Courier", "Shiprocket, Delhivery or a courier's portal"],
               ] as const
             ).map(([value, title, hint]) => (
               <label key={value} className={cn("flex cursor-pointer items-start gap-3 rounded-control border p-3", via === value ? "border-accent bg-accent-soft" : "border-line")}>

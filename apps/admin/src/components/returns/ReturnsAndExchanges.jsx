@@ -126,7 +126,8 @@ export function ReturnsAndExchanges({ onShowToast }) {
       cell: (r) => (
         <div className="flex flex-col">
           <span className="whitespace-nowrap font-mono text-label font-semibold text-accent">{r.code}</span>
-          <span className="text-micro text-muted">Order #{r.displayId} · {r.type === 'exchange' ? 'Exchange' : 'Refund'}</span>
+          <span className="whitespace-nowrap text-micro text-muted">Order #{r.displayId}</span>
+          <span className="whitespace-nowrap text-micro text-muted">{r.type === 'exchange' ? 'Exchange' : 'Refund'}</span>
         </div>
       ),
     },

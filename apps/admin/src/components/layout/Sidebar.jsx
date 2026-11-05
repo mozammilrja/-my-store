@@ -5,7 +5,6 @@ import { NavLink } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { MENU_SECTIONS } from '../../routes';
 import { useDashboardQuery } from '../../hooks/useAdminQueries';
-import { HUBS } from '../../data/mockData';
 
 
 const BADGE_TONES = {
@@ -18,6 +17,7 @@ export function Sidebar({
   currentPath,
   onNavigate,
   currentHub,
+  hubs = [],
   onSelectHub,
   isCollapsed,
   onToggleCollapse,
@@ -210,13 +210,27 @@ export function Sidebar({
                   className="absolute bottom-full left-0 right-0 z-overlay mb-1.5 animate-zoom-in rounded-xl border border-subtle bg-overlay p-1.5 shadow-lg"
                 >
                   <div className="px-2 py-1 text-caption uppercase tracking-wider text-faint">
-                    Fulfillment node
+                    Fulfillment node · opens in Warehouse Operations
                   </div>
-                  {HUBS.map((hub) => {
+                  {hubs.length === 0 && (
+                    <button
+                      role="option"
+                      aria-selected={false}
+                      onClick={() => {
+                        onNavigate('warehouse-operations');
+                        setHubDropdownOpen(false);
+                      }}
+                      className="flex w-full rounded-lg px-2 py-1.5 text-left text-meta text-muted hover:bg-surface-subtle"
+                      type="button"
+                    >
+                      No warehouses yet. Add one in Warehouse Operations.
+                    </button>
+                  )}
+                  {hubs.map((hub) => {
                     const isActive = currentHub.id === hub.id;
                     return (
                       <button
-                        key={hub.id}
+                        key={hub.warehouseId}
                         role="option"
                         aria-selected={isActive}
                         onClick={() => {
@@ -237,7 +251,7 @@ export function Sidebar({
                             {hub.location}
                           </span>
                         </span>
-                        <span className="shrink-0 font-mono text-micro tabular-nums whitespace-nowrap">{hub.capacity}</span>
+                        <span className="shrink-0 font-mono text-micro tabular-nums whitespace-nowrap">{hub.id}</span>
                       </button>
                     );
                   })}

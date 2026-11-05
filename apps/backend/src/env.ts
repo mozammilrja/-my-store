@@ -41,9 +41,11 @@ const schema = z.object({
   RAZORPAY_API_BASE: z.url().default("https://api.razorpay.com"),
   /** Minutes an unpaid payment attempt stays open before it is expired. */
   PAYMENT_ATTEMPT_TTL_MINUTES: z.coerce.number().int().positive().default(30),
-  // Shipping. SHIPPING_PROVIDER picks the courier integration; "none" means
-  // shipments are created by hand (no AWB or tracking is ever invented).
-  SHIPPING_PROVIDER: z.enum(["shiprocket", "none"]).default("shiprocket"),
+  // Shipping. Each courier integration is on when its credentials are set;
+  // SHIPPING_PROVIDER is the one used when a booking doesn't name one, and
+  // "none" turns them all off (shipments are then recorded by hand; no AWB
+  // or tracking is ever invented).
+  SHIPPING_PROVIDER: z.enum(["shiprocket", "delhivery", "none"]).default("shiprocket"),
   SHIPROCKET_EMAIL: z.string().optional(),
   SHIPROCKET_PASSWORD: z.string().optional(),
   /** Shiprocket pickup location nickname (Settings > Pickup Addresses). */
@@ -51,6 +53,14 @@ const schema = z.object({
   /** Value Shiprocket sends in the x-api-key header of tracking webhooks. */
   SHIPROCKET_WEBHOOK_TOKEN: z.string().optional(),
   SHIPROCKET_API_BASE: z.url().default("https://apiv2.shiprocket.in"),
+  /** Delhivery API token (Delhivery One > Settings > API setup). */
+  DELHIVERY_API_TOKEN: z.string().optional(),
+  /** Registered Delhivery warehouse name parcels are collected from, exactly as on Delhivery. */
+  DELHIVERY_PICKUP_LOCATION: z.string().optional(),
+  /** Token Delhivery sends with its scan-push webhook (Authorization: Bearer <token> or x-api-key). */
+  DELHIVERY_WEBHOOK_TOKEN: z.string().optional(),
+  /** https://track.delhivery.com in production; https://staging-express.delhivery.com for testing. */
+  DELHIVERY_API_BASE: z.url().default("https://track.delhivery.com"),
   /** Pincode orders ship from, for serviceability and rate checks. */
   SHIPPING_ORIGIN_PINCODE: z.string().regex(/^\d{6}$/).optional(),
   /** Parcel defaults when products carry no weight or size. */

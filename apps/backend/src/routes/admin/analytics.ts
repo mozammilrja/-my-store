@@ -3,6 +3,7 @@ import { z } from "zod"
 import { db } from "../../db/schema.js"
 import { badRequest } from "../../lib/errors.js"
 import { getOperatingRegion } from "../../lib/operating-region.js"
+import { logisticsReport } from "../../lib/analytics/logistics.js"
 
 export const adminAnalyticsRoutes = Router()
 
@@ -388,4 +389,14 @@ adminAnalyticsRoutes.get("/analytics", async (req, res) => {
     lowStockVariants: lowStock[0]?.count ?? 0,
     purchaseOrders: supplierSpend.map((s) => ({ status: s._id, count: s.count, amount: s.amount })),
   })
+})
+
+/** Couriers, warehouses, our fleet, cash and returns over a date range (lib/analytics/logistics.ts). */
+adminAnalyticsRoutes.get("/analytics/logistics", async (req, res) => {
+  const query = dateRange.omit({ compare: true }).parse(req.query)
+  const to = query.to ? new Date(query.to) : new Date()
+  const from = query.from ? new Date(query.from) : new Date(to.getTime() - 29 * DAY_MS)
+  if (from > to) throw badRequest("The start of the range is after its end", "invalid_range")
+  if (to.getTime() - from.getTime() > 366 * DAY_MS) throw badRequest("Choose a range of a year or less", "range_too_long")
+  res.json(await logisticsReport(from, to))
 })

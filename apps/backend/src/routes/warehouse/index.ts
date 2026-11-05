@@ -264,6 +264,7 @@ warehouseRoutes.post("/fulfilments/:id/label", async (req, res) => {
   const body = z
     .object({
       packageCode: z.string().trim().min(1).max(40),
+      carrier: z.enum(["shiprocket", "delhivery"]).optional(),
       courierId: z.number().int().positive().optional(),
       ownFleet: z.boolean().optional(),
       manual: z.object({ carrier: z.string().trim().min(2).max(80), awb: z.string().trim().min(4).max(40), trackingUrl: z.url().optional() }).optional(),

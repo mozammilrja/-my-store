@@ -3,11 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Icon, Input, Select, StatusBadge } from '../ui';
 import { adminApi } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
+import { CourierChoice, quoteKey } from '../logistics/CourierChoice';
 
 /*
  * Payments and shipment for one order, all from the API: Razorpay attempts and
  * refunds, and the courier workflow (book, courier, label, pickup, tracking,
- * cancel, failed-delivery actions). Nothing here sets a status by itself; each
+ * cancel, failed-delivery actions) with whichever integrations are set up:
+ * Shiprocket (courier and AWB assigned after booking) and Delhivery direct
+ * (the AWB comes with the booking). Nothing here sets a status by itself; each
  * button is one backend call, and the API decides what is allowed.
  */
 
@@ -38,6 +41,9 @@ const SHIPMENT_VARIANT = {
 };
 const REFUND_VARIANT = { processed: 'success', pending: 'info', requested: 'warning', failed: 'destructive' };
 
+const CARRIER_NAME = { shiprocket: 'Shiprocket', delhivery: 'Delhivery' };
+const COURIER_PROVIDERS = ['shiprocket', 'delhivery'];
+
 const when = (d) => (d ? new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
 export function OrderLogisticsPanel({ order, onShowToast }) {
@@ -56,9 +62,22 @@ export function OrderLogisticsPanel({ order, onShowToast }) {
   });
   const live = (shipments.data ?? []).find((s) => !s.isReturn && s.status !== 'cancelled');
   const returns = (shipments.data ?? []).filter((s) => s.isReturn);
-  const courierApi = integrations.data?.shipping?.provider === 'shiprocket';
+  const shipping = integrations.data?.shipping;
+  // The configured integrations, the default first; older APIs report only `provider`.
+  const carriers = shipping?.carriers?.map((c) => c.id) ?? (COURIER_PROVIDERS.includes(shipping?.provider) ? [shipping.provider] : []);
+  const courierApi = carriers.length > 0;
   const [showCouriers, setShowCouriers] = useState(false);
+  const [quote, setQuote] = useState('');
   const couriers = useQuery({ queryKey: ['admin', 'couriers', orderId], queryFn: () => adminApi.orderCouriers(orderId), enabled: showCouriers && courierApi });
+  const chosen = (couriers.data?.couriers ?? []).find((q) => quoteKey(q) === quote) ?? null;
+
+  /** Books with the chosen quote's integration; for Shiprocket the chosen courier is then assigned straight away. */
+  const book = (q) => async () => {
+    const carrier = q?.provider ?? carriers[0];
+    const { shipment } = await adminApi.createShipment(orderId, { carrier, ...(q && carrier === 'delhivery' ? { courierId: q.courierId } : {}) });
+    if (q && carrier === 'shiprocket' && shipment && !shipment.awb) await adminApi.assignCourier(shipment._id, q.courierId);
+    return shipment;
+  };
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: keys.payments });
@@ -212,14 +231,14 @@ export function OrderLogisticsPanel({ order, onShowToast }) {
               )}
             </div>
 
-            {live.provider === 'shiprocket' && (
+            {COURIER_PROVIDERS.includes(live.provider) && (
               <div className="flex flex-wrap items-center gap-space-xs">
-                {!live.awb && (
+                {live.provider === 'shiprocket' && !live.awb && (
                   <>
                     {showCouriers && couriers.data?.couriers?.length > 0 && (
                       <Select value={courierId} onChange={(e) => setCourierId(e.target.value)} wrapperClassName="min-w-56" aria-label="Courier">
                         <option value="">Recommended courier</option>
-                        {couriers.data.couriers.map((c) => (
+                        {couriers.data.couriers.filter((c) => c.provider === 'shiprocket').map((c) => (
                           <option key={c.courierId} value={c.courierId}>
                             {c.name} · {formatMoney(c.rate, currency)}
                             {c.etdDays != null ? ` · ${c.etdDays} days` : ''}
@@ -267,9 +286,13 @@ export function OrderLogisticsPanel({ order, onShowToast }) {
                 <Button size="sm" variant="outline" disabled={busy || ndrComment.trim().length < 3} onClick={() => run(() => adminApi.ndrAction(live._id, { action: 'reattempt', comment: ndrComment.trim() }), 'Re-attempt requested')}>
                   Re-attempt
                 </Button>
-                <Button size="sm" variant="ghost" disabled={busy || ndrComment.trim().length < 3} onClick={() => run(() => adminApi.ndrAction(live._id, { action: 'return', comment: ndrComment.trim() }), 'Return to origin requested')}>
-                  Return to us
-                </Button>
+                {live.provider === 'delhivery' ? (
+                  <span className="w-full text-meta text-muted">To have Delhivery send it back, raise the return in Delhivery One (NDR); its scans will show the return here.</span>
+                ) : (
+                  <Button size="sm" variant="ghost" disabled={busy || ndrComment.trim().length < 3} onClick={() => run(() => adminApi.ndrAction(live._id, { action: 'return', comment: ndrComment.trim() }), 'Return to origin requested')}>
+                    Return to us
+                  </Button>
+                )}
               </div>
             )}
 
@@ -299,10 +322,36 @@ export function OrderLogisticsPanel({ order, onShowToast }) {
         ) : canShip ? (
           <div className="flex flex-col gap-space-sm">
             {courierApi ? (
-              <Button size="sm" variant="primary" disabled={busy} onClick={() => run(() => adminApi.createShipment(orderId), 'Booked with Shiprocket')}>
-                <Icon name="local_shipping" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
-                Book with Shiprocket
-              </Button>
+              <div className="flex flex-col gap-space-sm">
+                {showCouriers ? (
+                  <CourierChoice
+                    data={couriers.data}
+                    isLoading={couriers.isLoading}
+                    error={couriers.error}
+                    currency={currency}
+                    value={quote}
+                    onChange={(key) => setQuote(key)}
+                  />
+                ) : null}
+                <div className="flex flex-wrap gap-space-xs">
+                  {chosen ? (
+                    <Button size="sm" variant="primary" disabled={busy} onClick={() => run(book(chosen), `Booked with ${chosen.name}`)}>
+                      <Icon name="local_shipping" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                      Book {chosen.name}
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="primary" disabled={busy} onClick={() => run(book(null), `Booked with ${CARRIER_NAME[carriers[0]]}`)}>
+                      <Icon name="local_shipping" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
+                      Book with {CARRIER_NAME[carriers[0]]}
+                    </Button>
+                  )}
+                  {!showCouriers && (
+                    <Button size="sm" variant="ghost" onClick={() => setShowCouriers(true)}>
+                      Compare couriers{carriers.length > 1 ? ` (${carriers.map((c) => CARRIER_NAME[c]).join(' and ')})` : ''}
+                    </Button>
+                  )}
+                </div>
+              </div>
             ) : (
               <p className="text-meta text-muted">No courier integration is configured, so shipments are recorded by hand.</p>
             )}

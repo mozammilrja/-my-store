@@ -17,8 +17,10 @@ import {
   SkeletonPage,
   FormGrid,
   FormInput,
+  StatusBadge,
 } from '../ui';
-import { adminApi } from '../../lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { adminApi, API_URL } from '../../lib/api';
 import { useSettingsQuery, useUpdateSettingsMutation } from '../../hooks/useAdminQueries';
 import { useSession } from '../../lib/session';
 
@@ -29,10 +31,34 @@ const SECTIONS = [
   { id: 'security', label: 'Security', icon: 'security' },
 ];
 
+/**
+ * The webhook endpoints this API actually serves (apps/backend/src/routes/store),
+ * each with where it is set up at the provider and whether its secret or token
+ * is configured on the server (GET /admin/integrations). The URLs are built
+ * from the API this admin talks to.
+ */
 const WEBHOOKS = [
-  { name: 'Razorpay instant settlement', url: 'https://api.everwear.in/v2/webhooks/razorpay-settle' },
-  { name: 'HDFC SmartHub payment hook', url: 'https://api.everwear.in/v2/webhooks/hdfc-pg' },
-  { name: 'Bluedart manifest telemetry', url: 'https://api.everwear.in/v2/webhooks/bluedart-track' },
+  {
+    id: 'razorpay',
+    name: 'Razorpay payments',
+    path: '/store/webhooks/razorpay',
+    setup: 'Razorpay Dashboard › Webhooks; events payment.captured, payment.failed, order.paid, refund.processed, refund.failed. Signed with RAZORPAY_WEBHOOK_SECRET.',
+    configured: (i) => !!i?.razorpay?.webhook,
+  },
+  {
+    id: 'shiprocket',
+    name: 'Shiprocket tracking',
+    path: '/store/webhooks/courier-tracking',
+    setup: 'Shiprocket › Settings › API › Webhooks; token SHIPROCKET_WEBHOOK_TOKEN in x-api-key.',
+    configured: (i) => !!(i?.shipping?.carriers?.find((c) => c.id === 'shiprocket')?.webhook ?? i?.shipping?.webhook),
+  },
+  {
+    id: 'delhivery',
+    name: 'Delhivery scan push',
+    path: '/store/webhooks/courier-tracking/dlv',
+    setup: "Given to Delhivery's integration team; token DELHIVERY_WEBHOOK_TOKEN as Authorization: Bearer.",
+    configured: (i) => !!i?.shipping?.carriers?.find((c) => c.id === 'delhivery')?.webhook,
+  },
 ];
 
 /** One setting: its name and explanation on the left, the control on the right. */
@@ -68,6 +94,12 @@ export function SystemSettings({ onNavigate, onShowToast }) {
   const [ipWhitelisting, setIpWhitelisting] = useState(true);
   const [cloudSyncInterval, setCloudSyncInterval] = useState('15');
   const [activeLogLevel, setActiveLogLevel] = useState('INFO');
+  const integrations = useQuery({
+    queryKey: ['admin', 'integrations'],
+    queryFn: () => adminApi.integrations(),
+    staleTime: 60_000,
+    enabled: activeSection === 'integrations',
+  });
 
   // TanStack Query for store settings
   const {
@@ -313,21 +345,31 @@ export function SystemSettings({ onNavigate, onShowToast }) {
           </TabsContent>
 
           <TabsContent value="integrations">
-            {/* Each endpoint used to carry a "Healthy 200 OK" tag and a
-                latency (14ms, 22ms, 38ms). Nothing measures either, so only
-                the configured endpoints are listed. */}
+            {/* Nothing measures endpoint health or latency, so none is shown:
+                only the real endpoints and whether the server holds the
+                secret each one is checked with. */}
             <SectionCard
               title="Gateway webhooks"
-              description="Endpoints that payment and courier providers notify."
+              description="Endpoints that payment and courier providers notify, and whether each one's secret is set on the server."
               contentClassName="p-0"
             >
               <ul className="divide-y divide-subtle">
-                {WEBHOOKS.map((hook) => (
-                  <li key={hook.url} className="flex min-w-0 flex-col gap-0.5 p-space-md">
-                    <span className="text-label font-medium text-primary">{hook.name}</span>
-                    <span className="truncate font-mono text-meta text-muted" title={hook.url}>{hook.url}</span>
-                  </li>
-                ))}
+                {WEBHOOKS.map((hook) => {
+                  const url = `${API_URL}${hook.path}`;
+                  const set = hook.configured(integrations.data);
+                  return (
+                    <li key={hook.id} className="flex min-w-0 flex-col gap-1 p-space-md">
+                      <span className="flex flex-wrap items-center justify-between gap-space-sm">
+                        <span className="text-label font-medium text-primary">{hook.name}</span>
+                        {integrations.data && (
+                          <StatusBadge status={set ? 'Secret set' : 'Not set up'} variant={set ? 'success' : 'warning'} size="sm" />
+                        )}
+                      </span>
+                      <span className="truncate font-mono text-meta text-muted" title={url}>{url}</span>
+                      <span className="text-meta text-faint">{hook.setup}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </SectionCard>
           </TabsContent>

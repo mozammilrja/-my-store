@@ -8,7 +8,7 @@ import { ProviderError, providerJson } from "../providers/http.js"
  */
 
 export const isShiprocketConfigured = () =>
-  env.SHIPPING_PROVIDER === "shiprocket" && !!(env.SHIPROCKET_EMAIL && env.SHIPROCKET_PASSWORD && env.SHIPROCKET_PICKUP_LOCATION)
+  env.SHIPPING_PROVIDER !== "none" && !!(env.SHIPROCKET_EMAIL && env.SHIPROCKET_PASSWORD && env.SHIPROCKET_PICKUP_LOCATION)
 
 const base = () => `${env.SHIPROCKET_API_BASE}/v1/external`
 
@@ -201,7 +201,7 @@ export async function shiprocketManifest(providerShipmentIds: string | string[])
   return { manifestUrl: res.manifest_url ?? null }
 }
 
-export type TrackingScan = { date: string; status: string; statusId?: number | string; activity: string; location: string }
+export type TrackingScan = { date: string; status: string; statusId?: number | string; code?: string; activity: string; location: string }
 
 export async function shiprocketTrack(awb: string) {
   const res = await call<{

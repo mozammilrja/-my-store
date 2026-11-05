@@ -64,6 +64,24 @@ export const UsersAndRoleAccess = lazyDefault(
   () => import('./components/admin/UsersAndRoleAccess'),
   'UsersAndRoleAccess'
 );
+export const WarehouseOperations = lazyDefault(
+  () => import('./components/warehouses/WarehouseOperations'),
+  'WarehouseOperations'
+);
+export const DeliveryFleet = lazyDefault(() => import('./components/fleet/DeliveryFleet'), 'DeliveryFleet');
+export const CashOnDelivery = lazyDefault(() => import('./components/fleet/CashOnDelivery'), 'CashOnDelivery');
+export const LogisticsAnalytics = lazyDefault(
+  () => import('./components/logistics/LogisticsAnalytics'),
+  'LogisticsAnalytics'
+);
+export const MarketplaceSellers = lazyDefault(
+  () => import('./components/marketplace/MarketplaceSellers'),
+  'MarketplaceSellers'
+);
+export const NotificationCentre = lazyDefault(
+  () => import('./components/notifications/NotificationCentre'),
+  'NotificationCentre'
+);
 export const SystemSettings = lazyDefault(
   () => import('./components/settings/SystemSettings'),
   'SystemSettings'
@@ -151,6 +169,35 @@ export const MENU_SECTIONS = [
     ],
   },
   {
+    title: 'Logistics',
+    items: [
+      {
+        path: 'warehouse-operations',
+        label: 'Warehouse Operations',
+        icon: 'inventory_2',
+        element: WarehouseOperations,
+      },
+      { path: 'delivery-fleet', label: 'Delivery Fleet', icon: 'two_wheeler', element: DeliveryFleet },
+      {
+        path: 'logistics-analytics',
+        label: 'Logistics Analytics',
+        icon: 'auto_graph',
+        element: LogisticsAnalytics,
+      },
+    ],
+  },
+  {
+    title: 'Marketplace',
+    items: [
+      {
+        path: 'marketplace-sellers',
+        label: 'Sellers & Settlements',
+        icon: 'storefront',
+        element: MarketplaceSellers,
+      },
+    ],
+  },
+  {
     title: 'Finance & Compliance',
     items: [
       {
@@ -165,6 +212,7 @@ export const MENU_SECTIONS = [
         icon: 'account_balance_wallet',
         element: PaymentsAndReconciliation,
       },
+      { path: 'cash-on-delivery', label: 'Cash on Delivery', icon: 'payments', element: CashOnDelivery },
       {
         path: 'credit-notes-and-refunds',
         label: 'Credit Notes & Refunds',
@@ -194,6 +242,12 @@ export const MENU_SECTIONS = [
         label: 'Users & Role Access',
         icon: 'admin_panel_settings',
         element: UsersAndRoleAccess,
+      },
+      {
+        path: 'notifications',
+        label: 'Notifications',
+        icon: 'notifications_active',
+        element: NotificationCentre,
       },
       { path: 'system-settings', label: 'System Settings', icon: 'settings', element: SystemSettings },
     ],

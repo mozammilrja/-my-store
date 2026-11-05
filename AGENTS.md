@@ -8,14 +8,14 @@ Everwear: an online clothing store for India (one region, prices in INR). A Turb
 | --- | --- | --- | --- |
 | `apps/backend` | `@dtc/backend` | Everwear API: catalog, carts, checkout, orders, customers and admin endpoints. Node 22, Express 5, MongoDB, Zod. | http://localhost:9100 |
 | `apps/storefront` | `@dtc/storefront` | Shop front. Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui + ReUI. | http://localhost:8001 |
-| `apps/admin` | `@dtc/admin` | Store admin: dashboard, orders, products, customers, each list with a detail page. React 19, Vite 8, React Router, TanStack Query + Table, shadcn/ui + ReUI. | http://localhost:7001 |
+| `apps/admin` | `@dtc/admin` | Store admin: dashboard, orders, products, customers, returns, finance, warehouse operations, delivery fleet, cash on delivery, marketplace sellers, notifications, logistics analytics. React 18 (JSX), Vite 6, React Router, TanStack Query, Tailwind 3. | http://localhost:7001 |
 | `apps/warehouse` | `@dtc/warehouse` | Warehouse floor app: incoming orders, picking, inspection, packing, labels, manifests, stock and returns. Scanner-first and mobile-first. React 19, Vite 6, React Router, TanStack Query, Tailwind 4. Talks to the API's `/warehouse` routes with its own staff token. | http://localhost:7101 |
 | `apps/rider` | `@dtc/rider` | Delivery partner app for our own fleet: offers, hub pickup by AWB, route, doorstep OTP with cash and proof photo, failed attempts, cash handover, earnings, profile and documents. Phone-first. Same stack as the warehouse app. Talks to the API's `/rider` routes. | http://localhost:7201 |
 | `apps/seller` | `@dtc/seller` | Seller Hub for marketplace sellers: onboarding and KYC, listings, stock and shipping notices, orders (seller-fulfilled), returns, payments, performance. Same stack as the warehouse app. Talks to the API's `/seller` routes. | http://localhost:7301 |
 
 The project started from the Medusa DTC starter and has since moved off Medusa. Medusa and PostgreSQL are no longer part of the running stack; the only remaining link is the one-off `migrate:medusa` script that copies data out of an old Medusa database. Ignore Medusa docs, skills and the `@medusajs/*` package `AGENTS.md` files unless you are working on that script.
 
-**`apps/admin` is a Vite single-page app**, not Next.js: `index.html` boots `src/main.tsx`, routing is React Router and data loading is TanStack Query. It talks to the API's `/admin` routes with a Bearer token held in `localStorage`, through `src/lib/api.ts`. It has no server side, so anything it shows must come from an endpoint the API already exposes.
+**`apps/admin` is a Vite single-page app**, not Next.js: `index.html` boots `src/main.jsx`, routing is React Router (from `src/routes.jsx`) and data loading is TanStack Query. It talks to the API's `/admin` routes with a Bearer token held in `localStorage`, through `src/lib/api.js`. It has no server side, so anything it shows must come from an endpoint the API already exposes.
 
 Architecture, design tokens and known issues: [`docs/PROJECT.md`](./docs/PROJECT.md).
 
@@ -40,13 +40,16 @@ Architecture, design tokens and known issues: [`docs/PROJECT.md`](./docs/PROJECT
 | Storefront API calls | `apps/storefront/src/lib/api/client.ts` (server-only fetch wrapper) and `src/lib/data/*.ts` |
 | Storefront UI | `apps/storefront/src/modules/<feature>/`, routes in `src/app/[countryCode]/` |
 | Storefront e2e tests | `apps/storefront/e2e/` |
-| Admin API client and response types | `apps/admin/src/lib/api.ts`, `src/lib/types.ts` |
-| Admin pages | `apps/admin/src/routes/*.tsx`, wired up in `src/main.tsx`; the nav and the not-yet-built modules both come from `src/lib/modules.ts` |
-| Admin list tables (search, filters, paging) | `apps/admin/src/components/resource-grid.tsx` |
+| Admin API client | `apps/admin/src/lib/api.js` (`adminApi`), plus one `src/lib/api-<area>.js` per operations area (warehouses, fleet, notifications, marketplace) |
+| Admin pages | `apps/admin/src/components/<area>/*.jsx` (React 18, JSX); every route, the sidebar and the breadcrumbs come from `src/routes.jsx` |
+| Admin list tables (search, filters, paging) | `apps/admin/src/components/shared/DataTable.jsx` with `src/hooks/useClientTable.js` / `useServerTable.js` |
+| Admin operations browser tests (warehouses, fleet, COD, notifications, marketplace, logistics) | `apps/admin/e2e/ops/*.ops.js`; `api-server.ts` runs the real API on `everwear_e2e_admin_ops` and runs each area's `seed/*.ts` |
 | Admin UI | `apps/admin/src/` |
 | Warehouse app screens | `apps/warehouse/src/routes/` (orders, fulfilment work screen, dispatch, stock, returns); API client `src/lib/api.ts`, types `src/lib/types.ts` |
 | Warehouse app scanning and printing | `apps/warehouse/src/components/scan-field.tsx` (keyboard-wedge scanners, camera through the Barcode Detection API), `src/lib/code128.ts` (pick slip and parcel barcodes) |
 | Warehouse browser tests | `apps/warehouse/e2e/` (`api-server.ts` runs the real API on `everwear_e2e_warehouse` with the courier stand-in) |
+| Courier integrations: Shiprocket, Delhivery direct, comparing quotes | `apps/backend/src/lib/shipping/` (`service.ts` one interface for both, `shiprocket.ts`, `delhivery.ts`, `status.ts` status mapping); design in [`docs/PAYMENTS_AND_SHIPPING.md`](./docs/PAYMENTS_AND_SHIPPING.md) |
+| Logistics analytics | `apps/backend/src/lib/analytics/logistics.ts`, `GET /admin/analytics/logistics`; definitions in [`docs/LOGISTICS_ANALYTICS.md`](./docs/LOGISTICS_ANALYTICS.md) |
 | Marketplace sellers: KYC, listings, seller warehouses, ledger, settlements, ASN | `apps/backend/src/lib/marketplace/`; seller API `src/routes/seller/`, admin API `src/routes/admin/marketplace.ts`; design in [`docs/MARKETPLACE.md`](./docs/MARKETPLACE.md) |
 | Notifications: email, SMS, WhatsApp, push | `apps/backend/src/lib/notify/` (`index.ts` recipients, queue and worker; `templates.ts` wording and template variables; `providers/` one file per channel); admin API `src/routes/admin/notifications.ts`; design in [`docs/NOTIFICATIONS.md`](./docs/NOTIFICATIONS.md) |
 | Returns and exchanges: rules, refunds, replacement orders | `apps/backend/src/lib/returns/` (`returns.ts` rules and lifecycle, `resolve.ts` decisions, `inspect.ts` warehouse grading); design in [`docs/RETURNS.md`](./docs/RETURNS.md) |
@@ -144,10 +147,13 @@ Admin (from `apps/admin`, with the API running):
 
 ```bash
 npm run dev          # Vite dev server on 7001
-npm run typecheck
-npm run lint
 npm run build && npm run preview
+npx playwright test                                # e2e/*.spec.js against the running dev API
+npm run test:e2e:ops                               # e2e/ops/*.ops.js, area by area, on a throwaway API and database
+npm run test:e2e:ops -- fleet                      # one area
 ```
+
+The operations suite starts its own API (`everwear_e2e_admin_ops`, reset each run) and Vite server for each area, seeded with only that area's records (`e2e/ops/seed/<nn>-<area>.ts`), because each spec checks exact counts in its own data. `OPS_SLOT=1..9` gives a run its own ports and database so runs can overlap.
 
 Signing in needs an admin account, created from the API with `npm run admin:create`.
 

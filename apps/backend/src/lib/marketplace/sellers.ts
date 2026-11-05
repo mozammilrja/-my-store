@@ -102,7 +102,7 @@ export async function verifyItem(sellerId: string, item: keyof SellerDoc["verifi
  * given; selling taxable goods online needs one, but the store decides).
  * A seller who ships themselves gets their pickup address as a warehouse.
  */
-export async function approveSeller(sellerId: string, actor: ActorRef, opts: { commissionPct?: number | null; shiprocketPickupLocation?: string } = {}) {
+export async function approveSeller(sellerId: string, actor: ActorRef, opts: { commissionPct?: number | null; shiprocketPickupLocation?: string; delhiveryPickupLocation?: string } = {}) {
   const s = await db.sellers().findOne({ _id: sellerId })
   if (!s) throw notFound("Seller")
   if (!["submitted", "suspended"].includes(s.status)) throw conflict("Only a submitted or suspended seller can be approved.", "invalid_transition")
@@ -127,11 +127,12 @@ export async function approveSeller(sellerId: string, actor: ActorRef, opts: { c
       acceptsOrders: true,
       sellerId: s._id,
       ...(opts.shiprocketPickupLocation ? { shiprocketPickupLocation: opts.shiprocketPickupLocation } : {}),
+      ...(opts.delhiveryPickupLocation ? { delhiveryPickupLocation: opts.delhiveryPickupLocation } : {}),
       createdAt: now,
       updatedAt: now,
     })
   } else if (warehouseId) {
-    await db.warehouses().updateOne({ _id: warehouseId }, { $set: { status: "active", acceptsOrders: true, ...(opts.shiprocketPickupLocation ? { shiprocketPickupLocation: opts.shiprocketPickupLocation } : {}), updatedAt: now } })
+    await db.warehouses().updateOne({ _id: warehouseId }, { $set: { status: "active", acceptsOrders: true, ...(opts.shiprocketPickupLocation ? { shiprocketPickupLocation: opts.shiprocketPickupLocation } : {}), ...(opts.delhiveryPickupLocation ? { delhiveryPickupLocation: opts.delhiveryPickupLocation } : {}), updatedAt: now } })
   }
   const r = await db.sellers().findOneAndUpdate(
     { _id: s._id, status: s.status },

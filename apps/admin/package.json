@@ -11,7 +11,8 @@
     "test:e2e": "playwright test",
     "test:e2e:modules": "playwright test e2e/modules.spec.js",
     "test:e2e:responsive": "playwright test --project=responsive",
-    "test:e2e:typography": "playwright test --project=typography"
+    "test:e2e:typography": "playwright test --project=typography",
+    "test:e2e:ops": "node e2e/ops/run.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.105.0",

@@ -5,7 +5,7 @@ import { db } from "../../db/schema.js"
 import { env } from "../../env.js"
 import { log } from "../../lib/log.js"
 import { claimWebhookEvent } from "../../lib/providers/webhook-events.js"
-import { applyShiprocketWebhook, serviceability, type ShiprocketWebhook } from "../../lib/shipping/service.js"
+import { applyDelhiveryWebhook, applyShiprocketWebhook, serviceability, type DelhiveryWebhook, type ShiprocketWebhook } from "../../lib/shipping/service.js"
 import { clientKey, rateLimit } from "../../lib/auth.js"
 import { ApiError } from "../../lib/errors.js"
 
@@ -35,8 +35,7 @@ storeShippingRoutes.get("/shipping/serviceability", async (req, res) => {
   })
 })
 
-const tokenMatches = (given: string | undefined) => {
-  const expected = env.SHIPROCKET_WEBHOOK_TOKEN
+const tokenMatches = (given: string | undefined, expected = env.SHIPROCKET_WEBHOOK_TOKEN) => {
   if (!expected || !given) return false
   const a = Buffer.from(expected)
   const b = Buffer.from(given)
@@ -75,5 +74,40 @@ storeShippingRoutes.post("/webhooks/courier-tracking", async (req, res) => {
     log.error("webhook.courier_failed", { awb: String(body.awb ?? ""), error: message })
   }
   // Shiprocket expects a 200; a failed update is retried by the tracking sweep.
+  res.json({ status: "ok" })
+})
+
+/**
+ * Delhivery scan push. Delhivery sends each status change for the store's
+ * waybills to the URL its team configures, with the token agreed for it
+ * (Authorization: Bearer <token>, or x-api-key). Each update is applied once.
+ */
+storeShippingRoutes.post("/webhooks/courier-tracking/dlv", async (req, res) => {
+  if (!env.DELHIVERY_WEBHOOK_TOKEN) {
+    res.status(503).json({ error: { code: "webhook_unconfigured", message: "Webhook token not configured" } })
+    return
+  }
+  const given = req.header("x-api-key") ?? req.header("authorization")?.replace(/^(Bearer|Token)\s+/i, "")
+  if (!tokenMatches(given, env.DELHIVERY_WEBHOOK_TOKEN)) {
+    log.warn("webhook.courier_bad_token", { provider: "delhivery" })
+    res.status(401).json({ error: { code: "unauthorized", message: "Invalid token" } })
+    return
+  }
+  const body = req.body as DelhiveryWebhook
+  const rawBody = (req as { rawBody?: Buffer }).rawBody ?? Buffer.from(JSON.stringify(body))
+  const eventId = createHash("sha256").update(rawBody).digest("hex")
+  const claim = await claimWebhookEvent("delhivery", eventId, body.Shipment?.Status?.Status ?? "tracking", body, "")
+  if (claim !== "new") {
+    res.json({ status: "ok", duplicate: claim === "done" })
+    return
+  }
+  try {
+    const outcome = await applyDelhiveryWebhook(body)
+    await db.paymentWebhookEvents().updateOne({ provider: "delhivery", eventId }, { $set: { status: outcome, processedAt: new Date() } })
+  } catch (e) {
+    const message = (e as Error).message
+    await db.paymentWebhookEvents().updateOne({ provider: "delhivery", eventId }, { $set: { status: "failed", error: message.slice(0, 500) } })
+    log.error("webhook.courier_failed", { provider: "delhivery", awb: String(body.Shipment?.AWB ?? ""), error: message })
+  }
   res.json({ status: "ok" })
 })

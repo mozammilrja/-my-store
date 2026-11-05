@@ -3,7 +3,7 @@
  * Connects directly to the Everwear Commerce API (apps/backend on port 9100).
  */
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9100' : 'https://api.everwear.com');
+export const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:9100' : 'https://api.everwear.com');
 const TOKEN_KEY = 'everwear_admin_token';
 
 export class ApiError extends Error {

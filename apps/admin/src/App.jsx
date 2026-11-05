@@ -1,4 +1,5 @@
-import React, { useState, useEffect, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Navigate,
   Outlet,
@@ -10,7 +11,7 @@ import {
   useParams,
 } from 'react-router-dom';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
-import { HUBS } from './data/mockData';
+import { api } from './lib/api';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { NotFound } from './components/layout/NotFound';
@@ -67,7 +68,24 @@ function ModuleRoute({ component: Component, path }) {
 function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [currentHub, setCurrentHub] = useState(HUBS[0]);
+  // The store's own warehouses, from the API. Picking one in the sidebar opens
+  // it in Warehouse Operations; nothing else on screen is filtered by it.
+  const warehousesQuery = useQuery({
+    queryKey: ['admin', 'warehouses', 'shell'],
+    queryFn: () => api('/admin/warehouses'),
+    staleTime: 5 * 60_000,
+  });
+  const hubs = useMemo(
+    () =>
+      (warehousesQuery.data?.warehouses ?? [])
+        .filter((w) => !w.sellerId && w.status !== 'inactive')
+        .map((w) => ({ id: w.code, warehouseId: w._id, name: w.name, location: [w.city, w.state].filter(Boolean).join(', '), isDefault: !!w.isDefault })),
+    [warehousesQuery.data]
+  );
+  const [hubId, setHubId] = useState(null);
+  const currentHub = hubs.find((h) => h.warehouseId === hubId) ??
+    hubs.find((h) => h.isDefault) ??
+    hubs[0] ?? { id: 'No warehouse', warehouseId: null, name: warehousesQuery.isLoading ? 'Loading warehouses' : 'No warehouse set up', location: '' };
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -122,12 +140,8 @@ function AdminLayout() {
   const handleSelectOrder = useCallback((orderId) => setSelectedOrderId(orderId), []);
 
   const handleSelectHub = (hub) => {
-    setCurrentHub(hub);
-    showToast({
-      type: 'info',
-      title: 'Fulfillment node switched',
-      message: `Stock and dispatch views now show ${hub.name} (${hub.location}).`,
-    });
+    setHubId(hub.warehouseId);
+    navigate(`/warehouse-operations?warehouse=${encodeURIComponent(hub.warehouseId)}`);
   };
 
   const handleCommandAction = (action) => {
@@ -150,6 +164,7 @@ function AdminLayout() {
         currentPath={currentPath}
         onNavigate={handleNavigate}
         currentHub={currentHub}
+        hubs={hubs}
         onSelectHub={handleSelectHub}
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed(!isCollapsed)}

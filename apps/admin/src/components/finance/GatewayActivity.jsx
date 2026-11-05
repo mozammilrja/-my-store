@@ -14,6 +14,7 @@ import { formatMoney } from '../../lib/format';
 const ATTEMPT_VARIANT = { paid: 'success', created: 'info', failed: 'destructive', expired: 'secondary', refunded: 'warning' };
 const REFUND_VARIANT = { processed: 'success', pending: 'info', requested: 'warning', failed: 'destructive' };
 const EVENT_VARIANT = { processed: 'success', ignored: 'secondary', failed: 'destructive', processing: 'info' };
+const CARRIER_NAME = { shiprocket: 'Shiprocket', delhivery: 'Delhivery direct' };
 const when = (d) => (d ? new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
 function Row({ children }) {
@@ -38,6 +39,8 @@ export function GatewayActivity({ onShowToast }) {
 
   const rzp = integrations.data?.razorpay;
   const ship = integrations.data?.shipping;
+  // Every configured courier integration, the default first; an older API reports only `provider`.
+  const carriers = ship?.carriers ?? (ship?.provider && ship.provider !== 'none' ? [{ id: ship.provider, webhook: !!ship.webhook }] : []);
   const failedEvents = (events.data?.events ?? []).filter((e) => e.status === 'failed').length;
 
   return (
@@ -55,8 +58,21 @@ export function GatewayActivity({ onShowToast }) {
           Razorpay: {rzp?.configured ? `${rzp.mode} mode` : 'not configured'}
         </Badge>
         <Badge variant={rzp?.webhook ? 'success' : 'warning'}>Payment webhook: {rzp?.webhook ? 'secret set' : 'not set'}</Badge>
-        <Badge variant={ship?.provider === 'shiprocket' ? 'success' : 'secondary'}>Courier: {ship?.provider === 'shiprocket' ? 'Shiprocket' : 'manual only'}</Badge>
-        <Badge variant={ship?.webhook ? 'success' : 'warning'}>Tracking webhook: {ship?.webhook ? 'token set' : 'not set'}</Badge>
+        {carriers.length ? (
+          carriers.map((c, i) => (
+            <React.Fragment key={c.id}>
+              <Badge variant="success">
+                Courier: {CARRIER_NAME[c.id] ?? c.id}
+                {i === 0 && carriers.length > 1 ? ' (default)' : ''}
+              </Badge>
+              <Badge variant={c.webhook ? 'success' : 'warning'}>
+                {CARRIER_NAME[c.id] ?? c.id} tracking webhook: {c.webhook ? 'token set' : 'not set'}
+              </Badge>
+            </React.Fragment>
+          ))
+        ) : (
+          <Badge variant="secondary">Courier: none configured (shipments recorded by hand)</Badge>
+        )}
       </div>
 
       <div className="mb-space-sm flex gap-space-xs" role="tablist" aria-label="Gateway activity">

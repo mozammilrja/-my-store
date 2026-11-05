@@ -6,7 +6,7 @@ import { ApiError, badRequest, conflict, notFound } from "../errors.js"
 import { newId } from "../ids.js"
 import { moveStock } from "../inventory/stock.js"
 import { log } from "../log.js"
-import { assignCourier, courierManifest, createFulfilmentShipment, generateLabel, recordManualShipment, schedulePickup, shippingConfigured } from "../shipping/service.js"
+import { assignCourier, courierManifest, createFulfilmentShipment, generateLabel, recordManualShipment, schedulePickups, shippingConfigured, type Carrier } from "../shipping/service.js"
 import { assertTransition, recordTransition } from "../state/machines.js"
 import { allocate } from "./allocate.js"
 import { announce, notifyCustomer } from "../notify/index.js"
@@ -269,7 +269,7 @@ function packInTransaction(id: string, input: { orderCode: string; scans: string
  * recorded instead (`manual`); nothing is generated here.
  * Safe to retry: a booking already made is reused, and only missing steps run.
  */
-export async function generateFulfilmentLabel(id: string, input: { packageCode: string; courierId?: number; ownFleet?: boolean; manual?: { carrier: string; awb: string; trackingUrl?: string } }, actor: ActorRef) {
+export async function generateFulfilmentLabel(id: string, input: { packageCode: string; carrier?: Carrier; courierId?: number; ownFleet?: boolean; manual?: { carrier: string; awb: string; trackingUrl?: string } }, actor: ActorRef) {
   let f = await loadFulfilment(id)
   if (f.status !== "packed") throw conflict("Pack the parcel before generating its label.", "not_packed")
   if (!f.package || norm(input.packageCode) !== norm(f.package.code)) throw new ScanError("wrong_package", "That parcel barcode isn't this order's parcel.")
@@ -284,14 +284,12 @@ export async function generateFulfilmentLabel(id: string, input: { packageCode: 
       shipment = await recordManualShipment(order, input.manual, f)
     } else {
       if (!shippingConfigured()) throw badRequest("No courier integration is configured. Enter the AWB the courier gave you.", "shipping_unconfigured")
-      shipment = await createFulfilmentShipment(f)
+      shipment = await createFulfilmentShipment(f, { carrier: input.carrier, courierId: input.courierId })
     }
     await db.fulfilments().updateOne({ _id: f._id }, { $set: { shipmentId: shipment._id, updatedAt: new Date() } })
   }
-  if (shipment.provider === "shiprocket") {
-    if (!shipment.awb) shipment = await assignCourier(shipment._id, input.courierId)
-    if (!shipment.labelUrl) shipment = await generateLabel(shipment._id)
-  }
+  if (shipment.provider === "shiprocket" && !shipment.awb) shipment = await assignCourier(shipment._id, input.courierId)
+  if ((shipment.provider === "shiprocket" || shipment.provider === "delhivery") && !shipment.labelUrl) shipment = await generateLabel(shipment._id)
   f = await loadFulfilment(id)
   return advance(f, "label_generated", actor, undefined, { shipmentId: shipment._id, awb: shipment.awb, carrier: shipment.carrier })
 }
@@ -343,10 +341,7 @@ export async function createManifest(warehouseId: string, carrier: string, actor
     throw conflict("Those parcels were just put on another manifest.", "nothing_ready")
   }
   const shipmentIds = ready.filter((f) => manifest.fulfilmentIds.includes(f._id)).map((f) => f.shipmentId!)
-  for (const sid of shipmentIds) {
-    const s = await db.shipments().findOne({ _id: sid })
-    if (s?.provider === "shiprocket" && !s.pickup) await schedulePickup(sid)
-  }
+  await schedulePickups(shipmentIds)
   const url = await courierManifest(shipmentIds)
   if (url) manifest.manifestUrls.push(url)
   await db.manifests().updateOne({ _id: manifest._id }, { $set: { fulfilmentIds: manifest.fulfilmentIds, awbs: manifest.awbs, manifestUrls: manifest.manifestUrls } })

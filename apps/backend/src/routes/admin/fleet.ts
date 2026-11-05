@@ -225,7 +225,7 @@ adminFleetRoutes.get("/delivery-tasks/:id/pod-photo", async (req, res) => {
 adminFleetRoutes.get("/cod-remittances", async (req, res) => {
   const q = z.object({ status: z.enum(["submitted", "reconciled", "mismatch"]).optional() }).parse(req.query)
   const remittances = await db.codRemittances().find(q.status ? { status: q.status } : {}, { sort: { submittedAt: -1 }, limit: 200 }).toArray()
-  const outstanding = await db.deliveryTasks().aggregate<{ _id: string; n: number; parcels: number }>([{ $match: { "cod.collected": { $exists: true }, "cod.remittanceId": null } }, { $group: { _id: "$riderId", n: { $sum: "$cod.collected" }, parcels: { $sum: 1 } } }]).toArray()
+  const outstanding = await db.deliveryTasks().aggregate<{ _id: string; n: number; parcels: number }>([{ $match: { "cod.collected": { $exists: true }, "cod.remittanceId": null, status: "delivered" } }, { $group: { _id: "$riderId", n: { $sum: "$cod.collected" }, parcels: { $sum: 1 } } }]).toArray()
   res.json({ remittances, cashWithRiders: outstanding.map((o) => ({ riderId: o._id, amount: o.n, parcels: o.parcels })) })
 })
 

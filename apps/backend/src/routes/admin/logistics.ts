@@ -16,8 +16,8 @@ import {
   ndrAction,
   recordManualShipment,
   schedulePickup,
+  configuredCarriers,
   serviceability,
-  shippingConfigured,
   syncTracking,
   updateManualShipment,
 } from "../../lib/shipping/service.js"
@@ -40,7 +40,7 @@ const loadOrder = async (id: string) => {
 /* ---------- Shipments ---------- */
 
 adminLogisticsRoutes.get("/shipping/status", (_req, res) => {
-  res.json({ provider: shippingConfigured() ? "shiprocket" : "none" })
+  res.json({ provider: configuredCarriers()[0] ?? "none", carriers: configuredCarriers() })
 })
 
 adminLogisticsRoutes.get("/shipments", async (req, res) => {
@@ -57,7 +57,7 @@ adminLogisticsRoutes.get("/shipments", async (req, res) => {
     ...(q.ndr ? { status: "delivery_failed" as const } : {}),
   }
   const shipments = await db.shipments().find(filter, { sort: { createdAt: -1 }, limit: 200 }).toArray()
-  res.json({ shipments, provider: shippingConfigured() ? "shiprocket" : "none" })
+  res.json({ shipments, provider: configuredCarriers()[0] ?? "none", carriers: configuredCarriers() })
 })
 
 adminLogisticsRoutes.get("/shipments/:id", async (req, res) => {
@@ -69,7 +69,7 @@ adminLogisticsRoutes.get("/shipments/:id", async (req, res) => {
 /** Couriers that can deliver this order, with live rates, to choose from before booking. */
 adminLogisticsRoutes.get("/orders/:id/couriers", async (req, res) => {
   const order = await loadOrder(req.params.id)
-  res.json(await serviceability(order.shippingAddress.postalCode, { cod: order.paymentMethod === "cod" }))
+  res.json(await serviceability(order.shippingAddress.postalCode, { cod: order.paymentMethod === "cod", codAmount: order.paymentMethod === "cod" ? order.totals.total : 0 }))
 })
 
 /**
@@ -81,6 +81,9 @@ adminLogisticsRoutes.post("/orders/:id/shipments", async (req, res) => {
   const body = z
     .object({
       manual: z.object({ carrier: z.string().trim().min(2).max(80), awb: z.string().trim().min(4).max(40), trackingUrl: z.url().optional() }).optional(),
+      /** Which integration to book with (default: SHIPPING_PROVIDER), and its courier or service from the quotes. */
+      carrier: z.enum(["shiprocket", "delhivery"]).optional(),
+      courierId: z.number().int().positive().optional(),
       parcel: z
         .object({
           weightKg: z.number().positive().max(100).optional(),
@@ -92,7 +95,7 @@ adminLogisticsRoutes.post("/orders/:id/shipments", async (req, res) => {
     })
     .parse(req.body ?? {})
   const order = await loadOrder(req.params.id)
-  const shipment = body.manual ? await recordManualShipment(order, body.manual) : await createShipment(order, { parcel: body.parcel })
+  const shipment = body.manual ? await recordManualShipment(order, body.manual) : await createShipment(order, { parcel: body.parcel, carrier: body.carrier, courierId: body.courierId })
   res.status(201).json({ shipment })
 })
 

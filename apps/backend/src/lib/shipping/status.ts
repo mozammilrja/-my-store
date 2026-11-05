@@ -94,3 +94,47 @@ export function fulfillmentFor(status: ShipmentStatus): "unfulfilled" | "shipped
   if (["picked_up", "in_transit", "out_for_delivery", "delivery_failed", "rto_initiated", "rto_in_transit"].includes(status)) return "shipped"
   return null
 }
+
+/*
+ * Delhivery reports a StatusType and a Status (Delhivery tracking API):
+ *   UD  forward, not yet delivered   Manifested, Not Picked, In Transit, Pending, Dispatched (out for delivery)
+ *   DL  final                         Delivered, RTO (back at origin), DTO (reverse pickup delivered)
+ *   RT  returning to origin           In Transit, Pending, Dispatched
+ *   PP  reverse pickup pending        Open, Scheduled, Dispatched (out for pickup)
+ *   PU  reverse, picked up            In Transit, Pending, Dispatched
+ *   CN  cancelled                     Canceled, Closed
+ *   LT  lost
+ * A failed delivery attempt keeps Status "Pending" or "Dispatched" with an
+ * end-of-day NDR code (EOD-xx), or "Undelivered" in the wording.
+ */
+export function mapDelhiveryStatus(type: string | number | null | undefined, label?: string | null, code?: string | null): ShipmentStatus | null {
+  const t = String(type ?? "").trim().toUpperCase()
+  const s = (label ?? "").trim().toLowerCase()
+  const ndr = /^EOD-/i.test(code ?? "") || /undelivered|not delivered|refused|failed/.test(s)
+  switch (t) {
+    case "CN":
+      return "cancelled"
+    case "LT":
+      return "delivery_failed"
+    case "DL":
+      if (s === "rto") return "rto_delivered"
+      return "delivered" // "Delivered", or "DTO" for a reverse pickup back at the warehouse
+    case "RT":
+      return "rto_in_transit"
+    case "PP":
+      return "pickup_scheduled"
+    case "PU":
+      if (s === "dispatched") return "out_for_delivery"
+      return s === "picked up" ? "picked_up" : "in_transit"
+    case "UD":
+      if (ndr) return "delivery_failed"
+      if (s === "manifested") return "shipment_created"
+      if (s === "not picked" || s === "open" || s === "scheduled") return "pickup_scheduled"
+      if (s === "dispatched") return "out_for_delivery"
+      if (s === "in transit" || s === "pending" || s === "picked up") return "in_transit"
+      return null
+    default:
+      // A webhook without a type: fall back to the wording, as for Shiprocket.
+      return mapShiprocketStatus(null, label)
+  }
+}

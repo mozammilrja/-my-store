@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 
 /*
- * A local stand-in for the Razorpay and Shiprocket REST APIs, so the payment
+ * A local stand-in for the Razorpay, Shiprocket and Delhivery REST APIs, so the payment
  * and shipping code paths run end to end in tests without network access or
  * provider accounts. It implements only the endpoints this codebase calls,
  * with the request/response shapes from the providers' API docs. It does not
@@ -39,6 +39,23 @@ export function createProviderStub() {
     pickupLocations: new Map<string, string>(),
     manifests: [] as number[][],
     calls: [] as string[],
+    /* Delhivery */
+    dlv: {
+      /** Shipments created, by waybill: the decoded create payload. */
+      shipments: new Map<string, { order: string; payment_mode: string; shipping_mode: string; pin: string; weight: string; cod_amount: string; pickup: string; seller_gst_tin?: string }>(),
+      /** Tracking per waybill, in Delhivery's ShipmentData shape. */
+      tracking: new Map<string, { Status: { Status: string; StatusType: string; StatusDateTime: string; StatusLocation: string; Instructions: string; StatusCode?: string }; Scans: { ScanDetail: Record<string, string> }[] }>(),
+      unserviceable: new Set<string>(),
+      /** Pincodes Delhivery serves for prepaid only. */
+      noCod: new Set<string>(),
+      /** When true, the Express charge is refused (lane not offered). */
+      noExpress: false,
+      cancelled: new Set<string>(),
+      pickups: [] as { pickup_location: string; pickup_date: string; expected_package_count: number }[],
+      reattempts: [] as string[],
+      /** Next create call fails with this remark. */
+      failCreate: "" as string,
+    },
   }
   let seq = 1000
 
@@ -50,7 +67,11 @@ export function createProviderStub() {
     new Promise<Record<string, any>>((resolve) => {
       let data = ""
       req.on("data", (c) => (data += c))
-      req.on("end", () => resolve(data ? JSON.parse(data) : {}))
+      req.on("end", () => {
+        if (!data) return resolve({})
+        if ((req.headers["content-type"] ?? "").includes("application/x-www-form-urlencoded")) return resolve(Object.fromEntries(new URLSearchParams(data)))
+        resolve(JSON.parse(data))
+      })
     })
 
   const server = createServer(async (req, res) => {
@@ -101,6 +122,76 @@ export function createProviderStub() {
         return p ? json(res, 200, p) : json(res, 400, { error: { description: "The id provided does not exist" } })
       }
       return json(res, 404, { error: { description: "Not found" } })
+    }
+
+    /* ----- Delhivery (every path outside Shiprocket's /v1/external and Razorpay's /v1) ----- */
+    if (!path.startsWith("/v1/")) {
+      const d = state.dlv
+      if (req.headers.authorization !== "Token dlv_stub_token") return json(res, 401, { detail: "Authentication credentials were not provided." })
+      if (path === "/c/api/pin-codes/json/") {
+        const pin = url.searchParams.get("filter_codes")!
+        if (d.unserviceable.has(pin)) return json(res, 200, { delivery_codes: [] })
+        const cod = d.noCod.has(pin) ? "N" : "Y"
+        return json(res, 200, { delivery_codes: [{ postal_code: { pin: Number(pin), pre_paid: "Y", cash: cod, cod, pickup: "Y", repl: "Y", is_oda: "N", remarks: "", district: "Stub", state_code: "KA" } }] })
+      }
+      if (path === "/api/kinko/v1/invoice/charges/.json") {
+        const md = url.searchParams.get("md")
+        if (md === "E" && d.noExpress) return json(res, 400, { error: "Express not available on this lane" })
+        const grams = Number(url.searchParams.get("cgm"))
+        const base = md === "E" ? 95 : 58
+        const total = base + Math.ceil(grams / 500) * 12 + (url.searchParams.get("pt") === "COD" ? 35 : 0)
+        return json(res, 200, [{ total_amount: total, gross_amount: total, charge_DL: base }])
+      }
+      if (path === "/api/cmu/create.json") {
+        if (body.format !== "json" || !body.data) return json(res, 400, { rmk: "format=json&data= required" })
+        const data = JSON.parse(body.data)
+        const sh = data.shipments[0]
+        if (d.failCreate) {
+          const rmk = d.failCreate
+          d.failCreate = ""
+          return json(res, 200, { success: false, packages: [{ status: "Fail", waybill: "", refnum: sh.order, remarks: [rmk] }], rmk })
+        }
+        if ([...d.shipments.values()].some((x) => x.order === sh.order)) return json(res, 200, { success: false, packages: [{ status: "Fail", waybill: "", refnum: sh.order, remarks: ["Duplicate order id"] }] })
+        const waybill = String(1234500000000 + seq++)
+        d.shipments.set(waybill, { order: sh.order, payment_mode: sh.payment_mode, shipping_mode: sh.shipping_mode, pin: sh.pin, weight: sh.weight, cod_amount: sh.cod_amount, pickup: data.pickup_location.name, ...(sh.seller_gst_tin ? { seller_gst_tin: sh.seller_gst_tin } : {}) })
+        const at = "2026-11-05T10:00:00"
+        d.tracking.set(waybill, {
+          Status: { Status: "Manifested", StatusType: sh.payment_mode === "Pickup" ? "PP" : "UD", StatusDateTime: at, StatusLocation: "Bengaluru_Hub (Karnataka)", Instructions: "Manifest uploaded" },
+          Scans: [{ ScanDetail: { Scan: "Manifested", ScanType: sh.payment_mode === "Pickup" ? "PP" : "UD", ScanDateTime: at, ScannedLocation: "Bengaluru_Hub (Karnataka)", Instructions: "Manifest uploaded", StatusCode: "X-UCI" } }],
+        })
+        return json(res, 200, { success: true, package_count: 1, upload_wbn: `UPL${seq}`, packages: [{ status: "Success", waybill, refnum: sh.order, remarks: [""], serviceable: true }] })
+      }
+      if (path === "/api/p/packing_slip") {
+        const wbn = url.searchParams.get("wbns")!
+        if (!d.shipments.has(wbn)) return json(res, 200, { packages: [], packages_found: 0 })
+        return json(res, 200, { packages_found: 1, packages: [{ wbn, pdf_download_link: `https://dlv-labels.example/${wbn}.pdf` }] })
+      }
+      if (path === "/fm/request/new/") {
+        const dup = d.pickups.find((p) => p.pickup_location === body.pickup_location && p.pickup_date === body.pickup_date)
+        if (dup) return json(res, 400, { pr_exist: true, error: { message: "Pickup request already exists for this date" } })
+        d.pickups.push({ pickup_location: body.pickup_location, pickup_date: body.pickup_date, expected_package_count: body.expected_package_count })
+        return json(res, 200, { pickup_id: 9000 + d.pickups.length, pickup_date: body.pickup_date, pickup_time: body.pickup_time, incoming_center_name: "Bengaluru_Hub", expected_package_count: body.expected_package_count })
+      }
+      if (path === "/api/v1/packages/json/") {
+        const wbn = url.searchParams.get("waybill")!
+        const t = d.tracking.get(wbn)
+        if (!t) return json(res, 200, { ShipmentData: [], Error: "No such waybill or Order Id found" })
+        const sh = d.shipments.get(wbn)!
+        return json(res, 200, { ShipmentData: [{ Shipment: { AWB: wbn, ReferenceNo: sh.order, Status: t.Status, Scans: t.Scans, ExpectedDeliveryDate: "2026-11-10T23:59:59", ...(t.Status.StatusType === "DL" ? { DeliveryDate: t.Status.StatusDateTime } : {}) } }] })
+      }
+      if (path === "/api/p/edit") {
+        const t = d.tracking.get(body.waybill)
+        if (!t) return json(res, 200, { status: false, remark: "Waybill not found" })
+        if (t.Status.StatusType !== "UD" && t.Status.StatusType !== "PP") return json(res, 200, { status: false, remark: "Shipment cannot be cancelled now" })
+        d.cancelled.add(body.waybill)
+        t.Status = { ...t.Status, Status: "Canceled", StatusType: "CN" }
+        return json(res, 200, { status: true, waybill: body.waybill, remark: "Shipment has been cancelled" })
+      }
+      if (path === "/api/p/update") {
+        for (const x of body.data) d.reattempts.push(x.waybill)
+        return json(res, 200, { request_id: `req-${d.reattempts.length}` })
+      }
+      return json(res, 404, { detail: "Not found" })
     }
 
     /* ----- Shiprocket ----- */
@@ -175,6 +266,14 @@ export function createProviderStub() {
       return `http://127.0.0.1:${(server.address() as AddressInfo).port}`
     },
     close: () => new Promise<void>((r) => server.close(() => r())),
+    /** A Delhivery scan on a waybill, as its hub would record it; returns the scan-push body Delhivery would send. */
+    dlvScan(waybill: string, scan: { Status: string; StatusType: string; at: string; location?: string; instructions?: string; code?: string }) {
+      const t = state.dlv.tracking.get(waybill)!
+      const detail = { Scan: scan.Status, ScanType: scan.StatusType, ScanDateTime: scan.at, ScannedLocation: scan.location ?? "Bengaluru_Hub (Karnataka)", Instructions: scan.instructions ?? "", ...(scan.code ? { StatusCode: scan.code } : {}) }
+      t.Scans.push({ ScanDetail: detail })
+      t.Status = { Status: scan.Status, StatusType: scan.StatusType, StatusDateTime: scan.at, StatusLocation: detail.ScannedLocation, Instructions: detail.Instructions, ...(scan.code ? { StatusCode: scan.code } : {}) }
+      return { Shipment: { AWB: waybill, ReferenceNo: state.dlv.shipments.get(waybill)!.order, Status: t.Status, NSLCode: scan.code ?? "", PickUpDate: "2026-11-05T14:00:00" } }
+    },
     /** What the checkout window does when a shopper pays: a payment on the Razorpay order. */
     pay(orderId: string, opts: { status?: StubPayment["status"]; amount?: number } = {}) {
       const order = state.rzpOrders.get(orderId)!

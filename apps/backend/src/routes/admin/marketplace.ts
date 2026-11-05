@@ -79,7 +79,7 @@ adminMarketplaceRoutes.post("/sellers/:id/verify/:item", async (req, res) => {
 
 adminMarketplaceRoutes.post("/sellers/:id/approve", async (req, res) => {
   role(req, "store_admin")
-  const body = z.object({ commissionPct: z.number().min(0).max(60).nullable().optional(), shiprocketPickupLocation: z.string().trim().min(1).max(100).optional() }).parse(req.body ?? {})
+  const body = z.object({ commissionPct: z.number().min(0).max(60).nullable().optional(), shiprocketPickupLocation: z.string().trim().min(1).max(100).optional(), delhiveryPickupLocation: z.string().trim().min(1).max(100).optional() }).parse(req.body ?? {})
   res.json({ seller: publicSeller(await approveSeller(req.params.id, actorOf(req), body)) })
 })
 
@@ -114,7 +114,10 @@ adminMarketplaceRoutes.post("/listings/:id/:decision", async (req, res) => {
 
 adminMarketplaceRoutes.get("/settlements", async (req, res) => {
   const { status } = z.object({ status: z.enum(["pending", "paid"]).optional() }).parse(req.query)
-  res.json({ settlements: await db.sellerSettlements().find(status ? { status } : {}, { sort: { createdAt: -1 }, limit: 200 }).toArray() })
+  const settlements = await db.sellerSettlements().find(status ? { status } : {}, { sort: { createdAt: -1 }, limit: 200 }).toArray()
+  const sellers = await db.sellers().find({ _id: { $in: [...new Set(settlements.map((x) => x.sellerId))] } }, { projection: { code: 1, displayName: 1 } }).toArray()
+  const byId = new Map(sellers.map((x) => [x._id, x]))
+  res.json({ settlements: settlements.map((x) => ({ ...x, seller: byId.has(x.sellerId) ? { code: byId.get(x.sellerId)!.code, displayName: byId.get(x.sellerId)!.displayName } : null })) })
 })
 
 adminMarketplaceRoutes.post("/settlements/run", async (req, res) => {

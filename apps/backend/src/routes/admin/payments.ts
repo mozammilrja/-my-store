@@ -6,7 +6,7 @@ import { forbidden, notFound } from "../../lib/errors.js"
 import { isRazorpayConfigured } from "../../lib/payments/razorpay.js"
 import { reconcileRefunds, refundOrder } from "../../lib/payments/refunds.js"
 import { reconcilePaymentAttempts } from "../../lib/payments/settle.js"
-import { shippingConfigured, syncStaleShipments } from "../../lib/shipping/service.js"
+import { configuredCarriers, syncStaleShipments } from "../../lib/shipping/service.js"
 
 export const adminPaymentRoutes = Router()
 
@@ -14,7 +14,13 @@ export const adminPaymentRoutes = Router()
 adminPaymentRoutes.get("/integrations", (_req, res) => {
   res.json({
     razorpay: { configured: isRazorpayConfigured(), webhook: !!env.RAZORPAY_WEBHOOK_SECRET, mode: env.RAZORPAY_KEY_ID?.startsWith("rzp_live_") ? "live" : env.RAZORPAY_KEY_ID ? "test" : null },
-    shipping: { provider: shippingConfigured() ? "shiprocket" : "none", webhook: !!env.SHIPROCKET_WEBHOOK_TOKEN, originPincode: env.SHIPPING_ORIGIN_PINCODE ?? null },
+    shipping: {
+      /** The default integration, or "none". */
+      provider: configuredCarriers()[0] ?? "none",
+      carriers: configuredCarriers().map((c) => ({ id: c, webhook: c === "shiprocket" ? !!env.SHIPROCKET_WEBHOOK_TOKEN : !!env.DELHIVERY_WEBHOOK_TOKEN })),
+      webhook: !!env.SHIPROCKET_WEBHOOK_TOKEN,
+      originPincode: env.SHIPPING_ORIGIN_PINCODE ?? null,
+    },
   })
 })
 
@@ -51,7 +57,7 @@ adminPaymentRoutes.post("/orders/:id/refunds", async (req, res) => {
 
 /** Recent provider webhooks and whether they applied, for spotting failures. */
 adminPaymentRoutes.get("/webhook-events", async (req, res) => {
-  const q = z.object({ provider: z.enum(["razorpay", "shiprocket"]).optional(), status: z.enum(["processing", "processed", "failed", "ignored"]).optional() }).parse(req.query)
+  const q = z.object({ provider: z.enum(["razorpay", "shiprocket", "delhivery"]).optional(), status: z.enum(["processing", "processed", "failed", "ignored"]).optional() }).parse(req.query)
   const events = await db
     .paymentWebhookEvents()
     .find({ ...(q.provider ? { provider: q.provider } : {}), ...(q.status ? { status: q.status } : {}) }, { sort: { createdAt: -1 }, limit: 100, projection: { payload: 0, signature: 0 } })

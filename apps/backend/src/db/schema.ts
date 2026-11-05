@@ -360,7 +360,7 @@ export type ShipmentDoc = {
   orderId: string
   displayId: number
   /** Who created it: a courier integration, our own delivery fleet, or recorded by hand with details from elsewhere. */
-  provider: "shiprocket" | "manual" | "own_fleet"
+  provider: "shiprocket" | "delhivery" | "manual" | "own_fleet"
   /** Courier name ("Delhivery Surface", "Blue Dart Air"); empty until a courier is assigned. */
   carrier: string
   courierId?: number
@@ -376,6 +376,8 @@ export type ShipmentDoc = {
   manifestUrl?: string
   trackingUrl?: string
   pickup?: { scheduledFor?: Date; token?: string; requestedAt: Date }
+  /** The courier's name for the building it collects from (Delhivery registered warehouse, Shiprocket pickup nickname). */
+  pickupLocation?: string
   estimatedDelivery?: Date
   deliveredAt?: Date
   /** Non-delivery report: the courier couldn't deliver and is waiting on an action. */
@@ -536,6 +538,8 @@ export type WarehouseDoc = {
   acceptsOrders?: boolean
   /** Shiprocket pickup location nickname for parcels leaving this building; falls back to SHIPROCKET_PICKUP_LOCATION. */
   shiprocketPickupLocation?: string
+  /** Delhivery registered warehouse name for this building; falls back to DELHIVERY_PICKUP_LOCATION. */
+  delhiveryPickupLocation?: string
   /** A seller's own dispatch location (seller-fulfilled orders ship from here). Absent for the store's warehouses. */
   sellerId?: string | null
   createdAt: Date
@@ -1157,7 +1161,7 @@ export type CouponRedemptionDoc = {
 
 export type PaymentWebhookEventDoc = {
   _id: string
-  provider: "razorpay" | "shiprocket"
+  provider: "razorpay" | "shiprocket" | "delhivery"
   eventId: string
   event: string
   payload: any

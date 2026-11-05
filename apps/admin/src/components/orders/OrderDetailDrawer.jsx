@@ -180,8 +180,8 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose, 
             <dt className="text-secondary">Tax</dt>
             <dd className="whitespace-nowrap tabular-nums text-primary">{money(order.payment.taxTotal, currency)}</dd>
           </div>
-          <Separator className="my-space-xs" />
-          <div className="flex justify-between gap-space-md text-subheading">
+          {/* A rule above the total: a border, since a <dl> may hold only dt/dd groups. */}
+          <div className="mt-space-xs flex justify-between gap-space-md border-t border-subtle pt-space-sm text-subheading">
             <dt className="text-primary">Total <span className="text-meta font-normal text-muted">({order.payment.method})</span></dt>
             <dd className="whitespace-nowrap tabular-nums text-primary">{money(order.payment.total, currency)}</dd>
           </div>

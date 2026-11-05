@@ -21,6 +21,7 @@ import {
 import { runStockOperation, stockOperationSchema } from "../../lib/inventory/operations.js"
 import { email } from "../../lib/validation.js"
 import { inspectReturn } from "../../lib/returns/inspect.js"
+import { skuOf } from "../../lib/inventory/stock.js"
 import { adminLoginMaxAttempts } from "../../env.js"
 
 /*
@@ -87,6 +88,59 @@ warehouseRoutes.get("/me", async (req, res) => {
   res.json({ user: req.warehouseUser, permissions: PERMISSIONS[req.warehouseUser!.role], warehouses })
 })
 
+/** Floor dashboard: live fulfilments by status, open manifests, stock needing attention, at one warehouse. */
+warehouseRoutes.get("/summary", async (req, res) => {
+  can(req, "view")
+  const { warehouseId } = z.object({ warehouseId: z.string() }).parse(req.query)
+  inScope(req, warehouseId)
+  const startOfDay = new Date()
+  startOfDay.setHours(0, 0, 0, 0)
+  const [byStatus, openManifests, dispatchedToday, damaged, oldest] = await Promise.all([
+    db.fulfilments().aggregate<{ _id: string; n: number }>([{ $match: { warehouseId, active: true } }, { $group: { _id: "$status", n: { $sum: 1 } } }]).toArray(),
+    db.manifests().countDocuments({ warehouseId, status: "open" }),
+    db.fulfilments().countDocuments({ warehouseId, status: "dispatched", dispatchedAt: { $gte: startOfDay } }),
+    db.stockLevels().aggregate<{ n: number }>([{ $match: { warehouseId, damaged: { $gt: 0 } } }, { $group: { _id: null, n: { $sum: "$damaged" } } }]).toArray(),
+    db.fulfilments().findOne({ warehouseId, status: { $in: ["assigned", "picking_pending"] }, active: true }, { sort: { createdAt: 1 }, projection: { createdAt: 1 } }),
+  ])
+  res.json({
+    byStatus: Object.fromEntries(byStatus.filter((b) => b._id !== "dispatched").map((b) => [b._id, b.n])),
+    openManifests,
+    dispatchedToday,
+    damagedUnits: damaged[0]?.n ?? 0,
+    oldestWaitingSince: oldest?.createdAt ?? null,
+  })
+})
+
+/** Active warehouses stock can be sent to (names and codes only). */
+warehouseRoutes.get("/destinations", async (req, res) => {
+  can(req, "stock")
+  const warehouses = await db.warehouses().find({ status: "active" }, { projection: { code: 1, name: 1, city: 1 }, sort: { code: 1 } }).toArray()
+  res.json({ warehouses })
+})
+
+/** Catalogue lookup by scanned SKU, for receiving an item this warehouse has never held. */
+warehouseRoutes.get("/catalog/lookup", async (req, res) => {
+  can(req, "view")
+  const { sku } = z.object({ sku: z.string().trim().min(1).max(80) }).parse(req.query)
+  const code = sku.toUpperCase()
+  const escape = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  // Variants without a SKU are labelled SKU-<last six of the id> (skuOf).
+  const fallback = /^SKU-([0-9a-z]{6})$/i.exec(code)?.[1]?.toLowerCase()
+  const products = await db
+    .products()
+    .find(
+      { $or: [{ "variants.sku": { $regex: `^${escape(code)}$`, $options: "i" } }, ...(fallback ? [{ "variants._id": { $regex: `${fallback}$` } }] : [])] },
+      { projection: { title: 1, variants: 1 } }
+    )
+    .limit(20)
+    .toArray()
+  const matches = products.flatMap((p) =>
+    p.variants.filter((v) => skuOf(v).toUpperCase() === code).map((v) => ({ productId: p._id, productTitle: p.title, variantId: v._id, variantTitle: v.title, options: v.options, sku: skuOf(v) }))
+  )
+  if (!matches.length) throw notFound("Item")
+  res.json({ items: matches })
+})
+
 /** The queue: fulfilments at the user's warehouses, oldest first (first in, first out). */
 warehouseRoutes.get("/fulfilments", async (req, res) => {
   can(req, "view")
@@ -104,8 +158,11 @@ warehouseRoutes.get("/fulfilments", async (req, res) => {
 
 warehouseRoutes.get("/fulfilments/:id", async (req, res) => {
   const f = await scoped(req, "view")
-  const history = await db.statusEvents().find({ entityId: f._id }, { sort: { at: 1 } }).toArray()
-  res.json({ fulfilment: f, history })
+  const [history, shipment] = await Promise.all([
+    db.statusEvents().find({ entityId: f._id }, { sort: { at: 1 } }).toArray(),
+    f.shipmentId ? db.shipments().findOne({ _id: f.shipmentId }, { projection: { awb: 1, carrier: 1, labelUrl: 1, status: 1, provider: 1 } }) : null,
+  ])
+  res.json({ fulfilment: f, history, label: shipment })
 })
 
 /** Finds a fulfilment from its scanned pick slip. */
@@ -242,7 +299,13 @@ warehouseRoutes.get("/stock", async (req, res) => {
     .stockLevels()
     .find({ warehouseId: q.warehouseId ?? { $in: req.warehouseUser!.warehouseIds }, ...(escaped ? { sku: { $regex: `^${escaped}`, $options: "i" } } : {}) }, { sort: { sku: 1 }, limit: q.limit })
     .toArray()
-  res.json({ stock })
+  // Titles for the screen; product names only, no prices.
+  const products = await db.products().find({ _id: { $in: [...new Set(stock.map((s) => s.productId))] } }, { projection: { title: 1, "variants._id": 1, "variants.title": 1 } }).toArray()
+  const titleOf = (s: (typeof stock)[number]) => {
+    const p = products.find((x) => x._id === s.productId)
+    return { productTitle: p?.title ?? "", variantTitle: p?.variants.find((v) => v._id === s.variantId)?.title ?? "" }
+  }
+  res.json({ stock: stock.map((s) => ({ ...s, ...titleOf(s) })) })
 })
 
 warehouseRoutes.post("/stock/operations", async (req, res) => {

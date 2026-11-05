@@ -1,6 +1,6 @@
 # Warehouse fulfilment (WMS)
 
-Last updated: 2026-11-05. Phase 1 of the logistics programme: backend only.
+Last updated: 2026-11-05. Phase 1 (backend) and Phase 2 (the `apps/warehouse` floor app) of the logistics programme.
 
 ## What it does
 
@@ -155,6 +155,61 @@ state and PIN code.
 | `PATCH /stock/:id/bin {binCode}` | Rack/bin placement shown on pick lines |
 | `GET /returns/lookup?awb|orderNumber`, `POST /returns/:orderId/inspect` | Return receipt and inspection |
 
+Floor app support: `GET /summary?warehouseId` (live work by status, open
+manifests, dispatched today, damaged units, oldest waiting), `GET
+/destinations` (transfer targets; stock permission), `GET
+/catalog/lookup?sku` (variant by scanned SKU, for receiving an item the
+warehouse has never held; no prices). Stock rows carry product and variant
+titles, and `GET /fulfilments/:id` includes the courier label (AWB, carrier,
+label URL).
+
+## Warehouse app (`apps/warehouse`)
+
+A scanner-first, mobile-first single-page app for floor staff, on port 7101
+(`WAREHOUSE_CORS` must list its origin). It uses the admin's operational
+palette, in light and dark.
+
+| Screen | What happens there |
+| --- | --- |
+| Orders | Live counts per stage (Incoming, Pick, Inspect, Pack, Label, Dispatch), refreshed every 15 s. Scan a pick slip to jump to its order. |
+| Order (work screen) | Shows only the current step, and only if the user's role allows it: accept or decline (with reason); start picking and scan each SKU; quality check (pass, or per-item failures with reasons); packing (slip scan, unit scans checked against the order, weight and size); label (print the parcel barcode, scan it to book the courier; without a courier integration, record the AWB from the courier's portal); scan the AWB on the applied label. Pick slip printout with a barcode and bin order. Status history. |
+| Dispatch | Labelled parcels grouped by courier. Create a manifest (requests the courier pickup and links the courier's manifest PDF), scan each AWB at the dock, close with the courier executive's name. |
+| Stock | SKU lookup with every bucket. Rack/bin per variant. Ledger per variant. Supervisors record receiving, count corrections, damage, write-offs and transfers. |
+| Returns | Find the return by reverse AWB or order number, grade each unit sellable or damaged, record the inspection. |
+
+Scanning: handheld and ring scanners act as a keyboard (they type the code
+and press Enter), which is the primary input. Where the browser has the
+Barcode Detection API (Chrome on Android, ChromeOS and macOS) a camera button
+scans with the device camera. The camera runs only while that dialog is open,
+and the nginx config allows camera use on this origin only. Each scan gives a
+toast plus a tone and vibration: a short high tone for success, a low
+buzz for a refusal.
+
+Printing: the pick slip and parcel label are printed from the browser with
+Code 128 barcodes generated in `src/lib/code128.ts`. The encoder is unit
+tested, and was checked against an independent decoder (zxing-cpp), which
+read back all 96 set-B characters. The courier's own shipping label is the
+PDF Shiprocket returns.
+
+Tests: `npm test` (barcode encoder) and `npm run test:e2e`. The browser tests
+run the real API on its own database (`everwear_e2e_warehouse`, reset on each
+run) with the courier stand-in, place a COD order through the store API, and
+take it across the floor in Chrome:
+
+- a picker can't accept;
+- wrong-size pick and wrong-item pack scans are refused;
+- courier booking, label check, manifest, dock scan, dispatch;
+- stock and ledger afterwards;
+- a return graded one sellable and one damaged;
+- phone layout.
+
+axe-core checks run in light and dark.
+
+Deployment: `apps/warehouse/Dockerfile` (nginx on 7101) and the `warehouse`
+service in `docker-compose.prod.yml`, served at `warehouse.everwear.com` by
+the edge proxy, with the login route rate-limited like the others. The TLS
+certificate must cover `warehouse.everwear.com`.
+
 ## Admin API additions (`/admin`)
 
 | Method and path | Who |
@@ -187,7 +242,8 @@ TTL is applied.
 
 | Variable | Purpose |
 | --- | --- |
-| `WAREHOUSE_CORS` | Browser origins of the warehouse app (planned `apps/warehouse`, port 7101) |
+| `WAREHOUSE_CORS` | Browser origins of the warehouse app (`apps/warehouse`, port 7101 in development) |
+| `VITE_API_URL` (apps/warehouse) | API base URL baked into the warehouse app build |
 | Warehouse `shiprocketPickupLocation` | That building's pickup nickname on Shiprocket. Without it, bookings fall back to `SHIPROCKET_PICKUP_LOCATION`. Each must be created on the Shiprocket dashboard first. |
 
 ## Tests
@@ -216,8 +272,9 @@ covers:
 
 Each later phase builds on the models here:
 
-- **Phase 2:** the `apps/warehouse` UI (scanner-first, mobile) on this API.
-  Warehouse users currently see only the API.
+- **Phase 2 (done):** the `apps/warehouse` app, described above. Admin
+  screens for warehouse staff, fulfilments and stock are still API-only and
+  come with the admin work in Phase 7.
 - **Phase 3:** own delivery fleet. Riders, zones, route grouping, assignment
   and acceptance, OTP and proof of delivery, COD collection and the COD
   reconciliation machine, and `apps/rider`.

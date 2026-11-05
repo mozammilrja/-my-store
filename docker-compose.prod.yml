@@ -48,6 +48,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       STORE_CORS: ${STORE_CORS:-https://everwear.com,https://shop.everwear.com}
       ADMIN_CORS: ${ADMIN_CORS:-https://admin.everwear.com}
+      WAREHOUSE_CORS: ${WAREHOUSE_CORS:-https://warehouse.everwear.com}
       API_PUBLIC_URL: ${API_PUBLIC_URL:-https://api.everwear.com}
       UPLOADS_DIR: /app/apps/backend/uploads
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
@@ -139,6 +140,31 @@ services:
       start_period: 5s
 
   # ----------------------------------------------------------------------------
+  # 4b. Warehouse floor app (@dtc/warehouse)
+  # ----------------------------------------------------------------------------
+  warehouse:
+    build:
+      context: .
+      dockerfile: apps/warehouse/Dockerfile
+      args:
+        VITE_API_URL: ${API_PUBLIC_URL:-https://api.everwear.com}
+    container_name: everwear-warehouse
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - everwear-internal
+    ports:
+      - "127.0.0.1:7101:7101"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7101/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ----------------------------------------------------------------------------
   # 5. Production Edge Reverse Proxy (Nginx + SSL Termination)
   # ----------------------------------------------------------------------------
   reverse-proxy:
@@ -149,6 +175,7 @@ services:
       - backend
       - storefront
       - admin
+      - warehouse
     ports:
       - "80:80"
       - "443:443"

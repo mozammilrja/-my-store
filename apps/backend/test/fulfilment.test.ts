@@ -448,6 +448,40 @@ describe("allocation rules", () => {
   })
 })
 
+describe("floor app endpoints", () => {
+  test("summary counts live work at one warehouse only", async () => {
+    const res = await call("GET", "/warehouse/summary?warehouseId=wh_blr", undefined, blrSup)
+    assert.equal(res.status, 200)
+    const live = await db.fulfilments().countDocuments({ warehouseId: "wh_blr", active: true, status: { $ne: "dispatched" } })
+    assert.equal(Object.values(res.body.byStatus as Record<string, number>).reduce((a, b) => a + b, 0), live)
+    assert.ok(res.body.damagedUnits >= 1, "the QC write-off is on hold")
+    assert.equal((await call("GET", "/warehouse/summary?warehouseId=wh_blr", undefined, delSup)).status, 404)
+  })
+
+  test("catalogue lookup finds a variant by scanned SKU, any case", async () => {
+    const res = await call("GET", "/warehouse/catalog/lookup?sku=ew-sh-xxl", undefined, blrSup)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.items[0].variantId, "var_xxl")
+    assert.equal(res.body.items[0].prices, undefined, "no prices on the floor")
+    assert.equal((await call("GET", "/warehouse/catalog/lookup?sku=EW-SH-.*", undefined, blrSup)).status, 404, "input is not a pattern")
+  })
+
+  test("stock rows carry titles; destinations need the stock permission", async () => {
+    const stock = (await call("GET", "/warehouse/stock?warehouseId=wh_blr&sku=EW-SH-M", undefined, blrSup)).body.stock
+    assert.equal(stock[0].productTitle, "Linen Shirt")
+    assert.equal(stock[0].variantTitle, "M")
+    assert.equal((await call("GET", "/warehouse/destinations", undefined, blrPicker)).status, 403)
+    assert.deepEqual((await call("GET", "/warehouse/destinations", undefined, blrSup)).body.warehouses.map((w: Json) => w.code), ["BLR-FC1", "DEL-FC1"])
+  })
+
+  test("fulfilment detail includes the courier label", async () => {
+    const f = (await db.fulfilments().findOne({ warehouseId: "wh_blr", status: "dispatched" }))!
+    const res = await call("GET", `/warehouse/fulfilments/${f._id}`, undefined, blrSup)
+    assert.equal(res.body.label.awb, f.awb)
+    assert.ok(res.body.label.labelUrl)
+  })
+})
+
 describe("access", () => {
   test("admin and warehouse tokens are not interchangeable", async () => {
     assert.equal((await call("GET", "/warehouse/fulfilments", undefined, owner)).status, 401)

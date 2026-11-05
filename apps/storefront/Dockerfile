@@ -12,6 +12,7 @@ COPY package.json package-lock.json turbo.json ./
 COPY apps/backend/package.json ./apps/backend/
 COPY apps/storefront/package.json ./apps/storefront/
 COPY apps/admin/package.json ./apps/admin/
+COPY apps/warehouse/package.json ./apps/warehouse/
 
 # Install dependencies across workspaces
 RUN npm ci

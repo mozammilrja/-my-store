@@ -2,7 +2,7 @@ import { Router, type Request, type RequestHandler } from "express"
 import { z } from "zod"
 import { db, FULFILMENT_STATUSES, type ProductDoc, type SellerDoc } from "../../db/schema.js"
 import { adminLoginMaxAttempts } from "../../env.js"
-import { clientKey, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
+import { assertTokenCurrent, clientKey, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
 import { ApiError, badRequest, conflict, forbidden, notFound, unauthorized } from "../../lib/errors.js"
 import { acceptFulfilment, rejectFulfilment } from "../../lib/fulfilment/workflow.js"
 import { runStockOperation } from "../../lib/inventory/operations.js"
@@ -52,6 +52,7 @@ sellerRoutes.post("/auth/login", async (req, res) => {
 const loadSeller: RequestHandler = async (req, _res, next) => {
   const seller = await db.sellers().findOne({ _id: req.actorId! })
   if (!seller) throw unauthorized()
+  assertTokenCurrent(req, seller)
   req.seller = seller
   next()
 }

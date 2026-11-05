@@ -15,7 +15,8 @@
     "admin:create": "node --env-file=.env --import tsx scripts/create-admin.ts",
     "customer:create": "node --env-file=.env --import tsx scripts/create-customer.ts",
     "seed:categories": "node --env-file=.env --import tsx scripts/seed-storefront-categories.ts",
-    "seed": "node --env-file=.env --import tsx scripts/seed-operations.ts"
+    "seed": "node --env-file=.env --import tsx scripts/seed-operations.ts",
+    "ops:audit": "node --env-file=.env --import tsx scripts/ops-portal-audit.ts"
   },
   "engines": {
     "node": ">=22"

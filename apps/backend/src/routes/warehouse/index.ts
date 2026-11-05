@@ -1,7 +1,7 @@
 import { Router, type Request, type RequestHandler } from "express"
 import { z } from "zod"
 import { db, FULFILMENT_STATUSES, type ActorRef, type FulfilmentDoc, type WarehouseRole } from "../../db/schema.js"
-import { clientKey, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
+import { assertTokenCurrent, clientKey, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
 import { ApiError, forbidden, notFound, unauthorized } from "../../lib/errors.js"
 import {
   acceptFulfilment,
@@ -64,6 +64,7 @@ warehouseRoutes.post("/auth/login", async (req, res) => {
 const loadUser: RequestHandler = async (req, _res, next) => {
   const user = await db.warehouseUsers().findOne({ _id: req.actorId!, status: "active" }, { projection: { passwordHash: 0 } })
   if (!user) throw unauthorized()
+  assertTokenCurrent(req, user)
   req.warehouseUser = { id: user._id, email: user.email, name: user.name, role: user.role, warehouseIds: user.warehouseIds }
   next()
 }

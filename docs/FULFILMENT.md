@@ -163,10 +163,12 @@ warehouse has never held; no prices). Stock rows carry product and variant
 titles, and `GET /fulfilments/:id` includes the courier label (AWB, carrier,
 label URL).
 
-## Warehouse app (`apps/warehouse`)
+## Warehouse floor (`/warehouse` in `apps/operations`)
 
-A scanner-first, mobile-first single-page app for floor staff, on port 7101
-(`WAREHOUSE_CORS` must list its origin). It uses the admin's operational
+A scanner-first, mobile-first area of the operations portal for floor staff,
+at `/warehouse` (it was the separate `apps/warehouse` app on port 7101 until
+the portal consolidation; see [OPERATIONS_PORTAL.md](./OPERATIONS_PORTAL.md)).
+Code: `apps/operations/src/areas/warehouse/`. It uses the admin's operational
 palette, in light and dark.
 
 | Screen | What happens there |
@@ -205,10 +207,10 @@ take it across the floor in Chrome:
 
 axe-core checks run in light and dark.
 
-Deployment: `apps/warehouse/Dockerfile` (nginx on 7101) and the `warehouse`
-service in `docker-compose.prod.yml`, served at `warehouse.everwear.com` by
-the edge proxy, with the login route rate-limited like the others. The TLS
-certificate must cover `warehouse.everwear.com`.
+Deployment: part of the operations portal (`apps/operations/Dockerfile`, the
+`operations` service). `warehouse.everwear.com` now redirects to
+`admin.everwear.com/warehouse`, so its TLS certificate is still needed for the
+redirect.
 
 ## Admin API additions (`/admin`)
 
@@ -242,8 +244,8 @@ TTL is applied.
 
 | Variable | Purpose |
 | --- | --- |
-| `WAREHOUSE_CORS` | Browser origins of the warehouse app (`apps/warehouse`, port 7101 in development) |
-| `VITE_API_URL` (apps/warehouse) | API base URL baked into the warehouse app build |
+| `OPS_CORS` | Browser origins of the operations portal, which includes the warehouse floor (`WAREHOUSE_CORS` only adds extra origins) |
+| `VITE_API_URL` (apps/operations) | API base URL baked into the portal build |
 | Warehouse `shiprocketPickupLocation` | That building's pickup nickname on Shiprocket. Without it, bookings fall back to `SHIPROCKET_PICKUP_LOCATION`. Each must be created on the Shiprocket dashboard first. |
 
 ## Tests

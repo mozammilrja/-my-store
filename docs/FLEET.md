@@ -33,7 +33,7 @@ flowchart LR
 | OTP encryption, shifts, route ordering, settings | `lib/fleet/support.ts` |
 | Cash remittances and reconciliation | `cod_remittances`, `lib/fleet/cod.ts` |
 | Undelivered parcels back at the warehouse (own fleet and courier) | `lib/fleet/rto.ts`, `/warehouse/rto/:awb` |
-| Rider app | `apps/rider` (port 7201) |
+| Rider app | `/delivery` in the operations portal (`apps/operations/src/areas/delivery`; was `apps/rider` on 7201) |
 | Customer view (OTP, rider, position) | `GET /store/orders/:id` `delivery`, storefront tracking page card |
 
 ## Booking
@@ -230,14 +230,13 @@ undelivered parcel by its outbound AWB and grades it back into stock.
 
 | Variable | Purpose |
 | --- | --- |
-| `RIDER_CORS` | Rider app origins (`http://localhost:7201` in development) |
+| `RIDER_CORS` | Extra origins for `/rider` only; the portal's origins come from `OPS_CORS` |
 | `PRIVATE_UPLOADS_DIR` | Proof-of-delivery photos. Never served under `/uploads`. Persisted in production through the `backend_private_uploads` volume. |
-| `VITE_API_URL` (apps/rider) | API base URL baked into the rider app build |
+| `VITE_API_URL` (apps/operations) | API base URL baked into the portal build |
 
-Production: `apps/rider/Dockerfile`, the `rider` compose service, and
-`rider.everwear.com` behind the edge proxy. The proxy allows camera and
-location on that origin only. The TLS certificate must cover
-`rider.everwear.com`.
+Production: part of the operations portal (`apps/operations/Dockerfile`, the
+`operations` service), which allows camera and location for its own origin.
+`rider.everwear.com` redirects to `admin.everwear.com/delivery`.
 
 ## Tests
 
@@ -257,7 +256,7 @@ location on that origin only. The TLS certificate must cover
   - earnings;
   - token separation and suspension;
   - route order and India-time shifts.
-- `apps/rider/e2e` (6 tests, Chrome at phone size, real API):
+- `apps/operations/e2e/areas/delivery.spec.ts` (Chrome at phone size, real API):
   - going online brings offers;
   - accept, then hub pickup with a wrong AWB refused;
   - out for delivery with real location shared and visible to the customer;

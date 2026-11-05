@@ -1,0 +1,25 @@
+{
+  // Type-checks the TypeScript half of the portal: the shared portal layer
+  // (src/portal) and the floor, delivery and seller areas (src/areas). The
+  // admin (src/**/*.jsx) is JavaScript; the two JS modules the TS code uses
+  // are declared in src/portal/js-modules.d.ts.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": ["vite/client", "node"],
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] }
+  },
+  "include": ["src/portal", "src/areas", "src/vite-env.d.ts"]
+}

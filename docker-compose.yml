@@ -70,13 +70,14 @@ services:
     ports:
       - "8001:8001"
 
-  admin:
+  # Operations portal: admin, warehouse floor, delivery and Seller Hub.
+  operations:
     build:
       context: .
-      dockerfile: apps/admin/Dockerfile
+      dockerfile: apps/operations/Dockerfile
       args:
         VITE_API_URL: http://localhost:9100
-    container_name: everwear-admin-local
+    container_name: everwear-operations-local
     restart: unless-stopped
     depends_on:
       backend:

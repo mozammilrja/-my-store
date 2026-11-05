@@ -131,6 +131,10 @@ export type AdminUserDoc = {
   passwordHash: string
   name?: string
   role: AdminUserRole
+  /** Absent means active. A suspended admin can't sign in and loses access on the next request. */
+  status?: "active" | "suspended"
+  /** Bearer tokens issued before this are refused (sign out everywhere, suspension, password change). */
+  sessionsRevokedAt?: Date
   createdAt: Date
   updatedAt: Date
 }
@@ -716,6 +720,7 @@ export type WarehouseUserDoc = {
   role: WarehouseRole
   warehouseIds: string[]
   status: "active" | "suspended"
+  sessionsRevokedAt?: Date
   createdAt: Date
   updatedAt: Date
 }
@@ -767,6 +772,7 @@ export const RIDER_DOCUMENT_TYPES = ["driving_licence", "vehicle_rc", "aadhaar",
 
 export type RiderDoc = {
   _id: string
+  sessionsRevokedAt?: Date
   email: string
   phone: string
   passwordHash: string
@@ -1020,6 +1026,7 @@ export const SELLER_STATUSES = ["draft", "submitted", "approved", "suspended", "
 
 export type SellerDoc = {
   _id: string
+  sessionsRevokedAt?: Date
   /** Short public code, e.g. SEL-0007. */
   code: string
   displayName: string
@@ -1331,10 +1338,41 @@ export type NotificationDoc = {
   createdAt: Date
 }
 
+/** The operational account types. Each keeps its own collection; the portal session links them by email. */
+export type OpsRealm = "admin" | "warehouse" | "rider" | "seller"
+
+/** A sign-in to the operations portal (lib/ops-session.ts). Only the token's hash is stored. */
+export type OpsSessionDoc = {
+  _id: string
+  tokenHash: string
+  email: string
+  memberships: { realm: OpsRealm; id: string }[]
+  createdAt: Date
+  lastSeenAt: Date
+  expiresAt: Date
+  ip?: string
+  userAgent?: string
+  revokedAt?: Date
+  revokedReason?: string
+}
+
+/** A single-use password reset link for every operational account with this email. */
+export type OpsPasswordResetDoc = {
+  _id: string
+  tokenHash: string
+  email: string
+  createdAt: Date
+  expiresAt: Date
+  usedAt?: Date
+}
+
 export type AuditLogDoc = {
   _id: string
+  /** The acting account's id (an admin's, unless actorRealm says otherwise); "" when nobody signed in, e.g. a failed sign-in. */
   adminId: string
   adminEmail: string
+  /** Which kind of account acted. Absent on older entries, which were all admins. */
+  actorRealm?: OpsRealm | "system"
   action: string
   targetCollection: string
   targetId?: string
@@ -1392,6 +1430,8 @@ export const db = {
   loyaltyAccounts: (): Collection<LoyaltyAccountDoc> => getDb().collection("loyalty_accounts"),
   notifications: (): Collection<NotificationDoc> => getDb().collection("notifications"),
   auditLogs: (): Collection<AuditLogDoc> => getDb().collection("audit_logs"),
+  opsSessions: (): Collection<OpsSessionDoc> => getDb().collection("ops_sessions"),
+  opsPasswordResets: (): Collection<OpsPasswordResetDoc> => getDb().collection("ops_password_resets"),
   productReviews: (): Collection<ProductReviewDoc> => getDb().collection("product_reviews"),
   stockLevels: (): Collection<StockLevelDoc> => getDb().collection("stock_levels"),
   stockLedger: (): Collection<StockLedgerDoc> => getDb().collection("stock_ledger"),
@@ -1559,6 +1599,13 @@ export async function ensureIndexes() {
     db.notifications().createIndex({ recipientId: 1, status: 1, createdAt: -1 }),
     db.auditLogs().createIndex({ adminId: 1, createdAt: -1 }),
     db.auditLogs().createIndex({ targetCollection: 1, createdAt: -1 }),
+    db.auditLogs().createIndex({ action: 1, createdAt: -1 }),
+    db.opsSessions().createIndex({ tokenHash: 1 }, { unique: true }),
+    db.opsSessions().createIndex({ "memberships.realm": 1, "memberships.id": 1 }),
+    // Expired sessions are deleted a day after they lapse; revoked ones stay until then for the session list.
+    db.opsSessions().createIndex({ expiresAt: 1 }, { expireAfterSeconds: 24 * 3600 }),
+    db.opsPasswordResets().createIndex({ tokenHash: 1 }, { unique: true }),
+    db.opsPasswordResets().createIndex({ expiresAt: 1 }, { expireAfterSeconds: 24 * 3600 }),
     db.productReviews().createIndex({ productId: 1, status: 1, createdAt: -1 }),
     db.productReviews().createIndex({ customerId: 1, productId: 1 }),
     db.stockLevels().createIndex({ variantId: 1, warehouseId: 1 }, { unique: true }),

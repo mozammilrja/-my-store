@@ -1,0 +1,460 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url('/fonts/material-symbols-outlined.woff2') format('woff2');
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga' 1;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  user-select: none;
+  vertical-align: middle;
+}
+
+/* ========================================================
+   Design tokens
+
+   One semantic scale, two themes. Every token is a bare
+   "R G B" triplet so Tailwind can apply an alpha modifier
+   to it; nothing below this block hardcodes a colour.
+
+   Surfaces step gently (1.07:1 between neighbours) and lean
+   on borders and elevation for separation rather than tint.
+   Text, accent and status pairs are all >= 4.5:1 on the
+   surfaces they are used on, in both themes.
+   ======================================================== */
+:root {
+  color-scheme: light;
+
+  /* Surfaces: canvas sits under cards, cards sit above it */
+  --surface-canvas: 246 247 250;
+  --surface-container-lowest: 255 255 255;
+  --surface-container-low: 250 251 253;
+  --surface-container: 240 242 246;
+  --surface-container-high: 232 235 241;
+  --surface-container-highest: 223 227 235;
+  --surface-subtle: 244 246 249;
+  --surface: 255 255 255;
+  --surface-bright: 255 255 255;
+  --surface-dim: 232 235 241;
+  --surface-variant: 240 242 246;
+  --background: 246 247 250;
+  --overlay: 255 255 255;
+  --scrim: 15 23 42;
+
+  /* Borders. --border-subtle divides; --border-strong draws the boundary of
+     an interactive control and clears WCAG 2.2 AA 1.4.11 (>= 3:1) on every
+     surface it is used on. */
+  --border-subtle: 226 230 237;
+  --border-strong: 128 139 160;
+  --border-emphasis: 165 174 190;
+
+  /* Text: five steps, each a defined role. Everything but --text-disabled
+     clears 4.5:1 on canvas, card, subtle and raised. */
+  --text-primary: 15 23 42;
+  --text-secondary: 51 65 85;
+  --text-muted: 83 94 114;
+  --text-faint: 98 110 132;
+  --text-disabled: 148 158 176;
+  --text-accent: 79 70 229;
+  --text-accent-hover: 67 56 202;
+  --text-success: 4 120 87;
+  --text-warning: 170 78 8;
+  --text-danger: 190 18 60;
+  --text-info: 29 78 216;
+  --text-on-accent: 255 255 255;
+  --text-inverse: 241 243 247;
+
+  /* Legacy aliases kept so installed primitives keep resolving */
+  --on-surface: 15 23 42;
+  --on-surface-variant: 83 94 114;
+  --on-background: 15 23 42;
+  --secondary: 83 94 114;
+
+  /* Neutral containers and outlines */
+  --secondary-fixed: 236 238 243;
+  --secondary-fixed-dim: 205 211 222;
+  --secondary-container: 240 242 246;
+  --on-secondary: 255 255 255;
+  --on-secondary-container: 51 61 79;
+  --on-secondary-fixed: 15 23 42;
+  --on-secondary-fixed-variant: 83 94 114;
+  --outline: 140 150 168;
+  --outline-variant: 214 219 228;
+
+  /* Brand accent.
+     --primary is the accent for text, icons, borders and the focus ring.
+     --primary-container is the solid fill that carries --on-primary. */
+  --primary: 79 70 229;
+  --primary-hover: 67 56 202;
+  --primary-container: 79 70 229;
+  --primary-container-hover: 67 56 202;
+  --on-primary: 255 255 255;
+  --primary-fixed: 224 231 255;
+  --primary-fixed-dim: 199 210 254;
+  --on-primary-fixed: 49 46 129;
+  --on-primary-fixed-variant: 55 48 163;
+  --on-primary-container: 224 231 255;
+  --inverse-primary: 165 180 252;
+  --inverse-surface: 24 28 38;
+  --inverse-on-surface: 241 243 247;
+  --ring: 79 70 229;
+
+  /* Status: a readable foreground plus the tint it sits on */
+  --status-success: 4 120 87;
+  --status-success-bg: 236 253 245;
+  --status-warning: 170 78 8;
+  --status-warning-bg: 255 251 235;
+  --status-danger: 190 18 60;
+  --status-danger-bg: 255 241 242;
+  --status-info: 29 78 216;
+  --status-info-bg: 239 246 255;
+
+  /* Solid status fills always carry white text, in either theme */
+  --status-success-solid: 4 120 87;
+  --status-warning-solid: 180 83 9;
+  --status-danger-solid: 190 18 60;
+  --status-info-solid: 29 78 216;
+  --on-status: 255 255 255;
+
+  /* Data visualisation */
+  --chart-1: 79 70 229;
+  --chart-2: 13 148 136;
+  --chart-3: 217 119 6;
+  --chart-4: 219 39 119;
+  --chart-5: 2 132 199;
+  --chart-grid: 226 230 237;
+  --chart-baseline: 205 211 222;
+
+  /* Elevation: one hue, two intensities, so cards read as one family */
+  --shadow-color: 15 23 42;
+  --shadow-weak: 0.04;
+  --shadow-mid: 0.07;
+  --shadow-strong: 0.1;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --surface-canvas: 9 11 16;
+  --surface-container-lowest: 17 20 27;
+  --surface-container-low: 21 25 33;
+  --surface-container: 28 33 43;
+  --surface-container-high: 37 43 56;
+  --surface-container-highest: 48 55 70;
+  --surface-subtle: 23 27 36;
+  --surface: 17 20 27;
+  --surface-bright: 37 43 56;
+  --surface-dim: 13 16 22;
+  --surface-variant: 28 33 43;
+  --background: 9 11 16;
+  --overlay: 21 25 33;
+  --scrim: 0 0 0;
+
+  --border-subtle: 34 40 52;
+  --border-strong: 104 116 138;
+  --border-emphasis: 72 81 99;
+
+  --text-primary: 237 240 245;
+  --text-secondary: 203 211 224;
+  --text-muted: 152 162 179;
+  --text-faint: 134 146 166;
+  --text-disabled: 92 102 121;
+  --text-accent: 129 140 248;
+  --text-accent-hover: 165 180 252;
+  --text-success: 52 211 153;
+  --text-warning: 251 191 36;
+  --text-danger: 251 113 133;
+  --text-info: 96 165 250;
+  --text-on-accent: 255 255 255;
+  --text-inverse: 17 20 27;
+
+  --on-surface: 237 240 245;
+  --on-surface-variant: 152 162 179;
+  --on-background: 237 240 245;
+  --secondary: 152 162 179;
+
+  --secondary-fixed: 37 43 56;
+  --secondary-fixed-dim: 55 63 79;
+  --secondary-container: 28 33 43;
+  --on-secondary: 237 240 245;
+  --on-secondary-container: 202 210 223;
+  --on-secondary-fixed: 237 240 245;
+  --on-secondary-fixed-variant: 152 162 179;
+  --outline: 107 117 134;
+  --outline-variant: 48 55 70;
+
+  --primary: 129 140 248;
+  --primary-hover: 165 180 252;
+  --primary-container: 79 70 229;
+  --primary-container-hover: 91 84 236;
+  --on-primary: 255 255 255;
+  --primary-fixed: 45 46 95;
+  --primary-fixed-dim: 60 62 122;
+  --on-primary-fixed: 199 210 254;
+  --on-primary-fixed-variant: 165 180 252;
+  --on-primary-container: 224 231 255;
+  --inverse-primary: 79 70 229;
+  --inverse-surface: 237 240 245;
+  --inverse-on-surface: 17 20 27;
+  --ring: 129 140 248;
+
+  --status-success: 52 211 153;
+  --status-success-bg: 6 42 33;
+  --status-warning: 251 191 36;
+  --status-warning-bg: 48 29 6;
+  --status-danger: 251 113 133;
+  --status-danger-bg: 48 13 23;
+  --status-info: 96 165 250;
+  --status-info-bg: 12 29 56;
+
+  --status-success-solid: 4 120 87;
+  --status-warning-solid: 180 83 9;
+  --status-danger-solid: 190 18 60;
+  --status-info-solid: 29 78 216;
+  --on-status: 255 255 255;
+
+  /* Dark slots are stepped down, not flipped: 400-level hues sit above the
+     dark-mode lightness band and read as glowing blocks against the surface. */
+  --chart-1: 99 102 241;
+  --chart-2: 13 148 136;
+  --chart-3: 217 119 6;
+  --chart-4: 236 72 153;
+  --chart-5: 2 132 199;
+  --chart-grid: 34 40 52;
+  --chart-baseline: 55 63 79;
+
+  --shadow-color: 0 0 0;
+  --shadow-weak: 0.3;
+  --shadow-mid: 0.45;
+  --shadow-strong: 0.6;
+}
+
+@layer base {
+  * {
+    @apply border-border-subtle;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-surface-canvas text-text-primary;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* One visible focus treatment for everything that takes focus */
+  :focus-visible {
+    outline: 2px solid rgb(var(--ring));
+    outline-offset: 2px;
+    border-radius: 0.375rem;
+  }
+
+  /* Native controls follow the theme instead of the OS default */
+  input,
+  textarea,
+  select {
+    color-scheme: inherit;
+  }
+
+  ::placeholder {
+    color: rgb(var(--text-faint));
+    opacity: 1;
+  }
+
+  ::selection {
+    background-color: rgb(var(--primary-fixed));
+    color: rgb(var(--on-primary-fixed));
+  }
+
+  kbd {
+    background-color: rgb(var(--surface-subtle));
+    color: rgb(var(--text-muted));
+    border-color: rgb(var(--border-subtle));
+  }
+
+  /* The UA sheet puts <th>, <strong> and <b> at 700. The scale tops out at
+     600, so inline emphasis joins it instead of introducing a fourth weight. */
+  th {
+    font-weight: inherit;
+  }
+
+  strong,
+  b {
+    font-weight: 600;
+  }
+
+  /* Numbers that sit in columns line up by default. */
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* Scrollbars track the theme in both modes, not just dark */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--border-strong)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--border-strong));
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--outline));
+    background-clip: content-box;
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Fades the right edge of a horizontal scroller so a clipped item reads as
+     "there is more" rather than as broken. */
+  .scroll-fade-x {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+  }
+}
+
+/* Honour the viewer's motion preference everywhere, including the
+   skeleton shimmer and every component entrance. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ========================================================
+   Floor, delivery and seller areas (src/areas)
+
+   The palette the warehouse, rider and seller apps were
+   built on before they joined this portal: the admin's own
+   values under shorter names, plus their print and focus
+   rules. Kept as they were so those screens look the same.
+   ======================================================== */
+:root {
+  color-scheme: light;
+  --canvas: 246 247 250;
+  --panel: 255 255 255;
+  --panel-muted: 240 242 246;
+  --panel-strong: 232 235 241;
+  --line: 226 230 237;
+  --line-strong: 128 139 160;
+  --ink: 15 23 42;
+  --ink-2: 51 65 85;
+  --ink-3: 98 110 132;
+  --accent: 79 70 229;
+  --accent-hover: 67 56 202;
+  --accent-soft: 224 231 255;
+  --on-accent: 255 255 255;
+  --ok: 4 120 87;
+  --ok-bg: 236 253 245;
+  --warn: 170 78 8;
+  --warn-bg: 255 251 235;
+  --bad: 190 18 60;
+  --bad-bg: 255 241 242;
+  --info: 29 78 216;
+  --info-bg: 239 246 255;
+}
+
+.dark {
+  color-scheme: dark;
+  --canvas: 9 11 16;
+  --panel: 17 20 27;
+  --panel-muted: 28 33 43;
+  --panel-strong: 37 43 56;
+  --line: 34 40 52;
+  --line-strong: 104 116 138;
+  --ink: 237 240 245;
+  --ink-2: 203 211 224;
+  --ink-3: 134 146 166;
+  --accent: 129 140 248;
+  --accent-hover: 165 180 252;
+  --accent-soft: 45 46 95;
+  --on-accent: 15 23 42;
+  --ok: 52 211 153;
+  --ok-bg: 6 42 33;
+  --warn: 251 191 36;
+  --warn-bg: 48 29 6;
+  --bad: 251 113 133;
+  --bad-bg: 48 13 23;
+  --info: 147 197 253;
+  --info-bg: 15 30 66;
+}
+
+
+.area-root :focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+}
+
+/* Printing a slip or label: only the .print-area, at its own size. Pages
+   without one (the admin's) print as they are. */
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 8mm;
+  }
+  body:has(.print-area) * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    background: white;
+    color: black;
+  }
+}

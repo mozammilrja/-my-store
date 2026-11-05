@@ -10,7 +10,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **`apps/backend`** | `@dtc/backend` | Node.js 22, Express 5, MongoDB 7, Zod, JWT | `http://localhost:9100` | Commerce API: catalog, carts, checkout, multi-document transactions, webhooks, payments, carriers, and admin endpoints. |
 | **`apps/storefront`** | `@dtc/storefront` | Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui + ReUI | `http://localhost:8001` | Customer shop: faceted catalog search, typeahead, currency & region routing, bag, checkout, payments, customer portal. |
-| **`apps/admin`** | `@dtc/admin` | React 18/19, Vite 6, Tailwind CSS, Lucide | `http://localhost:7001` | Operations console: 16 integrated modules for live orders, inventory telemetry, dispatch manifests, GST compliance, and CRM. |
+| **`apps/operations`** | `@dtc/operations` | React 19, Vite 6, Tailwind CSS, Lucide | `http://localhost:7001` | Operations portal: one role-based sign-in for the admin (`/admin`), warehouse floor (`/warehouse`), own-fleet riders (`/delivery`) and Seller Hub (`/seller`). See `docs/OPERATIONS_PORTAL.md`. |
 
 ---
 
@@ -88,7 +88,7 @@ docker compose up -d
 4. **Configure Storefront & Admin environments**:
    ```bash
    cp apps/storefront/.env.template apps/storefront/.env.local
-   cp apps/admin/.env.example apps/admin/.env.local
+   cp apps/operations/.env.example apps/operations/.env.local
    ```
 
 5. **Start Dev Server (All Apps)**:
@@ -142,7 +142,7 @@ Detailed guides are available in the repository:
 Run from repository root:
 - `npm run dev`: Starts all workspace applications in watch mode.
 - `npm run backend:dev`: Starts only the Backend API.
-- `npm run admin:dev`: Starts only the Admin Console.
+- `npm run operations:dev`: Starts only the operations portal (admin, warehouse, delivery, Seller Hub).
 - `npm run storefront:dev`: Starts only the Next.js Storefront.
 - `npm run build`: Runs production compilation across all packages.
 - `npm run lint`: Runs ESLint checks across all apps.

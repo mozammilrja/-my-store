@@ -6,7 +6,7 @@ import multer from "multer"
 import { z } from "zod"
 import { db, FAILED_DELIVERY_REASONS, RIDER_DOCUMENT_TYPES, type DeliveryTaskDoc, type RiderDoc } from "../../db/schema.js"
 import { env, adminLoginMaxAttempts } from "../../env.js"
-import { clientKey, hashPassword, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
+import { assertTokenCurrent, clientKey, hashPassword, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
 import { ApiError, badRequest, conflict, forbidden, unauthorized } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
 import { cashInHand, submitRemittance } from "../../lib/fleet/cod.js"
@@ -80,6 +80,7 @@ riderRoutes.post("/auth/login", async (req, res) => {
 const loadRider: RequestHandler = async (req, _res, next) => {
   const rider = await db.riders().findOne({ _id: req.actorId! })
   if (!rider || rider.status === "rejected") throw unauthorized()
+  assertTokenCurrent(req, rider)
   req.rider = rider
   next()
 }

@@ -72,8 +72,8 @@ The sidebar's hub switcher lists the store's real warehouses (it used to list
 made-up ones), and System Settings shows the three real webhook endpoints with
 whether each secret is set.
 
-Browser tests: `apps/admin/e2e/ops/*.ops.js`, run with `npm run test:e2e:ops`
-from `apps/admin`. Each area runs on a fresh API and database seeded with its
+Browser tests: `apps/operations/e2e/ops/*.ops.js`, run with `npm run test:e2e:ops`
+from `apps/operations`. Each area runs on a fresh API and database seeded with its
 own records.
 
 ## Tests

@@ -6,6 +6,7 @@ import { hashPassword } from "../../lib/auth.js"
 import { badRequest, forbidden, notFound } from "../../lib/errors.js"
 import { allocateOutstanding, reassignFulfilment } from "../../lib/fulfilment/workflow.js"
 import { newId } from "../../lib/ids.js"
+import { revokeSessionsFor } from "../../lib/ops-session.js"
 import { runStockOperation, stockOperationSchema } from "../../lib/inventory/operations.js"
 import { openingBalance } from "../../lib/inventory/stock.js"
 import { email } from "../../lib/validation.js"
@@ -77,6 +78,7 @@ adminFulfilmentRoutes.patch("/warehouse-users/:id", async (req, res) => {
   const set = { ...rest, ...(password ? { passwordHash: await hashPassword(password) } : {}), updatedAt: new Date() }
   const user = await db.warehouseUsers().findOneAndUpdate({ _id: req.params.id }, { $set: set }, { returnDocument: "after" })
   if (!user) throw notFound("Warehouse user")
+  if (password || body.status === "suspended") await revokeSessionsFor([{ realm: "warehouse", id: user._id }], body.status === "suspended" ? "suspended" : "password_set_by_admin")
   await audit(req, "warehouse_user.update", "warehouse_users", user._id, { ...rest, passwordChanged: !!password })
   res.json({ user: publicUser(user) })
 })

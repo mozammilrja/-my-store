@@ -2,20 +2,17 @@
 
 ## Overview
 
-Everwear: an online clothing store for India (one region, prices in INR). A Turborepo monorepo (npm workspaces) with six apps:
+Everwear: an online clothing store for India (one region, prices in INR). A Turborepo monorepo (npm workspaces) with three apps:
 
 | App | Package | What it is | Dev URL |
 | --- | --- | --- | --- |
 | `apps/backend` | `@dtc/backend` | Everwear API: catalog, carts, checkout, orders, customers and admin endpoints. Node 22, Express 5, MongoDB, Zod. | http://localhost:9100 |
 | `apps/storefront` | `@dtc/storefront` | Shop front. Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui + ReUI. | http://localhost:8001 |
-| `apps/admin` | `@dtc/admin` | Store admin: dashboard, orders, products, customers, returns, finance, warehouse operations, delivery fleet, cash on delivery, marketplace sellers, notifications, logistics analytics. React 18 (JSX), Vite 6, React Router, TanStack Query, Tailwind 3. | http://localhost:7001 |
-| `apps/warehouse` | `@dtc/warehouse` | Warehouse floor app: incoming orders, picking, inspection, packing, labels, manifests, stock and returns. Scanner-first and mobile-first. React 19, Vite 6, React Router, TanStack Query, Tailwind 4. Talks to the API's `/warehouse` routes with its own staff token. | http://localhost:7101 |
-| `apps/rider` | `@dtc/rider` | Delivery partner app for our own fleet: offers, hub pickup by AWB, route, doorstep OTP with cash and proof photo, failed attempts, cash handover, earnings, profile and documents. Phone-first. Same stack as the warehouse app. Talks to the API's `/rider` routes. | http://localhost:7201 |
-| `apps/seller` | `@dtc/seller` | Seller Hub for marketplace sellers: onboarding and KYC, listings, stock and shipping notices, orders (seller-fulfilled), returns, payments, performance. Same stack as the warehouse app. Talks to the API's `/seller` routes. | http://localhost:7301 |
+| `apps/operations` | `@dtc/operations` | The operations portal: one role-based app with one sign-in for admins (`/admin`: dashboard, orders, products, customers, returns, finance, warehouses, fleet, COD, marketplace, notifications, analytics), warehouse floor staff (`/warehouse`: picking, packing, labels, dispatch, stock, returns), own-fleet riders (`/delivery`: offers, OTP and proof of delivery, cash, earnings) and marketplace sellers (`/seller`: listings, stock, orders, returns, payments). React 19, Vite 6, React Router 7, TanStack Query, Tailwind 3. Replaced the separate admin, warehouse, rider and seller apps. | http://localhost:7001 |
 
 The project started from the Medusa DTC starter and has since moved off Medusa. Medusa and PostgreSQL are no longer part of the running stack; the only remaining link is the one-off `migrate:medusa` script that copies data out of an old Medusa database. Ignore Medusa docs, skills and the `@medusajs/*` package `AGENTS.md` files unless you are working on that script.
 
-**`apps/admin` is a Vite single-page app**, not Next.js: `index.html` boots `src/main.jsx`, routing is React Router (from `src/routes.jsx`) and data loading is TanStack Query. It talks to the API's `/admin` routes with a Bearer token held in `localStorage`, through `src/lib/api.js`. It has no server side, so anything it shows must come from an endpoint the API already exposes.
+**`apps/operations` is a Vite single-page app**, not Next.js: `index.html` boots `src/main.jsx`, which routes `/admin/*` to the admin (`src/App.jsx`, modules from `src/routes.jsx`, JSX) and `/warehouse/*`, `/delivery/*`, `/seller/*` to the areas in `src/areas/<area>/` (TypeScript). Sign-in, the session, the account menu and the area guard are `src/portal/`. Every call carries the portal session (an httpOnly cookie) and the `X-Everwear-Ops` header through `src/portal/client.ts`; there are no tokens in `localStorage`. It has no server side, so anything it shows must come from an endpoint the API already exposes. Design, role matrix, deployment and rollback: [`docs/OPERATIONS_PORTAL.md`](./docs/OPERATIONS_PORTAL.md).
 
 Architecture, design tokens and known issues: [`docs/PROJECT.md`](./docs/PROJECT.md).
 
@@ -40,22 +37,23 @@ Architecture, design tokens and known issues: [`docs/PROJECT.md`](./docs/PROJECT
 | Storefront API calls | `apps/storefront/src/lib/api/client.ts` (server-only fetch wrapper) and `src/lib/data/*.ts` |
 | Storefront UI | `apps/storefront/src/modules/<feature>/`, routes in `src/app/[countryCode]/` |
 | Storefront e2e tests | `apps/storefront/e2e/` |
-| Admin API client | `apps/admin/src/lib/api.js` (`adminApi`), plus one `src/lib/api-<area>.js` per operations area (warehouses, fleet, notifications, marketplace) |
-| Admin pages | `apps/admin/src/components/<area>/*.jsx` (React 18, JSX); every route, the sidebar and the breadcrumbs come from `src/routes.jsx` |
-| Admin list tables (search, filters, paging) | `apps/admin/src/components/shared/DataTable.jsx` with `src/hooks/useClientTable.js` / `useServerTable.js` |
-| Admin operations browser tests (warehouses, fleet, COD, notifications, marketplace, logistics) | `apps/admin/e2e/ops/*.ops.js`; `api-server.ts` runs the real API on `everwear_e2e_admin_ops` and runs each area's `seed/*.ts` |
-| Admin UI | `apps/admin/src/` |
-| Warehouse app screens | `apps/warehouse/src/routes/` (orders, fulfilment work screen, dispatch, stock, returns); API client `src/lib/api.ts`, types `src/lib/types.ts` |
-| Warehouse app scanning and printing | `apps/warehouse/src/components/scan-field.tsx` (keyboard-wedge scanners, camera through the Barcode Detection API), `src/lib/code128.ts` (pick slip and parcel barcodes) |
-| Warehouse browser tests | `apps/warehouse/e2e/` (`api-server.ts` runs the real API on `everwear_e2e_warehouse` with the courier stand-in) |
+| Operations portal sign-in, session, roles | API: `apps/backend/src/routes/ops/auth.ts`, `src/lib/ops-session.ts` (cookie session, revocation), `src/lib/ops-access.ts` (portal roles and areas); portal: `apps/operations/src/portal/` |
+| Admin API client | `apps/operations/src/lib/api.js` (`adminApi`), plus one `src/lib/api-<area>.js` per operations area (warehouses, fleet, notifications, marketplace) |
+| Admin pages | `apps/operations/src/components/<area>/*.jsx` (JSX), served under `/admin`; every module route and the sidebar come from `src/routes.jsx` |
+| Admin list tables (search, filters, paging) | `apps/operations/src/components/shared/DataTable.jsx` with `src/hooks/useClientTable.js` / `useServerTable.js` |
+| Admin operations browser tests (warehouses, fleet, COD, notifications, marketplace, logistics) | `apps/operations/e2e/ops/*.ops.js`; `api-server.ts` runs the real API on `everwear_e2e_admin_ops` and runs each area's `seed/*.ts` |
+| Portal browser tests (every role, direct URLs, sign-out, password reset) | `apps/operations/e2e/portal/` (`api-server.ts` runs the real API on `everwear_e2e_portal` with a local SMTP server) |
+| Warehouse floor screens | `apps/operations/src/areas/warehouse/routes/` (orders, fulfilment work screen, dispatch, stock, returns); API client `lib/api.ts`, types `lib/types.ts` |
+| Warehouse scanning and printing | `apps/operations/src/areas/shared/scan-field.tsx` (keyboard-wedge scanners, camera through the Barcode Detection API), `src/areas/warehouse/lib/code128.ts` (pick slip and parcel barcodes) |
+| Warehouse, delivery and seller browser tests | `apps/operations/e2e/areas/` (one real API per area: `everwear_e2e_warehouse`, `everwear_e2e_rider`, `everwear_e2e_seller`) |
 | Courier integrations: Shiprocket, Delhivery direct, comparing quotes | `apps/backend/src/lib/shipping/` (`service.ts` one interface for both, `shiprocket.ts`, `delhivery.ts`, `status.ts` status mapping); design in [`docs/PAYMENTS_AND_SHIPPING.md`](./docs/PAYMENTS_AND_SHIPPING.md) |
 | Logistics analytics | `apps/backend/src/lib/analytics/logistics.ts`, `GET /admin/analytics/logistics`; definitions in [`docs/LOGISTICS_ANALYTICS.md`](./docs/LOGISTICS_ANALYTICS.md) |
 | Marketplace sellers: KYC, listings, seller warehouses, ledger, settlements, ASN | `apps/backend/src/lib/marketplace/`; seller API `src/routes/seller/`, admin API `src/routes/admin/marketplace.ts`; design in [`docs/MARKETPLACE.md`](./docs/MARKETPLACE.md) |
 | Notifications: email, SMS, WhatsApp, push | `apps/backend/src/lib/notify/` (`index.ts` recipients, queue and worker; `templates.ts` wording and template variables; `providers/` one file per channel); admin API `src/routes/admin/notifications.ts`; design in [`docs/NOTIFICATIONS.md`](./docs/NOTIFICATIONS.md) |
 | Returns and exchanges: rules, refunds, replacement orders | `apps/backend/src/lib/returns/` (`returns.ts` rules and lifecycle, `resolve.ts` decisions, `inspect.ts` warehouse grading); design in [`docs/RETURNS.md`](./docs/RETURNS.md) |
 | Own delivery fleet: zones, riders, dispatch, OTP delivery, cash, RTO | `apps/backend/src/lib/fleet/`; rider API `src/routes/rider/`, admin API `src/routes/admin/fleet.ts`; design in [`docs/FLEET.md`](./docs/FLEET.md) |
-| Rider app screens | `apps/rider/src/routes/` (today, task, money, profile, auth); location sharing in `src/lib/session.tsx` |
-| Rider browser tests | `apps/rider/e2e/` (`api-server.ts` seeds `everwear_e2e_rider` through the real warehouse API) |
+| Rider screens | `apps/operations/src/areas/delivery/routes/` (today, task, money, profile, register); location sharing in `lib/session.tsx` |
+| Seller Hub screens | `apps/operations/src/areas/seller/routes/` (overview, listings, stock, orders, sales and returns, money, register) |
 
 ## Directory Structure
 
@@ -80,13 +78,14 @@ Architecture, design tokens and known issues: [`docs/PROJECT.md`](./docs/PROJECT
 │   │       ├── components/     # ui/ (shadcn), reui/, store/
 │   │       ├── lib/            # api/ client, data/ fetchers, util/
 │   │       └── modules/        # Feature UI: shell, home, catalog, product, bag, checkout, account, policies, common
-│   └── admin/                  # Store admin SPA (@dtc/admin)
+│   └── operations/             # Operations portal SPA (@dtc/operations)
 │       ├── index.html          # Vite entry point
+│       ├── e2e/                # Playwright: admin views, ops/ (admin areas), areas/ (floor, delivery, seller), portal/
 │       └── src/
-│           ├── main.tsx        # Router, query client, providers
-│           ├── routes/         # login, dashboard, orders, products, customers
-│           ├── components/     # app shell, resource grid, ui/ + reui/ primitives
-│           └── lib/            # api client, response types, formatters
+│           ├── main.jsx        # Router: /login, /admin/*, /warehouse/*, /delivery/*, /seller/*, /account
+│           ├── portal/         # Sign-in, session, guard, account menu, breadcrumbs, quick switch, account page
+│           ├── App.jsx         # The admin (under /admin); modules in routes.jsx, components/, lib/
+│           └── areas/          # warehouse/, delivery/, seller/ (TypeScript) and shared/ (UI kit, API factory)
 ├── docs/PROJECT.md             # Architecture, design system, known issues
 └── turbo.json                  # Task graph: build, dev, start, lint, test, typecheck
 ```
@@ -123,7 +122,7 @@ From the repo root:
 ```bash
 npm run dev                 # all apps
 npm run backend:dev         # API only (tsx watch)
-npm run admin:dev           # admin dashboard only (Vite)
+npm run operations:dev      # operations portal only (Vite)
 npm run storefront:dev      # storefront only
 npm run build               # all apps
 npm run lint                # all apps via turbo
@@ -143,19 +142,23 @@ npm run catalog:localize     # one-off catalog localization pass
 
 The test suites drop and recreate their own databases (`everwear_test`, `everwear_test_admin`) on the configured MongoDB. Never point them at a production server.
 
-Admin (from `apps/admin`, with the API running):
+Operations portal (from `apps/operations`):
 
 ```bash
-npm run dev          # Vite dev server on 7001
+npm run dev                       # Vite dev server on 7001 (needs the API on 9100)
+npm run typecheck                 # tsc over src/portal and src/areas
+npm test                          # unit tests (code128)
 npm run build && npm run preview
-npx playwright test                                # e2e/*.spec.js against the running dev API
-npm run test:e2e:ops                               # e2e/ops/*.ops.js, area by area, on a throwaway API and database
-npm run test:e2e:ops -- fleet                      # one area
+npx playwright test               # admin view specs (e2e/*.spec.js)
+npm run test:e2e:ops              # admin operations areas, each on a throwaway API and database
+npm run test:e2e:ops -- fleet     # one area
+npm run test:e2e:areas            # warehouse, delivery and seller workflows (AREA=<name> for one)
+npm run test:e2e:portal           # every role: landing, direct URLs, sign-out, sessions, password reset
 ```
 
-The operations suite starts its own API (`everwear_e2e_admin_ops`, reset each run) and Vite server for each area, seeded with only that area's records (`e2e/ops/seed/<nn>-<area>.ts`), because each spec checks exact counts in its own data. `OPS_SLOT=1..9` gives a run its own ports and database so runs can overlap.
+The operations suite starts its own API (`everwear_e2e_admin_ops`, reset each run) and Vite server for each area, seeded with only that area's records (`e2e/ops/seed/<nn>-<area>.ts`), because each spec checks exact counts in its own data. `OPS_SLOT=1..9` gives a run its own ports and database so runs can overlap. The area and portal suites also start their own APIs and databases. The browser must reach the API and the portal on the same site (`localhost` for both, never `127.0.0.1` for one of them): the session cookie is `SameSite=Strict`.
 
-Signing in needs an admin account, created from the API with `npm run admin:create`.
+Signing in needs an account: admins from `npm run admin:create` (apps/backend); floor staff from Admin → Warehouse Operations; riders and sellers register at `/delivery/register` and `/seller/register` and are approved in the admin. `npm run ops:audit` (apps/backend) reports accounts per kind and emails shared between kinds, read-only.
 
 Storefront (from `apps/storefront`, with the API running):
 
@@ -179,8 +182,8 @@ The checkout and account e2e tests create real orders and customers in the local
 - **Money is always an integer in the currency's minor unit** (cents, paise). `prices` maps a lowercase ISO currency code to that amount. Never store or compute money as floats.
 - **Database access** goes through the `db.<collection>()` accessors in `src/db/schema.ts`. Add new indexes to `ensureIndexes`. No ORM.
 - **Anything that must be all-or-nothing** (placing an order, moving stock) runs inside `withTransaction`.
-- **CORS is split by audience:** `/store` accepts only `STORE_CORS` origins and `/admin` only `ADMIN_CORS`. A new frontend origin must be added to the right list in `.env.template`.
-- **Auth:** customers and admins get signed JWTs (`issueToken`) sent as `Authorization: Bearer <token>`; check them with `requireAuth` or `optionalAuth`. Rate-limit login-style endpoints with `rateLimit`.
+- **CORS is split by audience:** `/store` accepts only `STORE_CORS` origins. `/ops`, `/admin`, `/warehouse`, `/rider` and `/seller` accept the operations portal's origins (`OPS_CORS`, or `ADMIN_CORS` when unset), plus each realm's own optional list. A new frontend origin must be added to the right list in `.env.template`.
+- **Auth:** customers get signed JWTs (`issueToken`) sent as `Authorization: Bearer <token>`. Operational users sign in once at `POST /ops/auth/login`, which opens a server-side session (httpOnly `everwear_ops` cookie, SHA-256 stored in `ops_sessions`) for every account of that email whose password matches. `requireAuth("admin" | "warehouse" | "rider" | "seller")` accepts that session (with the `X-Everwear-Ops: 1` header) or a bearer token for the realm; each realm's loader still checks its own account (status, `sessionsRevokedAt`) on every request. Never take a role from the request: portal roles are derived in `lib/ops-access.ts`. Rate-limit login-style endpoints with `rateLimit`; write sensitive admin actions to the audit log with `lib/audit.ts`.
 
 ### Storefront
 
@@ -188,13 +191,13 @@ The checkout and account e2e tests create real orders and customers in the local
 - Catalog reads may be cached briefly; carts, accounts and orders are always `no-store`.
 - UI is built from shadcn/ui and ReUI components (`components.json`, style `radix-sera`, registry `@reui`). Follow the ReUI skill when adding UI.
 
-### Admin
+### Operations portal
 
-- Built from shadcn/ui and ReUI components (style `radix-nova` in `components.json`, registry `@reui`, a different style from the storefront's `radix-sera`). Follow the ReUI skill.
-- Talks to the API's `/admin` routes with a Bearer token. Its origin (port 7001) must be in `ADMIN_CORS`.
-- **Every request goes through `src/lib/api.ts`.** It attaches the token, unwraps the `{ error: { code, message } }` envelope and drops the token on a 401, which sends the viewer back to the login.
-- **Response types live in `src/lib/types.ts`** and mirror the API exactly: camelCase fields, and money as an integer in the currency's minor unit. Format money with `formatMoney` from `src/lib/format.ts`, which divides it out; never print a raw amount.
-- **The nav is `src/lib/modules.ts`.** It holds all sixteen modules the design calls for: `ready: true` ones have a route, the rest render `ModulePlaceholder`, which states what the module needs rather than faking it. When a module's endpoints land, flip `ready`, delete its entry from `MODULE_PLANS` and add the real route.
+- The admin half (`src/App.jsx`, `src/components/`, `src/lib/`) is JSX on the admin's Tailwind 3 tokens (`tailwind.config.js`, `src/index.css`). The areas (`src/areas/`) are TypeScript on the same Tailwind build, using the palette they were built with (`canvas`, `panel`, `ink`, `line`, `ok`/`warn`/`bad`, `area-on-accent`, `area-info`), defined in the same two files. Don't add a second Tailwind version.
+- **Every request goes through `src/portal/client.ts`** (`portalFetch`): the admin's `src/lib/api.js` and each area's `createAreaApi` build on it. A 401 tells the portal the session ended and it shows the sign-in.
+- **Links inside an area are absolute with the area prefix** (`/warehouse/dispatch`, `/admin/order-management`). The admin navigates through `onNavigate`, which adds `/admin`.
+- **Each area keeps its own TanStack Query cache** (`areas/shared/AreaShell.tsx`), emptied on sign-out with the admin's.
+- **What a role sees is decided by the API** (`/ops/auth/me` areas) and enforced by the API on every call; `RequireArea` only stops the page from rendering. Never hide a control as the only protection.
 - **Owner-only routes** (`/admin/settings` writes, every `/admin/users` write) check `req.admin.role`; the API refuses to demote or delete the last owner.
 - **List pages use `ResourceGrid`**, which pages with `page`/`limit`, searches with `q` and filters with one query parameter per `GridFilter`. A new list page supplies a path, a result key and columns, plus filters the endpoint accepts.
 - **`src/components/ui/` and `src/components/reui/` are installed files.** Don't hand-edit them; the lint config reports their findings as warnings for that reason. Restyle through the tokens in `src/styles/globals.css`. After any `npx shadcn add`: rewrite the `from "cn"` imports back to `@/lib/utils` and uninstall the stray `cn` package, and re-point `ui/sonner.tsx` at `@/hooks/use-theme` and uninstall `next-themes` — the published toaster pulls in a Next.js theme library this app does not use, and leaving it in blanks the page on a stale Vite dep cache.

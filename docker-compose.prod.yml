@@ -47,13 +47,14 @@ services:
       MONGODB_DB: ${MONGODB_DATABASE:-everwear}
       JWT_SECRET: ${JWT_SECRET}
       STORE_CORS: ${STORE_CORS:-https://everwear.com,https://shop.everwear.com}
+      # The operations portal (admin, warehouse, delivery, seller) on one origin.
       ADMIN_CORS: ${ADMIN_CORS:-https://admin.everwear.com}
-      WAREHOUSE_CORS: ${WAREHOUSE_CORS:-https://warehouse.everwear.com}
-      RIDER_CORS: ${RIDER_CORS:-https://rider.everwear.com}
-      SELLER_CORS: ${SELLER_CORS:-https://sellers.everwear.com}
+      OPS_CORS: ${OPS_CORS:-https://admin.everwear.com}
+      OPS_APP_URL: ${OPS_APP_URL:-https://admin.everwear.com}
+      OPS_COOKIE_SECURE: "true"
       STOREFRONT_URL: ${STOREFRONT_URL:-https://everwear.com/in}
-      RIDER_APP_URL: ${RIDER_APP_URL:-https://rider.everwear.com}
-      WAREHOUSE_APP_URL: ${WAREHOUSE_APP_URL:-https://warehouse.everwear.com}
+      RIDER_APP_URL: ${RIDER_APP_URL:-https://admin.everwear.com/delivery}
+      WAREHOUSE_APP_URL: ${WAREHOUSE_APP_URL:-https://admin.everwear.com/warehouse}
       NOTIFY_EMAIL_PROVIDER: ${NOTIFY_EMAIL_PROVIDER:-}
       NOTIFY_SMS_PROVIDER: ${NOTIFY_SMS_PROVIDER:-}
       NOTIFY_WHATSAPP_PROVIDER: ${NOTIFY_WHATSAPP_PROVIDER:-}
@@ -148,15 +149,17 @@ services:
       start_period: 15s
 
   # ----------------------------------------------------------------------------
-  # 4. Everwear Operations Admin SPA (@dtc/admin)
+  # 4. Everwear operations portal SPA (@dtc/operations): admin, warehouse floor,
+  #    delivery riders and Seller Hub in one deployment (replaces the separate
+  #    admin, warehouse, rider and seller containers).
   # ----------------------------------------------------------------------------
-  admin:
+  operations:
     build:
       context: .
-      dockerfile: apps/admin/Dockerfile
+      dockerfile: apps/operations/Dockerfile
       args:
         VITE_API_URL: ${API_PUBLIC_URL:-https://api.everwear.com}
-    container_name: everwear-admin
+    container_name: everwear-operations
     restart: unless-stopped
     depends_on:
       backend:
@@ -173,81 +176,6 @@ services:
       start_period: 5s
 
   # ----------------------------------------------------------------------------
-  # 4b. Warehouse floor app (@dtc/warehouse)
-  # ----------------------------------------------------------------------------
-  warehouse:
-    build:
-      context: .
-      dockerfile: apps/warehouse/Dockerfile
-      args:
-        VITE_API_URL: ${API_PUBLIC_URL:-https://api.everwear.com}
-    container_name: everwear-warehouse
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - everwear-internal
-    ports:
-      - "127.0.0.1:7101:7101"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7101/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-
-  # ----------------------------------------------------------------------------
-  # 4c. Rider app (@dtc/rider)
-  # ----------------------------------------------------------------------------
-  rider:
-    build:
-      context: .
-      dockerfile: apps/rider/Dockerfile
-      args:
-        VITE_API_URL: ${API_PUBLIC_URL:-https://api.everwear.com}
-    container_name: everwear-rider
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - everwear-internal
-    ports:
-      - "127.0.0.1:7201:7201"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7201/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-
-  # ----------------------------------------------------------------------------
-  # 4d. Seller hub (@dtc/seller)
-  # ----------------------------------------------------------------------------
-  seller:
-    build:
-      context: .
-      dockerfile: apps/seller/Dockerfile
-      args:
-        VITE_API_URL: ${API_PUBLIC_URL:-https://api.everwear.com}
-    container_name: everwear-seller
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - everwear-internal
-    ports:
-      - "127.0.0.1:7301:7301"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7301/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-
-  # ----------------------------------------------------------------------------
   # 5. Production Edge Reverse Proxy (Nginx + SSL Termination)
   # ----------------------------------------------------------------------------
   reverse-proxy:
@@ -257,10 +185,7 @@ services:
     depends_on:
       - backend
       - storefront
-      - admin
-      - warehouse
-      - rider
-      - seller
+      - operations
     ports:
       - "80:80"
       - "443:443"

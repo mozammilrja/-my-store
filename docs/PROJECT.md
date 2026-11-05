@@ -86,9 +86,9 @@ Three apps live under `apps/`. The API holds all business logic; the clients onl
 | `apps/storefront/src/modules/checkout/`, `account/`, `order/` | Checkout steps, account and order screens |
 | `apps/storefront/src/styles/globals.css` | Brand tokens |
 | `apps/storefront/e2e/` | Playwright tests: shopping, checkout, account, mobile, accessibility |
-| `apps/admin/src/routes/` | Admin pages: login, dashboard, orders, products, customers, each list's detail page, catalog, promotions, users and settings, plus `module-placeholder.tsx` for the modules still to be built |
-| `apps/admin/src/lib/api.ts`, `types.ts` | Admin API client (Bearer token) and the API response shapes |
-| `apps/admin/src/components/resource-grid.tsx` | Searchable, filterable, server-paged table shared by the list pages |
+| `apps/operations/src/routes/` | Admin pages: login, dashboard, orders, products, customers, each list's detail page, catalog, promotions, users and settings, plus `module-placeholder.tsx` for the modules still to be built |
+| `apps/operations/src/lib/api.ts`, `types.ts` | Admin API client (Bearer token) and the API response shapes |
+| `apps/operations/src/components/resource-grid.tsx` | Searchable, filterable, server-paged table shared by the list pages |
 | `.claude/skills/reui/` | ReUI design rules for Claude Code |
 
 ## Setup and running
@@ -117,7 +117,7 @@ MongoDB must be a replica set. Order placement uses a multi-document transaction
 | --- | --- |
 | `apps/backend/.env` | `PORT`, `MONGODB_URI`, `MONGODB_DB`, `JWT_SECRET`, `STORE_CORS`, `ADMIN_CORS`, `API_PUBLIC_URL`, `UPLOADS_DIR` |
 | `apps/storefront/.env.local` | `EVERWEAR_API_URL`, `NEXT_PUBLIC_API_PUBLIC_URL`, `NEXT_PUBLIC_DEFAULT_REGION`, `NEXT_PUBLIC_BASE_URL` |
-| `apps/admin/.env.local` | `EVERWEAR_API_URL` |
+| `apps/operations/.env.local` | `EVERWEAR_API_URL` |
 
 Production: `npm run build`, then `npm run start`. The storefront build prerenders the sitemap from the API, so the API must be running.
 
@@ -152,7 +152,7 @@ Two systems, one per audience. **The storefront** is editorial: warm ivory surfa
 | `--border` | `#e3ded3` | Hairlines |
 | `--destructive-foreground`, `--success-foreground`, `--warning-foreground` | `#8f1d14`, `#14532f`, `#7a4a00` | Status text |
 
-The admin's own palette, in `apps/admin/src/styles/globals.css`:
+The admin's own palette, in `apps/operations/src/styles/globals.css`:
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
@@ -164,11 +164,11 @@ The admin's own palette, in `apps/admin/src/styles/globals.css`:
 | `--border` | `#e4e4e7` | `#27272a` | Hairlines |
 | `--success`, `--warning`, `--destructive`, `--info` | `#059669`, `#d97706`, `#e11d48`, `#2563eb` | `#10b981`, `#f59e0b`, `#f43f5e`, `#3b82f6` | Status tints; the `-foreground` rung is the text tone |
 
-- **Type:** the storefront pairs Fraunces (display serif) with Inter Tight, self-hosted at build time with `next/font`. The admin is Inter alone, from `@fontsource-variable/inter`, with two shared treatments in `apps/admin/src/lib/typography.ts`: `LABEL_CAPS` (11px, semibold, uppercase, `+0.06em`) for micro-labels, table headers and nav groups, and `METRIC_STAT` (28px) for a KPI number. They are Tailwind utilities rather than custom CSS so they merge correctly over a primitive's own classes.
+- **Type:** the storefront pairs Fraunces (display serif) with Inter Tight, self-hosted at build time with `next/font`. The admin is Inter alone, from `@fontsource-variable/inter`, with two shared treatments in `apps/operations/src/lib/typography.ts`: `LABEL_CAPS` (11px, semibold, uppercase, `+0.06em`) for micro-labels, table headers and nav groups, and `METRIC_STAT` (28px) for a KPI number. They are Tailwind utilities rather than custom CSS so they merge correctly over a primitive's own classes.
 - **Shape:** the storefront is square (`--radius: 0`, `radix-sera` gives uppercase buttons) and its product images are 4:5. The admin sets `--radius: 0.375rem`, so controls land on 6px and cards and grids on 8px (`--radius-xl`); `rounded-full` is reserved for status pills and counters.
 - **Depth:** the admin leans on hairlines, not drops: `--shadow-xs`/`--shadow-sm` are a single 1px ambient line, `--shadow-md` the hover rung, `--shadow-lg` for overlays.
 - **Motion:** 200 to 500 ms transform and opacity only. Everything respects `prefers-reduced-motion`.
-- **Themes:** the storefront is light-only; the admin themes both, `:root` light and `.dark` dark, selected by `apps/admin/src/lib/theme.ts` and pre-applied by a script in its `index.html`. Semantic tokens switch themselves; any raw palette needs its own `dark:` pair.
+- **Themes:** the storefront is light-only; the admin themes both, `:root` light and `.dark` dark, selected by `apps/operations/src/lib/theme.ts` and pre-applied by a script in its `index.html`. Semantic tokens switch themselves; any raw palette needs its own `dark:` pair.
 - **Charts:** the admin's `--chart-1` to `--chart-5` are a fixed categorical order, validated for colour-vision separation and contrast against its surface in both themes. Every use pairs the colour with a visible label, so nothing is identified by colour alone. Assign them in order; never cycle or recolour by rank.
 - **Rules:** use installed components and theme tokens. The ReUI skill in `.claude/skills/reui` lists the details. After every `npx shadcn add`, check that no stray npm package called `cn` was added (this shadcn style does that) and remove it.
 
@@ -178,8 +178,8 @@ The admin's own palette, in `apps/admin/src/styles/globals.css`:
 | --- | --- | --- |
 | API types | `npm run typecheck` | `apps/backend` |
 | API suites | `npm test` | `apps/backend` |
-| Admin types | `npm run typecheck` | `apps/admin` |
-| Admin lint | `npm run lint` | `apps/admin` |
+| Portal types | `npm run typecheck` | `apps/operations` |
+| Portal lint | `npm run lint` | `apps/operations` |
 | Storefront types | `npx tsc --noEmit` | `apps/storefront` |
 | Storefront lint | `npm run lint` | `apps/storefront` |
 | Production build | `npm run build` | repo root |
@@ -207,7 +207,7 @@ Validate at the edge, keep money in integers, and let the error handler do the t
 
 None of these block the app in development.
 
-- **Nine modules in the design have no API yet.** The sidebar carries all sixteen the design calls for; the nine without endpoints (analytics, inventory, suppliers, returns, shipments, invoices, payments, credit notes) render `ModulePlaceholder`, which says what each one needs. They are listed with their planned capability in `apps/admin/src/lib/modules.ts`.
+- **Nine modules in the design have no API yet.** The sidebar carries all sixteen the design calls for; the nine without endpoints (analytics, inventory, suppliers, returns, shipments, invoices, payments, credit notes) render `ModulePlaceholder`, which says what each one needs. They are listed with their planned capability in `apps/operations/src/lib/modules.ts`.
 - **Settings are a single document.** `db.settings()` holds one record, id `store`. It is the home for anything that was a constant: `lowStockThreshold` was hardcoded in the dashboard route and is now read from there, falling back to 5 when nothing has been saved.
 - **Roles are enforced, narrowly.** `owner` and `staff` both reach every read; only an owner writes settings or users. The API refuses to demote or delete the last owner, and refuses to let anyone delete their own account.
 - **The admin dashboard still aggregates in the browser.** `/admin/orders` now takes `from` and `to`, so only orders inside the range are fetched, but the KPIs are summed client-side and the read stops at 2000 rows, where it says the figures cover only the most recent orders. Moving the aggregation into `/admin/dashboard` would be cheaper still.

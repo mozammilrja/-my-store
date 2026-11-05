@@ -1,0 +1,45 @@
+{
+  "name": "@dtc/operations",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Everwear operations portal: one role-based app for admin, warehouse floor, delivery riders and marketplace sellers.",
+  "scripts": {
+    "dev": "vite --port 7001 --strictPort",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview --port 7001 --strictPort",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test:e2e": "playwright test",
+    "test:e2e:modules": "playwright test e2e/modules.spec.js",
+    "test:e2e:responsive": "playwright test --project=responsive",
+    "test:e2e:typography": "playwright test --project=typography",
+    "test:e2e:ops": "node e2e/ops/run.mjs",
+    "test:e2e:areas": "playwright test -c playwright.areas.config.js",
+    "test:e2e:portal": "playwright test -c playwright.portal.config.js"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.105.0",
+    "canvas-confetti": "^1.9.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.64.0",
+    "react": "^19.0.5",
+    "react-dom": "^19.0.5",
+    "react-router": "^7.18.5",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.11.0",
+    "@playwright/test": "^1.56.1",
+    "@types/react": "^19.0.5",
+    "@types/react-dom": "^19.0.5",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.5"
+  }
+}

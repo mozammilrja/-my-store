@@ -190,7 +190,11 @@ from the fulfilments, status history, returns and ledger:
 | `warehouses` | `sellerId` (sparse) |
 | `invoices` | `{orderId, sellerId}` |
 
-## Seller Hub (`apps/seller`, port 7301)
+## Seller Hub (`/seller` in `apps/operations`)
+
+An area of the operations portal (`apps/operations/src/areas/seller`; it was
+the separate `apps/seller` app on port 7301). Sign-up is `/seller/register`;
+sign-in is the portal's one form.
 
 | Screen | What it does |
 | --- | --- |
@@ -203,9 +207,9 @@ from the fulfilments, status history, returns and ledger:
 | Payments | Payable, waiting, paid out; settlements with UTR; itemised ledger |
 | Performance | 30 or 90 days |
 
-Production: `apps/seller/Dockerfile`, the `seller` compose service, and
-`sellers.everwear.com` behind the edge proxy, with rate-limited login and
-sign-up.
+Production: part of the operations portal (`apps/operations/Dockerfile`, the
+`operations` service). `sellers.everwear.com` redirects to
+`admin.everwear.com/seller`.
 
 ## Tests
 
@@ -228,7 +232,7 @@ sign-up.
   - performance;
   - suspension and re-approval;
   - token separation.
-- **`apps/seller/e2e` (4 browser tests):**
+- **`apps/operations/e2e/areas/seller.spec.ts` (4 browser tests):**
   - applying, with KYC errors shown and details locked after submission;
   - accept, pack, address after packing, AWB, hand over;
   - a listing with a real photo upload, sent to review;

@@ -24,12 +24,22 @@ const schema = z.object({
   ADMIN_LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().optional(),
   STORE_CORS: list,
   ADMIN_CORS: list,
-  /** Browser origins of the warehouse app (apps/warehouse). */
+  /**
+   * Browser origins of the operations portal (apps/operations), which calls
+   * /ops, /admin, /warehouse, /rider and /seller. Empty means ADMIN_CORS: the
+   * portal took over the admin's origin.
+   */
+  OPS_CORS: list,
+  /** Extra origins for /warehouse, /rider and /seller only (the retired standalone apps, while rolling back). */
   WAREHOUSE_CORS: list,
-  /** Browser origins of the rider app (apps/rider). */
   RIDER_CORS: list,
-  /** Browser origins of the seller portal (apps/seller). */
   SELLER_CORS: list,
+  /** Public URL of the operations portal; password reset links point here. */
+  OPS_APP_URL: z.url().default("http://localhost:7001"),
+  /** "true"/"false" to force the session cookie's Secure flag; by default it is set in production only. */
+  OPS_COOKIE_SECURE: z.enum(["true", "false"]).optional(),
+  /** Cookie domain, only when the API and the portal are on different subdomains of one site (e.g. ".aveliq.com"). */
+  OPS_COOKIE_DOMAIN: z.string().optional(),
   /** Folder for private files (proof-of-delivery photos). Never served publicly. */
   PRIVATE_UPLOADS_DIR: z.string().default("private-uploads"),
   // Razorpay. Online payment is offered only when the key pair is set; the
@@ -68,10 +78,10 @@ const schema = z.object({
   SHIPPING_DEFAULT_DIMENSIONS_CM: z.string().regex(/^\d+x\d+x\d+$/).default("30x25x5"),
 
   // Notifications. Each channel uses its chosen provider, or the first one configured.
-  /** Links in messages: the storefront (with its country path), rider app and warehouse app. */
+  /** Links in messages: the storefront (with its country path), and the delivery and warehouse areas of the operations portal. */
   STOREFRONT_URL: z.url().default("http://localhost:8001/in"),
-  RIDER_APP_URL: z.url().default("http://localhost:7201"),
-  WAREHOUSE_APP_URL: z.url().default("http://localhost:7101"),
+  RIDER_APP_URL: z.url().default("http://localhost:7001/delivery"),
+  WAREHOUSE_APP_URL: z.url().default("http://localhost:7001/warehouse"),
   NOTIFY_EMAIL_PROVIDER: z.enum(["smtp", "ses", "none"]).optional(),
   NOTIFY_SMS_PROVIDER: z.enum(["msg91", "twilio", "none"]).optional(),
   NOTIFY_WHATSAPP_PROVIDER: z.enum(["meta", "gupshup", "none"]).optional(),
@@ -127,3 +137,5 @@ if (!parsed.success) {
 export const env = parsed.data
 export const isProd = env.NODE_ENV === "production"
 export const adminLoginMaxAttempts = env.ADMIN_LOGIN_MAX_ATTEMPTS ?? (isProd ? 5 : 100)
+/** Origins allowed to call /ops, plus each realm's own extra origins for its routes. */
+export const opsOrigins = env.OPS_CORS.length ? env.OPS_CORS : env.ADMIN_CORS

@@ -1,7 +1,7 @@
 import { Router, type RequestHandler } from "express"
 import { z } from "zod"
 import { db, type AdminUserRole } from "../../db/schema.js"
-import { clientKey, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
+import { assertTokenCurrent, clientKey, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
 import { ApiError, unauthorized } from "../../lib/errors.js"
 import { email } from "../../lib/validation.js"
 import { adminLoginMaxAttempts } from "../../env.js"
@@ -14,7 +14,7 @@ adminAuthRoutes.post("/auth/login", async (req, res) => {
     throw new ApiError(429, "rate_limited", "Too many attempts. Try again later.")
   }
   const admin = await db.adminUsers().findOne({ email: body.email })
-  if (!(await verifyPassword(body.password, admin?.passwordHash)) || !admin) {
+  if (!(await verifyPassword(body.password, admin?.passwordHash)) || !admin || admin.status === "suspended") {
     throw unauthorized("Email or password is incorrect")
   }
   res.json({ token: issueToken("admin", admin._id) })
@@ -23,7 +23,8 @@ adminAuthRoutes.post("/auth/login", async (req, res) => {
 /** Loads the signed-in admin onto the request, or rejects if the account is gone. */
 const loadAdmin: RequestHandler = async (req, _res, next) => {
   const admin = await db.adminUsers().findOne({ _id: req.actorId! }, { projection: { passwordHash: 0 } })
-  if (!admin) throw unauthorized()
+  if (!admin || admin.status === "suspended") throw unauthorized()
+  assertTokenCurrent(req, admin)
   req.admin = { id: admin._id, email: admin.email, name: admin.name ?? null, role: admin.role }
   next()
 }

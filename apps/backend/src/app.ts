@@ -5,7 +5,7 @@ import morgan from "morgan"
 import { MongoServerError } from "mongodb"
 import { ZodError, z } from "zod"
 import { getDb } from "./db/client.js"
-import { env } from "./env.js"
+import { env, opsOrigins } from "./env.js"
 import { ApiError } from "./lib/errors.js"
 import { cartRoutes } from "./routes/store/carts.js"
 import { catalogRoutes } from "./routes/store/catalog.js"
@@ -34,6 +34,7 @@ import { adminFleetRoutes } from "./routes/admin/fleet.js"
 import { adminNotificationRoutes } from "./routes/admin/notifications.js"
 import { adminMarketplaceRoutes } from "./routes/admin/marketplace.js"
 import { sellerRoutes as marketplaceSellerRoutes } from "./routes/seller/index.js"
+import { opsAuthRoutes } from "./routes/ops/auth.js"
 
 /** Turns anything thrown by a route into the API's error shape. */
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
@@ -74,12 +75,15 @@ export function createApp(): Express {
   app.use(helmet())
   if (env.NODE_ENV === "development") app.use(morgan("dev"))
 
-  // Each audience only accepts its own browser origins.
+  // Each audience only accepts its own browser origins. The operations portal
+  // (one origin) calls every operational audience with its session cookie.
+  const ops = (extra: string[]) => cors({ origin: [...new Set([...opsOrigins, ...extra])], credentials: true })
   app.use("/store", cors({ origin: env.STORE_CORS, credentials: true }))
-  app.use("/admin", cors({ origin: env.ADMIN_CORS, credentials: true }))
-  app.use("/warehouse", cors({ origin: env.WAREHOUSE_CORS, credentials: true }))
-  app.use("/rider", cors({ origin: env.RIDER_CORS, credentials: true }))
-  app.use("/seller", cors({ origin: env.SELLER_CORS, credentials: true }))
+  app.use("/ops", ops([]))
+  app.use("/admin", ops(env.ADMIN_CORS))
+  app.use("/warehouse", ops(env.WAREHOUSE_CORS))
+  app.use("/rider", ops(env.RIDER_CORS))
+  app.use("/seller", ops(env.SELLER_CORS))
 
   // 1 MB for JSON; captures raw buffer for webhook signature validation
   app.use(
@@ -108,6 +112,9 @@ export function createApp(): Express {
   })
 
   app.use("/store", catalogRoutes, customerRoutes, cartRoutes, storePaymentRoutes, conciergeRoutes, newsletterRoutes, sellerRoutes, siteMediaRoutes, storeShippingRoutes)
+
+  // One sign-in for every operational account (apps/operations).
+  app.use("/ops", opsAuthRoutes)
 
   app.use("/admin", adminAuthRoutes)
   // Everything past the login route needs a signed-in admin.

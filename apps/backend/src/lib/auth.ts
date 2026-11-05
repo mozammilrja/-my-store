@@ -4,6 +4,7 @@ import type { Request, RequestHandler } from "express"
 import jwt from "jsonwebtoken"
 import { env } from "../env.js"
 import { unauthorized } from "./errors.js"
+import { membershipOf, sessionOf } from "./ops-session.js"
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>
 const KEY_LENGTH = 64
@@ -39,42 +40,78 @@ export function issueToken(actor: Actor, subject: string) {
   })
 }
 
-function readToken(req: Request, actor: Actor): string | null {
+function readToken(req: Request, actor: Actor): { sub: string; iat: number } | null {
   const header = req.get("authorization")
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null
   if (!token) return null
   try {
     const payload = jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] })
     if (typeof payload === "string") return null
-    return payload.aud === `everwear:${actor}` && typeof payload.sub === "string" ? payload.sub : null
+    return payload.aud === `everwear:${actor}` && typeof payload.sub === "string" ? { sub: payload.sub, iat: payload.iat ?? 0 } : null
   } catch {
     return null
   }
 }
 
+/** The operational accounts; customers never use the portal session. */
+const PORTAL_REALM = { admin: "admin", warehouse: "warehouse", rider: "rider", seller: "seller" } as const
+
+/**
+ * Who the request is from: a bearer token for `actor` first (the API's
+ * original contract, still used by the storefront and integrations), else
+ * the operations portal session if it holds an account of that kind.
+ */
+async function authenticate(req: Request, actor: Actor) {
+  const bearer = readToken(req, actor)
+  if (bearer) {
+    req.authVia = "token"
+    req.tokenIssuedAt = bearer.iat
+    return bearer.sub
+  }
+  if (actor === "customer") return null
+  const m = membershipOf(await sessionOf(req), PORTAL_REALM[actor])
+  if (!m) return null
+  req.authVia = "session"
+  return m.id
+}
+
 /** Sets `req.actorId` when a valid token for `actor` is present; never rejects. */
 export const optionalAuth =
   (actor: Actor): RequestHandler =>
-  (req, _res, next) => {
-    req.actorId = readToken(req, actor)
+  async (req, _res, next) => {
+    req.actorId = await authenticate(req, actor)
     next()
   }
 
-/** Rejects the request unless it carries a valid token for `actor`. */
+/** Rejects the request unless it carries a valid token or portal session for `actor`. */
 export const requireAuth =
   (actor: Actor): RequestHandler =>
-  (req, _res, next) => {
-    const id = readToken(req, actor)
+  async (req, _res, next) => {
+    const id = await authenticate(req, actor)
     if (!id) throw unauthorized()
     req.actorId = id
     next()
   }
+
+/**
+ * For the account loaders: refuses a bearer token issued before the account's
+ * sessions were revoked. Portal sessions are revoked by their own record.
+ */
+export function assertTokenCurrent(req: Request, account: { sessionsRevokedAt?: Date }) {
+  if (req.authVia === "token" && account.sessionsRevokedAt && req.tokenIssuedAt! * 1000 < account.sessionsRevokedAt.getTime()) {
+    throw unauthorized("This sign-in has been ended. Sign in again.")
+  }
+}
 
 declare global {
   namespace Express {
     interface Request {
       /** Id of the signed-in customer or admin, set by the auth middleware. */
       actorId?: string | null
+      /** How the request authenticated: a bearer token, or the operations portal session cookie. */
+      authVia?: "token" | "session"
+      /** The bearer token's issue time (seconds), when authVia is "token". */
+      tokenIssuedAt?: number
     }
   }
 }

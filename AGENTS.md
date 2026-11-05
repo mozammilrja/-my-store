@@ -31,6 +31,8 @@ Architecture, design tokens and known issues: [`docs/PROJECT.md`](./docs/PROJECT
 | Shared request validation | `apps/backend/src/lib/validation.ts` |
 | Order totals, regions, IDs, response shaping | `apps/backend/src/lib/{totals,regions,ids,serialize}.ts` |
 | One-off scripts | `apps/backend/scripts/` |
+| Warehouse fulfilment: stock ledger, allocation, pick/pack/dispatch, returns inspection | `apps/backend/src/lib/{inventory,fulfilment,returns,state}/`; floor API `src/routes/warehouse/`, admin API `src/routes/admin/fulfilment.ts`; design in [`docs/FULFILMENT.md`](./docs/FULFILMENT.md) |
+| Status changes (order, payment, fulfilment, return) | `apps/backend/src/lib/state/machines.ts`: legal moves plus the `status_events` history |
 | Backend tests | `apps/backend/test/*.test.ts` |
 | Storefront API calls | `apps/storefront/src/lib/api/client.ts` (server-only fetch wrapper) and `src/lib/data/*.ts` |
 | Storefront UI | `apps/storefront/src/modules/<feature>/`, routes in `src/app/[countryCode]/` |
@@ -188,6 +190,9 @@ The checkout and account e2e tests create real orders and customers in the local
 - No emojis in code, comments or commit messages.
 
 ## Common Mistakes
+
+- Changing a warehouse-managed variant's stock any way other than `lib/inventory/stock.ts#moveStock`. The product's `stock` must equal the sum of `available` in `stock_levels`, and every move needs a ledger row.
+- Setting a fulfilment or return status with a plain `$set`. Go through the state machine helpers so the move is checked and recorded.
 
 - Following Medusa instructions (`medusa db:migrate`, `medusa user`, `/app`, publishable keys, `@medusajs/framework`). None of that applies to the current stack.
 - Running MongoDB without a replica set: transactions fail and orders cannot be placed.

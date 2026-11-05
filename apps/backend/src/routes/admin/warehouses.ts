@@ -26,6 +26,11 @@ const warehouseSchema = z.object({
   lng: z.number().min(-180).max(180).nullable().optional(),
   status: z.enum(["active", "inactive"]).default("active"),
   isDefault: z.boolean().default(false),
+  /** PIN codes or prefixes served; empty means anywhere. */
+  serviceAreas: z.array(z.string().trim().regex(/^\d{1,6}$/, "Use a PIN code or its first digits")).max(2000).optional(),
+  priority: z.number().int().min(0).max(1000).optional(),
+  acceptsOrders: z.boolean().optional(),
+  shiprocketPickupLocation: z.string().trim().min(1).max(100).optional(),
 })
 
 adminWarehouseRoutes.get("/warehouses", async (_req, res) => {
@@ -84,6 +89,6 @@ adminWarehouseRoutes.get("/warehouses/:id/stock", async (req, res) => {
   const warehouse = await db.warehouses().findOne({ _id: req.params.id })
   if (!warehouse) throw notFound("Warehouse")
 
-  const items = await db.inventory().find({ hubId: warehouse.code }).toArray()
-  res.json({ warehouse, stock: items })
+  const stock = await db.stockLevels().find({ warehouseId: warehouse._id }, { sort: { sku: 1 } }).toArray()
+  res.json({ warehouse, stock })
 })

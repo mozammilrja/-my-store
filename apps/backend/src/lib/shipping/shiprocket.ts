@@ -119,6 +119,8 @@ export type ShiprocketOrderInput = {
   /** Order value in paise (the COD amount for COD orders). */
   subTotal: number
   parcel: { weightKg: number; lengthCm: number; breadthCm: number; heightCm: number }
+  /** Pickup address nickname on Shiprocket; defaults to SHIPROCKET_PICKUP_LOCATION. */
+  pickupLocation?: string
 }
 
 const orderDate = (d: Date) => d.toISOString().slice(0, 16).replace("T", " ")
@@ -131,7 +133,7 @@ export async function shiprocketCreateOrder(input: ShiprocketOrderInput) {
     body: {
       order_id: input.orderRef,
       order_date: orderDate(input.orderDate),
-      pickup_location: env.SHIPROCKET_PICKUP_LOCATION,
+      pickup_location: input.pickupLocation || env.SHIPROCKET_PICKUP_LOCATION,
       billing_customer_name: c.name,
       billing_last_name: c.lastName ?? "",
       billing_address: c.address,
@@ -193,8 +195,9 @@ export async function shiprocketLabel(providerShipmentId: string) {
   return { labelUrl: res.label_url }
 }
 
-export async function shiprocketManifest(providerShipmentId: string) {
-  const res = await call<{ manifest_url?: string }>("/manifests/generate", { method: "POST", body: { shipment_id: [Number(providerShipmentId)] } })
+export async function shiprocketManifest(providerShipmentIds: string | string[]) {
+  const ids = (Array.isArray(providerShipmentIds) ? providerShipmentIds : [providerShipmentIds]).map(Number)
+  const res = await call<{ manifest_url?: string }>("/manifests/generate", { method: "POST", body: { shipment_id: ids } })
   return { manifestUrl: res.manifest_url ?? null }
 }
 

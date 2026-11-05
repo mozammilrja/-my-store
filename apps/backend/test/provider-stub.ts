@@ -35,6 +35,9 @@ export function createProviderStub() {
     unserviceable: new Set<string>(),
     cancelled: new Set<string>(),
     ndrActions: [] as { awb: string; action: string }[],
+    /** pickup_location of each order created, by order_id (reference). */
+    pickupLocations: new Map<string, string>(),
+    manifests: [] as number[][],
     calls: [] as string[],
   }
   let seq = 1000
@@ -120,6 +123,7 @@ export function createProviderStub() {
     if (path === "/v1/external/orders/create/adhoc" || path === "/v1/external/orders/create/return") {
       if ([...state.srOrders.values()].some((o) => o.ref === body.order_id)) return json(res, 422, { message: "Order Id already exists" })
       const o = { order_id: seq++, shipment_id: seq++, ref: body.order_id }
+      if (body.pickup_location) state.pickupLocations.set(body.order_id, body.pickup_location)
       state.srOrders.set(String(o.shipment_id), o)
       return json(res, 200, { order_id: o.order_id, shipment_id: o.shipment_id, status: "NEW", status_code: 1 })
     }
@@ -134,6 +138,10 @@ export function createProviderStub() {
     if (path === "/v1/external/courier/generate/pickup")
       return json(res, 200, { pickup_status: 1, response: { pickup_scheduled_date: "2026-11-07 10:00:00", pickup_token_number: "PKT-77" } })
     if (path === "/v1/external/courier/generate/label") return json(res, 200, { label_created: 1, label_url: `https://labels.example/${body.shipment_id[0]}.pdf` })
+    if (path === "/v1/external/manifests/generate") {
+      state.manifests.push(body.shipment_id)
+      return json(res, 200, { status: 1, manifest_url: `https://manifests.example/${body.shipment_id.join("-")}.pdf` })
+    }
     if (path === "/v1/external/orders/cancel") {
       for (const id of body.ids) state.cancelled.add(String(id))
       return json(res, 200, { status: 200, message: "Order cancelled" })

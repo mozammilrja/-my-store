@@ -27,6 +27,8 @@ import { adminSiteMediaRoutes } from "./routes/admin/site-media.js"
 import { siteMediaRoutes } from "./routes/store/site-media.js"
 import { storeShippingRoutes } from "./routes/store/shipping.js"
 import { adminPaymentRoutes } from "./routes/admin/payments.js"
+import { adminFulfilmentRoutes } from "./routes/admin/fulfilment.js"
+import { warehouseRoutes } from "./routes/warehouse/index.js"
 
 /** Turns anything thrown by a route into the API's error shape. */
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
@@ -70,6 +72,7 @@ export function createApp(): Express {
   // Each audience only accepts its own browser origins.
   app.use("/store", cors({ origin: env.STORE_CORS, credentials: true }))
   app.use("/admin", cors({ origin: env.ADMIN_CORS, credentials: true }))
+  app.use("/warehouse", cors({ origin: env.WAREHOUSE_CORS, credentials: true }))
 
   // 1 MB for JSON; captures raw buffer for webhook signature validation
   app.use(
@@ -101,7 +104,10 @@ export function createApp(): Express {
 
   app.use("/admin", adminAuthRoutes)
   // Everything past the login route needs a signed-in admin.
-  app.use("/admin", ...requireAdmin, adminAnalyticsRoutes, adminOrderRoutes, adminProductRoutes, adminStoreRoutes, adminSettingsRoutes, adminUserRoutes, adminLogisticsRoutes, adminWarehouseRoutes, adminSiteMediaRoutes, adminPaymentRoutes)
+  app.use("/admin", ...requireAdmin, adminAnalyticsRoutes, adminOrderRoutes, adminProductRoutes, adminStoreRoutes, adminSettingsRoutes, adminUserRoutes, adminLogisticsRoutes, adminWarehouseRoutes, adminSiteMediaRoutes, adminPaymentRoutes, adminFulfilmentRoutes)
+
+  // Warehouse floor staff: their own accounts, scoped to their warehouses.
+  app.use("/warehouse", warehouseRoutes)
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "not_found", message: "Route not found" } })

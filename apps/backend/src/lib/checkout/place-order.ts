@@ -5,6 +5,8 @@ import { badRequest, conflict, notFound } from "../errors.js"
 import { newId } from "../ids.js"
 import { buildInvoiceLines } from "../invoice.js"
 import { computeTotals, promotionUsable } from "../totals.js"
+import { allocate } from "../fulfilment/allocate.js"
+import { recordTransition, SYSTEM } from "../state/machines.js"
 
 const findVariant = (product: ProductDoc | null, variantId: string) => product?.variants.find((v) => v._id === variantId)
 
@@ -177,24 +179,12 @@ export async function placeOrder(cartId: string, payment: OrderPayment, actorId?
       if (!marked.matchedCount) throw conflict("This payment was already used for an order.", "attempt_used")
     }
 
-    for (const item of items) {
-      await db.inventoryMovements().insertOne(
-        {
-          _id: newId("mov"),
-          sku: `SKU-${item.variantId.slice(-6)}`,
-          variantId: item.variantId,
-          hubId: "BLR-FC1",
-          type: "outbound",
-          quantity: item.quantity,
-          referenceType: "order",
-          referenceId: doc._id,
-          reason: `Order #${doc.displayId} placement${online ? "" : " (COD)"}`,
-          balanceAfter: 0,
-          createdAt: now,
-        },
-        { session }
-      )
-    }
+    // Warehouse-managed lines are reserved at the best warehouse now; an
+    // order nobody can deliver fails here and the whole placement rolls back.
+    const actor = doc.customerId ? { type: "customer" as const, id: doc.customerId } : SYSTEM
+    await allocate(doc, items.map((i) => ({ itemId: i._id, quantity: i.quantity })), { actor, method: "auto", reason: "Order placed", variantAlreadyDecremented: true }, session)
+    await recordTransition({ machine: "order", entityId: doc._id, orderId: doc._id, from: null, to: "pending", actor }, session)
+    await recordTransition({ machine: "payment", entityId: doc._id, orderId: doc._id, from: null, to: doc.paymentStatus, actor, reason: online ? `Razorpay ${payment.razorpayPaymentId}` : "Cash on delivery" }, session)
     for (const promo of promotions) {
       await db.couponRedemptions().insertOne(
         { _id: newId("crm"), code: promo.code, promotionId: promo._id, customerId: doc.customerId, cartId: cart._id, orderId: doc._id, status: "redeemed", createdAt: now },

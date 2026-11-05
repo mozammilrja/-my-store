@@ -1,6 +1,8 @@
 import { Router } from "express"
 import type { Filter } from "mongodb"
 import { z } from "zod"
+import { cancelOrderFulfilments } from "../../lib/fulfilment/workflow.js"
+import { recordTransition } from "../../lib/state/machines.js"
 import { withTransaction } from "../../db/client.js"
 import { getOperatingRegion } from "../../lib/operating-region.js"
 import { db, type OrderDoc } from "../../db/schema.js"
@@ -263,14 +265,24 @@ adminOrderRoutes.post("/orders/:id/cancel", async (req, res) => {
     if (o.status === "canceled") throw conflict("Already canceled", "order_canceled")
     if (o.fulfillmentStatus !== "unfulfilled") throw conflict("Shipped orders can't be canceled; mark them returned instead", "already_shipped")
     if (o.paymentStatus === "paid") throw conflict("Refund the payment before canceling", "paid")
+    const actor = { type: "admin" as const, id: req.admin!.id, name: req.admin!.email }
+    // Units reserved at a warehouse go back through the stock ledger (which restores the sellable count;
+    // units written off as damaged at inspection stay written off) ...
+    const released = await cancelOrderFulfilments(o._id, actor, "Order canceled", session)
+    const reservedOf = (itemId: string) => released.flatMap((f) => f.lines).filter((l) => l.itemId === itemId && l.reserved).reduce((n, l) => n + l.quantity, 0)
+    // ... and the rest straight onto the variant, as before warehouses tracked them.
     for (const item of o.items) {
+      const back = item.quantity - reservedOf(item._id)
+      if (back <= 0) continue
       await db.products().updateOne(
         { _id: item.productId },
-        { $inc: { "variants.$[v].stock": item.quantity } },
-        { arrayFilters: [{ "v._id": item.variantId, "v.manageInventory": true }], session }
+        { $inc: { "variants.$[v].stock": back } },
+        { arrayFilters: [{ "v._id": item.variantId, "v.manageInventory": true, "v.allowBackorder": false }], session }
       )
     }
-    await db.orders().updateOne({ _id: o._id }, { $set: { status: "canceled", updatedAt: new Date() } }, { session })
+    const done = await db.orders().updateOne({ _id: o._id, status: "pending" }, { $set: { status: "canceled", updatedAt: new Date() } }, { session })
+    if (!done.modifiedCount) throw conflict("Already canceled", "order_canceled")
+    await recordTransition({ machine: "order", entityId: o._id, orderId: o._id, from: o.status, to: "canceled", actor }, session)
     return (await db.orders().findOne({ _id: o._id }, { session }))!
   })
   res.json({ order: toAdminOrder(order) })

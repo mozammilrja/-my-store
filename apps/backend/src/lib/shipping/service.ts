@@ -1,5 +1,5 @@
 import { env } from "../../env.js"
-import { db, type OrderDoc, type ShipmentDoc, type ShipmentStatus } from "../../db/schema.js"
+import { db, type FulfilmentDoc, type OrderDoc, type ShipmentDoc, type ShipmentStatus } from "../../db/schema.js"
 import { badRequest, conflict, notFound } from "../errors.js"
 import { newId } from "../ids.js"
 import { dispatchWarehouse } from "../invoice.js"
@@ -12,6 +12,7 @@ import {
   shiprocketCreateOrder,
   shiprocketCreateReturn,
   shiprocketLabel,
+  shiprocketManifest,
   shiprocketNdrAction,
   shiprocketSchedulePickup,
   shiprocketServiceability,
@@ -20,6 +21,8 @@ import {
   type TrackingScan,
 } from "./shiprocket.js"
 import { fulfillmentFor, mapShiprocketStatus, shouldAdvance } from "./status.js"
+import { recordTransition, SYSTEM } from "../state/machines.js"
+import { moveReturnIfAllowed } from "../returns/inspect.js"
 
 /*
  * Shipments end to end. With Shiprocket configured every AWB, label, pickup
@@ -70,17 +73,9 @@ const shipmentItems = (order: OrderDoc, lines: { itemId: string; quantity: numbe
 /** Copies the outbound shipment onto the order and moves its fulfillment status with it. Payment status is untouched. */
 async function syncOrder(shipment: ShipmentDoc) {
   if (shipment.isReturn) {
-    if (shipment.status === "delivered") {
-      await db.orders().updateOne(
-        { _id: shipment.orderId, "returnRequest.status": { $in: ["approved", "pickup_scheduled"] } },
-        { $set: { "returnRequest.status": "received", "returnRequest.updatedAt": new Date(), updatedAt: new Date() } }
-      )
-    } else if (shipment.status === "pickup_scheduled" || shipment.status === "picked_up" || shipment.status === "in_transit") {
-      await db.orders().updateOne(
-        { _id: shipment.orderId, "returnRequest.status": "approved" },
-        { $set: { "returnRequest.status": "pickup_scheduled", "returnRequest.updatedAt": new Date(), updatedAt: new Date() } }
-      )
-    }
+    const courier = { type: "courier" as const, id: shipment.carrier || shipment.provider }
+    if (shipment.status === "delivered") await moveReturnIfAllowed(shipment.orderId, "received", courier, `Return parcel ${shipment.awb} delivered to the warehouse`)
+    else if (["pickup_scheduled", "picked_up", "in_transit"].includes(shipment.status)) await moveReturnIfAllowed(shipment.orderId, "pickup_scheduled", courier, `Return parcel ${shipment.awb}: ${shipment.status.replace(/_/g, " ")}`)
     return
   }
   const order = await db.orders().findOne({ _id: shipment.orderId })
@@ -104,10 +99,28 @@ async function syncOrder(shipment: ShipmentDoc) {
     await db.orders().updateOne({ _id: order._id }, { $unset: { shipment: "" }, $set: { fulfillmentStatus: "unfulfilled", updatedAt: new Date() } })
     return
   }
-  if (fulfillment && fulfillment !== order.fulfillmentStatus) set.fulfillmentStatus = fulfillment
+  const overall = shipment.fulfilmentId ? await splitFulfillment(order._id) : fulfillment
+  if (overall && overall !== order.fulfillmentStatus) set.fulfillmentStatus = overall
   // Delivered completes the order only once it is also paid (a COD order waits for its cash).
-  if (fulfillment === "delivered" && order.paymentStatus === "paid") set.status = "completed"
+  if (overall === "delivered" && order.paymentStatus === "paid" && order.status === "pending") set.status = "completed"
   await db.orders().updateOne({ _id: order._id }, { $set: set })
+  if (set.status === "completed") await recordTransition({ machine: "order", entityId: order._id, orderId: order._id, from: "pending", to: "completed", actor: SYSTEM, reason: "Delivered and paid" })
+}
+
+/**
+ * An order shipped from several warehouses: delivered only when every live
+ * fulfilment's parcel is delivered, shipped once any has left.
+ */
+async function splitFulfillment(orderId: string): Promise<OrderDoc["fulfillmentStatus"] | null> {
+  const fulfilments = await db.fulfilments().find({ orderId, active: true }).toArray()
+  const parcels = await db.shipments().find({ orderId, isReturn: false, active: true, fulfilmentId: { $in: fulfilments.map((f) => f._id) } }).toArray()
+  const states = fulfilments.map((f) => {
+    const p = parcels.find((x) => x.fulfilmentId === f._id)
+    return p ? fulfillmentFor(p.status) : null
+  })
+  if (states.length && states.every((x) => x === "delivered")) return "delivered"
+  if (states.some((x) => x === "shipped" || x === "delivered")) return "shipped"
+  return null
 }
 
 /** Serviceable couriers and their rates for a delivery pincode. `configured: false` when no courier API is set up. */
@@ -131,8 +144,49 @@ export async function createShipment(order: OrderDoc, opts: { parcel?: Partial<S
   if (order.status === "canceled") throw conflict("This order is canceled", "order_canceled")
   if (order.paymentMethod !== "cod" && order.paymentStatus !== "paid") throw conflict("Online orders ship only once payment is verified.", "not_paid")
   if (order.fulfillmentStatus !== "unfulfilled") throw conflict("This order has already shipped.", "already_shipped")
+  if (await db.fulfilments().countDocuments({ orderId: order._id, active: true })) {
+    throw conflict("This order is being fulfilled by a warehouse; its parcel is booked at the packing station.", "warehouse_fulfilment")
+  }
+  return book(order, order.items.map((i) => ({ itemId: i._id, quantity: i.quantity })), {
+    parcel: { ...(await parcelFor(order)), ...opts.parcel },
+    orderRef: async (n) => (n ? `${order.displayId}-${n + 1}` : String(order.displayId)),
+  })
+}
 
-  const lines = order.items.map((i) => ({ itemId: i._id, quantity: i.quantity }))
+/**
+ * Books one warehouse fulfilment with the courier, from that warehouse's
+ * pickup address, with the weight and size measured at the packing station.
+ * The order is paid (or COD) by construction: fulfilments exist only for placed orders.
+ */
+export async function createFulfilmentShipment(f: FulfilmentDoc): Promise<ShipmentDoc> {
+  if (!shippingConfigured()) throw badRequest("No courier integration is configured. Record the courier's AWB by hand instead.", "shipping_unconfigured")
+  if (!f.package) throw conflict("Pack the parcel before booking it.", "not_packed")
+  const order = await db.orders().findOne({ _id: f.orderId })
+  if (!order) throw notFound("Order")
+  if (order.status === "canceled") throw conflict("This order is canceled", "order_canceled")
+  if (order.paymentMethod !== "cod" && order.paymentStatus !== "paid") throw conflict("Online orders ship only once payment is verified.", "not_paid")
+  const warehouse = await db.warehouses().findOne({ _id: f.warehouseId })
+  const { weightKg, lengthCm, breadthCm, heightCm } = f.package
+  return book(order, mergeLines(f), {
+    parcel: { weightKg, lengthCm, breadthCm, heightCm },
+    fulfilmentId: f._id,
+    pickupLocation: warehouse?.shiprocketPickupLocation,
+    orderRef: async (n) => (n ? `${f.code}-${n + 1}` : f.code),
+  })
+}
+
+/** A fulfilment may carry one order line in two parts; the courier gets one row per order line. */
+const mergeLines = (f: FulfilmentDoc) => {
+  const m = new Map<string, number>()
+  for (const l of f.lines) m.set(l.itemId, (m.get(l.itemId) ?? 0) + l.quantity)
+  return [...m].map(([itemId, quantity]) => ({ itemId, quantity }))
+}
+
+async function book(
+  order: OrderDoc,
+  lines: { itemId: string; quantity: number }[],
+  o: { parcel: ShipmentDoc["parcel"]; fulfilmentId?: string; pickupLocation?: string; orderRef: (previous: number) => Promise<string> }
+): Promise<ShipmentDoc> {
   const now = new Date()
   const shipment: ShipmentDoc = {
     _id: newId("ship"),
@@ -143,9 +197,10 @@ export async function createShipment(order: OrderDoc, opts: { parcel?: Partial<S
     awb: "",
     status: "pending",
     items: lines,
-    parcel: { ...(await parcelFor(order)), ...opts.parcel },
+    parcel: o.parcel,
     trackingEvents: [],
     isReturn: false,
+    ...(o.fulfilmentId ? { fulfilmentId: o.fulfilmentId } : {}),
     active: true,
     customer: {
       name: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
@@ -166,9 +221,10 @@ export async function createShipment(order: OrderDoc, opts: { parcel?: Partial<S
 
   try {
     // Shiprocket never accepts an order reference twice, even after a cancel: re-bookings get "-2", "-3"...
-    const previous = await db.shipments().countDocuments({ orderId: order._id, isReturn: false, _id: { $ne: shipment._id } })
+    const previous = await db.shipments().countDocuments({ orderId: order._id, isReturn: false, _id: { $ne: shipment._id }, ...(o.fulfilmentId ? { fulfilmentId: o.fulfilmentId } : { fulfilmentId: { $exists: false } }) })
     const created = await shiprocketCreateOrder({
-      orderRef: previous ? `${order.displayId}-${previous + 1}` : String(order.displayId),
+      orderRef: await o.orderRef(previous),
+      ...(o.pickupLocation ? { pickupLocation: o.pickupLocation } : {}),
       orderDate: order.createdAt,
       customer: customerParty(order),
       items: shipmentItems(order, lines),
@@ -251,6 +307,10 @@ export async function cancelShipment(id: string) {
   if (["picked_up", "in_transit", "out_for_delivery", "delivered", "rto_initiated", "rto_in_transit", "rto_delivered"].includes(s.status)) {
     throw conflict("The courier already has this parcel; it can't be cancelled now.", "already_picked_up")
   }
+  const f = s.fulfilmentId ? await db.fulfilments().findOne({ _id: s.fulfilmentId }) : null
+  if (f && ["manifested", "handed_over", "dispatched"].includes(f.status)) {
+    throw conflict("This parcel is on a manifest. Take it off the manifest at the warehouse first.", "on_manifest")
+  }
   try {
     if (s.provider === "shiprocket" && s.providerOrderId) await shiprocketCancel(s.providerOrderId)
   } catch (e) {
@@ -259,8 +319,26 @@ export async function cancelShipment(id: string) {
   const event = { timestamp: new Date(), status: "Cancelled", internalStatus: "cancelled" as const, location: "", note: "Cancelled from the admin" }
   await db.shipments().updateOne({ _id: s._id }, { $set: { status: "cancelled", active: false, updatedAt: new Date() }, $push: { trackingEvents: event } })
   const next = { ...s, status: "cancelled" as const, active: false }
+  if (f && ["label_generated", "ready_to_dispatch"].includes(f.status)) {
+    // The packed parcel goes back on the shelf, to be booked again.
+    const back = await db
+      .fulfilments()
+      .updateOne({ _id: f._id, status: f.status }, { $set: { status: "packed", updatedAt: new Date() }, $unset: { shipmentId: "", awb: "", carrier: "" } })
+    if (back.modifiedCount) await recordTransition({ machine: "fulfilment", entityId: f._id, orderId: f.orderId, from: f.status, to: "packed", actor: SYSTEM, reason: "Courier booking cancelled" })
+  }
   await syncOrder(next)
   return next
+}
+
+/** Generates the courier's manifest document for a set of booked parcels. Null when the courier returns none. */
+export async function courierManifest(shipmentIds: string[]) {
+  const parcels = await db.shipments().find({ _id: { $in: shipmentIds }, provider: "shiprocket", providerShipmentId: { $type: "string" } }).toArray()
+  if (!parcels.length || !shippingConfigured()) return null
+  try {
+    return (await shiprocketManifest(parcels.map((p) => p.providerShipmentId!))).manifestUrl
+  } catch (e) {
+    throw asCourierError(e)
+  }
 }
 
 /** Answers a failed delivery: ask the courier to try again, or send it back (RTO). */
@@ -456,9 +534,13 @@ export async function createReturnShipment(order: OrderDoc): Promise<ShipmentDoc
  * Records a parcel booked somewhere else (another courier's portal, a local
  * courier): the AWB and carrier are what the admin typed, never generated.
  */
-export async function recordManualShipment(order: OrderDoc, input: { carrier: string; awb: string; trackingUrl?: string }) {
+export async function recordManualShipment(order: OrderDoc, input: { carrier: string; awb: string; trackingUrl?: string }, f?: FulfilmentDoc) {
   if (order.status === "canceled") throw conflict("This order is canceled", "order_canceled")
   if (order.paymentMethod !== "cod" && order.paymentStatus !== "paid") throw conflict("Online orders ship only once payment is verified.", "not_paid")
+  if (!f && (await db.fulfilments().countDocuments({ orderId: order._id, active: true }))) {
+    throw conflict("This order is being fulfilled by a warehouse; record its AWB at the packing station.", "warehouse_fulfilment")
+  }
+  const lines = f ? mergeLines(f) : order.items.map((i) => ({ itemId: i._id, quantity: i.quantity }))
   const now = new Date()
   const shipment: ShipmentDoc = {
     _id: newId("ship"),
@@ -469,10 +551,11 @@ export async function recordManualShipment(order: OrderDoc, input: { carrier: st
     awb: input.awb,
     status: "shipment_created",
     ...(input.trackingUrl ? { trackingUrl: input.trackingUrl } : {}),
-    items: order.items.map((i) => ({ itemId: i._id, quantity: i.quantity })),
-    parcel: await parcelFor(order),
+    items: lines,
+    parcel: f?.package ? { weightKg: f.package.weightKg, lengthCm: f.package.lengthCm, breadthCm: f.package.breadthCm, heightCm: f.package.heightCm } : await parcelFor(order),
     trackingEvents: [{ timestamp: now, status: "Shipment recorded", internalStatus: "shipment_created", location: "", note: `Booked with ${input.carrier}` }],
     isReturn: false,
+    ...(f ? { fulfilmentId: f._id } : {}),
     active: true,
     customer: {
       name: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
@@ -480,7 +563,7 @@ export async function recordManualShipment(order: OrderDoc, input: { carrier: st
       city: order.shippingAddress.city,
       postalCode: order.shippingAddress.postalCode,
     },
-    itemsCount: order.items.reduce((s, i) => s + i.quantity, 0),
+    itemsCount: lines.reduce((s, i) => s + i.quantity, 0),
     createdAt: now,
     updatedAt: now,
   }

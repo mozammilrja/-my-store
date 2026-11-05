@@ -3,6 +3,9 @@ import { z } from "zod"
 import { db, SHIPMENT_STATUSES } from "../../db/schema.js"
 import { conflict, forbidden, notFound } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
+import { trackedVariants } from "../../lib/inventory/stock.js"
+import { moveReturn } from "../../lib/returns/inspect.js"
+import { canTransition } from "../../lib/state/machines.js"
 import { refundOrder } from "../../lib/payments/refunds.js"
 import {
   assignCourier,
@@ -144,12 +147,10 @@ adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
     .parse(req.body)
   const order = await loadOrder(req.params.id)
   const now = new Date()
+  const actor = { type: "admin" as const, id: req.admin!.id, name: req.admin!.email }
 
   if (body.action === "approve") {
-    if (!order.returnRequest || !["requested", "rejected"].includes(order.returnRequest.status)) {
-      throw conflict("There is no open return request to approve.", "no_return_request")
-    }
-    await db.orders().updateOne({ _id: order._id }, { $set: { "returnRequest.status": "approved", "returnRequest.updatedAt": now, updatedAt: now } })
+    await moveReturn(order, "approved", actor, body.reason)
     res.json({ success: true, status: "approved" })
     return
   }
@@ -162,24 +163,25 @@ adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
   }
 
   if (body.action === "received") {
-    await db.orders().updateOne({ _id: order._id }, { $set: { "returnRequest.status": "received", "returnRequest.updatedAt": now, updatedAt: now } })
+    await moveReturn(order, "received", actor, body.reason)
     res.json({ success: true, status: "received" })
     return
   }
 
   if (body.action === "reject") {
-    await db.orders().updateOne({ _id: order._id }, { $set: { "returnRequest.status": "rejected", "returnRequest.updatedAt": now, updatedAt: now } })
+    await moveReturn(order, "rejected", actor, body.reason)
     res.json({ success: true, status: "rejected" })
     return
   }
 
   // refund: money goes back through Razorpay (or is recorded as a cash refund for COD) first;
-  // the credit note and stock movement follow only once the refund was accepted.
+  // the credit note follows once the refund was accepted. A refund can be issued at any
+  // point (goodwill, partial); the return itself closes as refunded only once the goods
+  // were received. Stock comes back at the warehouse inspection, never here.
   const refund = await refundOrder(order, { amount: body.amount, reason: body.reason, adminId: req.admin!.id })
-  await db.orders().updateOne(
-    { _id: order._id },
-    { $set: { fulfillmentStatus: "returned", "returnRequest.status": "refunded", "returnRequest.updatedAt": now, updatedAt: now } }
-  )
+  if (order.returnRequest && canTransition("return", order.returnRequest.status, "refunded")) {
+    await moveReturn(order, "refunded", actor, body.reason, { fulfillmentStatus: "returned" })
+  }
   const creditNoteNumber = `CN-${now.getFullYear()}-${order.displayId}-${refund._id.slice(-4)}`
   await db.creditNotes().insertOne({
     _id: newId("cn"),
@@ -192,23 +194,6 @@ adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
     status: refund.status === "processed" ? "settled" : "issued",
     createdAt: now,
   })
-  for (const line of order.returnRequest?.items ?? []) {
-    const item = order.items.find((i) => i._id === line.itemId)
-    if (!item) continue
-    await db.inventoryMovements().insertOne({
-      _id: newId("mov"),
-      sku: `SKU-${item.variantId.slice(-6)}`,
-      variantId: item.variantId,
-      hubId: "BLR-FC1",
-      type: "return",
-      quantity: line.quantity,
-      referenceType: "return",
-      referenceId: order._id,
-      reason: body.reason,
-      balanceAfter: 0,
-      createdAt: now,
-    })
-  }
   res.json({ success: true, status: refund.status, refund, creditNoteNumber })
 })
 
@@ -364,6 +349,9 @@ adminLogisticsRoutes.post("/inventory/adjust", async (req, res) => {
   if (!product) throw notFound("Product or variant")
   const variant = product.variants.find((v) => v._id === body.variantId)
   if (!variant) throw notFound("Variant")
+  if ((await trackedVariants([variant._id])).size) {
+    throw conflict("This variant's stock is managed by warehouses. Adjust it at a warehouse so the ledger records it.", "warehouse_managed")
+  }
 
   const newStock = Math.max(0, variant.stock + body.adjustment)
 

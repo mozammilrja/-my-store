@@ -24,6 +24,8 @@ const schema = z.object({
   ADMIN_LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().optional(),
   STORE_CORS: list,
   ADMIN_CORS: list,
+  /** Browser origins of the warehouse app (apps/warehouse). */
+  WAREHOUSE_CORS: list,
   // Razorpay. Online payment is offered only when the key pair is set; the
   // webhook endpoint refuses every event until RAZORPAY_WEBHOOK_SECRET is set.
   RAZORPAY_KEY_ID: z.string().optional(),

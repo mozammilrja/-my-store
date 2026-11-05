@@ -9,6 +9,7 @@ import { db, type ProductDoc, type VariantDoc } from "../../db/schema.js"
 import { env } from "../../env.js"
 import { badRequest, conflict, notFound } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
+import { skuOf, trackedVariants } from "../../lib/inventory/stock.js"
 import { assetUrl } from "../../lib/serialize.js"
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -232,6 +233,10 @@ adminProductRoutes.patch("/products/:id", async (req, res) => {
     return next
   })
   if (body.variants?.some((x) => !product.variants.some((v) => v._id === x.id))) throw badRequest("Unknown variant")
+  // A variant stocked in warehouses changes stock only through warehouse receiving and adjustments, which keep the ledger.
+  const stocked = await trackedVariants((body.variants ?? []).filter((x) => x.stock !== undefined).map((x) => x.id))
+  const changed = body.variants?.find((x) => stocked.has(x.id) && x.stock !== product.variants.find((v) => v._id === x.id)?.stock)
+  if (changed) throw conflict("This variant's stock is managed by warehouses. Receive or adjust it at a warehouse instead.", "warehouse_managed")
 
   const { variants: _ignored, ...fields } = body
   const images = fields.images ?? product.images
@@ -248,6 +253,8 @@ adminProductRoutes.patch("/products/:id", async (req, res) => {
   // Conditional on the version we read, so concurrent edits don't silently overwrite each other.
   const result = await db.products().replaceOne({ _id: product._id, updatedAt: product.updatedAt }, updated)
   if (!result.matchedCount) throw conflict("Someone else changed this product. Reload and try again.", "stale")
+  // Warehouse scans read the SKU from the stock level, so a new SKU reaches the shelf too.
+  for (const v of updated.variants) await db.stockLevels().updateMany({ variantId: v._id, sku: { $ne: skuOf(v) } }, { $set: { sku: skuOf(v), updatedAt: new Date() } })
   res.json({ product: toAdminProduct(updated) })
 })
 

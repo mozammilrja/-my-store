@@ -1,5 +1,6 @@
 import { Router } from "express"
 import { z } from "zod"
+import { recordTransition } from "../../lib/state/machines.js"
 import { db, type CustomerDoc, type OrderDoc, type SupportTicketDoc, type LoyaltyAccountDoc, type NotificationDoc, type WishlistDoc } from "../../db/schema.js"
 import { assetUrl, toStoreOrder, toStoreProduct } from "../../lib/serialize.js"
 import { clientKey, hashPassword, issueToken, rateLimit, requireAuth, verifyPassword } from "../../lib/auth.js"
@@ -220,7 +221,12 @@ customerRoutes.post("/customers/me/orders/:id/returns", async (req, res) => {
     updatedAt: now,
   }
 
-  await db.orders().updateOne({ _id: orderId }, { $set: { returnRequest, updatedAt: now } })
+  // Conditional on the request we checked, so two submissions can't both open one.
+  const filed = await db
+    .orders()
+    .updateOne({ _id: orderId, ...(order.returnRequest ? { "returnRequest.status": "rejected" } : { returnRequest: { $exists: false } }) }, { $set: { returnRequest, updatedAt: now } })
+  if (!filed.modifiedCount) throw conflict("A return is already open for this order.", "return_exists")
+  await recordTransition({ machine: "return", entityId: orderId, orderId, from: order.returnRequest?.status ?? null, to: "requested", actor: { type: "customer", id: req.actorId! }, reason: body.reason })
   const updated = await db.orders().findOne({ _id: orderId })
   res.status(201).json({ order: toStoreOrder(updated!) })
 })

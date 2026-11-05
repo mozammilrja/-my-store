@@ -83,16 +83,20 @@ export function buildInvoiceLines(order: Pick<OrderDoc, "items" | "totals" | "sh
 
 /**
  * The warehouse an order ships from, for the invoice's dispatch block: the
- * hub its stock was taken from (the order's outbound inventory movements),
+ * warehouse its (first) fulfilment was allocated to, or for older orders the
+ * hub their stock movement names,
  * else the default active warehouse, else any active one. Null when the
  * store has no warehouses at all.
  */
 export async function dispatchWarehouse(orderId: string) {
-  const movement = await db.inventoryMovements().findOne(
-    { referenceType: "order", referenceId: orderId, type: "outbound" },
-    { sort: { createdAt: 1 } }
-  )
-  const allocated = movement ? await db.warehouses().findOne({ code: movement.hubId }) : null
+  const fulfilment = await db.fulfilments().findOne({ orderId, status: { $nin: ["rejected", "cancelled"] } }, { sort: { createdAt: 1 } })
+  // Orders placed before warehouse fulfilment recorded their hub as a stock movement.
+  const movement = fulfilment ? null : await db.inventoryMovements().findOne({ referenceType: "order", referenceId: orderId, type: "outbound" }, { sort: { createdAt: 1 } })
+  const allocated = fulfilment
+    ? await db.warehouses().findOne({ _id: fulfilment.warehouseId })
+    : movement
+      ? await db.warehouses().findOne({ code: movement.hubId })
+      : null
   const warehouse =
     allocated ??
     (await db.warehouses().findOne({ status: "active", isDefault: true })) ??

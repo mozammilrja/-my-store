@@ -150,6 +150,8 @@ export type SettingsDoc = {
   /** A variant at or under this count is reported as low stock. */
   lowStockThreshold: number
   supportEmail?: string
+  /** Whether an order may ship from several warehouses when none holds all of it. Default true. */
+  allowSplitFulfilment?: boolean
   /** The seller's legal details, printed on every GST tax invoice. */
   seller?: SellerDetails
   updatedAt: Date
@@ -277,6 +279,8 @@ export type OrderDoc = {
     items: { itemId: string; quantity: number }[]
     returnAwb?: string
     carrier?: string
+    /** What the warehouse found when it opened the parcel. */
+    inspection?: { warehouseId: string; at: Date; by: string; lines: { itemId: string; quantity: number; condition: "sellable" | "damaged"; notes?: string }[] }
     requestedAt: Date
     updatedAt: Date
   }
@@ -369,6 +373,8 @@ export type ShipmentDoc = {
   isReturn: boolean
   /** For a return: the outbound shipment it reverses. */
   returnOf?: string
+  /** The warehouse fulfilment this parcel carries; absent for parcels booked straight from the order. */
+  fulfilmentId?: string
   /** True while not cancelled; a partial unique index allows one live parcel of each kind per order. */
   active: boolean
   lastSyncedAt?: Date
@@ -490,8 +496,206 @@ export type WarehouseDoc = {
   lng?: number | null
   status: "active" | "inactive"
   isDefault?: boolean
+  /**
+   * PIN codes or PIN prefixes ("560", "5600") this warehouse ships to. Empty
+   * or absent: it ships anywhere its couriers reach.
+   */
+  serviceAreas?: string[]
+  /** Lower ships first when two warehouses are equally close. Default 100. */
+  priority?: number
+  /** Whether new orders may be allocated here (a warehouse can be active for returns only). */
+  acceptsOrders?: boolean
+  /** Shiprocket pickup location nickname for parcels leaving this building; falls back to SHIPROCKET_PICKUP_LOCATION. */
+  shiprocketPickupLocation?: string
   createdAt: Date
   updatedAt: Date
+}
+
+/* ---------- Warehouse management (WMS) ---------- */
+
+/**
+ * Where a unit of stock is in a warehouse. Only `available` is sellable;
+ * a variant's `stock` on the product is kept equal to the sum of its
+ * `available` across warehouses once the variant has any stock level.
+ */
+export const STOCK_BUCKETS = ["available", "reserved", "picked", "packed", "damaged", "quarantine"] as const
+export type StockBucket = (typeof STOCK_BUCKETS)[number]
+
+/** One variant in one warehouse. Changed only through lib/inventory/stock.ts, which writes a ledger row for every move. */
+export type StockLevelDoc = {
+  _id: string
+  warehouseId: string
+  warehouseCode: string
+  productId: string
+  variantId: string
+  sku: string
+  /** Rack/bin code where the variant is shelved, e.g. "A-03-2". */
+  binCode?: string | null
+  available: number
+  reserved: number
+  picked: number
+  packed: number
+  damaged: number
+  quarantine: number
+  /** Running totals, for reporting. */
+  dispatchedTotal: number
+  receivedTotal: number
+  updatedAt: Date
+  createdAt: Date
+}
+
+export type StockLedgerReason =
+  | "receive"
+  | "opening_balance"
+  | "reserve"
+  | "release"
+  | "pick"
+  | "unpick"
+  | "pack"
+  | "dispatch"
+  | "qc_damage"
+  | "adjust"
+  | "damage"
+  | "transfer_out"
+  | "transfer_in"
+  | "return_receive"
+  | "return_restock"
+  | "return_reject"
+
+/** Immutable: one row per stock move. `from`/`to` are buckets, or "outside" for stock entering or leaving the building. */
+export type StockLedgerDoc = {
+  _id: string
+  warehouseId: string
+  variantId: string
+  sku: string
+  reason: StockLedgerReason
+  from: StockBucket | "outside"
+  to: StockBucket | "outside"
+  quantity: number
+  /** Bucket counts after the move. */
+  after: Record<StockBucket, number>
+  ref: { type: "order" | "fulfilment" | "return" | "transfer" | "manual" | "receipt"; id: string }
+  note?: string
+  actor: ActorRef
+  createdAt: Date
+}
+
+/** Who did something, for ledgers and status history. */
+export type ActorRef = { type: "system" | "admin" | "warehouse" | "customer" | "courier"; id: string; name?: string }
+
+export const FULFILMENT_STATUSES = [
+  "assigned",
+  "picking_pending",
+  "picking",
+  "picked",
+  "qc_passed",
+  "packed",
+  "label_generated",
+  "ready_to_dispatch",
+  "manifested",
+  "handed_over",
+  "dispatched",
+  "rejected",
+  "cancelled",
+] as const
+export type FulfilmentStatus = (typeof FULFILMENT_STATUSES)[number]
+
+export type FulfilmentLine = {
+  itemId: string
+  productId: string
+  variantId: string
+  sku: string
+  productTitle: string
+  variantTitle: string
+  options: Record<string, string>
+  quantity: number
+  /** Whether stock was reserved for this line (false for variants that don't track stock). */
+  reserved: boolean
+  picked: number
+  packed: number
+  /** Units the warehouse can no longer supply (damaged at QC with no replacement on the shelf). */
+  short: number
+  binCode?: string | null
+}
+
+/** The part of an order one warehouse picks, packs and dispatches. */
+export type FulfilmentDoc = {
+  _id: string
+  /** Printed on the pick list and scanned at packing, e.g. FUL-1042-1. */
+  code: string
+  orderId: string
+  displayId: number
+  warehouseId: string
+  warehouseCode: string
+  status: FulfilmentStatus
+  lines: FulfilmentLine[]
+  paymentMethod: "cod" | "razorpay"
+  /** What the warehouse may see about the delivery: no name, phone or street. */
+  destination: { city: string; state: string; postalCode: string }
+  assignment: { method: "auto" | "manual"; reason: string; proximity: number; at: Date; actor: ActorRef }
+  /** Warehouses that refused this order, so re-allocation skips them. */
+  rejectedBy: string[]
+  pick?: { startedAt?: Date; startedBy?: string; completedAt?: Date }
+  qc?: { result: "passed" | "failed"; at: Date; by: string; notes?: string; failures: { itemId: string; quantity: number; reason: string }[] }
+  package?: { code: string; weightKg: number; lengthCm: number; breadthCm: number; heightCm: number; packedAt: Date; packedBy: string }
+  shipmentId?: string
+  awb?: string
+  carrier?: string
+  manifestId?: string
+  handedOverAt?: Date
+  dispatchedAt?: Date
+  cancelReason?: string
+  /** False once rejected or cancelled; a partial unique index allows one live fulfilment per order and warehouse. */
+  active: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type ManifestDoc = {
+  _id: string
+  code: string
+  warehouseId: string
+  carrier: string
+  fulfilmentIds: string[]
+  awbs: string[]
+  /** AWBs scanned at the dock as the courier took them. */
+  scannedAwbs: string[]
+  status: "open" | "closed"
+  manifestUrls: string[]
+  courierExecutive?: string
+  createdBy: string
+  createdAt: Date
+  closedAt?: Date
+  closedBy?: string
+}
+
+export const WAREHOUSE_ROLES = ["picker", "packer", "inspector", "dispatcher", "supervisor"] as const
+export type WarehouseRole = (typeof WAREHOUSE_ROLES)[number]
+
+/** Warehouse staff: a separate account type from admins, scoped to the warehouses listed. */
+export type WarehouseUserDoc = {
+  _id: string
+  email: string
+  passwordHash: string
+  name: string
+  role: WarehouseRole
+  warehouseIds: string[]
+  status: "active" | "suspended"
+  createdAt: Date
+  updatedAt: Date
+}
+
+/** Immutable status history for every state machine (lib/state/machines.ts). */
+export type StatusEventDoc = {
+  _id: string
+  machine: "order" | "payment" | "fulfilment" | "shipment" | "return"
+  entityId: string
+  orderId?: string
+  from: string | null
+  to: string
+  actor: ActorRef
+  reason?: string
+  at: Date
 }
 
 export type InventoryReservationDoc = {
@@ -777,6 +981,12 @@ export const db = {
   notifications: (): Collection<NotificationDoc> => getDb().collection("notifications"),
   auditLogs: (): Collection<AuditLogDoc> => getDb().collection("audit_logs"),
   productReviews: (): Collection<ProductReviewDoc> => getDb().collection("product_reviews"),
+  stockLevels: (): Collection<StockLevelDoc> => getDb().collection("stock_levels"),
+  stockLedger: (): Collection<StockLedgerDoc> => getDb().collection("stock_ledger"),
+  fulfilments: (): Collection<FulfilmentDoc> => getDb().collection("fulfilments"),
+  manifests: (): Collection<ManifestDoc> => getDb().collection("manifests"),
+  warehouseUsers: (): Collection<WarehouseUserDoc> => getDb().collection("warehouse_users"),
+  statusEvents: (): Collection<StatusEventDoc> => getDb().collection("status_events"),
 }
 
 /**
@@ -815,6 +1025,8 @@ async function migrateShipments() {
   ])
   // The old index required every shipment to have an AWB up front.
   await col.dropIndex("awb_1").catch(() => {})
+  // One live parcel per order became one per fulfilment (a split order ships from several warehouses).
+  await col.dropIndex("one_live_parcel_per_order").catch(() => {})
 }
 
 export async function ensureIndexes() {
@@ -846,7 +1058,7 @@ export async function ensureIndexes() {
     db.promotions().createIndex({ code: 1 }, { unique: true }),
     db.shipments().createIndex({ awb: 1 }, { unique: true, partialFilterExpression: { awb: { $gt: "" } }, name: "awb_assigned_unique" }),
     db.shipments().createIndex({ provider: 1, providerShipmentId: 1 }, { unique: true, partialFilterExpression: { providerShipmentId: { $type: "string" } } }),
-    db.shipments().createIndex({ orderId: 1, isReturn: 1 }, { unique: true, partialFilterExpression: { active: true }, name: "one_live_parcel_per_order" }),
+    db.shipments().createIndex({ orderId: 1, isReturn: 1, fulfilmentId: 1 }, { unique: true, partialFilterExpression: { active: true }, name: "one_live_parcel_per_fulfilment" }),
     db.shipments().createIndex({ status: 1, lastSyncedAt: 1 }),
     db.shipments().createIndex({ orderId: 1 }),
     db.inventory().createIndex({ sku: 1, hubId: 1 }, { unique: true }),
@@ -885,6 +1097,20 @@ export async function ensureIndexes() {
     db.auditLogs().createIndex({ targetCollection: 1, createdAt: -1 }),
     db.productReviews().createIndex({ productId: 1, status: 1, createdAt: -1 }),
     db.productReviews().createIndex({ customerId: 1, productId: 1 }),
+    db.stockLevels().createIndex({ variantId: 1, warehouseId: 1 }, { unique: true }),
+    db.stockLevels().createIndex({ warehouseId: 1, sku: 1 }),
+    db.stockLedger().createIndex({ warehouseId: 1, createdAt: -1 }),
+    db.stockLedger().createIndex({ variantId: 1, createdAt: -1 }),
+    db.stockLedger().createIndex({ "ref.id": 1 }),
+    db.fulfilments().createIndex({ orderId: 1, warehouseId: 1 }, { unique: true, partialFilterExpression: { active: true }, name: "one_live_fulfilment_per_warehouse" }),
+    db.fulfilments().createIndex({ code: 1 }, { unique: true }),
+    db.fulfilments().createIndex({ warehouseId: 1, status: 1, createdAt: 1 }),
+    db.fulfilments().createIndex({ awb: 1 }, { sparse: true }),
+    db.manifests().createIndex({ code: 1 }, { unique: true }),
+    db.manifests().createIndex({ warehouseId: 1, status: 1 }),
+    db.warehouseUsers().createIndex({ email: 1 }, { unique: true }),
+    db.statusEvents().createIndex({ entityId: 1, at: 1 }),
+    db.statusEvents().createIndex({ orderId: 1, at: 1 }),
   ])
 
   // Seed default fulfillment hubs if not present

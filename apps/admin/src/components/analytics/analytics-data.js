@@ -55,13 +55,19 @@ export const METHOD = {
 };
 
 export const SHIPMENT_LABEL = {
-  manifested: 'Manifested',
+  pending: 'Booking',
+  ready_to_ship: 'Ready to ship',
+  shipment_created: 'Shipment created',
   pickup_scheduled: 'Pickup scheduled',
+  picked_up: 'Picked up',
   in_transit: 'In transit',
   out_for_delivery: 'Out for delivery',
   delivered: 'Delivered',
-  rto: 'Returned to origin',
-  canceled: 'Cancelled',
+  delivery_failed: 'Delivery failed',
+  rto_initiated: 'RTO initiated',
+  rto_in_transit: 'RTO in transit',
+  rto_delivered: 'RTO delivered',
+  cancelled: 'Cancelled',
 };
 
 export const PO_LABEL = {

@@ -1,104 +1,38 @@
 import assert from "node:assert/strict"
 import crypto from "node:crypto"
 import { test } from "node:test"
-import { verifyRazorpaySignature, verifyRazorpayWebhook } from "../src/lib/payments/razorpay.js"
-import { createDelhiveryShipment } from "../src/lib/logistics/delhivery.js"
-import { createBlueDartShipment } from "../src/lib/logistics/bluedart.js"
-import type { OrderDoc } from "../src/db/schema.js"
 
-test("payments: razorpay cryptographic verification", async () => {
-  process.env.RAZORPAY_KEY_SECRET = "test_razorpay_secret_key_12345"
+// Settings are read once at import, so set them before loading the modules.
+process.env.NODE_ENV = "test"
+process.env.RAZORPAY_KEY_ID = "rzp_test_unit"
+process.env.RAZORPAY_KEY_SECRET = "test_razorpay_secret_key_12345"
+process.env.RAZORPAY_WEBHOOK_SECRET = "whsec_test_razorpay_secret_67890"
+const { verifyRazorpaySignature, verifyRazorpayWebhook } = await import("../src/lib/payments/razorpay.js")
+const { mapShiprocketStatus, shouldAdvance, fulfillmentFor } = await import("../src/lib/shipping/status.js")
+
+test("payments: checkout signature is HMAC-SHA256 of order_id|payment_id with the key secret", () => {
   const orderId = "order_rzp_984210"
   const paymentId = "pay_rzp_884120"
-  const payload = `${orderId}|${paymentId}`
-  const validSignature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-    .update(payload)
-    .digest("hex")
-
-  // Valid signature returns true
-  const valid = verifyRazorpaySignature({
-    razorpayOrderId: orderId,
-    razorpayPaymentId: paymentId,
-    razorpaySignature: validSignature,
-  })
-  assert.equal(valid, true, "Valid Razorpay signature must be accepted")
-
-  // Tampered paymentId fails verification
-  const invalidTampered = verifyRazorpaySignature({
-    razorpayOrderId: orderId,
-    razorpayPaymentId: "pay_tampered_999",
-    razorpaySignature: validSignature,
-    secret: "test_razorpay_secret_key_12345",
-  })
-  assert.equal(invalidTampered, false, "Tampered payload must fail signature verification")
+  const good = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!).update(`${orderId}|${paymentId}`).digest("hex")
+  assert.equal(verifyRazorpaySignature({ razorpayOrderId: orderId, razorpayPaymentId: paymentId, razorpaySignature: good }), true)
+  assert.equal(verifyRazorpaySignature({ razorpayOrderId: orderId, razorpayPaymentId: "pay_tampered", razorpaySignature: good }), false)
+  assert.equal(verifyRazorpaySignature({ razorpayOrderId: orderId, razorpayPaymentId: paymentId, razorpaySignature: "short" }), false)
 })
 
-test("payments: razorpay webhook verification", async () => {
-  const secret = "whsec_test_razorpay_secret_67890"
-  const payload = JSON.stringify({ event: "payment.captured", id: "evt_123" })
-  const signature = crypto.createHmac("sha256", secret).update(payload).digest("hex")
-
-  const valid = verifyRazorpayWebhook(payload, signature, secret)
-  assert.equal(valid, true, "Valid Razorpay webhook signature must be accepted")
-
-  const tampered = verifyRazorpayWebhook(payload.replace("evt_123", "evt_999"), signature, secret)
-  assert.equal(tampered, false, "Tampered Razorpay webhook payload must be rejected")
+test("payments: webhook signature covers the exact raw body", () => {
+  const raw = JSON.stringify({ event: "payment.captured", id: "evt_123" })
+  const sig = crypto.createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET!).update(raw).digest("hex")
+  assert.equal(verifyRazorpayWebhook(raw, sig), true)
+  assert.equal(verifyRazorpayWebhook(raw + " ", sig), false, "re-serialised JSON must not verify")
 })
 
-test("logistics: delhivery & bluedart carrier waybill generation", async () => {
-  const dummyOrder: OrderDoc = {
-    _id: "order_test_999",
-    displayId: 1042,
-    cartId: "cart_test_999",
-    regionId: "reg_in",
-    currency: "inr",
-    email: "customer@example.com",
-    items: [
-      {
-        _id: "item_1",
-        productId: "prod_1",
-        variantId: "var_1",
-        productTitle: "Everwear Linen Shirt",
-        productHandle: "linen-shirt",
-        variantTitle: "L / White",
-        quantity: 1,
-        unitPrice: 2499,
-      },
-    ],
-    shippingAddress: {
-      firstName: "Aarav",
-      lastName: "Patel",
-      address1: "42 Indiranagar",
-      city: "Bengaluru",
-      postalCode: "560038",
-      countryCode: "IN",
-      phone: "9886012345",
-    },
-    billingAddress: {
-      firstName: "Aarav",
-      lastName: "Patel",
-      address1: "42 Indiranagar",
-      city: "Bengaluru",
-      postalCode: "560038",
-      countryCode: "IN",
-    },
-    shippingOption: { _id: "so_std", name: "Standard", amount: 0 },
-    promoCodes: [],
-    totals: { itemSubtotal: 2499, discountTotal: 0, shippingTotal: 0, taxTotal: 267, total: 2499 },
-    paymentMethod: "cod",
-    paymentStatus: "awaiting",
-    fulfillmentStatus: "unfulfilled",
-    status: "pending",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  }
-
-  const dlv = await createDelhiveryShipment(dummyOrder)
-  assert.ok(dlv.awb.startsWith("DLV1042"), "Delhivery generates compliant waybill starting with DLV")
-  assert.equal(dlv.success, true)
-
-  const bd = await createBlueDartShipment(dummyOrder)
-  assert.ok(bd.awb.startsWith("841042"), "BlueDart generates compliant waybill starting with series 84")
-  assert.equal(bd.success, true)
+test("shipping: courier statuses map to internal ones, and unknown ones are not guessed", () => {
+  assert.equal(mapShiprocketStatus(7, "DELIVERED"), "delivered")
+  assert.equal(mapShiprocketStatus(17, null), "out_for_delivery")
+  assert.equal(mapShiprocketStatus(null, "RTO Delivered"), "rto_delivered")
+  assert.equal(mapShiprocketStatus(null, "Undelivered - customer not available"), "delivery_failed")
+  assert.equal(mapShiprocketStatus(9999, "Something new"), null)
+  assert.equal(shouldAdvance("delivered", "in_transit"), false)
+  assert.equal(shouldAdvance("delivery_failed", "out_for_delivery"), true)
+  assert.equal(fulfillmentFor("rto_delivered"), "returned")
 })

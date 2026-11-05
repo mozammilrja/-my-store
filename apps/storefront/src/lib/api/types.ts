@@ -176,13 +176,15 @@ export type Order = {
   promoCodes: string[]
   totals: Totals
   paymentMethod: "cod" | "razorpay"
-  paymentStatus: "awaiting" | "paid" | "refunded"
+  paymentStatus: "awaiting" | "paid" | "partially_refunded" | "refunded"
   fulfillmentStatus: "unfulfilled" | "shipped" | "delivered" | "returned"
   shipment?: {
     carrier: string
     awb: string
     status: string
     labelUrl?: string
+    /** The courier's public tracking page, when the courier integration gave one. */
+    trackingUrl?: string
     pickupScheduledAt?: string
     estimatedDelivery?: string
     shippedAt?: string

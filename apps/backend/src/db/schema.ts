@@ -254,14 +254,18 @@ export type OrderDoc = {
   promoCodes: string[]
   totals: OrderTotals
   paymentMethod: "cod" | "razorpay"
-  paymentStatus: "awaiting" | "paid" | "refunded"
+  paymentStatus: "awaiting" | "paid" | "partially_refunded" | "refunded"
   paymentDetails?: PaymentDetails
   fulfillmentStatus: "unfulfilled" | "shipped" | "delivered" | "returned"
+  /** Summary of the outbound shipment, copied from its ShipmentDoc for order pages. */
   shipment?: {
-    carrier: "delhivery" | "bluedart" | "custom"
+    /** Courier name as the provider reports it, e.g. "Delhivery Surface". */
+    carrier: string
+    /** Empty until the provider assigns an AWB. */
     awb: string
-    status: string
+    status: ShipmentStatus
     labelUrl?: string
+    trackingUrl?: string
     pickupScheduledAt?: Date
     estimatedDelivery?: Date
     shippedAt?: Date
@@ -303,28 +307,72 @@ export type PromotionDoc = {
   updatedAt: Date
 }
 
+/**
+ * Internal shipment statuses. Courier statuses are mapped onto these
+ * (lib/shipping/status.ts); not every courier reports every one.
+ */
+export const SHIPMENT_STATUSES = [
+  "pending",
+  "ready_to_ship",
+  "shipment_created",
+  "pickup_scheduled",
+  "picked_up",
+  "in_transit",
+  "out_for_delivery",
+  "delivered",
+  "delivery_failed",
+  "rto_initiated",
+  "rto_in_transit",
+  "rto_delivered",
+  "cancelled",
+] as const
+export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number]
+
+/** One parcel: an order's outbound delivery or a return (reverse pickup). */
 export type ShipmentDoc = {
   _id: string
   orderId: string
   displayId: number
-  carrier: "delhivery" | "bluedart" | "custom"
+  /** Who created it: a courier integration, or recorded by hand with details from elsewhere. */
+  provider: "shiprocket" | "manual"
+  /** Courier name ("Delhivery Surface", "Blue Dart Air"); empty until a courier is assigned. */
+  carrier: string
+  courierId?: number
+  /** Provider's order and shipment ids (Shiprocket order_id / shipment_id). */
+  providerOrderId?: string
+  providerShipmentId?: string
+  /** Empty until the courier assigns one. */
   awb: string
-  status: "manifested" | "pickup_scheduled" | "in_transit" | "out_for_delivery" | "delivered" | "rto" | "canceled"
+  status: ShipmentStatus
+  /** The courier's own wording of the latest status. */
+  providerStatus?: string
+  labelUrl?: string
+  manifestUrl?: string
+  trackingUrl?: string
+  pickup?: { scheduledFor?: Date; token?: string; requestedAt: Date }
+  estimatedDelivery?: Date
+  deliveredAt?: Date
+  /** Non-delivery report: the courier couldn't deliver and is waiting on an action. */
+  ndr?: { reason: string; attempts: number; action?: "reattempt" | "return"; actionAt?: Date; updatedAt: Date }
+  /** Lines (and units) in this parcel. */
+  items: { itemId: string; quantity: number }[]
+  parcel: { weightKg: number; lengthCm: number; breadthCm: number; heightCm: number }
+  /** Courier scans and status changes, oldest first. */
   trackingEvents: {
     timestamp: Date
     status: string
+    /** Internal status this scan maps to, when it maps to one. */
+    internalStatus?: ShipmentStatus
     location: string
     note: string
   }[]
-  pickupDate?: Date
-  labelUrl?: string
   isReturn: boolean
-  customer: {
-    name: string
-    phone?: string
-    city: string
-    postalCode: string
-  }
+  /** For a return: the outbound shipment it reverses. */
+  returnOf?: string
+  /** True while not cancelled; a partial unique index allows one live parcel of each kind per order. */
+  active: boolean
+  lastSyncedAt?: Date
+  customer: { name: string; phone?: string; city: string; postalCode: string }
   itemsCount: number
   createdAt: Date
   updatedAt: Date
@@ -497,14 +545,63 @@ export type CouponRedemptionDoc = {
 
 export type PaymentWebhookEventDoc = {
   _id: string
-  provider: "razorpay"
+  provider: "razorpay" | "shiprocket"
   eventId: string
   event: string
   payload: any
   signature: string
-  status: "processed" | "failed" | "ignored"
-  processedAt: Date
+  /** "processing" while handled; a "failed" event is retried when the provider resends it. */
+  status: "processing" | "processed" | "failed" | "ignored"
+  error?: string
+  attempts?: number
+  processedAt?: Date
   createdAt: Date
+}
+
+/**
+ * One try at paying a cart online: the Razorpay order created for its exact
+ * total. The order is only placed once a captured payment for this attempt is
+ * verified with Razorpay (checkout callback, webhook or reconciliation).
+ */
+export type PaymentAttemptDoc = {
+  _id: string
+  cartId: string
+  provider: "razorpay"
+  /** Razorpay order id (order_...). Unique. */
+  providerOrderId: string
+  amount: number
+  currency: string
+  status: "created" | "paid" | "failed" | "expired" | "refunded"
+  /** Razorpay payment id once a payment is seen. */
+  paymentId?: string
+  method?: string
+  /** The store order placed from this attempt. */
+  orderId?: string
+  failureReason?: string
+  expiresAt: Date
+  createdAt: Date
+  updatedAt: Date
+}
+
+/** A refund against an order's captured payment. Only "processed" money has left the account. */
+export type RefundDoc = {
+  _id: string
+  orderId: string
+  displayId: number
+  /** "manual": cash returned by hand for a cash-on-delivery order (recorded, not sent anywhere). */
+  provider: "razorpay" | "manual"
+  /** Razorpay payment id; empty for manual refunds. */
+  paymentId: string
+  /** Razorpay refund id (rfnd_...), once Razorpay accepted the request. */
+  providerRefundId?: string
+  amount: number
+  currency: string
+  reason: string
+  status: "requested" | "pending" | "processed" | "failed"
+  failureReason?: string
+  createdBy: string
+  createdAt: Date
+  updatedAt: Date
 }
 
 export type IdempotencyRecordDoc = {
@@ -669,6 +766,8 @@ export const db = {
   wishlists: (): Collection<WishlistDoc> => getDb().collection("wishlists"),
   couponRedemptions: (): Collection<CouponRedemptionDoc> => getDb().collection("coupon_redemptions"),
   paymentWebhookEvents: (): Collection<PaymentWebhookEventDoc> => getDb().collection("payment_webhook_events"),
+  paymentAttempts: (): Collection<PaymentAttemptDoc> => getDb().collection("payment_attempts"),
+  refunds: (): Collection<RefundDoc> => getDb().collection("refunds"),
   idempotencyRecords: (): Collection<IdempotencyRecordDoc> => getDb().collection("idempotency_records"),
   outboxEvents: (): Collection<OutboxEventDoc> => getDb().collection("outbox_events"),
   supportTickets: (): Collection<SupportTicketDoc> => getDb().collection("support_tickets"),
@@ -693,7 +792,33 @@ export async function syncOrderCounter() {
 }
 
 /** Creates every index the API relies on. Safe to run on each start. */
+/**
+ * Brings shipments written before the courier integration up to the current
+ * shape: new status names, provider "manual", one-live-parcel flag. Safe to
+ * run on each start.
+ */
+async function migrateShipments() {
+  const col = db.shipments()
+  for (const [from, to] of [["manifested", "shipment_created"], ["rto", "rto_initiated"], ["canceled", "cancelled"]] as const) {
+    await col.updateMany({ status: from as never }, { $set: { status: to } })
+    await db.orders().updateMany({ "shipment.status": from as never }, { $set: { "shipment.status": to } })
+  }
+  await col.updateMany({ provider: { $exists: false } }, [
+    {
+      $set: {
+        provider: "manual",
+        active: { $ne: ["$status", "cancelled"] },
+        items: [],
+        parcel: { weightKg: 0.5, lengthCm: 30, breadthCm: 25, heightCm: 5 },
+      },
+    },
+  ])
+  // The old index required every shipment to have an AWB up front.
+  await col.dropIndex("awb_1").catch(() => {})
+}
+
 export async function ensureIndexes() {
+  await migrateShipments()
   await Promise.all([
     db.regions().createIndex({ "countries.code": 1 }, { unique: true }),
     db.categories().createIndex({ handle: 1 }, { unique: true }),
@@ -719,7 +844,10 @@ export async function ensureIndexes() {
     db.orders().createIndex({ createdAt: -1 }),
     db.orders().createIndex({ cartId: 1 }, { unique: true }),
     db.promotions().createIndex({ code: 1 }, { unique: true }),
-    db.shipments().createIndex({ awb: 1 }, { unique: true }),
+    db.shipments().createIndex({ awb: 1 }, { unique: true, partialFilterExpression: { awb: { $gt: "" } }, name: "awb_assigned_unique" }),
+    db.shipments().createIndex({ provider: 1, providerShipmentId: 1 }, { unique: true, partialFilterExpression: { providerShipmentId: { $type: "string" } } }),
+    db.shipments().createIndex({ orderId: 1, isReturn: 1 }, { unique: true, partialFilterExpression: { active: true }, name: "one_live_parcel_per_order" }),
+    db.shipments().createIndex({ status: 1, lastSyncedAt: 1 }),
     db.shipments().createIndex({ orderId: 1 }),
     db.inventory().createIndex({ sku: 1, hubId: 1 }, { unique: true }),
     db.suppliers().createIndex({ email: 1 }, { unique: true }),
@@ -737,6 +865,11 @@ export async function ensureIndexes() {
     db.couponRedemptions().createIndex({ cartId: 1, code: 1 }),
     db.couponRedemptions().createIndex({ orderId: 1 }),
     db.paymentWebhookEvents().createIndex({ provider: 1, eventId: 1 }, { unique: true }),
+    db.paymentAttempts().createIndex({ providerOrderId: 1 }, { unique: true }),
+    db.paymentAttempts().createIndex({ cartId: 1, status: 1 }),
+    db.paymentAttempts().createIndex({ status: 1, createdAt: 1 }),
+    db.refunds().createIndex({ providerRefundId: 1 }, { unique: true, partialFilterExpression: { providerRefundId: { $type: "string" } } }),
+    db.refunds().createIndex({ orderId: 1, createdAt: -1 }),
     db.idempotencyRecords().createIndex({ key: 1, scope: 1 }, { unique: true }),
     db.idempotencyRecords().createIndex({ lockedUntil: 1 }),
     db.outboxEvents().createIndex({ status: 1, createdAt: 1 }),

@@ -43,21 +43,27 @@ export const longDay = (iso: string) => new Date(iso).toLocaleDateString("en-IN"
 
 const shortDay = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: IST })
 
-const CARRIERS: Record<string, string> = { delhivery: "Delhivery", bluedart: "Blue Dart", custom: "Everwear courier" }
-export const carrierName = (c: string) => CARRIERS[c] ?? c
+/** Courier name as the courier integration reported it ("Delhivery Surface"), or a neutral word before one is assigned. */
+export const carrierName = (c: string | null | undefined) => (c && c.trim() ? c : "the courier")
 
 const SHIPMENT_STATUS: Record<string, string> = {
-  manifested: "Manifested",
+  pending: "Booking with courier",
+  ready_to_ship: "Ready to ship",
+  shipment_created: "Shipment created",
   pickup_scheduled: "Pickup scheduled",
+  picked_up: "Picked up",
   in_transit: "In transit",
   out_for_delivery: "Out for delivery",
   delivered: "Delivered",
-  rto: "Returning to origin",
-  canceled: "Shipment canceled",
+  delivery_failed: "Delivery attempt failed",
+  rto_initiated: "Returning to origin",
+  rto_in_transit: "Returning to origin",
+  rto_delivered: "Returned to origin",
+  cancelled: "Shipment cancelled",
 }
 export const shipmentStatusLabel = (s: string) => SHIPMENT_STATUS[s] ?? s.replace(/_/g, " ")
 
-export type Phase = "canceled" | "preparing" | "awaiting_pickup" | "in_transit" | "out_for_delivery" | "delivered" | "rto" | "returned"
+export type Phase = "canceled" | "preparing" | "awaiting_pickup" | "in_transit" | "out_for_delivery" | "attempt_failed" | "delivered" | "rto" | "returned"
 
 function phaseOf(order: Order): Phase {
   if (order.status === "canceled") return "canceled"
@@ -66,8 +72,9 @@ function phaseOf(order: Order): Phase {
   const s = order.shipment?.status
   if (!order.shipment) return order.fulfillmentStatus === "shipped" ? "in_transit" : "preparing"
   if (s === "out_for_delivery") return "out_for_delivery"
-  if (s === "rto") return "rto"
-  if (s === "manifested" || s === "pickup_scheduled") return "awaiting_pickup"
+  if (s === "delivery_failed") return "attempt_failed"
+  if (s === "rto_initiated" || s === "rto_in_transit" || s === "rto_delivered") return "rto"
+  if (s === "pending" || s === "ready_to_ship" || s === "shipment_created" || s === "pickup_scheduled") return "awaiting_pickup"
   return "in_transit"
 }
 
@@ -77,6 +84,7 @@ const HEADING: Record<Phase, string> = {
   awaiting_pickup: "Awaiting Courier Pickup",
   in_transit: "Consignment in Transit",
   out_for_delivery: "Out for Delivery",
+  attempt_failed: "Delivery Attempt Failed",
   delivered: "Consignment Delivered",
   rto: "Returning to Origin",
   returned: "Consignment Returned",
@@ -85,9 +93,10 @@ const HEADING: Record<Phase, string> = {
 const BADGE: Record<Phase, string> = {
   canceled: "Canceled",
   preparing: "Awaiting Dispatch",
-  awaiting_pickup: "Manifested · Awaiting Pickup",
+  awaiting_pickup: "Booked · Awaiting Pickup",
   in_transit: "En Route",
   out_for_delivery: "Out for Delivery",
+  attempt_failed: "Attempt Failed",
   delivered: "Delivered",
   rto: "Returning to Origin",
   returned: "Returned",
@@ -110,6 +119,7 @@ const ACTIVE: Record<Phase, number> = {
   in_transit: 2,
   rto: 2,
   out_for_delivery: 3,
+  attempt_failed: 3,
   delivered: 5,
   returned: 5,
 }
@@ -156,7 +166,9 @@ export function buildTracking(order: Order, ctx: { originCode: string | null; or
         : s
           ? packed?.note || `Packed at ${origin} and labelled for ${carrier}.`
           : `Your pieces are being checked and packed at ${origin}. The airway bill is issued when the courier is booked.`,
-    chips: s ? [{ text: `AWB: ${s.awb}`, tone: "box" }, { text: `${carrier} · ${shipmentStatusLabel(s.status)}`, tone: "accent" }] : [],
+    chips: s
+      ? [...(s.awb ? [{ text: `AWB: ${s.awb}`, tone: "box" as const }] : []), { text: `${carrier} · ${shipmentStatusLabel(s.status)}`, tone: "accent" as const }]
+      : [],
     state: state(1),
     icon: phase === "canceled" ? "block" : "inventory_2",
     activeLabel: phase === "canceled" ? "Canceled" : "Packing",
@@ -200,7 +212,7 @@ export function buildTracking(order: Order, ctx: { originCode: string | null; or
     chips: [],
     state: state(3),
     icon: "local_shipping",
-    activeLabel: "Out for Delivery",
+    activeLabel: phase === "attempt_failed" ? "Delivery Attempt Failed" : "Out for Delivery",
   }
 
   // 5. Handover at the door.

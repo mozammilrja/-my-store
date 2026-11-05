@@ -20,6 +20,7 @@ import { formatMoney } from '../../lib/format';
 import { useOrdersQuery } from '../../hooks/useAdminQueries';
 import { EmptyState } from '../shared/FeedbackAndOverlays';
 import { SectionCard } from '../shared/Layout';
+import { GatewayActivity } from './GatewayActivity';
 
 /** The splits a payment record can actually support. */
 const PAYMENT_TABS = [
@@ -634,6 +635,9 @@ export function PaymentsAndReconciliation({ onNavigate, onShowToast }) {
             </div>
           </>
         )}
+        <div className="mt-space-lg">
+          <GatewayActivity onShowToast={onShowToast} />
+        </div>
       </PageBody>
     </PageContainer>
   );

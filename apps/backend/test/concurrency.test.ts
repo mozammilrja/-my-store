@@ -57,6 +57,16 @@ before(async () => {
     updatedAt: now,
   })
 
+  // The owner the admin tests sign in as.
+  await db.adminUsers().insertOne({
+    _id: "admin_concurrency_owner",
+    email: "owner@concurrency.test",
+    passwordHash: "unused",
+    role: "owner",
+    createdAt: now,
+    updatedAt: now,
+  } as never)
+
   // Product with exactly 1 unit in stock for the overselling test
   await db.products().insertOne({
     _id: "prod_scarce",
@@ -257,70 +267,14 @@ describe("Everwear High-Concurrency & Correctness Suite", () => {
     const varWhite = product?.variants.find((v) => v._id === "var_white")
     assert.equal(varWhite?.stock, 0, "White shirt stock must be exactly 0")
 
-    // Subsequent checkout attempt must fail
+    // Subsequent checkout attempt must fail: the sold-out shirt can't even go in the bag.
     const { body: extraCart } = await call("POST", "/store/carts", { country: "in" })
-    await call("POST", `/store/carts/${extraCart.cart.id}/items`, { variantId: "var_white", quantity: 1 })
-    await call("PATCH", `/store/carts/${extraCart.cart.id}`, {
-      email: "extra@everwear.test",
-      shippingAddress: testAddress,
-    })
-    await call("POST", `/store/carts/${extraCart.cart.id}/shipping`, { optionId: "so_std" })
-    const extraCheckout = await call("POST", `/store/carts/${extraCart.cart.id}/complete`)
-    assert.equal(extraCheckout.status, 409, "Must return 409 out of stock")
+    const extraAdd = await call("POST", `/store/carts/${extraCart.cart.id}/items`, { variantId: "var_white", quantity: 1 })
+    assert.equal(extraAdd.status, 409, "Adding a sold-out item must return 409")
+    assert.equal(extraAdd.body.error.code, "out_of_stock")
   })
 
-  test("4. Duplicate payment webhooks deduplication", async () => {
-    // Create an order in 'awaiting' status
-    const { body: cb } = await call("POST", "/store/carts", { country: "in" })
-    const cartId = cb.cart.id
-    await call("POST", `/store/carts/${cartId}/items`, { variantId: "var_blue", quantity: 1 })
-    await call("PATCH", `/store/carts/${cartId}`, {
-      email: "webhook.test@everwear.test",
-      shippingAddress: testAddress,
-    })
-    await call("POST", `/store/carts/${cartId}/shipping`, { optionId: "so_std" })
-
-    const { body: ordRes } = await call("POST", `/store/carts/${cartId}/complete`)
-    const orderId = ordRes.order.id
-
-    const webhookEvent = {
-      id: `evt_test_${Date.now()}`,
-      event: "payment.captured",
-      payload: {
-        payment: {
-          entity: {
-            id: `pay_test_${Date.now()}`,
-            amount: ordRes.order.totals.total,
-            currency: "INR",
-            notes: { orderId },
-          },
-        },
-      },
-    }
-
-    // Send 10 duplicate concurrent webhooks
-    const results = await Promise.all(
-      Array.from({ length: 10 }, () =>
-        call("POST", "/store/webhooks/razorpay", webhookEvent, {
-          "x-razorpay-signature": "dummy_sig",
-          "x-razorpay-event-id": webhookEvent.id,
-        })
-      )
-    )
-
-    // All should return HTTP 200 (idempotent webhook acknowledgement)
-    for (const r of results) {
-      assert.equal(r.status, 200)
-    }
-
-    // Verify order is paid
-    const updatedOrder = await db.orders().findOne({ _id: orderId })
-    assert.equal(updatedOrder?.paymentStatus, "paid")
-
-    // Exactly 1 webhook event record stored in payment_webhook_events
-    const eventCount = await db.paymentWebhookEvents().countDocuments({ eventId: webhookEvent.id })
-    assert.equal(eventCount, 1, "Only 1 webhook record should be stored in MongoDB")
-  })
+  // Duplicate payment webhooks: covered with signed, concurrent redeliveries in payments-shipping.test.ts.
 
   test("5. Coupon limit race condition (limit: 3, 10 concurrent checkouts)", async () => {
     const now = new Date()

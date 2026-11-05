@@ -38,13 +38,19 @@ const CARRIER_LABELS = {
 
 /** The shipment statuses the API can return, in lifecycle order. */
 const STATUS_META = {
-  manifested: { label: 'Manifested', variant: 'secondary' },
+  pending: { label: 'Booking', variant: 'secondary' },
+  ready_to_ship: { label: 'Ready to ship', variant: 'secondary' },
+  shipment_created: { label: 'Shipment created', variant: 'secondary' },
   pickup_scheduled: { label: 'Pickup scheduled', variant: 'info' },
+  picked_up: { label: 'Picked up', variant: 'info' },
   in_transit: { label: 'In transit', variant: 'info' },
   out_for_delivery: { label: 'Out for delivery', variant: 'warning' },
   delivered: { label: 'Delivered', variant: 'success' },
-  rto: { label: 'Returned to origin', variant: 'destructive' },
-  canceled: { label: 'Cancelled', variant: 'destructive' },
+  delivery_failed: { label: 'Delivery failed (NDR)', variant: 'destructive' },
+  rto_initiated: { label: 'RTO initiated', variant: 'destructive' },
+  rto_in_transit: { label: 'RTO in transit', variant: 'destructive' },
+  rto_delivered: { label: 'RTO delivered', variant: 'secondary' },
+  cancelled: { label: 'Cancelled', variant: 'secondary' },
 };
 
 const STATUS_TABS = [
@@ -54,13 +60,9 @@ const STATUS_TABS = [
   { id: 'exceptions', label: 'Exceptions' },
 ];
 
-const OPEN_STATUSES = ['manifested', 'pickup_scheduled', 'in_transit', 'out_for_delivery'];
-const EXCEPTION_STATUSES = ['rto', 'canceled'];
+const OPEN_STATUSES = ['pending', 'ready_to_ship', 'shipment_created', 'pickup_scheduled', 'picked_up', 'in_transit', 'out_for_delivery'];
+const EXCEPTION_STATUSES = ['delivery_failed', 'rto_initiated', 'rto_in_transit', 'rto_delivered'];
 
-const CARRIER_OPTIONS = [
-  { value: 'all', label: 'All carriers' },
-  ...Object.entries(CARRIER_LABELS).map(([value, label]) => ({ value, label })),
-];
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -135,13 +137,22 @@ export function ShipmentsAndDispatch({ onShowToast }) {
 
   const shipments = useMemo(() => data?.shipments ?? [], [data]);
 
+  // Couriers as the integration names them ("Delhivery Surface"); older records use the short keys.
+  const carrierOptions = useMemo(
+    () => [
+      { value: 'all', label: 'All carriers' },
+      ...[...new Set(shipments.map((s) => s.carrier).filter(Boolean))].map((value) => ({ value, label: CARRIER_LABELS[value] ?? value })),
+    ],
+    [shipments]
+  );
+
   const counts = useMemo(
     () => ({
       all: shipments.length,
       open: shipments.filter((s) => OPEN_STATUSES.includes(s.status)).length,
       delivered: shipments.filter((s) => s.status === 'delivered').length,
       exceptions: shipments.filter((s) => EXCEPTION_STATUSES.includes(s.status)).length,
-      awaitingPickup: shipments.filter((s) => s.status === 'manifested').length,
+      awaitingPickup: shipments.filter((s) => ['ready_to_ship', 'shipment_created', 'pickup_scheduled'].includes(s.status)).length,
       outForDelivery: shipments.filter((s) => s.status === 'out_for_delivery').length,
     }),
     [shipments]
@@ -346,7 +357,7 @@ export function ShipmentsAndDispatch({ onShowToast }) {
               <FilterDropdown
                 value={carrierFilter}
                 onChange={(value) => setParam('carrier', value)}
-                options={CARRIER_OPTIONS}
+                options={carrierOptions}
                 label="Carrier"
               />
               <FilterDropdown

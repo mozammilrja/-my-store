@@ -1,154 +1,113 @@
 import crypto from "node:crypto"
 import { env } from "../../env.js"
+import { providerJson } from "../providers/http.js"
 
-export interface RazorpayOrderResult {
+/*
+ * Razorpay REST API (https://razorpay.com/docs/api/). Amounts are integers in
+ * the smallest currency unit (paise). Only the key id ever reaches a browser;
+ * the secret signs requests here and verifies signatures.
+ */
+
+export type RazorpayOrder = {
   id: string
-  entity: string
   amount: number
   amount_paid: number
   amount_due: number
   currency: string
   receipt: string
-  status: string
-  attempts: number
+  status: "created" | "attempted" | "paid"
   notes: Record<string, string>
   created_at: number
 }
 
-export interface RazorpayRefundResult {
+export type RazorpayPayment = {
   id: string
-  entity: string
+  order_id: string | null
   amount: number
   currency: string
-  payment_id: string
-  status: string
+  status: "created" | "authorized" | "captured" | "refunded" | "failed"
+  method: string
+  captured: boolean
+  amount_refunded: number
+  error_code?: string | null
+  error_description?: string | null
+  email?: string
   created_at: number
 }
 
-export function isRazorpayConfigured(): boolean {
-  return !!(env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET)
-}
-
-/**
- * Creates an order on Razorpay for collecting payment.
- * Amount must be an integer in minor units (e.g. paise for INR).
- */
-export async function createRazorpayOrder(params: {
+export type RazorpayRefund = {
+  id: string
+  payment_id: string
   amount: number
   currency: string
-  receipt: string
-  notes?: Record<string, string>
-}): Promise<RazorpayOrderResult> {
-  if (!isRazorpayConfigured()) {
-    throw new Error("Razorpay credentials (RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET) are not configured in environment.")
-  }
+  status: "pending" | "processed" | "failed"
+  notes: Record<string, string>
+  created_at: number
+}
 
-  const authHeader = Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64")
-  const res = await fetch("https://api.razorpay.com/v1/orders", {
+export const isRazorpayConfigured = () => !!(env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET)
+
+const call = <T>(path: string, options: Parameters<typeof providerJson>[2] = {}) => {
+  if (!isRazorpayConfigured()) throw new Error("Razorpay is not configured (RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET).")
+  const auth = Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64")
+  return providerJson<T>("Razorpay", `${env.RAZORPAY_API_BASE}/v1${path}`, {
+    ...options,
+    headers: { authorization: `Basic ${auth}`, ...options.headers },
+  })
+}
+
+/** A Razorpay order for an exact amount; the checkout window can only collect that amount. */
+export const createRazorpayOrder = (params: { amount: number; currency: string; receipt: string; notes?: Record<string, string> }) =>
+  call<RazorpayOrder>("/orders", {
     method: "POST",
-    headers: {
-      Authorization: `Basic ${authHeader}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      amount: params.amount,
-      currency: params.currency.toUpperCase(),
-      receipt: params.receipt,
-      notes: params.notes ?? {},
-    }),
+    body: { amount: params.amount, currency: params.currency.toUpperCase(), receipt: params.receipt, notes: params.notes ?? {} },
   })
 
-  const data = await res.json()
-  if (!res.ok) {
-    throw new Error(`Razorpay order creation failed: ${data?.error?.description ?? res.statusText}`)
-  }
+export const fetchRazorpayPayment = (paymentId: string) => call<RazorpayPayment>(`/payments/${encodeURIComponent(paymentId)}`)
 
-  return data as RazorpayOrderResult
-}
+export const fetchRazorpayOrderPayments = async (orderId: string) =>
+  (await call<{ items: RazorpayPayment[] }>(`/orders/${encodeURIComponent(orderId)}/payments`)).items
 
-/**
- * Cryptographically validates the HMAC-SHA256 signature returned by the Razorpay frontend checkout.
- */
-export function verifyRazorpaySignature(params: {
-  razorpayOrderId: string
-  razorpayPaymentId: string
-  razorpaySignature: string
-  secret?: string
-}): boolean {
-  const secret = params.secret ?? env.RAZORPAY_KEY_SECRET ?? process.env.RAZORPAY_KEY_SECRET
-  if (!secret) {
-    throw new Error("RAZORPAY_KEY_SECRET is not configured.")
-  }
-
-  const payload = `${params.razorpayOrderId}|${params.razorpayPaymentId}`
-  const expectedSignature = crypto
-    .createHmac("sha256", secret)
-    .update(payload)
-    .digest("hex")
-
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedSignature, "utf8"),
-      Buffer.from(params.razorpaySignature, "utf8")
-    )
-  } catch {
-    return false
-  }
-}
-
-/**
- * Validates a Razorpay webhook signature from the x-razorpay-signature header.
- */
-export function verifyRazorpayWebhook(payload: string | Buffer, signature: string, customSecret?: string): boolean {
-  const secret = customSecret ?? env.RAZORPAY_WEBHOOK_SECRET ?? process.env.RAZORPAY_WEBHOOK_SECRET
-  if (!secret) {
-    throw new Error("RAZORPAY_WEBHOOK_SECRET is not configured.")
-  }
-
-  const expectedSignature = crypto
-    .createHmac("sha256", secret)
-    .update(payload)
-    .digest("hex")
-
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedSignature, "utf8"),
-      Buffer.from(signature, "utf8")
-    )
-  } catch {
-    return false
-  }
-}
-
-/**
- * Initiates an instant refund through Razorpay's Refund API.
- */
-export async function createRazorpayRefund(params: {
-  paymentId: string
-  amount: number
-  notes?: Record<string, string>
-}): Promise<RazorpayRefundResult> {
-  if (!isRazorpayConfigured()) {
-    throw new Error("Razorpay credentials are not configured.")
-  }
-
-  const authHeader = Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64")
-  const res = await fetch(`https://api.razorpay.com/v1/payments/${params.paymentId}/refund`, {
+/** Captures an authorized payment (accounts without auto-capture). Capturing twice is rejected by Razorpay, never charged twice. */
+export const captureRazorpayPayment = (paymentId: string, amount: number, currency: string) =>
+  call<RazorpayPayment>(`/payments/${encodeURIComponent(paymentId)}/capture`, {
     method: "POST",
-    headers: {
-      Authorization: `Basic ${authHeader}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      amount: params.amount,
-      notes: params.notes ?? {},
-    }),
+    body: { amount, currency: currency.toUpperCase() },
   })
 
-  const data = await res.json()
-  if (!res.ok) {
-    throw new Error(`Razorpay refund failed: ${data?.error?.description ?? res.statusText}`)
-  }
+/**
+ * Refunds part or all of a captured payment. `receipt` is our refund id:
+ * Razorpay rejects a second refund with the same receipt, which keeps a retried
+ * request from refunding twice.
+ */
+export const createRazorpayRefund = (params: { paymentId: string; amount: number; receipt: string; notes?: Record<string, string> }) =>
+  call<RazorpayRefund>(`/payments/${encodeURIComponent(params.paymentId)}/refund`, {
+    method: "POST",
+    body: { amount: params.amount, receipt: params.receipt, notes: params.notes ?? {} },
+  })
 
-  return data as RazorpayRefundResult
+export const fetchRazorpayRefund = (paymentId: string, refundId: string) =>
+  call<RazorpayRefund>(`/payments/${encodeURIComponent(paymentId)}/refunds/${encodeURIComponent(refundId)}`)
+
+export const fetchRazorpayPaymentRefunds = async (paymentId: string) =>
+  (await call<{ items: RazorpayRefund[] }>(`/payments/${encodeURIComponent(paymentId)}/refunds`)).items
+
+const safeEqualHex = (expected: string, given: string) => {
+  const a = Buffer.from(expected, "utf8")
+  const b = Buffer.from(given, "utf8")
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
+/** The checkout handler's signature: HMAC-SHA256 of "order_id|payment_id" with the key secret. */
+export function verifyRazorpaySignature(params: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) {
+  if (!env.RAZORPAY_KEY_SECRET) return false
+  const expected = crypto.createHmac("sha256", env.RAZORPAY_KEY_SECRET).update(`${params.razorpayOrderId}|${params.razorpayPaymentId}`).digest("hex")
+  return safeEqualHex(expected, params.razorpaySignature)
+}
+
+/** Webhook signature: HMAC-SHA256 of the raw request body with the webhook secret. */
+export function verifyRazorpayWebhook(rawBody: Buffer | string, signature: string) {
+  if (!env.RAZORPAY_WEBHOOK_SECRET) return false
+  const expected = crypto.createHmac("sha256", env.RAZORPAY_WEBHOOK_SECRET).update(rawBody).digest("hex")
+  return safeEqualHex(expected, signature)
 }

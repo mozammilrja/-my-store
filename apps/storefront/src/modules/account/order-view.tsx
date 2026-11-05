@@ -117,7 +117,19 @@ export function OrderView({ order }: { order: Order }) {
             <div>
               <h3 className="font-label-md text-label-md font-bold text-on-surface uppercase">Live Consignment Tracking</h3>
               <p className="font-body-sm text-xs text-on-surface-variant">
-                Partner: <strong className="text-on-surface font-semibold uppercase">{order.shipment?.carrier ?? "Blue Dart Priority Air"}</strong> &bull; AWB: <span className="font-mono">{order.shipment?.awb ?? `BLR-${order.displayId}891`}</span>
+                {order.shipment ? (
+                  <>
+                    Partner: <strong className="text-on-surface font-semibold uppercase">{order.shipment.carrier || "Courier being assigned"}</strong>
+                    {order.shipment.awb && (
+                      <>
+                        {" "}
+                        &bull; AWB: <span className="font-mono">{order.shipment.awb}</span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  "A courier is booked once your order is packed."
+                )}
               </p>
             </div>
           </div>

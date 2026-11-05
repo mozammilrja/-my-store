@@ -194,11 +194,13 @@ describe("orders", () => {
     return { order: body.order, variantId: variant.id, productId: list.products[0].id }
   }
 
-  test("status moves only forward and completes when delivered and paid", async () => {
+  test("shipping follows the shipment; the order completes when delivered and paid", async () => {
     const { order } = await placeOrder()
-    assert.equal((await call("POST", `/admin/orders/${order.id}/status`, { fulfillmentStatus: "delivered" })).status, 400)
-    assert.equal((await call("POST", `/admin/orders/${order.id}/status`, { fulfillmentStatus: "shipped" })).status, 200)
-    await call("POST", `/admin/orders/${order.id}/status`, { fulfillmentStatus: "delivered" })
+    // A bare "shipped"/"delivered" click is refused: it must come from a shipment.
+    assert.equal((await call("POST", `/admin/orders/${order.id}/status`, { fulfillmentStatus: "shipped" })).status, 400)
+    const { body: booked } = await call("POST", `/admin/orders/${order.id}/shipments`, { manual: { carrier: "Blue Dart", awb: "BD1234567890" } })
+    await call("POST", `/admin/shipments/${booked.shipment._id}/status`, { status: "delivered", note: "Courier confirmed" })
+    assert.equal((await db.orders().findOne({ _id: order.id }))?.fulfillmentStatus, "delivered")
     const done = await call("POST", `/admin/orders/${order.id}/status`, { paymentStatus: "paid" })
     assert.equal(done.body.order.status, "completed")
     assert.equal((await call("POST", `/admin/orders/${order.id}/cancel`)).status, 409)

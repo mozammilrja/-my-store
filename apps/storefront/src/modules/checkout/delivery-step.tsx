@@ -1,6 +1,7 @@
 "use client"
 
 import type { Cart, ShippingOption } from "@lib/api/types"
+import type { Serviceability } from "@lib/data/shipping"
 import { deleteLineItem, setDeliveryInstructions, setShippingOption } from "@lib/data/shop"
 import { notifyCartUpdated } from "@lib/util/cart-events"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
@@ -31,13 +32,23 @@ export function DeliveryStep({
   region,
   countryCode,
   isDefaultAddress,
+  serviceability = null,
 }: {
   cart: Cart
   region: CheckoutRegion
   countryCode: string
   /** The bag's address is the account's default one. */
   isDefaultAddress: boolean
+  /** What the courier integration says about the delivery pincode; null when unknown. */
+  serviceability?: Serviceability | null
 }) {
+  const unserviceable = serviceability?.configured === true && !serviceability.serviceable
+  const deliveryDays =
+    serviceability?.configured && serviceability.serviceable && serviceability.fastestDays != null
+      ? serviceability.fastestDays === serviceability.slowestDays || serviceability.slowestDays == null
+        ? `${serviceability.fastestDays}`
+        : `${serviceability.fastestDays}–${serviceability.slowestDays}`
+      : null
   const router = useRouter()
   const options = cart.shippingOptions
   const [selectedId, setSelectedId] = useState(cart.shippingOptionId ?? options[0]?.id ?? "")
@@ -74,6 +85,7 @@ export function DeliveryStep({
 
   const continueToReview = () => {
     setGeneralError(null)
+    if (unserviceable) return fail("Couriers don't deliver to this pincode yet. Please choose another address.")
     if (!selectedId) return fail("Please choose a delivery method.")
     startTransition(async () => {
       const shipping = await setShippingOption(selectedId)
@@ -125,6 +137,19 @@ export function DeliveryStep({
                 </div>
               )}
 
+              {unserviceable && (
+                <div className="flex items-center gap-3 p-4 bg-error-container text-on-error-container rounded-lg font-body-sm text-body-sm" role="alert" data-testid="delivery-unserviceable">
+                  <MIcon name="location_off" className="text-[20px]" />
+                  <span>
+                    Our couriers don&apos;t deliver to {ship?.postalCode} yet. Please{" "}
+                    <LocalizedClientLink href="/checkout?step=address" className="underline font-medium">
+                      choose another address
+                    </LocalizedClientLink>
+                    .
+                  </span>
+                </div>
+              )}
+
               {/* Address Summary Bar */}
               <div className="bg-surface-container-lowest p-5 md:p-6 rounded-lg shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4" data-testid="delivery-address-summary">
                 <div className="flex items-start gap-3.5 min-w-0">
@@ -142,6 +167,12 @@ export function DeliveryStep({
                       {fullName(ship)} {ship?.phone && <span className="text-on-surface-variant font-normal">| {ship.phone}</span>}
                     </h3>
                     <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5 line-clamp-1">{oneLine(ship)}</p>
+                    {deliveryDays && (
+                      <p className="font-label-sm text-label-sm text-on-surface mt-1 flex items-center gap-1" data-testid="delivery-serviceable">
+                        <MIcon name="local_shipping" className="text-[16px] text-primary" />
+                        Couriers deliver to {ship?.postalCode} in {deliveryDays} days
+                      </p>
+                    )}
                   </div>
                 </div>
                 <LocalizedClientLink
@@ -348,7 +379,7 @@ export function DeliveryStep({
                     className="w-full h-12 bg-primary hover:bg-primary-container text-on-primary rounded font-label-md text-label-md uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-[0.99] disabled:opacity-60"
                     type="button"
                     onClick={continueToReview}
-                    disabled={pending || saving}
+                    disabled={pending || saving || unserviceable}
                     data-testid="checkout-continue-button"
                   >
                     <span>{pending ? "Saving…" : "Continue to Review"}</span>

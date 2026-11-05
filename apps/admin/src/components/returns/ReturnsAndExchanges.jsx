@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { adminApi } from '../../lib/api';
 import { formatMoney } from '../../lib/format';
-import { useOrdersQuery, useUpdateOrderStatusMutation, useProcessReturnMutation } from '../../hooks/useAdminQueries';
+import { useOrdersQuery, useProcessReturnMutation } from '../../hooks/useAdminQueries';
 import {
   Icon,
   Card,
@@ -100,7 +100,6 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
     error: ordersError,
     refetch: refetchReturns,
   } = useOrdersQuery({ limit: 50 });
-  const updateOrderStatusMutation = useUpdateOrderStatusMutation();
   const processReturnMutation = useProcessReturnMutation();
 
   // Fetch real returned or canceled orders from query cache
@@ -300,13 +299,6 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
   const returnsPager = useClientTable(filteredReturns);
 
   const handleApproveRefund = () => {
-    confetti({
-      particleCount: 70,
-      spread: 60,
-      origin: { y: 0.8 },
-      colors: themeChartColors(),
-    });
-
     setReturnsList(prev => prev.map(r => {
       if (r.id === activeReturn.id) {
         return {
@@ -318,43 +310,40 @@ export function ReturnsAndExchanges({ onShowToast, currentHub }) {
       return r;
     }));
 
-    if (activeReturn?.backendOrderId) {
-      processReturnMutation.mutateAsync({
+    if (!activeReturn?.backendOrderId) return;
+    // Only what the API confirms is reported: Razorpay accepted the refund
+    // (processed or pending), or it was refused and nothing changed.
+    processReturnMutation
+      .mutateAsync({
         orderId: activeReturn.backendOrderId,
         reason: activeReturn.returnReason || `QC Passed Grade ${selectedGrade}`,
-        action: 'refund'
-      }).then(res => {
-        if (res?.creditNoteNumber) {
-          onShowToast({
-            type: 'success',
-            title: 'Credit Note Settled',
-            message: `Issued Credit Note #${res.creditNoteNumber} for order ${activeReturn.orderRef}.`,
-          });
-        }
-      }).catch(err => {
-        console.warn('Backend return processing notice:', err?.message);
-        updateOrderStatusMutation.mutateAsync({
-          orderId: activeReturn.backendOrderId,
-          status: { paymentStatus: 'refunded', fulfillmentStatus: 'returned' }
-        }).catch(e => console.warn('Order status sync notice:', e?.message));
-      });
-    }
-
-    onShowToast({
-      type: 'success',
-      title: 'Refund Disbursed Instantly',
-      message: `₹${activeReturn.refundValue.toLocaleString('en-IN')} sent via ${activeReturn.settlementEngine} to ${activeReturn.customer.upiId ?? activeReturn.customer.name}. Grade ${selectedGrade} inventory restocked.`,
-      duration: 5000,
-    });
+        action: 'refund',
+      })
+      .then((res) => {
+        confetti({ particleCount: 70, spread: 60, origin: { y: 0.8 }, colors: themeChartColors() })
+        const amount = res?.refund?.amount != null ? `₹${(res.refund.amount / 100).toLocaleString('en-IN')}` : 'The refund';
+        onShowToast({
+          type: 'success',
+          title: res?.status === 'processed' ? 'Refund processed' : 'Refund requested',
+          message:
+            res?.refund?.provider === 'manual'
+              ? `${amount} recorded as a cash refund for order ${activeReturn.orderRef}. Credit note ${res.creditNoteNumber}.`
+              : `${amount} accepted by Razorpay for order ${activeReturn.orderRef}${res?.status === 'processed' ? '' : '; it settles to the customer in a few days'}. Credit note ${res?.creditNoteNumber}.`,
+          duration: 6000,
+        });
+      })
+      .catch((err) =>
+        onShowToast({ type: 'error', title: 'Refund not made', message: err?.message ?? 'The refund could not be sent. Nothing was changed.' })
+      );
   };
 
 
   const handleRejectReturn = () => {
-    onShowToast({
-      type: 'danger',
-      title: 'Return Rejected',
-      message: `Flagged ${activeReturn.id} for QC non-compliance. RTO return parcel routed back to customer.`,
-    });
+    if (!activeReturn?.backendOrderId) return;
+    processReturnMutation
+      .mutateAsync({ orderId: activeReturn.backendOrderId, reason: 'Return rejected after QC', action: 'reject' })
+      .then(() => onShowToast({ type: 'info', title: 'Return rejected', message: `${activeReturn.id} was rejected. No refund was made.` }))
+      .catch((err) => onShowToast({ type: 'error', title: 'Not rejected', message: err?.message }));
   };
 
   const handleBulkQcPass = () => {

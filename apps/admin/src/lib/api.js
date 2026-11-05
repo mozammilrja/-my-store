@@ -272,9 +272,27 @@ export const adminApi = {
   updateSettings: (body) => api('/admin/settings', { method: 'PATCH', body }),
 
   // Shipments & Logistics
-  shipments: () => api('/admin/shipments'),
-  createShipment: (orderId, body = {}) => api(`/admin/orders/${orderId}/shipment`, { method: 'POST', body }),
-  trackShipment: (orderId) => api(`/admin/orders/${orderId}/track`),
+  shipments: (params = {}) => api('/admin/shipments', { query: params }),
+  shipment: (id) => api(`/admin/shipments/${id}`),
+  orderCouriers: (orderId) => api(`/admin/orders/${orderId}/couriers`),
+  /** Books with the courier integration, or `{ manual: { carrier, awb, trackingUrl? } }` for one booked elsewhere. */
+  createShipment: (orderId, body = {}) => api(`/admin/orders/${orderId}/shipments`, { method: 'POST', body }),
+  assignCourier: (id, courierId) => api(`/admin/shipments/${id}/assign-courier`, { method: 'POST', body: courierId ? { courierId } : {} }),
+  shipmentLabel: (id) => api(`/admin/shipments/${id}/label`, { method: 'POST' }),
+  shipmentPickup: (id) => api(`/admin/shipments/${id}/pickup`, { method: 'POST' }),
+  syncShipment: (id) => api(`/admin/shipments/${id}/sync`, { method: 'POST' }),
+  cancelShipment: (id) => api(`/admin/shipments/${id}/cancel`, { method: 'POST' }),
+  ndrAction: (id, body) => api(`/admin/shipments/${id}/ndr`, { method: 'POST', body }),
+  manualShipmentStatus: (id, body) => api(`/admin/shipments/${id}/status`, { method: 'POST', body }),
+
+  // Payments, refunds & integrations
+  integrations: () => api('/admin/integrations'),
+  paymentAttempts: (params = {}) => api('/admin/payment-attempts', { query: params }),
+  refunds: () => api('/admin/refunds'),
+  orderPayments: (orderId) => api(`/admin/orders/${orderId}/payments`),
+  refundOrder: (orderId, body) => api(`/admin/orders/${orderId}/refunds`, { method: 'POST', body }),
+  webhookEvents: (params = {}) => api('/admin/webhook-events', { query: params }),
+  reconcile: () => api('/admin/reconcile', { method: 'POST' }),
   returnAction: (orderId, body) => api(`/admin/orders/${orderId}/return-request`, { method: 'POST', body }),
 
   // Invoices & Credit Notes (GST & Tax)

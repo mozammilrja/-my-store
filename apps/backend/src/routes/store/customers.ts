@@ -39,6 +39,7 @@ export const toOrderSummary = (o: OrderDoc) => ({
         pickupScheduledAt: o.shipment.pickupScheduledAt?.toISOString(),
         estimatedDelivery: o.shipment.estimatedDelivery?.toISOString(),
         deliveredAt: o.shipment.deliveredAt?.toISOString(),
+        trackingUrl: o.shipment.trackingUrl,
       }
     : undefined,
   returnRequest: o.returnRequest

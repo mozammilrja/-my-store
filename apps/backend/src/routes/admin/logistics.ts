@@ -1,284 +1,215 @@
-import { Router } from "express"
+import { Router, type Request } from "express"
 import { z } from "zod"
-import { db, type OrderDoc, type ShipmentDoc } from "../../db/schema.js"
-import { badRequest, conflict, notFound } from "../../lib/errors.js"
+import { db, SHIPMENT_STATUSES } from "../../db/schema.js"
+import { conflict, forbidden, notFound } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
-import { createDelhiveryShipment, trackDelhiveryShipment } from "../../lib/logistics/delhivery.js"
-import { createBlueDartShipment, trackBlueDartShipment } from "../../lib/logistics/bluedart.js"
-import { createRazorpayRefund } from "../../lib/payments/razorpay.js"
+import { refundOrder } from "../../lib/payments/refunds.js"
+import {
+  assignCourier,
+  cancelShipment,
+  createReturnShipment,
+  createShipment,
+  generateLabel,
+  ndrAction,
+  recordManualShipment,
+  schedulePickup,
+  serviceability,
+  shippingConfigured,
+  syncTracking,
+  updateManualShipment,
+} from "../../lib/shipping/service.js"
 import { assetUrl } from "../../lib/serialize.js"
 import { getSettings } from "./settings.js"
 
 export const adminLogisticsRoutes = Router()
 
-/* ---------- Shipments & Logistics ---------- */
+/** Money and courier bookings are owner actions; staff can view. */
+const requireOwner = (req: Request) => {
+  if (req.admin!.role !== "owner") throw forbidden("Only an owner can do this")
+}
+
+const loadOrder = async (id: string) => {
+  const order = await db.orders().findOne({ _id: id })
+  if (!order) throw notFound("Order")
+  return order
+}
+
+/* ---------- Shipments ---------- */
+
+adminLogisticsRoutes.get("/shipping/status", (_req, res) => {
+  res.json({ provider: shippingConfigured() ? "shiprocket" : "none" })
+})
 
 adminLogisticsRoutes.get("/shipments", async (req, res) => {
-  const shipments = await db.shipments().find({}, { sort: { createdAt: -1 }, limit: 100 }).toArray()
-  res.json({ shipments })
+  const q = z
+    .object({
+      status: z.enum(SHIPMENT_STATUSES).optional(),
+      returns: z.enum(["true", "false"]).optional(),
+      ndr: z.enum(["true"]).optional(),
+    })
+    .parse(req.query)
+  const filter = {
+    ...(q.status ? { status: q.status } : {}),
+    ...(q.returns ? { isReturn: q.returns === "true" } : {}),
+    ...(q.ndr ? { status: "delivery_failed" as const } : {}),
+  }
+  const shipments = await db.shipments().find(filter, { sort: { createdAt: -1 }, limit: 200 }).toArray()
+  res.json({ shipments, provider: shippingConfigured() ? "shiprocket" : "none" })
 })
 
-adminLogisticsRoutes.post("/orders/:id/shipment", async (req, res) => {
+adminLogisticsRoutes.get("/shipments/:id", async (req, res) => {
+  const shipment = await db.shipments().findOne({ _id: req.params.id })
+  if (!shipment) throw notFound("Shipment")
+  res.json({ shipment })
+})
+
+/** Couriers that can deliver this order, with live rates, to choose from before booking. */
+adminLogisticsRoutes.get("/orders/:id/couriers", async (req, res) => {
+  const order = await loadOrder(req.params.id)
+  res.json(await serviceability(order.shippingAddress.postalCode, { cod: order.paymentMethod === "cod" }))
+})
+
+/**
+ * Books the order with the courier integration, or records a shipment booked
+ * elsewhere (`manual`: carrier and AWB as typed; nothing is generated).
+ */
+adminLogisticsRoutes.post("/orders/:id/shipments", async (req, res) => {
+  requireOwner(req)
   const body = z
     .object({
-      carrier: z.enum(["delhivery", "bluedart", "custom"]).default("delhivery"),
+      manual: z.object({ carrier: z.string().trim().min(2).max(80), awb: z.string().trim().min(4).max(40), trackingUrl: z.url().optional() }).optional(),
+      parcel: z
+        .object({
+          weightKg: z.number().positive().max(100).optional(),
+          lengthCm: z.number().positive().max(300).optional(),
+          breadthCm: z.number().positive().max(300).optional(),
+          heightCm: z.number().positive().max(300).optional(),
+        })
+        .optional(),
     })
-    .parse(req.body)
-
-  const order = await db.orders().findOne({ _id: req.params.id })
-  if (!order) throw notFound("Order")
-  if (order.status === "canceled") throw conflict("Order is canceled")
-  if (order.fulfillmentStatus === "delivered") throw conflict("Order already delivered")
-
-  let awb = ""
-  let labelUrl = ""
-
-  if (body.carrier === "delhivery") {
-    const result = await createDelhiveryShipment(order)
-    awb = result.awb
-    labelUrl = result.labelUrl ?? `/uploads/labels/${awb}.pdf`
-  } else if (body.carrier === "bluedart") {
-    const result = await createBlueDartShipment(order)
-    awb = result.awb
-    labelUrl = result.labelUrl ?? `/uploads/labels/${awb}.pdf`
-  } else {
-    awb = `CUST-${order.displayId}-${Date.now().toString().slice(-4)}`
-    labelUrl = `/uploads/labels/${awb}.pdf`
-  }
-
-  const now = new Date()
-  const shipmentDoc: ShipmentDoc = {
-    _id: newId("ship"),
-    orderId: order._id,
-    displayId: order.displayId,
-    carrier: body.carrier,
-    awb,
-    status: "manifested",
-    trackingEvents: [
-      {
-        timestamp: now,
-        status: "Manifested",
-        location: "Bengaluru Central Hub",
-        note: `Shipping label generated for ${body.carrier.toUpperCase()}`,
-      },
-    ],
-    pickupDate: new Date(Date.now() + 24 * 3600 * 1000),
-    labelUrl,
-    isReturn: false,
-    customer: {
-      name: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
-      phone: order.shippingAddress.phone,
-      city: order.shippingAddress.city,
-      postalCode: order.shippingAddress.postalCode,
-    },
-    itemsCount: order.items.reduce((acc, i) => acc + i.quantity, 0),
-    createdAt: now,
-    updatedAt: now,
-  }
-
-  await db.shipments().insertOne(shipmentDoc)
-
-  await db.orders().updateOne(
-    { _id: order._id },
-    {
-      $set: {
-        fulfillmentStatus: "shipped",
-        shipment: {
-          carrier: body.carrier,
-          awb,
-          status: "manifested",
-          labelUrl,
-          pickupScheduledAt: shipmentDoc.pickupDate,
-          shippedAt: now,
-        },
-        updatedAt: now,
-      },
-    }
-  )
-
-  res.status(201).json({ shipment: shipmentDoc })
+    .parse(req.body ?? {})
+  const order = await loadOrder(req.params.id)
+  const shipment = body.manual ? await recordManualShipment(order, body.manual) : await createShipment(order, { parcel: body.parcel })
+  res.status(201).json({ shipment })
 })
 
-adminLogisticsRoutes.get("/orders/:id/track", async (req, res) => {
-  const order = await db.orders().findOne({ _id: req.params.id })
-  if (!order) throw notFound("Order")
-
-  if (!order.shipment?.awb) {
-    res.json({
-      status: "unfulfilled",
-      message: "Shipment has not been manifested yet",
-      events: [],
-    })
-    return
-  }
-
-  const carrier = order.shipment.carrier
-  const awb = order.shipment.awb
-
-  if (carrier === "delhivery") {
-    const data = await trackDelhiveryShipment(awb)
-    res.json({ carrier, awb, tracking: data })
-    return
-  }
-
-  if (carrier === "bluedart") {
-    const data = await trackBlueDartShipment(awb)
-    res.json({ carrier, awb, tracking: data })
-    return
-  }
-
-  res.json({
-    carrier,
-    awb,
-    status: order.shipment.status,
-    events: [
-      {
-        timestamp: order.shipment.shippedAt ?? order.createdAt,
-        status: "Manifested",
-        location: "Dispatch Dock 4B",
-      },
-    ],
-  })
+adminLogisticsRoutes.post("/shipments/:id/assign-courier", async (req, res) => {
+  requireOwner(req)
+  const { courierId } = z.object({ courierId: z.number().int().positive().optional() }).parse(req.body ?? {})
+  res.json({ shipment: await assignCourier(req.params.id, courierId) })
 })
 
-/* ---------- Returns & Reverse Logistics ---------- */
+adminLogisticsRoutes.post("/shipments/:id/label", async (req, res) => {
+  requireOwner(req)
+  res.json({ shipment: await generateLabel(req.params.id) })
+})
+
+adminLogisticsRoutes.post("/shipments/:id/pickup", async (req, res) => {
+  requireOwner(req)
+  res.json({ shipment: await schedulePickup(req.params.id) })
+})
+
+adminLogisticsRoutes.post("/shipments/:id/sync", async (req, res) => {
+  res.json({ shipment: await syncTracking(req.params.id) })
+})
+
+adminLogisticsRoutes.post("/shipments/:id/cancel", async (req, res) => {
+  requireOwner(req)
+  res.json({ shipment: await cancelShipment(req.params.id) })
+})
+
+adminLogisticsRoutes.post("/shipments/:id/ndr", async (req, res) => {
+  requireOwner(req)
+  const body = z.object({ action: z.enum(["reattempt", "return"]), comment: z.string().trim().min(3).max(300) }).parse(req.body)
+  res.json({ shipment: await ndrAction(req.params.id, body.action, body.comment) })
+})
+
+/** Status of a hand-recorded shipment, as its courier reported it. */
+adminLogisticsRoutes.post("/shipments/:id/status", async (req, res) => {
+  requireOwner(req)
+  const body = z.object({ status: z.enum(SHIPMENT_STATUSES), note: z.string().trim().min(3).max(300) }).parse(req.body)
+  res.json({ shipment: await updateManualShipment(req.params.id, body.status, body.note) })
+})
+
+/* ---------- Returns, refunds & reverse logistics ---------- */
 
 adminLogisticsRoutes.post("/orders/:id/return-request", async (req, res) => {
+  requireOwner(req)
   const body = z
     .object({
-      reason: z.string().min(1).max(500),
+      reason: z.string().trim().min(1).max(500),
       action: z.enum(["approve", "schedule_pickup", "received", "refund", "reject"]),
       amount: z.number().int().positive().optional(),
     })
     .parse(req.body)
-
-  const order = await db.orders().findOne({ _id: req.params.id })
-  if (!order) throw notFound("Order")
-
+  const order = await loadOrder(req.params.id)
   const now = new Date()
 
   if (body.action === "approve") {
-    const returnAwb = `RET-DLV-${order.displayId}-${Date.now().toString().slice(-4)}`
-    await db.orders().updateOne(
-      { _id: order._id },
-      {
-        $set: {
-          returnRequest: {
-            status: "approved",
-            reason: body.reason,
-            items: order.items.map((i) => ({ itemId: i._id, quantity: i.quantity })),
-            returnAwb,
-            carrier: "delhivery",
-            requestedAt: order.returnRequest?.requestedAt ?? now,
-            updatedAt: now,
-          },
-          updatedAt: now,
-        },
-      }
-    )
-    res.json({ success: true, returnAwb, status: "approved" })
+    if (!order.returnRequest || !["requested", "rejected"].includes(order.returnRequest.status)) {
+      throw conflict("There is no open return request to approve.", "no_return_request")
+    }
+    await db.orders().updateOne({ _id: order._id }, { $set: { "returnRequest.status": "approved", "returnRequest.updatedAt": now, updatedAt: now } })
+    res.json({ success: true, status: "approved" })
     return
   }
 
-  if (body.action === "refund") {
-    const totalCaptured = order.totals.total
-    const priorRefunds = order.paymentDetails?.refunds?.reduce((s, r) => s + r.amount, 0) ?? (order.paymentStatus === "refunded" ? totalCaptured : 0)
+  if (body.action === "schedule_pickup") {
+    // A real reverse pickup with the courier; its AWB and tracking come from the courier.
+    const shipment = await createReturnShipment(order)
+    res.json({ success: true, status: "approved", shipment })
+    return
+  }
 
-    if (priorRefunds >= totalCaptured) {
-      throw conflict(`Order #${order.displayId} has already been fully refunded`, "refund_ceiling_exceeded")
-    }
+  if (body.action === "received") {
+    await db.orders().updateOne({ _id: order._id }, { $set: { "returnRequest.status": "received", "returnRequest.updatedAt": now, updatedAt: now } })
+    res.json({ success: true, status: "received" })
+    return
+  }
 
-    const requestedAmount = body.amount ?? (totalCaptured - priorRefunds)
-    if (priorRefunds + requestedAmount > totalCaptured) {
-      throw conflict(
-        `Refund amount (${requestedAmount}) plus prior refunds (${priorRefunds}) exceeds captured payment ceiling (${totalCaptured})`,
-        "refund_ceiling_exceeded"
-      )
-    }
+  if (body.action === "reject") {
+    await db.orders().updateOne({ _id: order._id }, { $set: { "returnRequest.status": "rejected", "returnRequest.updatedAt": now, updatedAt: now } })
+    res.json({ success: true, status: "rejected" })
+    return
+  }
 
-    let gatewayRefundId: string | undefined = undefined
-    try {
-      if (order.paymentDetails?.razorpayPaymentId) {
-        const rzpRefund = await createRazorpayRefund({
-          paymentId: order.paymentDetails.razorpayPaymentId,
-          amount: requestedAmount,
-        })
-        gatewayRefundId = rzpRefund.id
-      }
-    } catch (err: any) {
-      console.warn("Gateway refund warning (proceeding with store ledger refund):", err?.message)
-    }
-
-    const newRefundEntry = {
-      id: newId("rf"),
-      amount: requestedAmount,
+  // refund: money goes back through Razorpay (or is recorded as a cash refund for COD) first;
+  // the credit note and stock movement follow only once the refund was accepted.
+  const refund = await refundOrder(order, { amount: body.amount, reason: body.reason, adminId: req.admin!.id })
+  await db.orders().updateOne(
+    { _id: order._id },
+    { $set: { fulfillmentStatus: "returned", "returnRequest.status": "refunded", "returnRequest.updatedAt": now, updatedAt: now } }
+  )
+  const creditNoteNumber = `CN-${now.getFullYear()}-${order.displayId}-${refund._id.slice(-4)}`
+  await db.creditNotes().insertOne({
+    _id: newId("cn"),
+    creditNoteNumber,
+    invoiceNumber: `INV-${order.createdAt.getFullYear()}-${order.displayId}`,
+    orderId: order._id,
+    customerName: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
+    refundAmount: refund.amount,
+    reason: body.reason,
+    status: refund.status === "processed" ? "settled" : "issued",
+    createdAt: now,
+  })
+  for (const line of order.returnRequest?.items ?? []) {
+    const item = order.items.find((i) => i._id === line.itemId)
+    if (!item) continue
+    await db.inventoryMovements().insertOne({
+      _id: newId("mov"),
+      sku: `SKU-${item.variantId.slice(-6)}`,
+      variantId: item.variantId,
+      hubId: "BLR-FC1",
+      type: "return",
+      quantity: line.quantity,
+      referenceType: "return",
+      referenceId: order._id,
       reason: body.reason,
-      createdAt: now,
-      providerRefundId: gatewayRefundId,
-    }
-
-    const isFullyRefunded = priorRefunds + requestedAmount >= totalCaptured
-
-    await db.orders().updateOne(
-      { _id: order._id },
-      {
-        $set: {
-          paymentStatus: isFullyRefunded ? "refunded" : "paid",
-          fulfillmentStatus: "returned",
-          status: "completed",
-          ...(gatewayRefundId ? { "paymentDetails.refundId": gatewayRefundId } : {}),
-          "returnRequest.status": "refunded",
-          "returnRequest.updatedAt": now,
-          updatedAt: now,
-        },
-        $push: {
-          "paymentDetails.refunds": newRefundEntry,
-        },
-      }
-    )
-
-    // Automatically issue sequential Credit Note
-    const creditNoteNumber = `CN-${now.getFullYear()}-${order.displayId}`
-    await db.creditNotes().insertOne({
-      _id: newId("cn"),
-      creditNoteNumber,
-      invoiceNumber: `INV-${now.getFullYear()}-${order.displayId}`,
-      orderId: order._id,
-      customerName: `${order.shippingAddress.firstName} ${order.shippingAddress.lastName}`,
-      refundAmount: requestedAmount,
-      reason: body.reason || "Return inspection passed & approved",
-      status: "settled",
+      balanceAfter: 0,
       createdAt: now,
     })
-
-    // Inventory movement for returned goods back to hub
-    for (const item of order.items) {
-      await db.inventoryMovements().insertOne({
-        _id: newId("mov"),
-        sku: `SKU-${item.variantId.slice(-6)}`,
-        variantId: item.variantId,
-        hubId: "BLR-FC1",
-        type: "return",
-        quantity: item.quantity,
-        referenceType: "return",
-        referenceId: order._id,
-        reason: body.reason,
-        balanceAfter: 0,
-        createdAt: now,
-      })
-    }
-
-    res.json({
-      success: true,
-      status: isFullyRefunded ? "refunded" : "partially_refunded",
-      refundAmount: requestedAmount,
-      creditNoteNumber,
-      refundId: gatewayRefundId,
-    })
-    return
   }
-
-  res.json({ success: true, status: body.action })
+  res.json({ success: true, status: refund.status, refund, creditNoteNumber })
 })
 
 /* ---------- Invoices & Credit Notes (GST & Finance) ---------- */

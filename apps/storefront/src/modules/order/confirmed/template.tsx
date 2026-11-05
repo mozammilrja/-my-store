@@ -102,7 +102,9 @@ export default function OrderConfirmedTemplate({
         ? "Online (Razorpay)"
         : order.paymentStatus === "refunded"
           ? "Refunded"
-          : "Online, not received"
+          : order.paymentStatus === "partially_refunded"
+            ? "Partly refunded"
+            : "Online, not received"
   const method =
     order.paymentMethod === "cod"
       ? { icon: "payments", text: "Cash on Delivery" }
@@ -110,7 +112,9 @@ export default function OrderConfirmedTemplate({
         ? { icon: "check_circle", text: "Paid Online via Razorpay" }
         : order.paymentStatus === "refunded"
           ? { icon: "currency_exchange", text: "Refunded via Razorpay" }
-          : { icon: "schedule", text: "Online Payment Not Received" }
+          : order.paymentStatus === "partially_refunded"
+            ? { icon: "currency_exchange", text: "Partly refunded via Razorpay" }
+            : { icon: "schedule", text: "Online Payment Not Received" }
 
   return (
     <div className="flex flex-col w-full">

@@ -1,6 +1,7 @@
 import { retrieveCustomer } from "@lib/data/account"
 import { getStorePolicies, listRegions } from "@lib/data/catalog"
 import { getPaymentMethods } from "@lib/data/payments"
+import { checkServiceability } from "@lib/data/shipping"
 import { retrieveCart, setShippingOption } from "@lib/data/shop"
 import { formatMoney } from "@lib/money"
 import { AddressStep } from "@modules/checkout/address-step"
@@ -96,7 +97,8 @@ export default async function Checkout(props: {
   } else if (stage === "delivery") {
     const first = customer?.addresses[0]
     const isDefault = !!first && first.address1 === cart.shippingAddress?.address1 && first.postalCode === cart.shippingAddress?.postalCode
-    body = <DeliveryStep cart={cart} region={region} countryCode={countryCode} isDefaultAddress={isDefault} />
+    const reach = cart.shippingAddress ? await checkServiceability(cart.shippingAddress.postalCode) : null
+    body = <DeliveryStep cart={cart} region={region} countryCode={countryCode} isDefaultAddress={isDefault} serviceability={reach} />
   } else if (stage === "review") {
     body = <ReviewStep cart={cart} customer={customer} region={region} countryCode={countryCode} />
   } else {

@@ -159,6 +159,7 @@ export function toStoreOrder(o: OrderDoc, tracking?: ShipmentDoc | null) {
           awb: o.shipment.awb,
           status: o.shipment.status,
           labelUrl: o.shipment.labelUrl,
+          trackingUrl: o.shipment.trackingUrl,
           pickupScheduledAt: o.shipment.pickupScheduledAt?.toISOString(),
           estimatedDelivery: o.shipment.estimatedDelivery?.toISOString(),
           shippedAt: o.shipment.shippedAt?.toISOString(),

@@ -1,6 +1,13 @@
 import assert from "node:assert/strict"
+import crypto from "node:crypto"
 import { after, before, describe, test } from "node:test"
+import { createProviderStub } from "./provider-stub.js"
 
+// Online payment runs against a local stand-in for the Razorpay API.
+const rzp = createProviderStub()
+process.env.RAZORPAY_API_BASE = await rzp.start()
+process.env.RAZORPAY_KEY_ID = "rzp_test_e2e"
+process.env.RAZORPAY_KEY_SECRET = "e2e_key_secret_for_tests_only"
 process.env.MONGODB_DB = "everwear_test_e2e"
 process.env.NODE_ENV = "test"
 process.env.JWT_SECRET = "01234567890123456789012345678901"
@@ -245,14 +252,18 @@ describe("End-to-End Customer & Admin Integrated Flow", () => {
     assert.equal(intentRes.status, 200)
     assert.equal(intentRes.body.provider, "razorpay")
 
-    // Confirm payment
+    // The shopper pays in the Razorpay window; checkout reports it with its signature.
+    const payment = rzp.pay(intentRes.body.razorpayOrderId)
     const confirmRes = await call("POST", `/store/carts/${cartId}/confirm-payment`, {
       provider: "razorpay",
       razorpayOrderId: intentRes.body.razorpayOrderId,
-      razorpayPaymentId: "pay_test_online_89410",
-      razorpaySignature: "sig_valid_test",
+      razorpayPaymentId: payment.id,
+      razorpaySignature: crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .update(`${intentRes.body.razorpayOrderId}|${payment.id}`)
+        .digest("hex"),
     })
-    assert.equal(confirmRes.status, 201)
+    assert.equal(confirmRes.status, 201, JSON.stringify(confirmRes.body))
     const paidOrder = confirmRes.body.order
     assert.equal(paidOrder.paymentStatus, "paid")
     assert.equal(paidOrder.paymentMethod, "razorpay")
@@ -263,31 +274,28 @@ describe("End-to-End Customer & Admin Integrated Flow", () => {
     assert.equal(invoice?.status, "paid")
     assert.equal(invoice?.customerName, "Aarav Sharma")
 
-    // 4. Admin Manifests Carrier Shipment (Delhivery)
+    // 4. No courier integration here, so the shipment is recorded by hand: the
+    //    carrier and AWB are what the admin typed, nothing is generated.
     const shipRes = await call(
       "POST",
-      `/admin/orders/${paidOrder.id}/shipment`,
-      { carrier: "delhivery" },
+      `/admin/orders/${paidOrder.id}/shipments`,
+      { manual: { carrier: "Delhivery", awb: "DLV880001234" } },
       { Authorization: `Bearer ${adminToken}` }
     )
     assert.equal(shipRes.status, 201)
-    const shipment = shipRes.body.shipment
-    assert.ok(shipment.awb, "AWB must be generated for carrier shipment")
-    assert.equal(shipment.carrier, "delhivery")
+    assert.equal(shipRes.body.shipment.awb, "DLV880001234")
+    assert.equal(shipRes.body.shipment.status, "shipment_created")
+    const delivered = await call(
+      "POST",
+      `/admin/shipments/${shipRes.body.shipment._id}/status`,
+      { status: "delivered", note: "Courier confirmed delivery" },
+      { Authorization: `Bearer ${adminToken}` }
+    )
+    assert.equal(delivered.status, 200)
+    assert.equal((await db.orders().findOne({ _id: paidOrder.id }))?.fulfillmentStatus, "delivered")
 
-    // Verify shipment record in MongoDB
-    const shipDoc = await db.shipments().findOne({ orderId: paidOrder.id })
-    assert.ok(shipDoc)
-    assert.equal(shipDoc?.status, "manifested")
-
-    // 5. Track Carrier Shipment
-    const trackRes = await call("GET", `/admin/orders/${paidOrder.id}/track`, undefined, {
-      Authorization: `Bearer ${adminToken}`,
-    })
-    assert.equal(trackRes.status, 200)
-    assert.equal(trackRes.body.carrier, "delhivery")
-
-    // 6. Customer Returns & Admin Issues Credit Note
+    // 5. Customer returns; the owner approves and refunds through Razorpay.
+    await call("POST", `/store/customers/me/orders/${paidOrder.id}/returns`, { reason: "Size exchange needed" }, { Authorization: `Bearer ${customerToken}` })
     const approveReturn = await call(
       "POST",
       `/admin/orders/${paidOrder.id}/return-request`,
@@ -295,17 +303,16 @@ describe("End-to-End Customer & Admin Integrated Flow", () => {
       { Authorization: `Bearer ${adminToken}` }
     )
     assert.equal(approveReturn.status, 200)
-    assert.ok(approveReturn.body.returnAwb)
 
-    // Admin processes refund
     const refundRes = await call(
       "POST",
       `/admin/orders/${paidOrder.id}/return-request`,
       { reason: "Inspection passed", action: "refund" },
       { Authorization: `Bearer ${adminToken}` }
     )
-    assert.equal(refundRes.status, 200)
-    assert.equal(refundRes.body.status, "refunded")
+    assert.equal(refundRes.status, 200, JSON.stringify(refundRes.body))
+    assert.equal(refundRes.body.status, "processed")
+    assert.equal((await db.orders().findOne({ _id: paidOrder.id }))?.paymentStatus, "refunded")
 
     // VERIFY CREDIT NOTE IN MONGODB
     const creditNote = await db.creditNotes().findOne({ orderId: paidOrder.id })
@@ -358,5 +365,6 @@ describe("End-to-End Customer & Admin Integrated Flow", () => {
   after(async () => {
     await close()
     await disconnect()
+    await rzp.close()
   })
 })

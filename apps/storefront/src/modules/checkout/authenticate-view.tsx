@@ -1,6 +1,6 @@
 "use client"
 
-import { placeOrder, startOnlinePayment, type OnlinePaymentIntent } from "@lib/data/shop"
+import { paymentOutcome, placeOrder, startOnlinePayment, type OnlinePaymentIntent } from "@lib/data/shop"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -106,12 +106,27 @@ export function AuthenticateView({
           form.append("razorpayOrderId", r.razorpay_order_id)
           form.append("razorpayPaymentId", r.razorpay_payment_id)
           form.append("razorpaySignature", r.razorpay_signature)
+          // The bank approved: confirm with the API. If that fails, the payment
+          // may still settle (bank slow to confirm, network drop, or the webhook
+          // gets there first), so check its real status before saying it failed.
+          const settleOrFail = async (reason: string) => {
+            for (let i = 0; i < 10; i++) {
+              const outcome = await paymentOutcome()
+              if (outcome.status === "paid" && outcome.orderId) {
+                router.push(`/${countryCode}/order/${outcome.orderId}/confirmed`)
+                return
+              }
+              if (outcome.status === "failed" || outcome.status === "refunded") break
+              await new Promise((r) => setTimeout(r, 3000))
+            }
+            failTo(reason)
+          }
           try {
             const placed = await placeOrder({ error: null }, form)
-            if (placed?.error) failTo(placed.error)
+            if (placed?.error) await settleOrFail(placed.error)
           } catch (e) {
             const m = e instanceof Error ? e.message : String(e)
-            if (!m.includes("NEXT_REDIRECT")) failTo(m)
+            if (!m.includes("NEXT_REDIRECT")) await settleOrFail(m)
           }
         },
         modal: { ondismiss: () => setStatus((s) => (s === "confirming" ? s : "dismissed")) },
@@ -127,7 +142,7 @@ export function AuthenticateView({
       setStatus("error")
       setMessage("The secure payment window couldn't be opened. Check your connection and try again.")
     }
-  }, [intent, merchant, prefill, method, countryCode, failTo])
+  }, [intent, merchant, prefill, method, countryCode, failTo, router])
 
   useEffect(() => {
     if (!available || started.current) return

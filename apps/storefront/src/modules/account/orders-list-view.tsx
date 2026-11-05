@@ -394,17 +394,26 @@ export function OrdersListView({
                         </span>
                         <span className="text-on-surface-variant text-xs">&bull;</span>
                         <span className="font-body-sm text-body-sm text-on-surface font-medium">
-                          Expected Delivery <strong className="text-primary font-semibold">Scheduled via Priority Air</strong>
+                          Expected Delivery{" "}
+                          <strong className="text-primary font-semibold">
+                            {order.shipment?.estimatedDelivery
+                              ? new Date(order.shipment.estimatedDelivery).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })
+                              : "Shared by the courier after pickup"}
+                          </strong>
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm">
                       <span className="material-symbols-outlined text-[16px] text-secondary">local_shipping</span>
-                      <span>Courier: <strong className="text-on-surface font-medium">Blue Dart Express</strong></span>
-                      <span className="text-on-surface-variant text-xs">&bull;</span>
-                      <span className="font-label-caps uppercase text-label-caps text-outline bg-surface-container px-2 py-0.5 rounded">
-                        AWB #{order.shipment?.awb ?? `BLR-${order.displayId}904`}
+                      <span>
+                        Courier: <strong className="text-on-surface font-medium">{order.shipment?.carrier || "Being assigned"}</strong>
                       </span>
+                      {order.shipment?.awb && (
+                        <>
+                          <span className="text-on-surface-variant text-xs">&bull;</span>
+                          <span className="font-label-caps uppercase text-label-caps text-on-surface-variant bg-surface-container px-2 py-0.5 rounded">AWB #{order.shipment.awb}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

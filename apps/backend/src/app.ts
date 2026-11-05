@@ -25,6 +25,8 @@ import { adminLogisticsRoutes } from "./routes/admin/logistics.js"
 import { adminWarehouseRoutes } from "./routes/admin/warehouses.js"
 import { adminSiteMediaRoutes } from "./routes/admin/site-media.js"
 import { siteMediaRoutes } from "./routes/store/site-media.js"
+import { storeShippingRoutes } from "./routes/store/shipping.js"
+import { adminPaymentRoutes } from "./routes/admin/payments.js"
 
 /** Turns anything thrown by a route into the API's error shape. */
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
@@ -95,11 +97,11 @@ export function createApp(): Express {
     res.json({ status: "ok" })
   })
 
-  app.use("/store", catalogRoutes, customerRoutes, cartRoutes, storePaymentRoutes, conciergeRoutes, newsletterRoutes, sellerRoutes, siteMediaRoutes)
+  app.use("/store", catalogRoutes, customerRoutes, cartRoutes, storePaymentRoutes, conciergeRoutes, newsletterRoutes, sellerRoutes, siteMediaRoutes, storeShippingRoutes)
 
   app.use("/admin", adminAuthRoutes)
   // Everything past the login route needs a signed-in admin.
-  app.use("/admin", ...requireAdmin, adminAnalyticsRoutes, adminOrderRoutes, adminProductRoutes, adminStoreRoutes, adminSettingsRoutes, adminUserRoutes, adminLogisticsRoutes, adminWarehouseRoutes, adminSiteMediaRoutes)
+  app.use("/admin", ...requireAdmin, adminAnalyticsRoutes, adminOrderRoutes, adminProductRoutes, adminStoreRoutes, adminSettingsRoutes, adminUserRoutes, adminLogisticsRoutes, adminWarehouseRoutes, adminSiteMediaRoutes, adminPaymentRoutes)
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "not_found", message: "Route not found" } })

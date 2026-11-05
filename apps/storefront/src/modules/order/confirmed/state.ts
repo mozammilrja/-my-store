@@ -57,13 +57,19 @@ export function policyWindow(order: Order, policies: RegionPolicies | null) {
 }
 
 const SHIPMENT_STATUS: Record<string, string> = {
-  manifested: "Manifested",
-  pickup_scheduled: "Pickup Scheduled",
-  in_transit: "In Transit",
-  out_for_delivery: "Out for Delivery",
+  pending: "Booking with courier",
+  ready_to_ship: "Ready to ship",
+  shipment_created: "Shipment created",
+  pickup_scheduled: "Pickup scheduled",
+  picked_up: "Picked up",
+  in_transit: "In transit",
+  out_for_delivery: "Out for delivery",
   delivered: "Delivered",
-  rto: "Returning to Origin",
-  canceled: "Shipment Canceled",
+  delivery_failed: "Delivery attempt failed",
+  rto_initiated: "Returning to origin",
+  rto_in_transit: "Returning to origin",
+  rto_delivered: "Returned to origin",
+  cancelled: "Shipment cancelled",
 }
 export const shipmentStatusLabel = (status: string) => SHIPMENT_STATUS[status] ?? status.replace(/_/g, " ")
 

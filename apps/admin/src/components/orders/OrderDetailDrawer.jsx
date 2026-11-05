@@ -11,6 +11,7 @@ import {
   EmptyState,
   ConfirmDialog,
 } from '../ui';
+import { OrderLogisticsPanel } from './OrderLogisticsPanel';
 
 /** Minor units in, a localised amount out. */
 const money = (minor, currency) => formatMoney(Number(minor) || 0, currency);
@@ -44,10 +45,7 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose, 
     );
   }
 
-  const raw = order.rawBackend ?? {};
   const isCancelled = order.status === 'Cancelled';
-  const canShip = !isCancelled && order.status === 'Unfulfilled';
-  const canDeliver = !isCancelled && order.status === 'Shipped';
   // The API refuses to cancel a shipped order or one that has been paid.
   const canCancel = !isCancelled && order.status === 'Unfulfilled' && order.payment.paymentStatus !== 'paid';
   const currency = order.payment.currency;
@@ -189,46 +187,11 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose, 
           </div>
         </dl>
 
-        {/* Shipment */}
-        <section className="flex flex-col gap-space-sm">
-          <h3 className="text-subheading text-primary">Shipment</h3>
-          {order.shipment ? (
-            <dl className="flex flex-col gap-space-xs text-meta">
-              <div className="flex justify-between gap-space-md">
-                <dt className="text-muted">Carrier</dt>
-                <dd className="text-primary">{order.shipment.carrier}</dd>
-              </div>
-              <div className="flex justify-between gap-space-md">
-                <dt className="text-muted">AWB</dt>
-                <dd className="font-mono text-primary">{order.shipment.awb}</dd>
-              </div>
-              {order.shipment.status && (
-                <div className="flex justify-between gap-space-md">
-                  <dt className="text-muted">Carrier status</dt>
-                  <dd className="text-primary">{String(order.shipment.status).replace(/_/g, ' ')}</dd>
-                </div>
-              )}
-              {raw.shipment?.labelUrl && (
-                <a
-                  href={raw.shipment.labelUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-label text-accent hover:underline"
-                >
-                  Open shipping label
-                </a>
-              )}
-            </dl>
-          ) : (
-            <p className="text-meta text-muted">
-              {isCancelled ? 'This order was cancelled before it shipped.' : 'No shipment has been booked yet.'}
-            </p>
-          )}
-        </section>
+        <OrderLogisticsPanel order={order} onShowToast={onShowToast} />
       </div>
 
       {/* Status actions */}
-      {(canShip || canDeliver || canCancel) && (
+      {canCancel && (
         <div className="flex flex-wrap items-center justify-end gap-space-sm border-t border-subtle bg-surface-subtle p-space-md">
           {canCancel && (
             <Button
@@ -239,18 +202,6 @@ export function OrderDetailDrawer({ order, onShowToast, onUpdateOrder, onClose, 
               className="text-danger hover:bg-status-danger-bg hover:text-danger"
             >
               Cancel order
-            </Button>
-          )}
-          {canShip && (
-            <Button variant="primary" size="sm" onClick={() => setStatus('Shipped')} disabled={isUpdating}>
-              <Icon name="local_shipping" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
-              <span>Mark as shipped</span>
-            </Button>
-          )}
-          {canDeliver && (
-            <Button variant="primary" size="sm" onClick={() => setStatus('Delivered')} disabled={isUpdating}>
-              <Icon name="check" aria-hidden="true" className="material-symbols-outlined text-icon-sm" />
-              <span>Mark as delivered</span>
             </Button>
           )}
         </div>

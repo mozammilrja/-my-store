@@ -203,9 +203,15 @@ const FULFILLMENT_NEXT: Record<OrderDoc["fulfillmentStatus"], OrderDoc["fulfillm
   delivered: ["returned"],
   returned: [],
 }
+/**
+ * Hand-set payment states, cash on delivery only: "paid" when the courier's
+ * cash is collected, "refunded" for a cash refund. An online payment's status
+ * follows Razorpay (verification, webhooks and refunds), never a click here.
+ */
 const PAYMENT_NEXT: Record<OrderDoc["paymentStatus"], OrderDoc["paymentStatus"][]> = {
   awaiting: ["paid"],
   paid: ["refunded"],
+  partially_refunded: [],
   refunded: [],
 }
 
@@ -220,8 +226,16 @@ adminOrderRoutes.post("/orders/:id/status", async (req, res) => {
   const order = await db.orders().findOne({ _id: req.params.id })
   if (!order) throw notFound("Order")
   if (order.status === "canceled") throw conflict("This order is canceled", "order_canceled")
+  // Shipped and delivered follow the order's shipment (courier tracking, or a
+  // hand-recorded shipment's updates), never a bare status click.
+  if (body.fulfillmentStatus === "shipped" || body.fulfillmentStatus === "delivered") {
+    throw badRequest("Book or record a shipment for this order; its status follows the courier.", "shipment_managed")
+  }
   if (body.fulfillmentStatus && !FULFILLMENT_NEXT[order.fulfillmentStatus].includes(body.fulfillmentStatus)) {
     throw badRequest(`Can't go from ${order.fulfillmentStatus} to ${body.fulfillmentStatus}`, "invalid_transition")
+  }
+  if (body.paymentStatus && order.paymentMethod !== "cod") {
+    throw badRequest("Online payments change only through Razorpay. Use Refund to return money.", "gateway_managed")
   }
   if (body.paymentStatus && !PAYMENT_NEXT[order.paymentStatus].includes(body.paymentStatus)) {
     throw badRequest(`Can't go from ${order.paymentStatus} to ${body.paymentStatus}`, "invalid_transition")

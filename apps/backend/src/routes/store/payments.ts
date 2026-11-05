@@ -1,20 +1,15 @@
+import { createHash } from "node:crypto"
 import { Router } from "express"
-import { buildInvoiceLines } from "../../lib/invoice.js"
 import { z } from "zod"
-import { db, type CartDoc, type LineItem, type OrderDoc, type RegionDoc } from "../../db/schema.js"
-import { withTransaction } from "../../db/client.js"
+import { db } from "../../db/schema.js"
 import { env } from "../../env.js"
-import { badRequest, conflict, notFound } from "../../lib/errors.js"
-import { newId } from "../../lib/ids.js"
-import { computeTotals, promotionUsable } from "../../lib/totals.js"
+import { priceCart } from "../../lib/checkout/place-order.js"
+import { badRequest, notFound } from "../../lib/errors.js"
+import { log } from "../../lib/log.js"
+import { isRazorpayConfigured, verifyRazorpaySignature, verifyRazorpayWebhook } from "../../lib/payments/razorpay.js"
+import { applyRazorpayEvent, openPaymentAttempt, settleRazorpayPayment } from "../../lib/payments/settle.js"
+import { claimWebhookEvent } from "../../lib/providers/webhook-events.js"
 import { toStoreOrder } from "../../lib/serialize.js"
-import { executeIdempotent } from "../../lib/idempotency.js"
-import {
-  createRazorpayOrder,
-  verifyRazorpaySignature,
-  verifyRazorpayWebhook,
-  isRazorpayConfigured,
-} from "../../lib/payments/razorpay.js"
 
 export const storePaymentRoutes = Router()
 
@@ -39,388 +34,113 @@ storePaymentRoutes.get("/payment-methods", (_req, res) => {
   })
 })
 
-async function getValidCartAndTotals(id: string) {
-  const cart = await db.carts().findOne({ _id: cartId.parse(id) })
-  if (!cart) throw notFound("Cart")
-  if (cart.completedAt) throw conflict("Cart already completed")
-  if (!cart.items.length) throw badRequest("Cart is empty")
-  if (!cart.email) throw badRequest("Email is required")
-  if (!cart.shippingAddress) throw badRequest("Shipping address is required")
-  if (!cart.shippingOptionId) throw badRequest("Shipping option is required")
-
-  const region = await db.regions().findOne({ _id: cart.regionId })
-  if (!region) throw notFound("Region")
-
-  const promotions = cart.promoCodes.length
-    ? await db.promotions().find({ code: { $in: cart.promoCodes } }).toArray()
-    : []
-  const totals = computeTotals(cart, region, promotions)
-
-  return { cart, region, promotions, totals }
-}
-
 /**
- * Initializes a payment for the cart: Razorpay for prepaid orders, or cash on delivery.
+ * Opens online payment for the cart: a Razorpay order for its exact total,
+ * reused while it stays open. Cash on delivery needs no intent.
  */
 storePaymentRoutes.post("/carts/:id/payment-intent", async (req, res) => {
-  const body = z
-    .object({
-      provider: z.enum(["razorpay", "cod"]),
-    })
-    .parse(req.body)
-
-  const { cart, totals } = await getValidCartAndTotals(req.params.id)
-
+  const body = z.object({ provider: z.enum(["razorpay", "cod"]) }).parse(req.body)
+  const cart = await db.carts().findOne({ _id: cartId.parse(req.params.id) })
+  if (!cart) throw notFound("Cart")
   if (body.provider === "cod") {
-    res.json({
-      provider: "cod",
-      amount: totals.total,
-      currency: cart.currency,
-      ready: true,
-    })
+    const { totals } = await priceCart(cart)
+    res.json({ provider: "cod", amount: totals.total, currency: cart.currency, ready: true })
     return
   }
-
-  if (body.provider === "razorpay") {
-    if (isRazorpayConfigured()) {
-      const razorpayOrder = await createRazorpayOrder({
-        amount: totals.total,
-        currency: cart.currency,
-        receipt: cart._id,
-        notes: { cartId: cart._id, email: cart.email! },
-      })
-      res.json({
-        provider: "razorpay",
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency,
-        razorpayOrderId: razorpayOrder.id,
-        keyId: process.env.RAZORPAY_KEY_ID,
-      })
-    } else {
-      // In local dev/staging without API keys, return clean intent parameters with explicit simulation notice
-      res.json({
-        provider: "razorpay",
-        amount: totals.total,
-        currency: cart.currency,
-        razorpayOrderId: `order_rzp_mock_${cart._id.slice(-8)}`,
-        keyId: "rzp_test_placeholder",
-        isStagingSimulated: true,
-      })
-    }
-    return
-  }
+  const attempt = await openPaymentAttempt(cart)
+  res.json({
+    provider: "razorpay",
+    attemptId: attempt._id,
+    razorpayOrderId: attempt.providerOrderId,
+    amount: attempt.amount,
+    currency: attempt.currency,
+    // The public key id only; the secret never leaves the server.
+    keyId: env.RAZORPAY_KEY_ID,
+    expiresAt: attempt.expiresAt,
+  })
 })
 
 /**
- * Confirms payment and atomically creates an order in MongoDB
+ * The checkout window reported a payment. Its signature is checked, then the
+ * payment is re-read from Razorpay and settled; the order is placed only for
+ * a captured payment of the exact amount for this cart's attempt.
  */
 storePaymentRoutes.post("/carts/:id/confirm-payment", async (req, res) => {
   const body = z
     .object({
-      provider: z.enum(["razorpay", "cod"]),
-      razorpayOrderId: z.string().optional(),
-      razorpayPaymentId: z.string().optional(),
-      razorpaySignature: z.string().optional(),
-      idempotencyKey: z.string().optional(),
+      provider: z.literal("razorpay"),
+      razorpayOrderId: z.string().min(1).max(100),
+      razorpayPaymentId: z.string().min(1).max(100),
+      razorpaySignature: z.string().min(1).max(200),
     })
     .parse(req.body)
-
   const id = cartId.parse(req.params.id)
-  const idempotencyKey = (req.headers["idempotency-key"] as string) || body.idempotencyKey
+  if (!isRazorpayConfigured()) throw badRequest("Online payment isn't available right now. Please choose Cash on Delivery.", "payment_unavailable")
 
-  // An online order is only ever marked "paid" after the gateway proves it.
-  // Without Razorpay keys there is nothing to verify against, so refuse rather
-  // than create a "paid" order nobody paid for. The test suite (NODE_ENV=test)
-  // runs without keys and keeps the old path.
-  if (body.provider === "razorpay" && !isRazorpayConfigured() && env.NODE_ENV !== "test") {
-    throw badRequest(
-      "Online payment isn't available right now. Please choose Cash on Delivery.",
-      "payment_unavailable"
-    )
+  const attempt = await db.paymentAttempts().findOne({ providerOrderId: body.razorpayOrderId, cartId: id })
+  if (!attempt) throw badRequest("This payment doesn't belong to this checkout.", "payment_mismatch")
+  if (!verifyRazorpaySignature(body)) {
+    log.warn("payment.invalid_signature", { attemptId: attempt._id, cartId: id })
+    throw badRequest("We couldn't verify this payment. If money was taken, it will be refunded or confirmed automatically.", "invalid_signature")
   }
-
-  // Signature verification for Razorpay
-  if (body.provider === "razorpay" && isRazorpayConfigured()) {
-    if (!body.razorpayOrderId || !body.razorpayPaymentId || !body.razorpaySignature) {
-      throw badRequest("Missing Razorpay payment signature details")
-    }
-    const isValid = verifyRazorpaySignature({
-      razorpayOrderId: body.razorpayOrderId,
-      razorpayPaymentId: body.razorpayPaymentId,
-      razorpaySignature: body.razorpaySignature,
-    })
-    if (!isValid) {
-      throw badRequest("Razorpay payment signature verification failed", "invalid_signature")
-    }
-  }
-
-  const performConfirmation = async () => {
-    const order = await withTransaction(async (session) => {
-      const cart = await db.carts().findOne({ _id: id }, { session })
-      if (!cart) throw notFound("Cart")
-      if (cart.completedAt) {
-        const existing = await db.orders().findOne({ cartId: cart._id }, { session })
-        if (existing) return existing
-      }
-
-      const region = await db.regions().findOne({ _id: cart.regionId }, { session })
-      if (!region) throw notFound("Region")
-
-      const items = cart.items
-      if (!items.length) throw badRequest("Cart is empty")
-
-      // Reserve stock atomically
-      for (const item of items) {
-        const taken = await db.products().updateOne(
-          {
-            _id: item.productId,
-            variants: {
-              $elemMatch: {
-                _id: item.variantId,
-                $or: [{ manageInventory: false }, { allowBackorder: true }, { stock: { $gte: item.quantity } }],
-              },
-            },
-          },
-          { $inc: { "variants.$[v].stock": -item.quantity } },
-          { arrayFilters: [{ "v._id": item.variantId, "v.manageInventory": true, "v.allowBackorder": false }], session }
-        )
-        if (!taken.matchedCount) throw conflict(`${item.productTitle} (${item.variantTitle}) sold out`, "out_of_stock")
-      }
-
-      // Process promotion usage
-      const promotions = cart.promoCodes.length
-        ? await db.promotions().find({ code: { $in: cart.promoCodes } }, { session }).toArray()
-        : []
-      for (const promo of promotions) {
-        if (!promotionUsable(promo, cart.currency)) throw conflict(`Promo ${promo.code} expired`, "invalid_promo")
-        const used = await db.promotions().updateOne(
-          { _id: promo._id, $or: [{ usageLimit: null }, { usageLimit: { $exists: false } }, { $expr: { $lt: ["$usageCount", "$usageLimit"] } }] },
-          { $inc: { usageCount: 1 } },
-          { session }
-        )
-        if (!used.matchedCount) throw conflict(`Promo ${promo.code} has been used up`, "invalid_promo")
-      }
-
-      const counter = await db.counters().findOneAndUpdate(
-        { _id: "order" },
-        { $inc: { seq: 1 } },
-        { upsert: true, returnDocument: "after", session }
-      )
-
-      const now = new Date()
-      const shippingOption = region.shippingOptions.find((s) => s._id === cart.shippingOptionId) ?? region.shippingOptions[0] ?? { _id: "standard", name: "Standard Delivery", amount: 0 }
-      const totals = computeTotals(cart, region, promotions)
-
-      const doc: OrderDoc = {
-        _id: newId("order"),
-        displayId: 1000 + (counter?.seq ?? 1),
-        cartId: cart._id,
-        regionId: region._id,
-        currency: cart.currency,
-        customerId: cart.customerId ?? null,
-        email: cart.email!,
-        items,
-        shippingAddress: cart.shippingAddress!,
-        billingAddress: cart.billingAddress ?? cart.shippingAddress!,
-        shippingOption,
-        ...(cart.buyerGstin ? { buyerGstin: cart.buyerGstin } : {}),
-        ...(cart.deliveryInstructions ? { deliveryInstructions: cart.deliveryInstructions } : {}),
-        promoCodes: cart.promoCodes,
-        totals,
-        paymentMethod: body.provider,
-        paymentStatus: body.provider === "cod" ? "awaiting" : "paid",
-        paymentDetails: {
-          provider: body.provider,
-          transactionId: body.razorpayPaymentId ?? `cod_${Date.now()}`,
-          razorpayOrderId: body.razorpayOrderId,
-          razorpayPaymentId: body.razorpayPaymentId,
-          razorpaySignature: body.razorpaySignature,
-          paidAt: body.provider === "cod" ? undefined : now,
-        },
-        fulfillmentStatus: "unfulfilled",
-        status: "pending",
-        createdAt: now,
-        updatedAt: now,
-      }
-
-      await db.orders().insertOne(doc, { session })
-      await db.carts().updateOne(
-        { _id: cart._id },
-        { $set: { completedAt: now, orderId: doc._id, updatedAt: now } },
-        { session }
-      )
-
-      // Ledger: Immutable inventory movements
-      for (const item of items) {
-        await db.inventoryMovements().insertOne(
-          {
-            _id: newId("mov"),
-            sku: `SKU-${item.variantId.slice(-6)}`,
-            variantId: item.variantId,
-            hubId: "BLR-FC1",
-            type: "outbound",
-            quantity: item.quantity,
-            referenceType: "order",
-            referenceId: doc._id,
-            reason: `Order #${doc.displayId} placement`,
-            balanceAfter: 0,
-            createdAt: now,
-          },
-          { session }
-        )
-      }
-
-      // Record coupon redemptions
-      for (const promo of promotions) {
-        await db.couponRedemptions().insertOne(
-          {
-            _id: newId("crm"),
-            code: promo.code,
-            promotionId: promo._id,
-            customerId: doc.customerId,
-            cartId: cart._id,
-            orderId: doc._id,
-            status: "redeemed",
-            createdAt: now,
-          },
-          { session }
-        )
-      }
-
-      // Generate GST Invoice in DB
-      const invoiceNumber = `INV-${new Date().getFullYear()}-${doc.displayId}`
-      await db.invoices().insertOne(
-        {
-          _id: newId("inv"),
-          invoiceNumber,
-          orderId: doc._id,
-          displayId: doc.displayId,
-          customerName: `${doc.shippingAddress.firstName} ${doc.shippingAddress.lastName}`,
-          ...(doc.buyerGstin ? { customerGstin: doc.buyerGstin.gstin, customerLegalName: doc.buyerGstin.legalName } : {}),
-          shippingAddress: doc.shippingAddress,
-          billingAddress: doc.billingAddress,
-          // Lines and totals that add up to what the order charged.
-          ...buildInvoiceLines(doc, region),
-          currency: doc.currency,
-          status: doc.paymentStatus === "paid" ? "paid" : "issued",
-          issuedAt: now,
-        },
-        { session }
-      )
-
-      // Transactional Outbox Event
-      await db.outboxEvents().insertOne(
-        {
-          _id: newId("outbox"),
-          topic: "order.placed",
-          payload: { orderId: doc._id, displayId: doc.displayId, email: doc.email, total: doc.totals.total },
-          status: "pending",
-          retryCount: 0,
-          createdAt: now,
-        },
-        { session }
-      )
-
-      // Notification
-      await db.notifications().insertOne(
-        {
-          _id: newId("notif"),
-          recipientType: "customer",
-          recipientId: doc.customerId ?? doc.email,
-          type: "order_confirmation",
-          title: `Order #${doc.displayId} Confirmed`,
-          message: `Your payment was verified and order #${doc.displayId} is confirmed.`,
-          channel: "in_app",
-          status: "unread",
-          metadata: { orderId: doc._id, displayId: doc.displayId },
-          createdAt: now,
-        },
-        { session }
-      )
-
-      return doc
-    })
-
-    return {
-      status: 201,
-      body: { order: toStoreOrder(order) },
-    }
-  }
-
-  if (idempotencyKey) {
-    const result = await executeIdempotent(idempotencyKey, "confirm_payment", req.body, performConfirmation)
-    res.status(result.status).json(result.body)
-    return
-  }
-
-  const result = await performConfirmation()
-  res.status(result.status).json(result.body)
+  const order = await settleRazorpayPayment(attempt, body.razorpayPaymentId)
+  res.status(201).json({ order: toStoreOrder(order) })
 })
 
 /**
- * Razorpay Webhook endpoint
+ * Where a checkout's payment stands, for the page that waits on a payment the
+ * bank hasn't confirmed yet. Re-checks Razorpay; never trusts the browser.
  */
-storePaymentRoutes.post("/webhooks/razorpay", async (req, res) => {
-  const signature = req.headers["x-razorpay-signature"] as string
-  if (!signature) {
-    res.status(400).send("Missing signature")
+storePaymentRoutes.get("/carts/:id/payment-status", async (req, res) => {
+  const id = cartId.parse(req.params.id)
+  const cart = await db.carts().findOne({ _id: id })
+  if (!cart) throw notFound("Cart")
+  if (cart.orderId) {
+    res.json({ status: "paid", orderId: cart.orderId })
     return
   }
+  const attempt = await db.paymentAttempts().findOne({ cartId: id }, { sort: { createdAt: -1 } })
+  res.json({ status: attempt?.status ?? "none", failureReason: attempt?.failureReason ?? null })
+})
 
-  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET ?? env.RAZORPAY_WEBHOOK_SECRET
-  if (webhookSecret) {
-    const rawBody = (req as any).rawBody || JSON.stringify(req.body)
-    const valid = verifyRazorpayWebhook(rawBody, signature, webhookSecret)
-    if (!valid) {
-      res.status(400).send("Invalid signature")
-      return
-    }
+/**
+ * Razorpay webhooks. Refused unless RAZORPAY_WEBHOOK_SECRET is set and the
+ * x-razorpay-signature matches the raw body. Each event id is applied once; a
+ * failed one is applied again when Razorpay redelivers it.
+ */
+storePaymentRoutes.post("/webhooks/razorpay", async (req, res) => {
+  const signature = req.header("x-razorpay-signature")
+  const rawBody = (req as { rawBody?: Buffer }).rawBody
+  if (!env.RAZORPAY_WEBHOOK_SECRET) {
+    log.error("webhook.razorpay_unconfigured", {})
+    res.status(503).json({ error: { code: "webhook_unconfigured", message: "Webhook secret not configured" } })
+    return
   }
-
-  const event = req.body
-  const eventId = (event.id ?? event.payload?.payment?.entity?.id ?? req.headers["x-razorpay-event-id"]) as string
-  if (eventId) {
-    const existing = await db.paymentWebhookEvents().findOne({ provider: "razorpay", eventId })
-    if (existing) {
-      res.json({ status: "ok", duplicate: true })
-      return
-    }
-    await db.paymentWebhookEvents().insertOne({
-      _id: newId("pwe"),
-      provider: "razorpay",
-      eventId,
-      event: event.event ?? "payment.captured",
-      payload: event,
-      signature: signature ?? "",
-      status: "processed",
-      processedAt: new Date(),
-      createdAt: new Date(),
-    }).catch(() => {})
+  if (!signature || !rawBody || !verifyRazorpayWebhook(rawBody, signature)) {
+    log.warn("webhook.razorpay_bad_signature", { hasSignature: !!signature })
+    res.status(400).json({ error: { code: "invalid_signature", message: "Invalid signature" } })
+    return
   }
-
-  if (event.event === "payment.captured") {
-    const payment = event.payload?.payment?.entity
-    const orderId = payment?.notes?.orderId
-    if (orderId) {
-      // Idempotent: only update if order is not already marked paid
-      const result = await db.orders().updateOne(
-        { _id: orderId, paymentStatus: { $ne: "paid" } },
-        {
-          $set: {
-            paymentStatus: "paid",
-            "paymentDetails.paidAt": new Date(),
-            "paymentDetails.transactionId": payment.id,
-            updatedAt: new Date(),
-          },
-        }
-      )
-      if (result.matchedCount === 0) {
-        // Already processed earlier or order not found
-        res.json({ status: "ok", duplicate: true })
-        return
-      }
-    }
+  const event = req.body as { event?: string; payload?: unknown }
+  const eventId = req.header("x-razorpay-event-id") ?? createHash("sha256").update(rawBody).digest("hex")
+  const claim = await claimWebhookEvent("razorpay", eventId, event.event ?? "unknown", event, signature)
+  if (claim === "done") {
+    res.json({ status: "ok", duplicate: true })
+    return
   }
-
-  res.json({ status: "ok" })
+  if (claim === "busy") {
+    res.status(409).json({ error: { code: "in_progress", message: "Event is being processed" } })
+    return
+  }
+  try {
+    const outcome = await applyRazorpayEvent(event as Parameters<typeof applyRazorpayEvent>[0])
+    await db.paymentWebhookEvents().updateOne({ provider: "razorpay", eventId }, { $set: { status: outcome, processedAt: new Date() }, $unset: { error: "" } })
+    res.json({ status: "ok" })
+  } catch (e) {
+    const message = (e as Error).message
+    await db.paymentWebhookEvents().updateOne({ provider: "razorpay", eventId }, { $set: { status: "failed", error: message.slice(0, 500) } })
+    log.error("webhook.razorpay_failed", { eventId, event: event.event, error: message })
+    // Non-2xx: Razorpay redelivers, and the event is applied again.
+    res.status(500).json({ error: { code: "processing_failed", message: "Will retry" } })
+  }
 })

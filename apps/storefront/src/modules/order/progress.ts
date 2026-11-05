@@ -52,12 +52,14 @@ export function orderProgress(order: Order): ProgressStep[] {
 }
 
 export const paymentLabel = (order: Order) =>
-  order.paymentMethod === "cod"
-    ? order.paymentStatus === "paid"
-      ? "Paid on delivery"
-      : "Cash on delivery: pay when it arrives"
-    : order.paymentStatus === "paid"
-      ? "Paid online"
-      : order.paymentStatus === "refunded"
-        ? "Refunded"
-        : "Online payment pending"
+  order.paymentStatus === "refunded"
+    ? "Refunded"
+    : order.paymentStatus === "partially_refunded"
+      ? "Partly refunded"
+      : order.paymentMethod === "cod"
+        ? order.paymentStatus === "paid"
+          ? "Paid on delivery"
+          : "Cash on delivery: pay when it arrives"
+        : order.paymentStatus === "paid"
+          ? "Paid online"
+          : "Online payment pending"

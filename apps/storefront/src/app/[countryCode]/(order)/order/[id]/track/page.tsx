@@ -157,7 +157,7 @@ export default async function TrackOrder(props: { params: Promise<{ countryCode:
   // wording is the tile's tooltip. Unknown-yet values read "Pending", muted.
   const shortMethod = order.shippingOption.name.replace(/\s*\(.*?\)\s*/g, "").replace(/\s*delivery$/i, "").trim() || order.shippingOption.name
   const payment =
-    order.paymentMethod === "cod"
+    order.paymentMethod === "cod" && (order.paymentStatus === "paid" || order.paymentStatus === "awaiting")
       ? order.paymentStatus === "paid"
         ? { short: "Paid (COD)", full: "Paid on delivery" }
         : { short: "COD", full: "Cash on delivery: pay when it arrives" }
@@ -165,7 +165,9 @@ export default async function TrackOrder(props: { params: Promise<{ countryCode:
         ? { short: "Paid", full: "Paid online" }
         : order.paymentStatus === "refunded"
           ? { short: "Refunded", full: "Refunded" }
-          : { short: "Pending", full: "Payment pending" }
+          : order.paymentStatus === "partially_refunded"
+            ? { short: "Part refund", full: "Partly refunded" }
+            : { short: "Pending", full: "Payment pending" }
   const stats: { label: string; value: string; full: string; mono?: boolean; accent?: boolean; muted?: boolean }[] = [
     s?.awb
       ? { label: "Airway Bill (AWB)", value: s.awb, full: `Airway bill ${s.awb}`, mono: true }

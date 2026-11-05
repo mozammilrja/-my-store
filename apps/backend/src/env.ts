@@ -24,18 +24,30 @@ const schema = z.object({
   ADMIN_LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().optional(),
   STORE_CORS: list,
   ADMIN_CORS: list,
-  // Payment Providers (optional in local/test, required for live external gateway connections)
+  // Razorpay. Online payment is offered only when the key pair is set; the
+  // webhook endpoint refuses every event until RAZORPAY_WEBHOOK_SECRET is set.
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
-  // Carrier Logistics (optional in local/test, required for live manifest/dispatch APIs)
-  DELHIVERY_API_KEY: z.string().optional(),
-  DELHIVERY_CLIENT_ID: z.string().optional(),
-  DELHIVERY_MODE: z.enum(["staging", "production"]).default("staging"),
-  BLUEDART_CUSTOMER_CODE: z.string().optional(),
-  BLUEDART_LOGIN_ID: z.string().optional(),
-  BLUEDART_LICENCE_KEY: z.string().optional(),
-  BLUEDART_API_MODE: z.enum(["staging", "production"]).default("staging"),
+  /** Override only to point tests at a local stand-in for the Razorpay API. */
+  RAZORPAY_API_BASE: z.url().default("https://api.razorpay.com"),
+  /** Minutes an unpaid payment attempt stays open before it is expired. */
+  PAYMENT_ATTEMPT_TTL_MINUTES: z.coerce.number().int().positive().default(30),
+  // Shipping. SHIPPING_PROVIDER picks the courier integration; "none" means
+  // shipments are created by hand (no AWB or tracking is ever invented).
+  SHIPPING_PROVIDER: z.enum(["shiprocket", "none"]).default("shiprocket"),
+  SHIPROCKET_EMAIL: z.string().optional(),
+  SHIPROCKET_PASSWORD: z.string().optional(),
+  /** Shiprocket pickup location nickname (Settings > Pickup Addresses). */
+  SHIPROCKET_PICKUP_LOCATION: z.string().optional(),
+  /** Value Shiprocket sends in the x-api-key header of tracking webhooks. */
+  SHIPROCKET_WEBHOOK_TOKEN: z.string().optional(),
+  SHIPROCKET_API_BASE: z.url().default("https://apiv2.shiprocket.in"),
+  /** Pincode orders ship from, for serviceability and rate checks. */
+  SHIPPING_ORIGIN_PINCODE: z.string().regex(/^\d{6}$/).optional(),
+  /** Parcel defaults when products carry no weight or size. */
+  SHIPPING_DEFAULT_WEIGHT_KG: z.coerce.number().positive().default(0.5),
+  SHIPPING_DEFAULT_DIMENSIONS_CM: z.string().regex(/^\d+x\d+x\d+$/).default("30x25x5"),
 })
 
 const parsed = schema.safeParse(process.env)

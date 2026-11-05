@@ -292,19 +292,38 @@ export async function startOnlinePayment(): Promise<ActionResult & { intent?: On
   const id = await getCartId()
   if (!id) return { error: EXPIRED }
   try {
-    const intent = await cartApi<OnlinePaymentIntent & { isStagingSimulated?: boolean }>(`/store/carts/${id}/payment-intent`, {
+    const intent = await cartApi<OnlinePaymentIntent>(`/store/carts/${id}/payment-intent`, {
       method: "POST",
       body: { provider: "razorpay" },
     })
-    if (intent.isStagingSimulated || !intent.keyId) {
-      return { error: "Online payment isn't available right now. Please choose Cash on Delivery." }
-    }
+    if (!intent.keyId) return { error: "Online payment isn't available right now. Please choose Cash on Delivery." }
     return {
       error: null,
       intent: { provider: "razorpay", razorpayOrderId: intent.razorpayOrderId, keyId: intent.keyId, amount: intent.amount, currency: intent.currency },
     }
   } catch (e) {
     return { error: message(e) }
+  }
+}
+
+/**
+ * Where this bag's online payment stands, as the API last confirmed with
+ * Razorpay. When the order was placed (the payment settled after the checkout
+ * window reported an error, or through the webhook), this grants access to it
+ * and closes the bag, like a normal checkout.
+ */
+export async function paymentOutcome(): Promise<{ status: string; orderId?: string; failureReason?: string | null }> {
+  const id = await getCartId()
+  if (!id) return { status: "none" }
+  try {
+    const r = await cartApi<{ status: string; orderId?: string; failureReason?: string | null }>(`/store/carts/${id}/payment-status`)
+    if (r.status === "paid" && r.orderId) {
+      await setOrderAccess(id)
+      await removeCartId()
+    }
+    return r
+  } catch {
+    return { status: "unknown" }
   }
 }
 

@@ -89,7 +89,7 @@ export function QuickPredictionsPanel({ visible = true }: { visible?: boolean })
                     </span>
                   </div>
                 </div>
-                <span className="font-label-caps text-[10px] text-muted-foreground bg-surface-container-low px-2 py-0.5 rounded font-bold shrink-0 ml-2">
+                <span className="font-label-caps uppercase text-[10px] text-muted-foreground bg-surface-container-low px-2 py-0.5 rounded font-bold shrink-0 ml-2">
                   {item.count}
                 </span>
               </LocalizedClientLink>

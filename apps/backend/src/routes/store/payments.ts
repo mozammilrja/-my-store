@@ -20,6 +20,25 @@ export const storePaymentRoutes = Router()
 
 const cartId = z.string().regex(/^cart_[0-9a-z]{16}$/, "invalid cart id")
 
+/**
+ * Which ways to pay work right now, so checkout only offers those. Online
+ * methods (UPI, cards, net banking) all go through Razorpay and are available
+ * only when its keys are configured; cash on delivery is always available.
+ */
+storePaymentRoutes.get("/payment-methods", (_req, res) => {
+  const online = isRazorpayConfigured()
+  res.json({
+    online,
+    provider: online ? "razorpay" : null,
+    methods: {
+      upi: online,
+      card: online,
+      netbanking: online,
+      cod: true,
+    },
+  })
+})
+
 async function getValidCartAndTotals(id: string) {
   const cart = await db.carts().findOne({ _id: cartId.parse(id) })
   if (!cart) throw notFound("Cart")
@@ -204,6 +223,8 @@ storePaymentRoutes.post("/carts/:id/confirm-payment", async (req, res) => {
         shippingAddress: cart.shippingAddress!,
         billingAddress: cart.billingAddress ?? cart.shippingAddress!,
         shippingOption,
+        ...(cart.buyerGstin ? { buyerGstin: cart.buyerGstin } : {}),
+        ...(cart.deliveryInstructions ? { deliveryInstructions: cart.deliveryInstructions } : {}),
         promoCodes: cart.promoCodes,
         totals,
         paymentMethod: body.provider,
@@ -275,6 +296,7 @@ storePaymentRoutes.post("/carts/:id/confirm-payment", async (req, res) => {
           orderId: doc._id,
           displayId: doc.displayId,
           customerName: `${doc.shippingAddress.firstName} ${doc.shippingAddress.lastName}`,
+          ...(doc.buyerGstin ? { customerGstin: doc.buyerGstin.gstin, customerLegalName: doc.buyerGstin.legalName } : {}),
           shippingAddress: doc.shippingAddress,
           billingAddress: doc.billingAddress,
           // Lines and totals that add up to what the order charged.

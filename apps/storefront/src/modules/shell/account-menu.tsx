@@ -15,7 +15,6 @@ import {
   PackageIcon,
   RotateCcwIcon,
   TruckIcon,
-  UserIcon,
   type LucideIcon,
 } from "lucide-react"
 import { useParams, useRouter } from "next/navigation"
@@ -112,8 +111,10 @@ export function AccountMenu() {
         data-testid="nav-account-link"
         className="flex items-center gap-2 group"
       >
-        <span className="flex size-8 items-center justify-center rounded-full bg-primary text-on-primary transition-transform group-hover:scale-105">
-          <UserIcon aria-hidden className="size-[18px]" />
+        {/* Black rounded square, the same on every route (fixed radius so the
+            Stitch pages' radius scale doesn't change its shape). */}
+        <span className="flex size-8 items-center justify-center rounded-[10px] bg-primary text-on-primary transition-transform group-hover:scale-105">
+          <span aria-hidden className="material-symbols-outlined text-[18px]">person</span>
         </span>
       </LocalizedClientLink>
 

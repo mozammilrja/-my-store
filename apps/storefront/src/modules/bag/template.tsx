@@ -120,7 +120,7 @@ export function BagTemplate({
             </div>
             <LocalizedClientLink
               href="/account"
-              className="font-label-sm font-semibold text-primary underline underline-offset-4 shrink-0 uppercase"
+              className="font-label-sm text-label-sm font-semibold text-primary underline underline-offset-4 shrink-0 uppercase"
             >
               Sign In
             </LocalizedClientLink>
@@ -144,7 +144,7 @@ export function BagTemplate({
                     </span>
                   )}
                 </span>
-                <span className="text-on-surface-variant font-label-sm font-semibold">
+                <span className="text-on-surface-variant font-label-sm text-label-sm font-semibold">
                   {progressPercent}% Unlocked
                 </span>
               </div>
@@ -175,7 +175,7 @@ export function BagTemplate({
             </p>
             <Button
               asChild
-              className="mt-space-sm h-12 px-8 bg-primary text-on-primary hover:bg-inverse-surface rounded-lg font-label-md uppercase tracking-wider font-semibold shadow-xs"
+              className="mt-space-sm h-12 px-8 bg-primary text-on-primary hover:bg-inverse-surface rounded-lg font-label-md text-label-md uppercase tracking-wider font-semibold shadow-xs"
             >
               <LocalizedClientLink href="/store">Browse the collections</LocalizedClientLink>
             </Button>

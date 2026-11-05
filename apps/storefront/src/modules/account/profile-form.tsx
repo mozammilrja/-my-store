@@ -7,6 +7,7 @@ import { updateProfile } from "@lib/data/account"
 import Image from "next/image"
 import { useActionState, useEffect, useState } from "react"
 import { toast } from "sonner"
+import { StoreSelect } from "@/components/store/store-select"
 
 const DEFAULT_AVATAR = "/images/default-avatar.svg"
 
@@ -187,7 +188,7 @@ export function ProfileForm({
             <div className="relative mt-space-sm mb-space-md group cursor-pointer" onClick={handleAvatarChange}>
               <div className="w-32 h-32 rounded-full overflow-hidden bg-surface-container-high border-4 border-surface-container-lowest shadow-md relative flex items-center justify-center">
                 {avatarStyle === "initials" ? (
-                  <div className="w-full h-full bg-primary text-on-primary flex items-center justify-center font-headline-xl font-semibold tracking-wider">
+                  <div className="w-full h-full bg-primary text-on-primary flex items-center justify-center font-headline-xl text-[clamp(2rem,4vw,2.75rem)] font-semibold tracking-wider">
                     {initials}
                   </div>
                 ) : (
@@ -422,7 +423,7 @@ export function ProfileForm({
                         : "bg-surface-container-lowest/60 border-outline-variant/60 hover:bg-surface-container-lowest hover:border-outline-variant"
                     }`}
                   >
-                    <div className="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center font-label-md font-bold shrink-0 border border-secondary/30">
+                    <div className="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center font-label-md text-label-md font-bold shrink-0 border border-secondary/30">
                       {initials}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -541,7 +542,7 @@ export function ProfileForm({
                   </span>
                 </div>
                 <div className="relative flex items-center">
-                  <span className="absolute left-3.5 font-body-md text-on-surface-variant">+91</span>
+                  <span className="absolute left-3.5 font-body-md text-body-md text-on-surface-variant">+91</span>
                   <input
                     disabled={!isEditing}
                     name="phone"
@@ -580,28 +581,26 @@ export function ProfileForm({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
+                  <label htmlFor="profile-gender" className="font-label-caps text-label-caps text-on-surface uppercase font-semibold">
                     Gender
                   </label>
-                  <div className="relative">
-                    <select
-                      disabled={!isEditing}
-                      defaultValue="female"
-                      className={`w-full h-11 px-3.5 font-body-md text-body-md rounded border appearance-none transition-all ${
-                        isEditing
-                          ? "bg-surface-container-lowest border-outline-variant focus:border-primary focus:outline-none cursor-pointer"
-                          : "bg-surface-container-low text-on-surface border-transparent cursor-not-allowed opacity-90"
-                      }`}
-                    >
-                      <option value="female">Female</option>
-                      <option value="male">Male</option>
-                      <option value="non-binary">Non-Binary</option>
-                      <option value="prefer-not-to-say">Prefer not to say</option>
-                    </select>
-                    <span className="material-symbols-outlined absolute right-3.5 top-3 text-on-surface-variant pointer-events-none text-[20px]">
-                      expand_more
-                    </span>
-                  </div>
+                  <StoreSelect
+                    id="profile-gender"
+                    disabled={!isEditing}
+                    defaultValue="female"
+                    valueClassName="font-body-md text-body-md"
+                    className={
+                      isEditing
+                        ? "bg-surface-container-lowest border-outline-variant"
+                        : "bg-surface-container-low border-transparent disabled:opacity-90 hover:bg-surface-container-low"
+                    }
+                    options={[
+                      { value: "female", label: "Female" },
+                      { value: "male", label: "Male" },
+                      { value: "non-binary", label: "Non-Binary" },
+                      { value: "prefer-not-to-say", label: "Prefer not to say" },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -618,14 +617,14 @@ export function ProfileForm({
                     type="button"
                     variant="outline"
                     onClick={() => setIsEditing(false)}
-                    className="h-11 px-6 rounded-lg uppercase font-label-md"
+                    className="h-11 px-6 rounded-lg uppercase font-label-md text-label-md"
                   >
                     Cancel
                   </Button>
                   <Button
                     type="submit"
                     disabled={pending}
-                    className="h-11 px-8 rounded-lg bg-primary text-on-primary hover:bg-inverse-surface font-label-md font-semibold uppercase shadow-xs"
+                    className="h-11 px-8 rounded-lg bg-primary text-on-primary hover:bg-inverse-surface font-label-md text-label-md font-semibold uppercase shadow-xs"
                     data-testid="save-profile-button"
                   >
                     {pending ? "Saving..." : "Save Changes"}
@@ -722,14 +721,14 @@ export function ProfileForm({
                 type="button"
                 variant="outline"
                 onClick={() => setPasswordModalOpen(false)}
-                className="h-10 px-4 rounded-lg uppercase font-label-md"
+                className="h-10 px-4 rounded-lg uppercase font-label-md text-label-md"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={pwdPending}
-                className="h-10 px-6 rounded-lg bg-primary text-on-primary font-label-md font-semibold uppercase"
+                className="h-10 px-6 rounded-lg bg-primary text-on-primary font-label-md text-label-md font-semibold uppercase"
               >
                 {pwdPending ? "Updating..." : "Update Password"}
               </Button>

@@ -123,7 +123,7 @@ export function OverviewView({
                   strokeWidth="3"
                 />
               </svg>
-              <span className="absolute font-label-caps text-label-caps font-bold text-on-surface">78%</span>
+              <span className="absolute font-label-caps uppercase text-label-caps font-bold text-on-surface">78%</span>
             </div>
             <div className="flex flex-col">
               <span className="font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant font-semibold">
@@ -260,13 +260,13 @@ export function OverviewView({
             <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-outline mb-3">
               <span className="material-symbols-outlined text-[24px]">inventory_2</span>
             </div>
-            <h3 className="font-headline-sm font-medium text-on-surface">No orders placed yet</h3>
-            <p className="font-body-sm text-on-surface-variant max-w-sm mt-1 mb-4">
+            <h3 className="font-headline-sm text-headline-sm font-medium text-on-surface">No orders placed yet</h3>
+            <p className="font-body-sm text-body-sm text-on-surface-variant max-w-sm mt-1 mb-4">
               Explore our current seasonal curations, structured blazers and mulberry silk dresses.
             </p>
             <LocalizedClientLink
               href="/store"
-              className="h-10 px-6 bg-primary text-on-primary rounded font-label-sm uppercase font-semibold flex items-center gap-2"
+              className="h-10 px-6 bg-primary text-on-primary rounded font-label-sm text-label-sm uppercase font-semibold flex items-center gap-2"
             >
               Explore Collection
             </LocalizedClientLink>
@@ -449,7 +449,7 @@ export function OverviewView({
               </div>
             ) : (
               <div className="mt-space-md p-space-md rounded-xl bg-surface-container-low text-center py-6 border border-dashed border-outline-variant">
-                <p className="font-body-sm text-on-surface-variant">No address saved yet.</p>
+                <p className="font-body-sm text-body-sm text-on-surface-variant">No address saved yet.</p>
               </div>
             )}
           </div>

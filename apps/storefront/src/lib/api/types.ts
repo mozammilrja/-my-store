@@ -18,6 +18,9 @@ export type Address = {
 
 export type ShippingOption = { id: string; name: string; amount: number }
 
+/** A business buyer's GST registration, given at checkout for a B2B tax invoice. */
+export type BuyerGstin = { gstin: string; legalName: string }
+
 export type RegionPolicies = {
   returnWindowDays: number
   freeReturns: boolean
@@ -146,6 +149,10 @@ export type Cart = {
   billingAddress: Address | null
   shippingOptionId: string | null
   shippingOptions: ShippingOption[]
+  /** Set when the shopper asked for a GST (B2B) invoice. */
+  buyerGstin?: BuyerGstin | null
+  /** The shopper's note for the courier. */
+  deliveryInstructions?: string | null
   promoCodes: string[]
   totals: Totals
   completed: boolean
@@ -164,16 +171,42 @@ export type Order = {
   shippingAddress: Address
   billingAddress: Address
   shippingOption: ShippingOption
+  buyerGstin?: BuyerGstin | null
+  deliveryInstructions?: string | null
   promoCodes: string[]
   totals: Totals
   paymentMethod: "cod" | "razorpay"
   paymentStatus: "awaiting" | "paid" | "refunded"
   fulfillmentStatus: "unfulfilled" | "shipped" | "delivered" | "returned"
-  shipment?: { carrier: string; awb: string; status: string; labelUrl?: string; pickupScheduledAt?: string; estimatedDelivery?: string }
+  shipment?: {
+    carrier: string
+    awb: string
+    status: string
+    labelUrl?: string
+    pickupScheduledAt?: string
+    estimatedDelivery?: string
+    shippedAt?: string
+    deliveredAt?: string
+    /** Carrier scans, oldest first. Only on the single-order endpoint (GET /store/orders/:id). */
+    events?: TrackingEvent[]
+  }
+  /** When the payment was captured; absent while it is still due (e.g. COD before delivery). */
+  paidAt?: string
+  /** The payment gateway's reference for the payment, when there is one. */
+  paymentReference?: string
+  /** Doorstep slot and options the shopper chose; absent until they choose. */
+  deliveryPreferences?: DeliveryPreferences
+  /** Whether those can still be changed (before the order ships). */
+  preferencesEditable?: boolean
+  /** Where the order ships from (GET /store/orders/:id only). */
+  dispatchFrom?: DispatchWarehouse | null
   returnRequest?: { status: string; returnAwb?: string; carrier?: string }
   status: "pending" | "completed" | "canceled"
   createdAt: string
 }
+
+/** One carrier scan recorded on a shipment. */
+export type TrackingEvent = { timestamp: string; status: string; location: string; note: string }
 
 /** The GST tax invoice raised for an order (amounts in minor units). */
 export type Invoice = {
@@ -183,6 +216,8 @@ export type Invoice = {
   displayId: number
   customerName: string
   customerGstin?: string
+  /** Registered legal name that goes with customerGstin. */
+  customerLegalName?: string
   shippingAddress: Address
   billingAddress: Address
   items: {
@@ -191,6 +226,8 @@ export type Invoice = {
     hsn: string
     quantity: number
     unitPrice: number
+    /** The line's share of the order discount; absent on invoices raised before it was recorded. */
+    discount?: number
     taxableValue: number
     gstRate: number
     cgst: number
@@ -205,6 +242,32 @@ export type Invoice = {
   currency: string
   status: "issued" | "paid" | "canceled"
   issuedAt: string
+  /** The warehouse the order ships from; null when the store has none. Absent from older API builds. */
+  dispatchFrom?: DispatchWarehouse | null
+}
+
+/** The warehouse an order ships from (GET /store/orders/:id and its invoice). */
+export type DispatchWarehouse = {
+  code: string
+  name: string
+  address: string
+  city: string
+  state: string
+  pincode: string
+  /** The warehouse's GSTIN; null when none is on record. */
+  gstin?: string | null
+  /** Location of the warehouse; null when not on record. */
+  lat?: number | null
+  lng?: number | null
+  isDefault: boolean
+  source: "allocated" | "default"
+}
+
+/** The shopper's doorstep choices on an order. */
+export type DeliveryPreferences = {
+  slot: "morning" | "evening" | null
+  options: { measuringTape: boolean; reusableBox: boolean }
+  updatedAt: string
 }
 
 export type OrderSummary = {

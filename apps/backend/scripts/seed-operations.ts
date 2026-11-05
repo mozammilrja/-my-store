@@ -15,6 +15,7 @@ import {
   syncOrderCounter,
 } from "../src/db/schema.js"
 import { hashPassword } from "../src/lib/auth.js"
+import { SETTINGS_ID } from "../src/routes/admin/settings.js"
 
 /**
  * Development seed for the operational side of the admin.
@@ -623,6 +624,69 @@ async function seed() {
     promotions: await upsertAll(db.promotions(), promotions),
     adminUsers: await upsertAll(db.adminUsers(), staff),
   }
+
+  // Seller of record for tax invoices. DUMMY development values (from the
+  // Stitch invoice design), not a real registration. Merged under whatever is
+  // already stored, so a real value saved through the admin is never
+  // overwritten by a rerun; only missing fields are filled.
+  const DEV_SELLER = {
+    legalName: "Everwear Studios India Private Limited",
+    gstin: "07AABCE1234F1Z8",
+    cin: "U18209DL2022PTC398201",
+    address: "Atelier Suite 401, The Millennial Pavilion, Vasant Kunj Industrial Area, Sector D, New Delhi 110070, India",
+    state: "Delhi (07)",
+    email: "support@everwear.studio",
+    phone: "+91 11 4099 2800",
+  }
+  await db.settings().updateOne(
+    { _id: SETTINGS_ID },
+    [
+      {
+        $set: {
+          seller: { $mergeObjects: [DEV_SELLER, { $ifNull: ["$seller", {}] }] },
+          supportEmail: { $ifNull: ["$supportEmail", DEV_SELLER.email] },
+          updatedAt: new Date(),
+        },
+      },
+    ],
+    { upsert: true }
+  )
+  console.log("settings: seller details filled where missing (development values)")
+
+  // Warehouse GSTINs for the invoice dispatch block. DUMMY development values:
+  // the seller's dummy PAN (AABCE1234F) under each hub's GST state code. Only
+  // set where a warehouse has no GSTIN yet, so a real one is never replaced.
+  const DEV_WAREHOUSE_GSTINS: Record<string, string> = {
+    wh_blr_fc1: "29AABCE1234F1ZU", // Karnataka
+    wh_bom_fc2: "27AABCE1234F1ZY", // Maharashtra
+    wh_del_fc1: "06AABCE1234F1ZW", // Haryana
+    wh_ccu_fc4: "19AABCE1234F1ZT", // West Bengal
+  }
+  let gstinsSet = 0
+  for (const [id, gstin] of Object.entries(DEV_WAREHOUSE_GSTINS)) {
+    const r = await db
+      .warehouses()
+      .updateOne({ _id: id, $or: [{ gstin: { $exists: false } }, { gstin: null }, { gstin: "" }] }, { $set: { gstin, updatedAt: new Date() } })
+    gstinsSet += r.modifiedCount
+  }
+  console.log(`warehouses: ${gstinsSet} dummy GSTIN(s) filled where missing (development values)`)
+
+  // Warehouse coordinates for the tracking map (the hubs' localities). Only
+  // set where a warehouse has none yet.
+  const WAREHOUSE_COORDS: Record<string, { lat: number; lng: number }> = {
+    wh_blr_fc1: { lat: 12.8452, lng: 77.6602 }, // Electronic City, Bengaluru
+    wh_bom_fc2: { lat: 19.2813, lng: 73.0483 }, // Bhiwandi
+    wh_del_fc1: { lat: 28.3255, lng: 76.8889 }, // Bilaspur, Gurugram
+    wh_ccu_fc4: { lat: 22.6764, lng: 88.2911 }, // Dankuni
+  }
+  let coordsSet = 0
+  for (const [id, c] of Object.entries(WAREHOUSE_COORDS)) {
+    const r = await db
+      .warehouses()
+      .updateOne({ _id: id, $or: [{ lat: { $exists: false } }, { lat: null }] }, { $set: { lat: c.lat, lng: c.lng, updatedAt: new Date() } })
+    coordsSet += r.modifiedCount
+  }
+  console.log(`warehouses: ${coordsSet} location(s) filled where missing`)
 
   console.table(written)
   console.log(

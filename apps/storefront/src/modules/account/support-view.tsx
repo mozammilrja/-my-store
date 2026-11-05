@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { z } from "zod"
+import { StoreSelect } from "@/components/store/store-select"
 
 // Zod Schema for Concierge Support Inquiry
 const supportInquirySchema = z.object({
@@ -246,7 +247,7 @@ export function SupportView() {
                       <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
                         {ticket.subject}
                       </p>
-                      <span className="font-label-caps text-label-caps text-outline block mt-1">
+                      <span className="font-label-caps uppercase text-label-caps text-outline block mt-1">
                         {ticket.updated}
                       </span>
                     </div>
@@ -338,7 +339,7 @@ export function SupportView() {
             />
             <div className="flex items-center justify-between text-on-surface-variant font-body-sm text-body-sm pt-1">
               <span>Flagship Boutique: DLF Emporio, New Delhi</span>
-              <span className="font-label-caps text-secondary font-bold uppercase">Open Today</span>
+              <span className="font-label-caps text-label-caps text-secondary font-bold uppercase">Open Today</span>
             </div>
           </div>
         </div>
@@ -369,21 +370,24 @@ export function SupportView() {
             <form onSubmit={handleSubmitInquiry} className="flex flex-col gap-space-md" noValidate>
               {/* Category */}
               <div>
-                <label className="font-label-caps text-label-caps text-on-surface uppercase block mb-1">
+                <label htmlFor="inquiry-category" className="font-label-caps text-label-caps text-on-surface uppercase block mb-1">
                   Inquiry Category
                 </label>
-                <select
+                <StoreSelect
+                  id="inquiry-category"
+                  className="px-3"
                   value={inquiryData.category}
-                  onChange={(e) => handleFieldChange("category", e.target.value)}
-                  className="w-full h-11 px-3 bg-surface-container-low rounded border border-surface-container-high focus:outline-none focus:border-primary text-on-surface font-body-sm"
-                >
-                  <option value="orders">Orders &amp; Fulfillment</option>
-                  <option value="returns">Returns &amp; Exchanges</option>
-                  <option value="sizing">Bespoke Sizing &amp; Tailoring</option>
-                  <option value="payments">Billing &amp; Payments</option>
-                  <option value="alterations">Alterations Advisory</option>
-                  <option value="general">General Inquiries</option>
-                </select>
+                  onValueChange={(v) => handleFieldChange("category", v)}
+                  aria-invalid={!!validationErrors.category}
+                  options={[
+                    { value: "orders", label: "Orders & Fulfillment" },
+                    { value: "returns", label: "Returns & Exchanges" },
+                    { value: "sizing", label: "Bespoke Sizing & Tailoring" },
+                    { value: "payments", label: "Billing & Payments" },
+                    { value: "alterations", label: "Alterations Advisory" },
+                    { value: "general", label: "General Inquiries" },
+                  ]}
+                />
                 {validationErrors.category && (
                   <p className="text-xs text-error mt-1">{validationErrors.category}</p>
                 )}
@@ -418,7 +422,7 @@ export function SupportView() {
                   value={inquiryData.orderId ?? ""}
                   onChange={(e) => handleFieldChange("orderId", e.target.value)}
                   placeholder="e.g. EV-88421"
-                  className="w-full h-11 px-3 bg-surface-container-low rounded border border-surface-container-high focus:outline-none focus:border-primary text-on-surface font-body-sm uppercase"
+                  className="w-full h-11 px-3 bg-surface-container-low rounded border border-surface-container-high focus:outline-none focus:border-primary text-on-surface font-body-sm text-body-sm uppercase"
                 />
               </div>
 

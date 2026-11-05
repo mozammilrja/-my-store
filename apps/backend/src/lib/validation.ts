@@ -16,3 +16,18 @@ export const address = z.object({
   countryCode: z.string().regex(/^[a-zA-Z]{2}$/).transform((s) => s.toLowerCase()),
   phone: z.string().trim().max(40).optional(),
 })
+
+/**
+ * A GSTIN: 2-digit state code, 10-character PAN, entity number, "Z", check
+ * character. Format only; the registration itself is not looked up.
+ */
+export const gstinPattern = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/
+
+export const buyerGstin = z.object({
+  gstin: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(gstinPattern, "Enter a valid 15-character GSTIN, e.g. 22AAAAA0000A1Z5"),
+  legalName: text(200),
+})

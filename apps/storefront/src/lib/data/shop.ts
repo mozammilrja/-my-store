@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { api, ApiError } from "../api/client"
-import type { Address, Cart, Order } from "../api/types"
+import type { Address, BuyerGstin, Cart, Order } from "../api/types"
 import { getCartId, getToken, removeCartId, setCartId, setOrderAccess } from "./session"
-import { checkoutAddressStepSchema } from "../validation/checkout-schemas"
+import { buyerGstinSchema, checkoutAddressStepSchema } from "../validation/checkout-schemas"
 
 export type ActionResult = { error: string | null }
 
@@ -181,9 +181,8 @@ const readAddress = (form: FormData, prefix: string): Address => ({
 })
 
 /**
- * Saves checkout's email and addresses without navigating, so the one-button
- * checkout can save the address, the delivery choice and place the order in
- * one go. Validates with the same Zod schema as the form.
+ * Saves checkout's email, addresses and (optionally) the buyer's GSTIN.
+ * Validates with the same Zod schemas as the form.
  */
 export async function setCheckoutAddress(form: FormData): Promise<ActionResult> {
   const id = await getCartId()
@@ -203,28 +202,96 @@ export async function setCheckoutAddress(form: FormData): Promise<ActionResult> 
     return { error: validation.error.issues[0]?.message || "Please fill in all required address fields." }
   }
 
+  // GSTIN for a business invoice: sent only when the form has the toggle,
+  // "on" saves it, anything else clears a previously saved one.
+  let buyerGstin: BuyerGstin | null | undefined
+  if (form.has("gstin.enabled")) {
+    if (form.get("gstin.enabled") === "on") {
+      const gst = buyerGstinSchema.safeParse({ gstin: text(form, "gstin.number"), legalName: text(form, "gstin.legalName") })
+      if (!gst.success) return { error: gst.error.issues[0]?.message || "Please check the GSTIN details." }
+      buyerGstin = gst.data
+    } else {
+      buyerGstin = null
+    }
+  }
+
   try {
-    await cartApi(`/store/carts/${id}`, { method: "PATCH", body: { email: emailVal, shippingAddress, billingAddress } })
+    await cartApi(`/store/carts/${id}`, {
+      method: "PATCH",
+      body: { email: emailVal, shippingAddress, billingAddress, ...(buyerGstin !== undefined ? { buyerGstin } : {}) },
+    })
   } catch (e) {
     return { error: message(e) }
   }
   return { error: null }
 }
 
-/** Checkout step 1 of the stepped flow: save, then go on to delivery. */
-export async function saveAddresses(_: ActionResult, form: FormData): Promise<ActionResult> {
-  const result = await setCheckoutAddress(form)
-  if (result.error) return result
-  redirect(`/${text(form, "shipping.countryCode").toLowerCase()}/checkout?step=delivery`)
+/** Saves the shopper's note for the courier; an empty note removes it. */
+export async function setDeliveryInstructions(note: string): Promise<ActionResult> {
+  const id = await getCartId()
+  if (!id) return { error: EXPIRED }
+  const value = note.trim()
+  if (value.length > 300) return { error: "Delivery instructions can be up to 300 characters." }
+  try {
+    await cartApi(`/store/carts/${id}`, { method: "PATCH", body: { deliveryInstructions: value } })
+  } catch (e) {
+    return { error: message(e) }
+  }
+  return { error: null }
 }
 
-/** Checkout step 2: delivery option. */
+/** Saves (or, with null, removes) the GSTIN printed on the order's tax invoice. */
+export async function setBuyerGstin(input: BuyerGstin | null): Promise<ActionResult> {
+  const id = await getCartId()
+  if (!id) return { error: EXPIRED }
+  let buyerGstin: BuyerGstin | null = null
+  if (input) {
+    const gst = buyerGstinSchema.safeParse(input)
+    if (!gst.success) return { error: gst.error.issues[0]?.message || "Please check the GSTIN details." }
+    buyerGstin = gst.data
+  }
+  try {
+    await cartApi(`/store/carts/${id}`, { method: "PATCH", body: { buyerGstin } })
+  } catch (e) {
+    return { error: message(e) }
+  }
+  return { error: null }
+}
+
+export type OnlinePaymentIntent = {
+  provider: "razorpay"
+  razorpayOrderId: string
+  keyId: string
+  amount: number
+  currency: string
+}
+
 /**
- * Set the cart's shipping option without navigating. `saveShipping` ends in a
- * redirect to the review step, which is right for the stepped checkout but
- * aborts a caller that still has work to do: the single-page flow persists the
- * delivery choice and then places the order in the same action.
+ * Opens an online payment with the provider (Razorpay) for the bag's total.
+ * Refuses when the API has no gateway keys: its placeholder "simulated"
+ * intent can never be paid, so it must not reach the payment window.
  */
+export async function startOnlinePayment(): Promise<ActionResult & { intent?: OnlinePaymentIntent }> {
+  const id = await getCartId()
+  if (!id) return { error: EXPIRED }
+  try {
+    const intent = await cartApi<OnlinePaymentIntent & { isStagingSimulated?: boolean }>(`/store/carts/${id}/payment-intent`, {
+      method: "POST",
+      body: { provider: "razorpay" },
+    })
+    if (intent.isStagingSimulated || !intent.keyId) {
+      return { error: "Online payment isn't available right now. Please choose Cash on Delivery." }
+    }
+    return {
+      error: null,
+      intent: { provider: "razorpay", razorpayOrderId: intent.razorpayOrderId, keyId: intent.keyId, amount: intent.amount, currency: intent.currency },
+    }
+  } catch (e) {
+    return { error: message(e) }
+  }
+}
+
+/** Sets the cart's delivery option (checkout's delivery and review steps). */
 export async function setShippingOption(optionId: string): Promise<ActionResult> {
   const id = await getCartId()
   if (!id) return { error: "Your bag has expired. Please add the items again." }
@@ -236,18 +303,11 @@ export async function setShippingOption(optionId: string): Promise<ActionResult>
   return { error: null }
 }
 
-export async function saveShipping(_: ActionResult, form: FormData): Promise<ActionResult> {
-  const id = await getCartId()
-  if (!id) return { error: "Your bag has expired. Please add the items again." }
-  try {
-    await cartApi(`/store/carts/${id}/shipping`, { method: "POST", body: { optionId: text(form, "optionId") } })
-  } catch (e) {
-    return { error: message(e) }
-  }
-  redirect(`/${text(form, "countryCode")}/checkout?step=review`)
-}
-
-/** Checkout step 3: place the order via COD or online payment gateway. */
+/**
+ * Places the order: cash on delivery completes the cart; "razorpay" confirms
+ * a payment the gateway window reported as successful (the API verifies its
+ * signature before marking the order paid).
+ */
 export async function placeOrder(_: ActionResult, form: FormData): Promise<ActionResult> {
   const id = await getCartId()
   if (!id) return { error: "Your bag has expired. Please add the items again." }

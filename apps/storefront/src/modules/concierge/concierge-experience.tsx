@@ -23,10 +23,11 @@ import {
   STYLISTS,
   type ServiceId,
 } from "./content"
+import { StoreSelect } from "@/components/store/store-select"
 
 const field =
-  "w-full h-11 px-space-md bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/50 font-body-sm rounded-lg outline-none transition-colors focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/15"
-const label = "mb-1 block font-label-caps uppercase tracking-wider text-on-surface"
+  "w-full h-11 px-space-md bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/50 font-body-sm text-body-sm rounded-lg outline-none transition-colors focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/15"
+const label = "mb-1 block font-label-caps text-label-caps uppercase tracking-wider text-on-surface"
 
 /** Today in the shopper's own timezone, as YYYY-MM-DD for <input type="date">. */
 const localToday = () => {
@@ -100,12 +101,12 @@ export function ConciergeExperience() {
       <section className="mx-auto w-full max-w-[1440px] px-margin-mobile py-space-xl md:px-margin">
         <div className="mb-space-lg flex flex-col justify-between md:flex-row md:items-end">
           <div>
-            <span className="mb-1 block font-label-caps uppercase tracking-widest text-secondary">
+            <span className="mb-1 block font-label-caps text-label-caps uppercase tracking-widest text-secondary">
               Custom Modalities
             </span>
-            <h2 className="font-headline-xl text-primary">The Three Concierge Suites</h2>
+            <h2 className="font-headline-xl text-[clamp(2rem,4vw,2.75rem)] text-primary">The Three Concierge Suites</h2>
           </div>
-          <p className="mt-2 max-w-md font-body-sm text-on-surface-variant md:mt-0">
+          <p className="mt-2 max-w-md font-body-sm text-body-sm text-on-surface-variant md:mt-0">
             Choose your bespoke setting: from zero-friction virtual consultations to full
             white-glove living room try-ons or flagship VIP hospitality.
           </p>
@@ -122,7 +123,7 @@ export function ConciergeExperience() {
               data-testid="concierge-service"
             >
               {s.featured && (
-                <span className="absolute -top-3 right-6 z-10 rounded-full bg-secondary px-3 py-1 font-label-caps uppercase tracking-wider text-on-secondary shadow-sm">
+                <span className="absolute -top-3 right-6 z-10 rounded-full bg-secondary px-3 py-1 font-label-caps text-label-caps uppercase tracking-wider text-on-secondary shadow-sm">
                   Signature Experience
                 </span>
               )}
@@ -135,25 +136,25 @@ export function ConciergeExperience() {
                     sizes="(min-width: 768px) 30vw, 92vw"
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
-                  <span className="absolute left-3 top-3 rounded bg-surface-container-lowest/90 px-2 py-0.5 font-label-caps uppercase tracking-wider text-primary backdrop-blur-md">
+                  <span className="absolute left-3 top-3 rounded bg-surface-container-lowest/90 px-2 py-0.5 font-label-caps text-label-caps uppercase tracking-wider text-primary backdrop-blur-md">
                     {s.number}
                   </span>
                 </div>
                 <span
                   className={cn(
-                    "font-label-caps uppercase tracking-widest",
+                    "font-label-caps text-label-caps uppercase tracking-widest",
                     s.featured ? "text-secondary" : "text-on-surface-variant"
                   )}
                 >
                   {s.eyebrow}
                 </span>
-                <h3 className="mb-space-xs mt-1 font-headline-sm text-primary">{s.title}</h3>
-                <p className="mb-space-md font-body-sm leading-relaxed text-on-surface-variant">
+                <h3 className="mb-space-xs mt-1 font-headline-sm text-headline-sm text-primary">{s.title}</h3>
+                <p className="mb-space-md font-body-sm text-body-sm leading-relaxed text-on-surface-variant">
                   {s.description}
                 </p>
                 <ul className="mb-space-md space-y-2">
                   {s.perks.map((perk) => (
-                    <li key={perk} className="flex items-center gap-space-xs font-body-sm text-on-surface">
+                    <li key={perk} className="flex items-center gap-space-xs font-body-sm text-body-sm text-on-surface">
                       <CheckCircle2Icon aria-hidden className="size-[18px] shrink-0 text-secondary" />
                       {perk}
                     </li>
@@ -161,11 +162,11 @@ export function ConciergeExperience() {
                 </ul>
               </div>
               <div className="-mx-space-lg -mb-space-lg flex items-center justify-between rounded-b-xl bg-surface-container-low p-space-md">
-                <span className="font-label-caps uppercase text-primary">{s.footnote}</span>
+                <span className="font-label-caps text-label-caps uppercase text-primary">{s.footnote}</span>
                 <button
                   type="button"
                   onClick={() => pick(s.id)}
-                  className="cursor-pointer rounded bg-primary px-space-md py-2 font-label-md text-on-primary transition-colors hover:bg-primary-container"
+                  className="cursor-pointer rounded bg-primary px-space-md py-2 font-label-md text-label-md text-on-primary transition-colors hover:bg-primary-container"
                 >
                   Select Modality
                 </button>
@@ -186,29 +187,29 @@ export function ConciergeExperience() {
             {/* Summary + WhatsApp */}
             <div className="flex flex-col justify-between rounded-xl bg-surface-container-low p-space-lg lg:col-span-4">
               <div>
-                <div className="mb-2 flex items-center gap-space-xs font-label-caps uppercase tracking-wider text-secondary">
+                <div className="mb-2 flex items-center gap-space-xs font-label-caps text-label-caps uppercase tracking-wider text-secondary">
                   <CalendarDaysIcon aria-hidden className="size-[18px]" />
                   Real-Time Scheduling
                 </div>
-                <h2 className="mb-space-xs font-headline-lg text-primary">Book Your Private Session</h2>
-                <p className="mb-space-md font-body-sm text-on-surface-variant">
+                <h2 className="mb-space-xs font-headline-lg text-headline-lg text-primary">Book Your Private Session</h2>
+                <p className="mb-space-md font-body-sm text-body-sm text-on-surface-variant">
                   Fill in your sartorial requirements below. Our Concierge Desk will confirm your
                   slot within 30 minutes via WhatsApp or telephone concierge.
                 </p>
                 <div className="mb-space-md rounded-lg bg-surface-container-lowest p-space-md shadow-sm">
                   <div className="mb-1 flex items-center justify-between">
-                    <span className="font-label-caps uppercase text-on-surface-variant">
+                    <span className="font-label-caps text-label-caps uppercase text-on-surface-variant">
                       Selected Modality
                     </span>
-                    <span className="rounded bg-secondary-fixed px-2 py-0.5 font-label-caps text-on-secondary-fixed">
+                    <span className="rounded bg-secondary-fixed px-2 py-0.5 font-label-caps uppercase text-label-caps text-on-secondary-fixed">
                       {selected.tag}
                     </span>
                   </div>
-                  <p className="font-headline-sm text-primary" data-testid="concierge-selected">
+                  <p className="font-headline-sm text-headline-sm text-primary" data-testid="concierge-selected">
                     {selected.title}
                   </p>
                   {stylist && (
-                    <p className="mt-1 flex items-center justify-between font-body-sm text-on-surface-variant">
+                    <p className="mt-1 flex items-center justify-between font-body-sm text-body-sm text-on-surface-variant">
                       <span>Stylist: {stylist}</span>
                       <button
                         type="button"
@@ -220,12 +221,12 @@ export function ConciergeExperience() {
                       </button>
                     </p>
                   )}
-                  <div className="mt-space-xs flex items-center justify-between pt-space-xs font-body-sm text-on-surface-variant">
+                  <div className="mt-space-xs flex items-center justify-between pt-space-xs font-body-sm text-body-sm text-on-surface-variant">
                     <span>Fitting Fee:</span>
                     <span className="font-semibold text-primary">₹0 (Waived for Season)</span>
                   </div>
                 </div>
-                <ul className="space-y-space-xs font-body-sm text-on-surface-variant">
+                <ul className="space-y-space-xs font-body-sm text-body-sm text-on-surface-variant">
                   <li className="flex items-center gap-space-xs">
                     <ShieldIcon aria-hidden className="size-4 text-on-surface" />
                     End-to-end encrypted stylist discussions
@@ -237,7 +238,7 @@ export function ConciergeExperience() {
                 </ul>
               </div>
               <div className="mt-space-lg pt-space-md">
-                <p className="mb-2 font-label-caps uppercase tracking-wider text-on-surface-variant">
+                <p className="mb-2 font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant">
                   Prefer Instant Direct Chat?
                 </p>
                 <a
@@ -246,7 +247,7 @@ export function ConciergeExperience() {
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex w-full items-center justify-center gap-space-sm rounded-lg bg-surface-container-highest px-space-md py-3 font-label-md uppercase tracking-wider text-primary transition-colors hover:bg-surface-container"
+                  className="flex w-full items-center justify-center gap-space-sm rounded-lg bg-surface-container-highest px-space-md py-3 font-label-md text-label-md uppercase tracking-wider text-primary transition-colors hover:bg-surface-container"
                 >
                   <MessageCircleIcon aria-hidden className="size-5 text-[#25D366]" />
                   WhatsApp {CONCIERGE_CONTACT.whatsappLabel}
@@ -294,18 +295,13 @@ export function ConciergeExperience() {
                   <label htmlFor="cn-location" className={label}>
                     Salon / Destination *
                   </label>
-                  <select
+                  <StoreSelect
                     id="cn-location"
+                    className="rounded-lg border-transparent px-space-md"
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className={cn(field, "cursor-pointer")}
-                  >
-                    {LOCATIONS.map((l) => (
-                      <option key={l.value} value={l.value}>
-                        {l.label}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={setLocation}
+                    options={LOCATIONS.map((l) => ({ value: l.value, label: l.label }))}
+                  />
                 </div>
                 <div>
                   <label htmlFor="cn-date" className={label}>
@@ -325,16 +321,13 @@ export function ConciergeExperience() {
                   <label htmlFor="cn-slot" className={label}>
                     Time Slot *
                   </label>
-                  <select
+                  <StoreSelect
                     id="cn-slot"
                     name="slot"
+                    className="rounded-lg border-transparent px-space-md"
                     defaultValue={SLOTS[1]}
-                    className={cn(field, "cursor-pointer")}
-                  >
-                    {SLOTS.map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </select>
+                    options={SLOTS.map((s) => ({ value: s, label: s }))}
+                  />
                 </div>
               </div>
 
@@ -352,7 +345,7 @@ export function ConciergeExperience() {
                         aria-pressed={on}
                         onClick={() => toggleOccasion(o)}
                         className={cn(
-                          "cursor-pointer rounded px-3 py-1.5 font-label-sm transition-colors",
+                          "cursor-pointer rounded px-3 py-1.5 font-label-sm text-label-sm transition-colors",
                           on
                             ? "bg-primary text-on-primary"
                             : "bg-surface-container-low text-on-surface hover:bg-surface-container"
@@ -380,14 +373,14 @@ export function ConciergeExperience() {
               </div>
 
               <div className="flex flex-col items-center justify-between gap-space-md pt-space-xs sm:flex-row">
-                <p className="flex items-center gap-space-xs font-label-sm text-on-surface-variant">
+                <p className="flex items-center gap-space-xs font-label-sm text-label-sm text-on-surface-variant">
                   <BadgeCheckIcon aria-hidden className="size-[18px] text-secondary" />
                   Our desk confirms every request by WhatsApp or phone
                 </p>
                 <button
                   type="submit"
                   disabled={pending}
-                  className="flex w-full cursor-pointer items-center justify-center gap-space-xs rounded bg-primary px-space-xl py-3 font-label-md uppercase tracking-wider text-on-primary transition-colors hover:bg-primary-container disabled:cursor-wait disabled:opacity-70 sm:w-auto"
+                  className="flex w-full cursor-pointer items-center justify-center gap-space-xs rounded bg-primary px-space-xl py-3 font-label-md text-label-md uppercase tracking-wider text-on-primary transition-colors hover:bg-primary-container disabled:cursor-wait disabled:opacity-70 sm:w-auto"
                 >
                   {pending ? "Sending…" : "Confirm Concierge Appointment"}
                   <ArrowRightIcon aria-hidden className="size-[18px]" />
@@ -403,10 +396,10 @@ export function ConciergeExperience() {
                     <div className="flex items-start gap-space-sm">
                       <CheckCircle2Icon aria-hidden className="size-6 shrink-0 text-secondary" />
                       <div>
-                        <p className="font-label-md font-semibold text-primary">
+                        <p className="font-label-md text-label-md font-semibold text-primary">
                           Appointment request sent · {result.reference}
                         </p>
-                        <p className="font-body-sm text-on-surface-variant">
+                        <p className="font-body-sm text-body-sm text-on-surface-variant">
                           Our Fashion Director has your brief and will message you on WhatsApp
                           within 30 minutes.
                         </p>
@@ -424,7 +417,7 @@ export function ConciergeExperience() {
                 )}
                 {result && !result.ok && (
                   <p
-                    className="rounded-lg bg-error-container p-space-md font-body-sm text-on-error-container"
+                    className="rounded-lg bg-error-container p-space-md font-body-sm text-body-sm text-on-error-container"
                     role="alert"
                   >
                     {result.error}
@@ -440,12 +433,12 @@ export function ConciergeExperience() {
       <section className="mx-auto w-full max-w-[1440px] px-margin-mobile py-space-xl md:px-margin">
         <div className="mb-space-lg flex flex-col justify-between md:flex-row md:items-end">
           <div>
-            <span className="mb-1 block font-label-caps uppercase tracking-widest text-secondary">
+            <span className="mb-1 block font-label-caps text-label-caps uppercase tracking-widest text-secondary">
               Directorial Talent
             </span>
-            <h2 className="font-headline-xl text-primary">Meet Your Private Stylists</h2>
+            <h2 className="font-headline-xl text-[clamp(2rem,4vw,2.75rem)] text-primary">Meet Your Private Stylists</h2>
           </div>
-          <p className="mt-2 max-w-md font-body-sm text-on-surface-variant md:mt-0">
+          <p className="mt-2 max-w-md font-body-sm text-body-sm text-on-surface-variant md:mt-0">
             Each appointment is stewarded by senior editorial directors who have shaped global
             runway presentations and contemporary wardrobe collections.
           </p>
@@ -464,24 +457,24 @@ export function ConciergeExperience() {
                   sizes="(min-width: 768px) 30vw, 92vw"
                   className="object-cover transition-transform duration-700 group-hover:scale-105"
                 />
-                <span className="absolute right-3 top-3 rounded bg-surface-container-lowest/90 px-2.5 py-1 font-label-caps uppercase tracking-wider text-primary backdrop-blur-md">
+                <span className="absolute right-3 top-3 rounded bg-surface-container-lowest/90 px-2.5 py-1 font-label-caps text-label-caps uppercase tracking-wider text-primary backdrop-blur-md">
                   {p.role}
                 </span>
               </div>
               <div className="flex flex-1 flex-col justify-between p-space-lg">
                 <div>
-                  <h3 className="font-headline-sm text-primary">{p.name}</h3>
-                  <p className="mb-space-sm mt-0.5 font-label-md text-secondary">{p.specialty}</p>
-                  <p className="mb-space-md font-body-sm leading-relaxed text-on-surface-variant">
+                  <h3 className="font-headline-sm text-headline-sm text-primary">{p.name}</h3>
+                  <p className="mb-space-sm mt-0.5 font-label-md text-label-md text-secondary">{p.specialty}</p>
+                  <p className="mb-space-md font-body-sm text-body-sm leading-relaxed text-on-surface-variant">
                     {p.bio}
                   </p>
                 </div>
                 <div className="-mx-space-lg -mb-space-lg flex items-center justify-between bg-surface-container-low p-space-md">
-                  <span className="font-body-sm font-medium text-on-surface">{p.base}</span>
+                  <span className="font-body-sm text-body-sm font-medium text-on-surface">{p.base}</span>
                   <button
                     type="button"
                     onClick={() => requestStylist(p.name)}
-                    className="flex cursor-pointer items-center gap-1 font-label-caps uppercase tracking-wider text-primary transition-colors hover:text-secondary"
+                    className="flex cursor-pointer items-center gap-1 font-label-caps text-label-caps uppercase tracking-wider text-primary transition-colors hover:text-secondary"
                   >
                     Request Slot
                     <ArrowRightIcon aria-hidden className="size-3.5" />

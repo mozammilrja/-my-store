@@ -1,4 +1,4 @@
-import type { ProductDoc, RegionDoc, OrderDoc } from "../db/schema.js"
+import type { ProductDoc, RegionDoc, OrderDoc, ShipmentDoc } from "../db/schema.js"
 import { env } from "../env.js"
 
 export const assetUrl = (path: string) => {
@@ -101,8 +101,33 @@ export function toStoreProduct(
 
 export type StoreProduct = ReturnType<typeof toStoreProduct>
 
-/** Order as the storefront shopper sees it: sanitized IDs, computed line totals, resolved asset URLs. */
-export function toStoreOrder(o: OrderDoc) {
+/** Doorstep preferences can change only before the parcel leaves. */
+export const canEditDeliveryPreferences = (o: Pick<OrderDoc, "status" | "fulfillmentStatus" | "shipment">) =>
+  o.status !== "canceled" && o.fulfillmentStatus === "unfulfilled" && !o.shipment
+
+/**
+ * The carrier scans recorded on a shipment, oldest first (the order they
+ * happened in, so a timeline reads top to bottom). Only what the shipment
+ * itself recorded is returned.
+ */
+export const toStoreTrackingEvents = (s: Pick<ShipmentDoc, "trackingEvents">) =>
+  [...(s.trackingEvents ?? [])]
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .map((e) => ({
+      timestamp: new Date(e.timestamp).toISOString(),
+      status: e.status,
+      location: e.location,
+      note: e.note,
+    }))
+
+/**
+ * Order as the storefront shopper sees it: sanitized IDs, computed line totals, resolved asset URLs.
+ *
+ * Pass `tracking` (the order's outbound shipment, or null when none was
+ * found) to include `shipment.events`; callers that did not look the shipment
+ * up leave it out, and then `events` is absent rather than an empty list.
+ */
+export function toStoreOrder(o: OrderDoc, tracking?: ShipmentDoc | null) {
   return {
     id: o._id,
     displayId: o.displayId,
@@ -121,6 +146,8 @@ export function toStoreOrder(o: OrderDoc) {
     shippingAddress: o.shippingAddress,
     billingAddress: o.billingAddress,
     shippingOption: { id: o.shippingOption._id, name: o.shippingOption.name, amount: o.shippingOption.amount },
+    buyerGstin: o.buyerGstin ?? null,
+    deliveryInstructions: o.deliveryInstructions ?? null,
     promoCodes: o.promoCodes,
     totals: o.totals,
     paymentMethod: o.paymentMethod,
@@ -134,8 +161,25 @@ export function toStoreOrder(o: OrderDoc) {
           labelUrl: o.shipment.labelUrl,
           pickupScheduledAt: o.shipment.pickupScheduledAt?.toISOString(),
           estimatedDelivery: o.shipment.estimatedDelivery?.toISOString(),
+          shippedAt: o.shipment.shippedAt?.toISOString(),
+          deliveredAt: o.shipment.deliveredAt?.toISOString(),
+          ...(tracking === undefined ? {} : { events: tracking ? toStoreTrackingEvents(tracking) : [] }),
         }
       : undefined,
+    /** Doorstep slot and options the shopper picked; absent until they choose. */
+    deliveryPreferences: o.deliveryPreferences
+      ? {
+          slot: o.deliveryPreferences.slot,
+          options: o.deliveryPreferences.options,
+          updatedAt: o.deliveryPreferences.updatedAt.toISOString(),
+        }
+      : undefined,
+    /** Whether the doorstep preferences can still be changed (not yet shipped, delivered or canceled). */
+    preferencesEditable: canEditDeliveryPreferences(o),
+    /** When the payment was captured (online, or COD once collected); absent while it is still due. */
+    paidAt: o.paymentDetails?.paidAt?.toISOString(),
+    /** The payment gateway's own reference for the payment, when there is one (never set for COD). */
+    paymentReference: o.paymentDetails?.razorpayPaymentId,
     returnRequest: o.returnRequest
       ? {
           status: o.returnRequest.status,

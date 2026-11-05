@@ -85,7 +85,7 @@ export function CategoryTiles({ categories }: { categories: Showcase[] }) {
                         className="object-cover p-4 group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
-                      <div className="flex h-full items-center justify-center font-label-caps text-xs text-muted-foreground">
+                      <div className="flex h-full items-center justify-center font-label-caps uppercase text-xs text-muted-foreground">
                         Everwear Capsule
                       </div>
                     )}

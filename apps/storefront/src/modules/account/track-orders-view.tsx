@@ -6,6 +6,7 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { useState } from "react"
+import { StoreSelect } from "@/components/store/store-select"
 
 const Icon = ({ name, className = "" }: { name: string; className?: string }) => (
   <span aria-hidden className={`material-symbols-outlined ${className}`}>
@@ -26,13 +27,13 @@ export function TrackOrdersView({ orders }: { orders: OrderSummary[] }) {
         <div className="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center text-outline mb-3">
           <Icon name="local_shipping" className="text-[28px]" />
         </div>
-        <h2 className="font-headline-sm font-semibold text-on-surface">No active dispatches to track</h2>
-        <p className="font-body-sm text-on-surface-variant max-w-sm mt-1 mb-4">
+        <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">No active dispatches to track</h2>
+        <p className="font-body-sm text-body-sm text-on-surface-variant max-w-sm mt-1 mb-4">
           Once you place an order, live consignment tracking with Blue Dart priority dispatches will be displayed here.
         </p>
         <LocalizedClientLink
           href="/store"
-          className="h-10 px-6 bg-primary text-on-primary rounded font-label-sm uppercase font-semibold flex items-center gap-2"
+          className="h-10 px-6 bg-primary text-on-primary rounded font-label-sm text-label-sm uppercase font-semibold flex items-center gap-2"
         >
           Browse Collections
         </LocalizedClientLink>
@@ -67,23 +68,20 @@ export function TrackOrdersView({ orders }: { orders: OrderSummary[] }) {
 
         {orders.length > 1 && (
           <div className="flex items-center gap-2">
-            <span className="font-label-sm text-on-surface-variant text-xs uppercase font-medium">Tracking Order:</span>
-            <div className="relative">
-              <select
-                value={selectedOrderId}
-                onChange={(e) => setSelectedOrderId(e.target.value)}
-                className="h-10 pl-3 pr-8 bg-surface-container-low text-on-surface font-label-sm rounded-lg appearance-none cursor-pointer border border-surface-container-high uppercase"
-              >
-                {orders.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    #EVR-{o.displayId} • {formatMoney(o.total, o.currency)}
-                  </option>
-                ))}
-              </select>
-              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[16px]">
-                expand_more
-              </span>
-            </div>
+            <span id="track-order-label" className="font-label-sm text-on-surface-variant text-xs uppercase font-medium">Tracking Order:</span>
+            <StoreSelect
+              variant="pill"
+              size="sm"
+              align="end"
+              aria-labelledby="track-order-label"
+              className="px-3"
+              value={selectedOrderId}
+              onValueChange={setSelectedOrderId}
+              options={orders.map((o) => ({
+                value: o.id,
+                label: `#EVR-${o.displayId} \u2022 ${formatMoney(o.total, o.currency)}`,
+              }))}
+            />
           </div>
         )}
       </section>
@@ -187,7 +185,7 @@ export function TrackOrdersView({ orders }: { orders: OrderSummary[] }) {
                   <p className="font-body-sm text-body-sm text-on-surface-variant">
                     Textile hand-feel, structural seams, and hallmark validated by Master Inspector. RF seals affixed.
                   </p>
-                  <div className="mt-space-xs flex items-center gap-space-sm font-label-caps text-label-caps">
+                  <div className="mt-space-xs flex items-center gap-space-sm font-label-caps uppercase text-label-caps">
                     <span className="bg-surface-container-highest px-2 py-0.5 rounded text-on-surface">Seal ID: #RF-99482-T</span>
                     <span className="text-secondary font-medium">Zero Deviations Detected</span>
                   </div>
@@ -217,7 +215,7 @@ export function TrackOrdersView({ orders }: { orders: OrderSummary[] }) {
                     Air Cargo flight 6E-804 landed at Delhi Indira Gandhi International Cargo Terminal 3. Inducted into express transfer lane.
                   </p>
                   <div className="mt-space-sm p-space-sm bg-surface-container-low rounded flex flex-col gap-1.5">
-                    <div className="flex justify-between font-label-caps text-label-caps text-on-surface-variant">
+                    <div className="flex justify-between font-label-caps uppercase text-label-caps text-on-surface-variant">
                       <span>BLR Departure (06:15)</span>
                       <span className="text-secondary font-semibold">T3 DEL Touchdown (08:42)</span>
                       <span>Gurgaon Sorting (Est. 12:00)</span>
@@ -280,14 +278,14 @@ export function TrackOrdersView({ orders }: { orders: OrderSummary[] }) {
               </div>
               <div className="flex items-center gap-space-xs bg-surface-container-low px-space-md py-space-xs rounded text-on-surface">
                 <Icon name="shield" className="text-[18px] text-primary" />
-                <span className="font-label-caps text-label-caps">Dual Cryptographic Seals Intact</span>
+                <span className="font-label-caps uppercase text-label-caps">Dual Cryptographic Seals Intact</span>
               </div>
             </div>
 
             <div className="flex gap-space-md bg-surface-container-low/40 p-space-md rounded-lg">
               <div className="w-24 h-32 shrink-0 bg-surface-container-high rounded overflow-hidden relative">
                 <Image src={thumbnail} alt="Item thumbnail" fill sizes="96px" className="object-cover" />
-                <span className="absolute top-1.5 left-1.5 bg-primary/80 backdrop-blur-sm text-on-primary font-label-caps text-[9px] px-1.5 py-0.5 rounded">
+                <span className="absolute top-1.5 left-1.5 bg-primary/80 backdrop-blur-sm text-on-primary font-label-caps uppercase text-[9px] px-1.5 py-0.5 rounded">
                   01/01
                 </span>
               </div>
@@ -304,7 +302,7 @@ export function TrackOrdersView({ orders }: { orders: OrderSummary[] }) {
                   </p>
                 </div>
                 <div className="pt-space-xs border-t border-surface-container-highest/60 flex items-center justify-between">
-                  <span className="font-label-caps text-label-caps font-mono text-outline">
+                  <span className="font-label-caps uppercase text-label-caps font-mono text-outline">
                     SN: #EVR-{selectedOrder.displayId}
                   </span>
                   <span className="font-label-sm text-label-sm font-semibold text-primary">
@@ -385,10 +383,10 @@ export function TrackOrdersView({ orders }: { orders: OrderSummary[] }) {
                   <div>
                     <h5 className="font-label-md text-label-md text-primary font-bold">Rajesh Verma</h5>
                     <p className="font-body-sm text-body-sm text-on-surface-variant">Blue Dart Priority Elite · 4.98 ★</p>
-                    <span className="font-label-caps text-label-caps text-secondary font-mono">Verified ID #BD-8821</span>
+                    <span className="font-label-caps uppercase text-label-caps text-secondary font-mono">Verified ID #BD-8821</span>
                   </div>
                 </div>
-                <span className="bg-surface-container-lowest text-primary px-2 py-0.5 rounded font-label-caps text-[10px]">
+                <span className="bg-surface-container-lowest text-primary px-2 py-0.5 rounded font-label-caps uppercase text-[10px]">
                   WHITE-GLOVE
                 </span>
               </div>

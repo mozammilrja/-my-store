@@ -1,5 +1,5 @@
 import { Router, type Request } from "express"
-import { buildInvoiceLines } from "../../lib/invoice.js"
+import { buildInvoiceLines, dispatchWarehouse } from "../../lib/invoice.js"
 import type { ClientSession } from "mongodb"
 import { z } from "zod"
 import { withTransaction } from "../../db/client.js"
@@ -8,9 +8,9 @@ import { optionalAuth, requireAuth } from "../../lib/auth.js"
 import { badRequest, conflict, forbidden, notFound } from "../../lib/errors.js"
 import { newId } from "../../lib/ids.js"
 import { regionForCountry } from "../../lib/regions.js"
-import { assetUrl, isInStock, toStoreOrder } from "../../lib/serialize.js"
+import { assetUrl, canEditDeliveryPreferences, isInStock, toStoreOrder } from "../../lib/serialize.js"
 import { computeTotals, promotionUsable } from "../../lib/totals.js"
-import { address, email } from "../../lib/validation.js"
+import { address, buyerGstin, email } from "../../lib/validation.js"
 import { executeIdempotent } from "../../lib/idempotency.js"
 
 /** Most units of one variant a single cart line may hold. */
@@ -102,6 +102,8 @@ async function serializeCart(cart: CartDoc, region: RegionDoc, removed: string[]
     shippingAddress: cart.shippingAddress ?? null,
     billingAddress: cart.billingAddress ?? null,
     shippingOptionId: cart.shippingOptionId ?? null,
+    buyerGstin: cart.buyerGstin ?? null,
+    deliveryInstructions: cart.deliveryInstructions ?? null,
     shippingOptions: region.shippingOptions.map((s) => ({ id: s._id, name: s.name, amount: s.amount })),
     promoCodes: cart.promoCodes,
     totals,
@@ -265,6 +267,10 @@ cartRoutes.patch("/carts/:id", async (req, res) => {
       email: email.optional(),
       shippingAddress: address.optional(),
       billingAddress: address.optional(),
+      /** The business buyer's GSTIN for the tax invoice; null removes it. */
+      buyerGstin: buyerGstin.nullable().optional(),
+      /** A note for the courier; an empty string removes it. */
+      deliveryInstructions: z.string().trim().max(300).optional(),
       /** Move the cart to another country's region (prices and shipping change). */
       country: z.string().regex(/^[a-zA-Z]{2}$/).optional(),
     })
@@ -287,10 +293,16 @@ cartRoutes.patch("/carts/:id", async (req, res) => {
   if (body.email) set.email = body.email
   if (body.shippingAddress) set.shippingAddress = body.shippingAddress
   if (body.billingAddress) set.billingAddress = body.billingAddress
+  if (body.buyerGstin) set.buyerGstin = body.buyerGstin
 
+  const unset: Record<string, ""> = {}
+  if (resetShipping) unset.shippingOptionId = ""
+  if (body.buyerGstin === null) unset.buyerGstin = ""
+  if (body.deliveryInstructions) set.deliveryInstructions = body.deliveryInstructions
+  else if (body.deliveryInstructions === "") unset.deliveryInstructions = ""
   await db
     .carts()
-    .updateOne({ _id: cart._id, completedAt: null }, { $set: set, ...(resetShipping ? { $unset: { shippingOptionId: "" } } : {}) })
+    .updateOne({ _id: cart._id, completedAt: null }, { $set: set, ...(Object.keys(unset).length ? { $unset: unset } : {}) })
   res.json({ cart: await freshCart(cart._id) })
 })
 
@@ -408,6 +420,8 @@ cartRoutes.post("/carts/:id/complete", async (req, res) => {
         shippingAddress: cart.shippingAddress,
         billingAddress: cart.billingAddress ?? cart.shippingAddress,
         shippingOption,
+        ...(cart.buyerGstin ? { buyerGstin: cart.buyerGstin } : {}),
+        ...(cart.deliveryInstructions ? { deliveryInstructions: cart.deliveryInstructions } : {}),
         promoCodes: cart.promoCodes,
         totals: computeTotals({ ...cart, items }, region, promotions),
         paymentMethod: "cod",
@@ -469,6 +483,7 @@ cartRoutes.post("/carts/:id/complete", async (req, res) => {
           orderId: doc._id,
           displayId: doc.displayId,
           customerName: `${doc.shippingAddress.firstName} ${doc.shippingAddress.lastName}`,
+          ...(doc.buyerGstin ? { customerGstin: doc.buyerGstin.gstin, customerLegalName: doc.buyerGstin.legalName } : {}),
           shippingAddress: doc.shippingAddress,
           billingAddress: doc.billingAddress,
           // Lines and totals that add up to what the order charged.
@@ -548,7 +563,8 @@ cartRoutes.get("/orders/:id/invoice", async (req, res) => {
   const invoice = await db.invoices().findOne({ orderId: order._id })
   if (!invoice) throw notFound("Invoice")
   const { _id, issuedAt, ...rest } = invoice
-  res.json({ invoice: { id: _id, ...rest, issuedAt: issuedAt.toISOString() } })
+  const dispatchFrom = await dispatchWarehouse(order._id)
+  res.json({ invoice: { id: _id, ...rest, issuedAt: issuedAt.toISOString(), dispatchFrom } })
 })
 
 cartRoutes.get("/orders/:id", async (req, res) => {
@@ -558,5 +574,50 @@ cartRoutes.get("/orders/:id", async (req, res) => {
   const ownsByAccount = !!actorId && order.customerId === actorId
   const ownsByCart = req.get("x-cart-id") === order.cartId
   if (!ownsByAccount && !ownsByCart) throw forbidden("You can't view this order")
-  res.json({ order: toStoreOrder(order) })
+  // The outbound shipment's carrier scans, for the tracking page.
+  const tracking = order.shipment?.awb
+    ? await db.shipments().findOne({ orderId: order._id, awb: order.shipment.awb, isReturn: false })
+    : null
+  // Where it ships from (same rule as the invoice), for the tracking route card.
+  const dispatchFrom = await dispatchWarehouse(order._id)
+  res.json({ order: { ...toStoreOrder(order, tracking), dispatchFrom } })
+})
+
+const deliveryPreferencesBody = z
+  .object({
+    slot: z.enum(["morning", "evening"]).nullable(),
+    options: z.object({ measuringTape: z.boolean().optional(), reusableBox: z.boolean().optional() }).strict().default({}),
+  })
+  .strict()
+
+/**
+ * The shopper's doorstep slot and options. Same access rule as reading the
+ * order; refused once the order has shipped, been delivered or canceled.
+ */
+cartRoutes.patch("/orders/:id/delivery-preferences", async (req, res) => {
+  const id = z.string().regex(/^order_[0-9a-z]{16}$/).parse(req.params.id)
+  const body = deliveryPreferencesBody.parse(req.body)
+  const order = await db.orders().findOne({ _id: id })
+  if (!order) throw notFound("Order")
+  const ownsByAccount = !!req.actorId && order.customerId === req.actorId
+  const ownsByCart = req.get("x-cart-id") === order.cartId
+  if (!ownsByAccount && !ownsByCart) throw forbidden("You can't change this order")
+  if (!canEditDeliveryPreferences(order)) throw conflict("Delivery preferences can't be changed once an order has shipped or been canceled", "order_not_editable")
+  const now = new Date()
+  const deliveryPreferences = {
+    slot: body.slot,
+    options: {
+      measuringTape: body.options.measuringTape ?? order.deliveryPreferences?.options.measuringTape ?? false,
+      reusableBox: body.options.reusableBox ?? order.deliveryPreferences?.options.reusableBox ?? false,
+    },
+    updatedAt: now,
+  }
+  // Conditional on the order still being editable, so a shipment racing this write wins.
+  const updated = await db.orders().findOneAndUpdate(
+    { _id: id, status: { $ne: "canceled" }, fulfillmentStatus: "unfulfilled", shipment: { $exists: false } },
+    { $set: { deliveryPreferences, updatedAt: now } },
+    { returnDocument: "after" }
+  )
+  if (!updated) throw conflict("Delivery preferences can't be changed once an order has shipped or been canceled", "order_not_editable")
+  res.json({ order: toStoreOrder(updated) })
 })

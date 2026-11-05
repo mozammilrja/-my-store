@@ -47,6 +47,7 @@ describe("GST invoice lines", () => {
         assert.equal(inv.cgstTotal + inv.sgstTotal + inv.igstTotal, lineTax)
         assert.equal(inv.subtotal + lineTax, inv.grandTotal, "taxable + tax = grand total")
         assert.equal(inv.grandTotal, order.totals.total, "grand total = what was charged")
+        assert.equal(sum(inv.items.map((l) => l.discount ?? 0)), order.totals.discountTotal, "line discounts add up to the order discount")
         if (!taxInclusive) assert.equal(lineTax, order.totals.taxTotal, "tax matches the order to the paisa")
         assert.equal(inv.items.some((l) => l.sku === "DELIVERY"), ship === "so_exp", "delivery is its own line when charged")
       })

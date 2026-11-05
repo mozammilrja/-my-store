@@ -70,7 +70,7 @@ export function AtelierSpotlights() {
                   sizes="(min-width: 768px) 33vw, 100vw"
                   className="object-cover group-hover:scale-105 transition-transform duration-500"
                 />
-                <span className="absolute top-2.5 left-2.5 bg-surface-container-lowest/90 px-2 py-0.5 rounded font-label-caps text-label-caps text-on-surface font-semibold">
+                <span className="absolute top-2.5 left-2.5 bg-surface-container-lowest/90 px-2 py-0.5 rounded font-label-caps uppercase text-label-caps text-on-surface font-semibold">
                   {shop.location}
                 </span>
               </div>

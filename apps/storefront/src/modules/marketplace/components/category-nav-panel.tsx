@@ -507,7 +507,7 @@ export function CategoryNavPanel({
                         {cat.title}
                       </h3>
                     </div>
-                    <span className="font-label-caps text-[11px] bg-white/20 backdrop-blur-md text-white px-2 py-0.5 rounded-full font-bold shrink-0">
+                    <span className="font-label-caps uppercase text-[11px] bg-white/20 backdrop-blur-md text-white px-2 py-0.5 rounded-full font-bold shrink-0">
                       {cat.count}
                     </span>
                   </div>

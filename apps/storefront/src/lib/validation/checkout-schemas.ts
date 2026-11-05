@@ -116,3 +116,20 @@ export const cardValidationSchema = z.object({
     .trim()
     .min(2, "Cardholder name is required"),
 })
+
+/**
+ * GSTIN for a business (B2B) tax invoice: 2-digit state code, 10-character
+ * PAN, entity number, "Z", check character. The API checks the same format.
+ */
+export const buyerGstinSchema = z.object({
+  gstin: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, "Enter a valid 15-character GSTIN, e.g. 22AAAAA0000A1Z5"),
+  legalName: z
+    .string()
+    .trim()
+    .min(2, "Enter the registered legal name")
+    .max(200, "Legal name is too long"),
+})

@@ -76,7 +76,7 @@ export function OrderView({ order }: { order: Order }) {
           <span className="font-label-caps text-xs text-on-surface-variant uppercase block">Fulfillment</span>
           <div className="mt-1 flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${isShipped ? "bg-secondary animate-pulse" : isDelivered ? "bg-emerald-600" : "bg-primary"}`} />
-            <span className="font-label-md font-semibold text-on-surface capitalize" data-testid="order-status">
+            <span className="font-label-md text-label-md font-semibold text-on-surface capitalize" data-testid="order-status">
               {statusLabel(order.status === "canceled" ? "canceled" : order.fulfillmentStatus)}
             </span>
           </div>
@@ -86,7 +86,7 @@ export function OrderView({ order }: { order: Order }) {
           <span className="font-label-caps text-xs text-on-surface-variant uppercase block">Payment Status</span>
           <div className="mt-1 flex items-center gap-1.5">
             <span className="material-symbols-outlined text-[16px] text-emerald-600">verified</span>
-            <span className="font-label-md font-semibold text-on-surface capitalize" data-testid="payment-status">
+            <span className="font-label-md text-label-md font-semibold text-on-surface capitalize" data-testid="payment-status">
               {statusLabel(order.paymentStatus)}
             </span>
           </div>
@@ -94,14 +94,14 @@ export function OrderView({ order }: { order: Order }) {
 
         <div className="bg-surface-container-lowest p-space-md rounded-xl border border-surface-container-high/60">
           <span className="font-label-caps text-xs text-on-surface-variant uppercase block">Payment Mode</span>
-          <p className="mt-1 font-label-md font-semibold text-on-surface" data-testid="payment-method">
+          <p className="mt-1 font-label-md text-label-md font-semibold text-on-surface" data-testid="payment-method">
             {order.paymentMethod === "razorpay" ? "Paid online (Razorpay)" : "Cash on Delivery"}
           </p>
         </div>
 
         <div className="bg-surface-container-lowest p-space-md rounded-xl border border-surface-container-high/60">
           <span className="font-label-caps text-xs text-on-surface-variant uppercase block">Total Settlement</span>
-          <p className="mt-1 font-label-md font-bold text-primary tabular-nums">
+          <p className="mt-1 font-label-md text-label-md font-bold text-primary tabular-nums">
             {formatMoney(order.totals.total, order.currency)}
           </p>
         </div>
@@ -115,7 +115,7 @@ export function OrderView({ order }: { order: Order }) {
               <span className="material-symbols-outlined text-[20px]">near_me</span>
             </div>
             <div>
-              <h3 className="font-label-md font-bold text-on-surface uppercase">Live Consignment Tracking</h3>
+              <h3 className="font-label-md text-label-md font-bold text-on-surface uppercase">Live Consignment Tracking</h3>
               <p className="font-body-sm text-xs text-on-surface-variant">
                 Partner: <strong className="text-on-surface font-semibold uppercase">{order.shipment?.carrier ?? "Blue Dart Priority Air"}</strong> &bull; AWB: <span className="font-mono">{order.shipment?.awb ?? `BLR-${order.displayId}891`}</span>
               </p>
@@ -164,7 +164,7 @@ export function OrderView({ order }: { order: Order }) {
       {/* 4. Ordered Items List */}
       <section className="bg-surface-container-lowest p-space-lg rounded-2xl shadow-xs border border-surface-container-high/60 space-y-space-md">
         <div className="flex items-center justify-between pb-2 border-b border-surface-container">
-          <h2 className="font-headline-sm font-semibold text-on-surface">Curated Garments ({order.items.length})</h2>
+          <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">Curated Garments ({order.items.length})</h2>
           <span className="font-label-caps text-xs text-on-surface-variant uppercase">Inspected &amp; Packed</span>
         </div>
 
@@ -220,7 +220,7 @@ export function OrderView({ order }: { order: Order }) {
         <div className="bg-surface-container-lowest p-space-lg rounded-2xl shadow-xs border border-surface-container-high/60 space-y-3">
           <div className="flex items-center gap-2 pb-2 border-b border-surface-container">
             <span className="material-symbols-outlined text-primary text-[20px]">pin_drop</span>
-            <h3 className="font-label-md font-bold uppercase text-on-surface">Shipping Address</h3>
+            <h3 className="font-label-md text-label-md font-bold uppercase text-on-surface">Shipping Address</h3>
           </div>
           <div className="space-y-1 text-sm font-body-md text-on-surface" data-testid="shipping-address">
             <p className="font-semibold text-on-surface">{a.firstName} {a.lastName}</p>
@@ -241,30 +241,30 @@ export function OrderView({ order }: { order: Order }) {
         <div className="bg-surface-container-lowest p-space-lg rounded-2xl shadow-xs border border-surface-container-high/60 space-y-3">
           <div className="flex items-center gap-2 pb-2 border-b border-surface-container">
             <span className="material-symbols-outlined text-primary text-[20px]">receipt</span>
-            <h3 className="font-label-md font-bold uppercase text-on-surface">Financial Ledger</h3>
+            <h3 className="font-label-md text-label-md font-bold uppercase text-on-surface">Financial Ledger</h3>
           </div>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between text-on-surface-variant font-body-sm">
+            <div className="flex justify-between text-on-surface-variant font-body-sm text-body-sm">
               <span>Item Subtotal:</span>
               <span className="tabular-nums font-medium text-on-surface">
                 {formatMoney(order.totals.itemSubtotal, order.currency)}
               </span>
             </div>
             {order.totals.discountTotal > 0 && (
-              <div className="flex justify-between text-secondary font-body-sm">
+              <div className="flex justify-between text-secondary font-body-sm text-body-sm">
                 <span>Atelier Advantage / Discount:</span>
                 <span className="tabular-nums font-medium">
                   -{formatMoney(order.totals.discountTotal, order.currency)}
                 </span>
               </div>
             )}
-            <div className="flex justify-between text-on-surface-variant font-body-sm">
+            <div className="flex justify-between text-on-surface-variant font-body-sm text-body-sm">
               <span>Shipping & Delivery:</span>
               <span className="tabular-nums font-medium text-on-surface">
                 {order.totals.shippingTotal === 0 ? "Complimentary" : formatMoney(order.totals.shippingTotal, order.currency)}
               </span>
             </div>
-            <div className="flex justify-between text-on-surface-variant font-body-sm">
+            <div className="flex justify-between text-on-surface-variant font-body-sm text-body-sm">
               <span>Taxes (GST Inclusive):</span>
               <span className="tabular-nums font-medium text-on-surface">
                 {formatMoney(order.totals.taxTotal, order.currency)}
@@ -272,7 +272,7 @@ export function OrderView({ order }: { order: Order }) {
             </div>
             <div className="flex justify-between text-base font-bold text-primary pt-2 border-t border-surface-container">
               <span>Total Paid:</span>
-              <span className="tabular-nums font-headline-sm">{formatMoney(order.totals.total, order.currency)}</span>
+              <span className="tabular-nums font-headline-sm text-headline-sm">{formatMoney(order.totals.total, order.currency)}</span>
             </div>
           </div>
         </div>

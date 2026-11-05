@@ -29,7 +29,7 @@ export function CollectionBand({ collections }: { collections: Showcase[] }) {
                 Discover {featured.count} crafted pieces designed with intentional proportion, natural fibers, and timeless silhouettes.
               </p>
               <div className="flex flex-wrap items-center gap-3 pt-2">
-                <Button asChild size="lg" className="rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-label-md tracking-wider uppercase font-semibold">
+                <Button asChild size="lg" className="rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-label-md text-label-md tracking-wider uppercase font-semibold">
                   <LocalizedClientLink href={featured.href} className="flex items-center gap-2">
                     Shop The Edit
                     <ArrowRightIcon className="size-4" aria-hidden />

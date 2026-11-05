@@ -220,7 +220,7 @@ export function LineItem({
               </button>
             </div>
           ) : (
-            <span className="font-body-sm text-on-surface-variant">Qty: {item.quantity}</span>
+            <span className="font-body-sm text-body-sm text-on-surface-variant">Qty: {item.quantity}</span>
           )}
 
           <div className="text-right">

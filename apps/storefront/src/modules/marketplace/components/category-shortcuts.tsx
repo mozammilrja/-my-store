@@ -7,7 +7,7 @@ export function CategoryShortcuts() {
   return (
     <div className="w-full bg-surface-container-low/50 border-b border-border/50 py-2.5 px-margin-mobile md:px-margin">
       <div className="w-full flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-muted-foreground font-body-sm">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-muted-foreground font-body-sm text-body-sm">
           <span className="font-label-caps text-[10px] uppercase text-foreground font-bold tracking-wider shrink-0">
             Curated Shortcuts:
           </span>

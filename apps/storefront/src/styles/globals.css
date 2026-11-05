@@ -204,86 +204,103 @@
   }
 }
 
-/* Stitch Editorial Typographic Utilities */
+
+/*
+ * Stitch type scale. As in the Stitch exports, `text-<role>` carries the size,
+ * leading, tracking and weight; `font-<role>` only selects the family. Ported
+ * Stitch markup pairs them (`font-body-sm text-body-sm`) or overrides the size
+ * explicitly (`font-headline-sm text-[1.05rem]`), and both now render as designed.
+ */
+@theme {
+  --text-display-hero: 4rem;
+  --text-display-hero--line-height: 1.05;
+  --text-display-hero--letter-spacing: -0.035em;
+  --text-display-hero--font-weight: 300;
+  --text-display-hero-mobile: 2.5rem;
+  --text-display-hero-mobile--line-height: 1.1;
+  --text-display-hero-mobile--letter-spacing: -0.025em;
+  --text-display-hero-mobile--font-weight: 300;
+  --text-headline-xl: 2.75rem;
+  --text-headline-xl--line-height: 1.15;
+  --text-headline-xl--letter-spacing: -0.03em;
+  --text-headline-xl--font-weight: 400;
+  --text-headline-xl-mobile: 2rem;
+  --text-headline-xl-mobile--line-height: 1.2;
+  --text-headline-xl-mobile--letter-spacing: -0.02em;
+  --text-headline-xl-mobile--font-weight: 400;
+  --text-headline-lg: 1.75rem;
+  --text-headline-lg--line-height: 1.25;
+  --text-headline-lg--letter-spacing: -0.02em;
+  --text-headline-lg--font-weight: 500;
+  --text-headline-sm: 1.25rem;
+  --text-headline-sm--line-height: 1.35;
+  --text-headline-sm--letter-spacing: -0.015em;
+  --text-headline-sm--font-weight: 500;
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.6;
+  --text-body-lg--letter-spacing: -0.01em;
+  --text-body-lg--font-weight: 400;
+  --text-body-md: 0.9375rem;
+  --text-body-md--line-height: 1.55;
+  --text-body-md--letter-spacing: 0em;
+  --text-body-md--font-weight: 400;
+  --text-body-sm: 0.8125rem;
+  --text-body-sm--line-height: 1.5;
+  --text-body-sm--letter-spacing: 0.005em;
+  --text-body-sm--font-weight: 400;
+  --text-label-caps: 0.6875rem;
+  --text-label-caps--line-height: 1rem;
+  --text-label-caps--letter-spacing: 0.08em;
+  --text-label-caps--font-weight: 600;
+  --text-label-md: 0.875rem;
+  --text-label-md--line-height: 1.25rem;
+  --text-label-md--letter-spacing: -0.005em;
+  --text-label-md--font-weight: 500;
+  --text-label-sm: 0.75rem;
+  --text-label-sm--line-height: 1rem;
+  --text-label-sm--letter-spacing: 0.01em;
+  --text-label-sm--font-weight: 500;
+}
+
+/* Stitch font-family roles (size comes from the matching text-<role>) */
 @utility font-display-hero {
   font-family: var(--font-sans);
-  font-size: clamp(2.5rem, 6vw, 4rem);
-  font-weight: 300;
-  line-height: 1.05;
-  letter-spacing: -0.035em;
 }
 
 @utility font-headline-xl {
   font-family: var(--font-sans);
-  font-size: clamp(2rem, 4vw, 2.75rem);
-  font-weight: 400;
-  line-height: 1.15;
-  letter-spacing: -0.03em;
 }
 
 @utility font-headline-lg {
   font-family: var(--font-sans);
-  font-size: 1.75rem;
-  font-weight: 500;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
 }
 
 @utility font-headline-sm {
   font-family: var(--font-sans);
-  font-size: 1.25rem;
-  font-weight: 500;
-  line-height: 1.35;
-  letter-spacing: -0.015em;
 }
 
 @utility font-label-caps {
   font-family: var(--font-sans);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  line-height: 1rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 @utility font-label-md {
   font-family: var(--font-sans);
-  font-size: 0.875rem;
-  font-weight: 500;
-  line-height: 1.25rem;
-  letter-spacing: -0.005em;
 }
 
 @utility font-label-sm {
   font-family: var(--font-sans);
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1rem;
-  letter-spacing: 0.01em;
 }
 
 @utility font-body-lg {
   font-family: var(--font-sans);
-  font-size: 1.125rem;
-  font-weight: 400;
-  line-height: 1.6;
-  letter-spacing: -0.01em;
 }
 
 @utility font-body-md {
   font-family: var(--font-sans);
-  font-size: 0.9375rem;
-  font-weight: 400;
-  line-height: 1.55;
-  letter-spacing: 0em;
 }
 
 @utility font-body-sm {
   font-family: var(--font-sans);
-  font-size: 0.8125rem;
-  font-weight: 400;
-  line-height: 1.5;
-  letter-spacing: 0.005em;
 }
 
 /* Backward compatibility for legacy classes while using Inter */
@@ -303,25 +320,54 @@
   src: url('/fonts/material-symbols-outlined.woff2') format('woff2');
 }
 
-.material-symbols-outlined {
-  font-family: 'Material Symbols Outlined', sans-serif;
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  font-feature-settings: 'liga' 1;
-  -webkit-font-feature-settings: 'liga';
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  user-select: none;
-  vertical-align: middle;
+/* In the base layer so size utilities (text-[16px], text-[20px]...) win, as
+   they do in the Stitch exports; unsized icons still default to 24px. */
+@layer base {
+  .material-symbols-outlined {
+    font-family: 'Material Symbols Outlined', sans-serif;
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-feature-settings: 'liga' 1;
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    user-select: none;
+    vertical-align: middle;
+  }
 }
 
 
+
+/*
+ * Pages migrated from the Stitch page exports (checkout, payment recovery,
+ * order confirmation, tracking, invoice) wrap themselves in `.stitch-page`.
+ * Those exports were generated with a tighter radius scale than DESIGN.md
+ * (rounded = 2px, -lg = 4px, -xl = 8px, -full = 12px: the "round" icon tiles
+ * in the designs are rounded squares). The theme radii are inlined, so the
+ * scale is applied here, scoped, instead of by overriding variables. None of
+ * the exports use breakpoint-specific radii.
+ */
+@layer utilities {
+  .stitch-page .rounded,
+  .stitch-page .rounded-sm {
+    border-radius: 0.125rem;
+  }
+  .stitch-page .rounded-lg {
+    border-radius: 0.25rem;
+  }
+  .stitch-page .rounded-xl {
+    border-radius: 0.5rem;
+  }
+  .stitch-page .rounded-full {
+    border-radius: 0.75rem;
+  }
+}

@@ -9,6 +9,7 @@ import Image from "next/image"
 import { useParams } from "next/navigation"
 import { useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
+import { StoreSelect } from "@/components/store/store-select"
 
 export function OrdersListView({
   customer,
@@ -187,40 +188,41 @@ export function OrdersListView({
 
           <div className="flex items-center gap-space-sm shrink-0">
             {/* Date Range Filter */}
-            <div className="relative">
-              <select
-                value={timeFilter}
-                onChange={(e) => {
-                  setTimeFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-                className="h-11 pl-3.5 pr-8 bg-surface-container-low text-on-surface font-label-sm text-label-sm rounded-lg appearance-none cursor-pointer focus:outline-none hover:bg-surface-container transition-colors uppercase border border-surface-container-high"
-              >
-                <option value="all">Archive (All Time)</option>
-                <option value="6m">Past 6 Months</option>
-                <option value="2025">Year 2025</option>
-                <option value="2024">Year 2024</option>
-              </select>
-              <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[16px]">
-                expand_more
-              </span>
-            </div>
+            <StoreSelect
+              variant="pill"
+              align="end"
+              aria-label="Filter orders by date"
+              value={timeFilter}
+              onValueChange={(v) => {
+                setTimeFilter(v)
+                setCurrentPage(1)
+              }}
+              options={[
+                { value: "all", label: "Archive (All Time)" },
+                { value: "6m", label: "Past 6 Months" },
+                { value: "2025", label: "Year 2025" },
+                { value: "2024", label: "Year 2024" },
+              ]}
+            />
 
             {/* Sort Option */}
-            <div className="relative">
-              <select
-                value={sortOption}
-                onChange={(e) => setSortOption(e.target.value as "recent" | "oldest" | "highest")}
-                className="h-11 pl-3.5 pr-8 bg-surface-container-low text-on-surface font-label-sm text-label-sm rounded-lg appearance-none cursor-pointer focus:outline-none hover:bg-surface-container transition-colors uppercase border border-surface-container-high"
-              >
-                <option value="recent">Most Recent First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="highest">Highest Value</option>
-              </select>
-              <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-[16px]">
-                swap_vert
-              </span>
-            </div>
+            <StoreSelect
+              variant="pill"
+              align="end"
+              aria-label="Sort orders"
+              value={sortOption}
+              onValueChange={(v) => setSortOption(v as "recent" | "oldest" | "highest")}
+              leading={
+                <span aria-hidden className="material-symbols-outlined text-[16px] text-outline">
+                  swap_vert
+                </span>
+              }
+              options={[
+                { value: "recent", label: "Most Recent First" },
+                { value: "oldest", label: "Oldest First" },
+                { value: "highest", label: "Highest Value" },
+              ]}
+            />
           </div>
         </div>
 
@@ -276,8 +278,8 @@ export function OrdersListView({
             <div className="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center text-outline mb-3">
               <span className="material-symbols-outlined text-[28px]">search_off</span>
             </div>
-            <h3 className="font-headline-sm font-medium text-on-surface">No matching consignments found</h3>
-            <p className="font-body-sm text-on-surface-variant max-w-sm mt-1 mb-4">
+            <h3 className="font-headline-sm text-headline-sm font-medium text-on-surface">No matching consignments found</h3>
+            <p className="font-body-sm text-body-sm text-on-surface-variant max-w-sm mt-1 mb-4">
               Try adjusting your search terms or filters to view your archival wardrobe ledger.
             </p>
             <button
@@ -287,7 +289,7 @@ export function OrdersListView({
                 setSelectedTab("all")
                 setTimeFilter("all")
               }}
-              className="h-10 px-5 bg-surface-container-low hover:bg-surface-container text-on-surface rounded font-label-sm uppercase font-semibold transition-colors"
+              className="h-10 px-5 bg-surface-container-low hover:bg-surface-container text-on-surface rounded font-label-sm text-label-sm uppercase font-semibold transition-colors"
             >
               Reset Filters
             </button>
@@ -400,7 +402,7 @@ export function OrdersListView({
                       <span className="material-symbols-outlined text-[16px] text-secondary">local_shipping</span>
                       <span>Courier: <strong className="text-on-surface font-medium">Blue Dart Express</strong></span>
                       <span className="text-on-surface-variant text-xs">&bull;</span>
-                      <span className="font-label-caps text-label-caps text-outline bg-surface-container px-2 py-0.5 rounded">
+                      <span className="font-label-caps uppercase text-label-caps text-outline bg-surface-container px-2 py-0.5 rounded">
                         AWB #{order.shipment?.awb ?? `BLR-${order.displayId}904`}
                       </span>
                     </div>

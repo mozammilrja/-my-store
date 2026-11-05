@@ -231,7 +231,7 @@ export function NotificationsView() {
             <span className="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-2">
               notifications_off
             </span>
-            <p className="font-body-md text-on-surface-variant">
+            <p className="font-body-md text-body-md text-on-surface-variant">
               No notifications found in this category.
             </p>
           </div>
@@ -423,13 +423,13 @@ export function NotificationsView() {
                 <button
                   type="button"
                   onClick={() => setShowPreferences(false)}
-                  className="h-10 px-5 bg-surface-container text-on-surface font-label-sm uppercase rounded hover:bg-surface-container-high transition-colors font-medium cursor-pointer"
+                  className="h-10 px-5 bg-surface-container text-on-surface font-label-sm text-label-sm uppercase rounded hover:bg-surface-container-high transition-colors font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="h-10 px-5 bg-primary text-on-primary font-label-sm uppercase rounded hover:bg-inverse-surface transition-colors font-medium shadow-sm cursor-pointer"
+                  className="h-10 px-5 bg-primary text-on-primary font-label-sm text-label-sm uppercase rounded hover:bg-inverse-surface transition-colors font-medium shadow-sm cursor-pointer"
                 >
                   Save Changes
                 </button>

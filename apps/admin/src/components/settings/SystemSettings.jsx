@@ -48,6 +48,19 @@ function SettingRow({ id, title, description, children }) {
   );
 }
 
+/** Seller-of-record fields, in form order. Keys match the API's settings.seller. */
+const SELLER_FIELDS = [
+  { key: 'legalName', label: 'Legal name', placeholder: 'Everwear Studios India Private Limited' },
+  { key: 'gstin', label: 'GSTIN', placeholder: '15 characters, e.g. 07AABCE1234F1Z8' },
+  { key: 'cin', label: 'CIN', placeholder: '21 characters' },
+  { key: 'state', label: 'State (GST code)', placeholder: 'Delhi (07)' },
+  { key: 'address', label: 'Registered address', placeholder: 'Street, city, PIN, country' },
+  { key: 'email', label: 'Invoice email', type: 'email', placeholder: 'support@…' },
+  { key: 'phone', label: 'Phone', type: 'tel', placeholder: '+91 …' },
+];
+
+const EMPTY_SELLER = Object.fromEntries(SELLER_FIELDS.map(({ key }) => [key, '']));
+
 export function SystemSettings({ onNavigate, onShowToast }) {
   const [activeSection, setActiveSection] = useState('general');
   const [autoReconcile, setAutoReconcile] = useState(true);
@@ -73,12 +86,18 @@ export function SystemSettings({ onNavigate, onShowToast }) {
   const [lowStockThreshold, setLowStockThreshold] = useState(5);
   const [supportEmail, setSupportEmail] = useState('concierge@everwear.test');
   const [isSaving, setIsSaving] = useState(false);
+  // Seller of record, printed on every GST tax invoice the storefront issues.
+  const [seller, setSeller] = useState(EMPTY_SELLER);
+  const setSellerField = (key) => (value) => setSeller((prev) => ({ ...prev, [key]: value }));
 
   useEffect(() => {
     if (settingsData?.settings) {
       if (settingsData.settings.storeName) setStoreName(settingsData.settings.storeName);
       if (settingsData.settings.lowStockThreshold !== undefined) setLowStockThreshold(settingsData.settings.lowStockThreshold);
       if (settingsData.settings.supportEmail) setSupportEmail(settingsData.settings.supportEmail);
+      if (settingsData.settings.seller) {
+        setSeller(Object.fromEntries(SELLER_FIELDS.map(({ key }) => [key, settingsData.settings.seller[key] ?? ''])));
+      }
     }
   }, [settingsData]);
 
@@ -89,6 +108,8 @@ export function SystemSettings({ onNavigate, onShowToast }) {
         storeName,
         lowStockThreshold: Number(lowStockThreshold),
         supportEmail: supportEmail || null,
+        // A blank field clears that detail rather than saving an empty string.
+        seller: Object.fromEntries(SELLER_FIELDS.map(({ key }) => [key, seller[key]?.trim() || null])),
       });
       onShowToast?.({
         type: 'success',
@@ -190,6 +211,26 @@ export function SystemSettings({ onNavigate, onShowToast }) {
                   value={supportEmail}
                   onChange={(value) => setSupportEmail(value)}
                 />
+              </FormGrid>
+            </SectionCard>
+
+            <SectionCard
+              title="Seller details"
+              description="The legal details printed on every GST tax invoice. Leave a field blank to omit it."
+            >
+              <FormGrid columns={2}>
+                {SELLER_FIELDS.map(({ key, label, type, placeholder }) => (
+                  <FormInput
+                    key={key}
+                    id={`settings-seller-${key}`}
+                    label={label}
+                    type={type ?? 'text'}
+                    placeholder={placeholder}
+                    value={seller[key]}
+                    onChange={setSellerField(key)}
+                    disabled={!canEditSettings}
+                  />
+                ))}
               </FormGrid>
             </SectionCard>
 

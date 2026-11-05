@@ -147,6 +147,20 @@ customerRoutes.patch("/customers/me/addresses/:addressId", async (req, res) => {
   res.json({ customer: toCustomer(await me(id)) })
 })
 
+/**
+ * Makes a saved address the default: it moves to the front of the list, which
+ * is the address checkout and the account pages treat as the primary one.
+ */
+customerRoutes.post("/customers/me/addresses/:addressId/default", async (req, res) => {
+  const id = req.actorId!
+  const customer = await me(id)
+  const chosen = customer.addresses.find((a) => a._id === req.params.addressId)
+  if (!chosen) throw notFound("Address")
+  const addresses = [chosen, ...customer.addresses.filter((a) => a._id !== chosen._id)]
+  await db.customers().updateOne({ _id: id }, { $set: { addresses, updatedAt: new Date() } })
+  res.json({ customer: toCustomer(await me(id)) })
+})
+
 customerRoutes.delete("/customers/me/addresses/:addressId", async (req, res) => {
   const id = req.actorId!
   await db.customers().updateOne({ _id: id }, { $pull: { addresses: { _id: req.params.addressId } }, $set: { updatedAt: new Date() } })

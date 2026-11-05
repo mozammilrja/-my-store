@@ -302,7 +302,7 @@ export function TrendingGrid() {
                           e.preventDefault()
                           toast.success(`Selected size ${s} for ${prod.title}`)
                         }}
-                        className="w-6 h-6 rounded bg-surface-container text-on-surface font-label-caps text-[10px] hover:bg-primary hover:text-on-primary transition-colors flex items-center justify-center cursor-pointer font-bold"
+                        className="w-6 h-6 rounded bg-surface-container text-on-surface font-label-caps uppercase text-[10px] hover:bg-primary hover:text-on-primary transition-colors flex items-center justify-center cursor-pointer font-bold"
                       >
                         {s}
                       </button>
@@ -339,7 +339,7 @@ export function TrendingGrid() {
                     <span className="font-body-sm text-body-sm text-on-surface-variant line-through">
                       {prod.comparePrice}
                     </span>
-                    <span className="font-label-caps text-label-caps text-secondary font-bold">
+                    <span className="font-label-caps uppercase text-label-caps text-secondary font-bold">
                       {prod.discount}
                     </span>
                   </div>
@@ -354,7 +354,7 @@ export function TrendingGrid() {
                     />
                   ))}
                   {prod.extraColors && (
-                    <span className="font-label-caps text-[10px] text-on-surface-variant ml-1">
+                    <span className="font-label-caps uppercase text-[10px] text-on-surface-variant ml-1">
                       {prod.extraColors}
                     </span>
                   )}

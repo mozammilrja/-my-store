@@ -19,7 +19,11 @@ test("guest checkout reaches order confirmation", async ({ page }) => {
   await page.getByTestId("shipping-address-input").fill("12 MG Road")
   await page.getByTestId("shipping-postal-code-input").fill("560001")
   await page.getByTestId("shipping-city-input").fill("Bengaluru")
-  await page.getByTestId("shipping-country-select").selectOption("in")
+  // The country is a styled (Radix) select: open it and pick India from the list.
+  const country = page.getByTestId("shipping-country-select")
+  await country.click()
+  await page.getByRole("option", { name: /india/i }).click()
+  await expect(country).toHaveText(/india/i)
   await page.getByTestId("shipping-email-input").fill(`e2e+${Date.now()}@example.com`)
   // One thing at a time. ADDRESS: CONTINUE saves the address.
   await expect(page.getByTestId("delivery-option-radio")).toHaveCount(0)
@@ -29,6 +33,11 @@ test("guest checkout reaches order confirmation", async ({ page }) => {
   await expect(page).toHaveURL(/step=delivery/)
   await expect(page.getByTestId("shipping-first-name-input")).toHaveCount(0)
   await page.getByTestId("delivery-option-radio").first().click()
+  await page.getByTestId("checkout-continue-button").click()
+
+  // REVIEW: the chosen address and delivery method; CONTINUE goes to payment.
+  await expect(page).toHaveURL(/step=review/)
+  await expect(page.getByTestId("selected-address-card")).toContainText("12 MG Road")
   await page.getByTestId("checkout-continue-button").click()
 
   // PAYMENT: only the payment options; PLACE ORDER.
@@ -87,26 +96,33 @@ test("a failed online payment offers recovery, and pay on delivery completes the
   await page.getByTestId("checkout-continue-button").click()
   await expect(page).toHaveURL(/step=delivery/)
   await page.getByTestId("checkout-continue-button").click()
+  await expect(page).toHaveURL(/step=review/)
+  await page.getByTestId("checkout-continue-button").click()
   await expect(page).toHaveURL(/step=payment/)
 
   // UPI can't complete here (no gateway window), so checkout lands on recovery.
   await page.getByRole("tab", { name: /instant upi/i }).click()
   await page.getByTestId("submit-order-button").click()
   await expect(page).toHaveURL(/\/checkout\/payment-failed\?method=upi/, { timeout: 30_000 })
-  await expect(page.getByRole("heading", { name: /couldn.t complete your payment/i })).toBeVisible()
+  await expect(page.getByRole("heading", { name: /couldn.t complete your (payment|transaction)/i })).toBeVisible()
 
-  // Switching to pay on delivery comes back with COD selected and finishes.
-  await page.getByTestId("payment-switch-cod").click()
+  // Choosing pay on delivery as the recovery method comes back with COD selected and finishes.
+  await expect(page.getByTestId("payment-switch-method")).toHaveAttribute("href", /\/checkout\?step=payment$/)
+  await page.getByTestId("recovery-cod").check()
+  await page.getByTestId("payment-retry").click()
   await expect(page).toHaveURL(/step=payment&method=cod/)
   await expect(page.getByRole("tab", { name: /pay on delivery/i })).toHaveAttribute("aria-selected", "true")
   await page.getByTestId("submit-order-button").click()
   await expect(page).toHaveURL(/\/order\/order_[0-9a-z]+\/confirmed/, { timeout: 60_000 })
 })
 
-test("checkout without a bag shows not found", async ({ browser }) => {
+test("checkout without a bag sends the shopper to their empty bag", async ({ browser }) => {
   const context = await browser.newContext()
   const page = await context.newPage()
-  const response = await page.goto(`${test.info().project.use.baseURL}/${COUNTRY}/checkout`, { waitUntil: "domcontentloaded" })
-  expect(response?.status()).toBe(404)
+  for (const step of ["", "?step=delivery", "?step=review", "?step=payment"]) {
+    await page.goto(`${test.info().project.use.baseURL}/${COUNTRY}/checkout${step}`, { waitUntil: "domcontentloaded" })
+    await expect(page).toHaveURL(new RegExp(`/${COUNTRY}/cart$`))
+    await expect(page.getByTestId("empty-cart-message")).toBeVisible()
+  }
   await context.close()
 })

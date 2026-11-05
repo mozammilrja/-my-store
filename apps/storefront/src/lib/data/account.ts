@@ -130,6 +130,17 @@ export async function saveAddress(_: AddressActionResult, form: FormData): Promi
   return { error: null }
 }
 
+/** Makes a saved address the default (first) one. */
+export async function setDefaultAddress(addressId: string): Promise<ActionResult> {
+  try {
+    await api(`/store/customers/me/addresses/${encodeURIComponent(addressId)}/default`, { method: "POST", token: await authed() })
+  } catch (e) {
+    return { error: message(e) }
+  }
+  revalidatePath("/", "layout")
+  return { error: null }
+}
+
 export async function deleteAddress(addressId: string) {
   await api(`/store/customers/me/addresses/${encodeURIComponent(addressId)}`, { method: "DELETE", token: await authed() })
   revalidatePath("/", "layout")

@@ -17,7 +17,6 @@ import { formatMoney } from "@lib/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import {
   ArrowRightIcon,
-  ChevronDownIcon,
   ClockIcon,
   SearchIcon,
   TagIcon,
@@ -28,6 +27,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { StoreSelect } from "@/components/store/store-select"
 
 const DEBOUNCE_MS = 200
 const MAX_QUERY_LENGTH = 100
@@ -477,19 +477,21 @@ export function SearchDialog({ desktopBar = false }: { desktopBar?: boolean }) {
           }}
           className="w-full flex items-center bg-surface-container-low hover:bg-surface-container rounded-lg p-1 transition-all cursor-pointer border border-border/50 shadow-xs"
         >
-          <div className="relative shrink-0">
-            <select
+          <div className="shrink-0">
+            <StoreSelect
+              variant="inline"
+              stopPropagation
               aria-label="Department Scope"
-              onClick={(e) => e.stopPropagation()}
-              className="appearance-none bg-transparent font-label-sm text-xs text-foreground pl-3 pr-6 py-1.5 cursor-pointer focus:outline-none"
-            >
-              <option value="all">All Departments</option>
-              <option value="men">Men</option>
-              <option value="women">Women</option>
-              <option value="kids">Kids</option>
-              <option value="beauty">Beauty</option>
-            </select>
-            <ChevronDownIcon className="size-3.5 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground" />
+              defaultValue="all"
+              className="py-1.5 pl-3 pr-1.5 hover:bg-surface-container-high"
+              options={[
+                { value: "all", label: "All Departments" },
+                { value: "men", label: "Men" },
+                { value: "women", label: "Women" },
+                { value: "kids", label: "Kids" },
+                { value: "beauty", label: "Beauty" },
+              ]}
+            />
           </div>
           <div className="h-4 w-px bg-border mx-1 shrink-0" />
           <div className="relative flex-1 flex items-center px-2">

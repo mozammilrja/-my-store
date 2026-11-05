@@ -136,7 +136,22 @@ export type SettingsDoc = {
   /** A variant at or under this count is reported as low stock. */
   lowStockThreshold: number
   supportEmail?: string
+  /** The seller's legal details, printed on every GST tax invoice. */
+  seller?: SellerDetails
   updatedAt: Date
+}
+
+/** Legal identity of the seller of record. Any field may be absent until set. */
+export type SellerDetails = {
+  legalName?: string
+  gstin?: string
+  cin?: string
+  /** Registered address, one line; printed as written. */
+  address?: string
+  /** State with its GST state code, e.g. "Delhi (07)". */
+  state?: string
+  email?: string
+  phone?: string
 }
 
 export type LineItem = {
@@ -151,6 +166,14 @@ export type LineItem = {
   unitPrice: number
 }
 
+/** A business buyer's GST registration, given at checkout for a B2B tax invoice. */
+export type BuyerGstin = {
+  /** 15-character GSTIN, upper case. */
+  gstin: string
+  /** Registered legal (trade) name of the business. */
+  legalName: string
+}
+
 export type CartDoc = {
   _id: string
   regionId: string
@@ -161,6 +184,10 @@ export type CartDoc = {
   shippingAddress?: Address
   billingAddress?: Address
   shippingOptionId?: string
+  /** Business buyer's GST registration, printed on the tax invoice. */
+  buyerGstin?: BuyerGstin
+  /** Shopper's note for the courier (gate code, leave with concierge...). */
+  deliveryInstructions?: string
   promoCodes: string[]
   completedAt?: Date | null
   orderId?: string
@@ -206,6 +233,10 @@ export type OrderDoc = {
   shippingAddress: Address
   billingAddress: Address
   shippingOption: { _id: string; name: string; amount: number }
+  /** Copied from the cart: the business buyer's GST registration, if any. */
+  buyerGstin?: BuyerGstin
+  /** Copied from the cart: the shopper's note for the courier. */
+  deliveryInstructions?: string
   promoCodes: string[]
   totals: OrderTotals
   paymentMethod: "cod" | "razorpay"
@@ -229,6 +260,12 @@ export type OrderDoc = {
     returnAwb?: string
     carrier?: string
     requestedAt: Date
+    updatedAt: Date
+  }
+  /** The shopper's doorstep choices, editable until the order ships. */
+  deliveryPreferences?: {
+    slot: "morning" | "evening" | null
+    options: { measuringTape: boolean; reusableBox: boolean }
     updatedAt: Date
   }
   status: "pending" | "completed" | "canceled"
@@ -333,6 +370,8 @@ export type InvoiceDoc = {
   displayId: number
   customerName: string
   customerGstin?: string
+  /** Registered legal name that goes with customerGstin. */
+  customerLegalName?: string
   shippingAddress: Address
   billingAddress: Address
   items: {
@@ -341,6 +380,8 @@ export type InvoiceDoc = {
     hsn: string
     quantity: number
     unitPrice: number
+    /** The line's share of the order discount (minor units). Absent on invoices raised before it was recorded. */
+    discount?: number
     taxableValue: number
     gstRate: number
     cgst: number
@@ -380,6 +421,11 @@ export type WarehouseDoc = {
   pincode: string
   address: string
   leadDispatcher?: string
+  /** The warehouse's own GST registration (state code + PAN), printed on invoices dispatched from it. */
+  gstin?: string | null
+  /** Location of the building (WGS84), for the shopper's tracking map. */
+  lat?: number | null
+  lng?: number | null
   status: "active" | "inactive"
   isDefault?: boolean
   createdAt: Date
@@ -480,6 +526,16 @@ export type SupportMessage = {
 }
 
 /** A request for a concierge styling appointment, made from the storefront's /concierge page. */
+/** One newsletter subscription, from the storefront footer. One row per email. */
+export type NewsletterSubscriberDoc = {
+  _id: string
+  email: string
+  /** Where the sign-up came from, e.g. "footer:checkout". */
+  source: string
+  createdAt: Date
+  updatedAt: Date
+}
+
 export type ConciergeBookingDoc = {
   _id: string
   /** Shown to the shopper, e.g. CNC-2026-1001. */
@@ -602,6 +658,7 @@ export const db = {
   outboxEvents: (): Collection<OutboxEventDoc> => getDb().collection("outbox_events"),
   supportTickets: (): Collection<SupportTicketDoc> => getDb().collection("support_tickets"),
   conciergeBookings: (): Collection<ConciergeBookingDoc> => getDb().collection("concierge_bookings"),
+  newsletterSubscribers: (): Collection<NewsletterSubscriberDoc> => getDb().collection("newsletter_subscribers"),
   loyaltyAccounts: (): Collection<LoyaltyAccountDoc> => getDb().collection("loyalty_accounts"),
   notifications: (): Collection<NotificationDoc> => getDb().collection("notifications"),
   auditLogs: (): Collection<AuditLogDoc> => getDb().collection("audit_logs"),
@@ -672,6 +729,7 @@ export async function ensureIndexes() {
     db.supportTickets().createIndex({ customerId: 1, createdAt: -1 }),
     db.supportTickets().createIndex({ status: 1 }),
     db.conciergeBookings().createIndex({ reference: 1 }, { unique: true }),
+    db.newsletterSubscribers().createIndex({ email: 1 }, { unique: true }),
     db.conciergeBookings().createIndex({ status: 1, date: 1 }),
     db.loyaltyAccounts().createIndex({ customerId: 1 }, { unique: true }),
     db.notifications().createIndex({ recipientId: 1, status: 1, createdAt: -1 }),

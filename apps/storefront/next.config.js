@@ -11,13 +11,15 @@ const api = new URL(API_PUBLIC_URL)
  * Content Security Policy. Next.js injects inline bootstrap scripts into
  * statically rendered pages, and nonces would force every page to be dynamic,
  * so scripts allow 'unsafe-inline'. The browser only talks to this site;
- * images may also come from the API's upload folder.
+ * images may also come from the API's upload folder and, for the tracking
+ * map, OpenStreetMap's tile servers.
  */
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' https://checkout.razorpay.com${isProd ? "" : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  `img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.razorpay.com ${api.origin}`,
+  // OpenStreetMap tiles for the order-tracking map.
+  `img-src 'self' data: blob: https://lh3.googleusercontent.com https://*.razorpay.com https://*.tile.openstreetmap.org ${api.origin}`,
   "font-src 'self' data: https://fonts.gstatic.com",
   `connect-src 'self' https://api.razorpay.com${isProd ? "" : " ws: wss:"}`,
   "frame-src 'self' https://checkout.razorpay.com",
@@ -41,6 +43,10 @@ const securityHeaders = [
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
+  // Optional separate build folder (e.g. NEXT_DIST_DIR=.next-prod), so a
+  // production server can run beside a dev server without either rewriting
+  // the other's files. Defaults to the usual .next.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   output: process.env.BUILD_STANDALONE === "true" || process.env.DOCKER_BUILD === "true" ? "standalone" : undefined,
   reactStrictMode: true,
   poweredByHeader: false,

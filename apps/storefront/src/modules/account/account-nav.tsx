@@ -89,7 +89,7 @@ export function AccountNav({ customer }: { customer?: Customer | null }) {
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full overflow-hidden bg-surface-container-high border border-surface-container-high relative flex items-center justify-center shrink-0">
               {avatarStyle === "initials" ? (
-                <div className="w-full h-full bg-primary text-on-primary flex items-center justify-center font-label-md font-bold">
+                <div className="w-full h-full bg-primary text-on-primary flex items-center justify-center font-label-md text-label-md font-bold">
                   {initials}
                 </div>
               ) : (
@@ -97,14 +97,14 @@ export function AccountNav({ customer }: { customer?: Customer | null }) {
               )}
             </div>
             <div className="flex flex-col">
-              <span className="font-label-md text-on-surface font-semibold line-clamp-1">{displayName}</span>
+              <span className="font-label-md text-label-md text-on-surface font-semibold line-clamp-1">{displayName}</span>
               <span className="font-label-caps text-[9px] text-secondary font-bold uppercase">Privilege Member</span>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-lowest text-on-surface font-label-sm border border-outline-variant shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-lowest text-on-surface font-label-sm text-label-sm border border-outline-variant shadow-xs"
           >
             <span className="material-symbols-outlined text-[18px]">{currentItem.icon}</span>
             <span>{currentItem.label}</span>
@@ -139,7 +139,7 @@ export function AccountNav({ customer }: { customer?: Customer | null }) {
                     {item.badge === "wishlist" && wishlistCount > 0 && (
                       <span
                         className={cn(
-                          "font-label-caps text-label-caps px-2 py-0.5 rounded-full text-[10px]",
+                          "font-label-caps uppercase text-label-caps px-2 py-0.5 rounded-full text-[10px]",
                           active ? "bg-on-secondary/20 text-on-secondary" : "bg-surface-container text-on-surface-variant"
                         )}
                       >
@@ -147,7 +147,7 @@ export function AccountNav({ customer }: { customer?: Customer | null }) {
                       </span>
                     )}
                     {item.badge === "2" && (
-                      <span className="font-label-caps text-label-caps bg-secondary text-on-secondary px-2 py-0.5 rounded-full font-bold text-[10px]">
+                      <span className="font-label-caps uppercase text-label-caps bg-secondary text-on-secondary px-2 py-0.5 rounded-full font-bold text-[10px]">
                         2
                       </span>
                     )}
@@ -177,7 +177,7 @@ export function AccountNav({ customer }: { customer?: Customer | null }) {
           <div className="p-space-md bg-surface-container-lowest rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.03)] flex flex-col items-center text-center">
             <div className="w-16 h-16 rounded-full overflow-hidden bg-surface-container-high border-2 border-surface-container-lowest shadow-inner relative flex items-center justify-center mb-space-sm">
               {avatarStyle === "initials" ? (
-                <div className="w-full h-full bg-primary text-on-primary flex items-center justify-center font-headline-sm font-semibold tracking-wider">
+                <div className="w-full h-full bg-primary text-on-primary flex items-center justify-center font-headline-sm text-headline-sm font-semibold tracking-wider">
                   {initials}
                 </div>
               ) : (
@@ -227,7 +227,7 @@ export function AccountNav({ customer }: { customer?: Customer | null }) {
                   {item.badge === "wishlist" && wishlistCount > 0 && (
                     <span
                       className={cn(
-                        "font-label-caps text-label-caps px-2 py-0.5 rounded-full text-[10px]",
+                        "font-label-caps uppercase text-label-caps px-2 py-0.5 rounded-full text-[10px]",
                         active
                           ? "bg-on-secondary/20 text-on-secondary font-bold"
                           : "bg-surface-container text-on-surface-variant"
@@ -239,7 +239,7 @@ export function AccountNav({ customer }: { customer?: Customer | null }) {
                   {item.badge === "2" && (
                     <span
                       className={cn(
-                        "font-label-caps text-label-caps px-2 py-0.5 rounded-full text-[10px] font-bold",
+                        "font-label-caps uppercase text-label-caps px-2 py-0.5 rounded-full text-[10px] font-bold",
                         active
                           ? "bg-on-secondary text-secondary"
                           : "bg-secondary text-on-secondary"

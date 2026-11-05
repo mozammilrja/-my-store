@@ -168,7 +168,7 @@ export async function ProductListing({
             <span className="flex items-center gap-2">
               <SlidersHorizontalIcon className="size-4" aria-hidden /> Filters &amp; Refinements
               {chips.length > 0 && (
-                <span className="font-label-caps text-[10px] bg-primary text-primary-foreground px-1.5 py-0.2 rounded font-bold">
+                <span className="font-label-caps uppercase text-[10px] bg-primary text-primary-foreground px-1.5 py-0.2 rounded font-bold">
                   {chips.length}
                 </span>
               )}
@@ -221,7 +221,7 @@ export async function ProductListing({
             <p className="font-body-md text-sm text-muted-foreground max-w-sm">
               {chips.length ? "No garments match these active filters. Try removing a filter criterion." : "There are no products in this capsule yet."}
             </p>
-            <Button asChild variant="outline" size="sm" className="font-label-md">
+            <Button asChild variant="outline" size="sm" className="font-label-md text-label-md">
               <LocalizedClientLink href={chips.length ? path : "/store"}>
                 {chips.length ? "Reset Filters" : "Shop All Collections"}
               </LocalizedClientLink>

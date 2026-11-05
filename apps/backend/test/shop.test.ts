@@ -178,3 +178,72 @@ describe("cart and checkout", () => {
     assert.equal((await call("GET", `/store/orders/${id}`, undefined, { "x-cart-id": cart.id })).status, 200)
   })
 })
+
+describe("business buyers (GSTIN)", () => {
+  test("a GSTIN on the cart is validated, carried to the order and printed on the invoice", async () => {
+    const cart = await newCart()
+    await call("POST", `/store/carts/${cart.id}/items`, { variantId: "var_m", quantity: 1 })
+    const bad = await call("PATCH", `/store/carts/${cart.id}`, { buyerGstin: { gstin: "12345", legalName: "Acme" } })
+    assert.equal(bad.status, 400)
+
+    const set = await call("PATCH", `/store/carts/${cart.id}`, {
+      email: "buyer@example.com",
+      shippingAddress: address,
+      buyerGstin: { gstin: "29aabcu9603r1zm", legalName: "Acme Traders Pvt Ltd" },
+    })
+    assert.equal(set.status, 200)
+    assert.deepEqual(set.body.cart.buyerGstin, { gstin: "29AABCU9603R1ZM", legalName: "Acme Traders Pvt Ltd" })
+
+    await call("POST", `/store/carts/${cart.id}/shipping`, { optionId: "so_std" })
+    const placed = await call("POST", `/store/carts/${cart.id}/complete`)
+    assert.equal(placed.status, 201)
+    assert.equal(placed.body.order.buyerGstin.gstin, "29AABCU9603R1ZM")
+
+    const invoice = await call("GET", `/store/orders/${placed.body.order.id}/invoice`, undefined, { "x-cart-id": cart.id })
+    assert.equal(invoice.status, 200)
+    assert.equal(invoice.body.invoice.customerGstin, "29AABCU9603R1ZM")
+    assert.equal(invoice.body.invoice.customerLegalName, "Acme Traders Pvt Ltd")
+  })
+
+  test("null removes the GSTIN again", async () => {
+    const cart = await newCart()
+    await call("PATCH", `/store/carts/${cart.id}`, { buyerGstin: { gstin: "29AABCU9603R1ZM", legalName: "Acme" } })
+    const cleared = await call("PATCH", `/store/carts/${cart.id}`, { buyerGstin: null })
+    assert.equal(cleared.status, 200)
+    assert.equal(cleared.body.cart.buyerGstin, null)
+  })
+})
+
+describe("default address", () => {
+  test("making an address the default moves it to the front", async () => {
+    const reg = await call("POST", "/store/auth/register", { email: "addr@example.com", password: "long-enough-1" })
+    const auth = { authorization: `Bearer ${reg.body.token}` }
+    await call("POST", "/store/customers/me/addresses", { ...address, address1: "1 First St" }, auth)
+    const two = await call("POST", "/store/customers/me/addresses", { ...address, address1: "2 Second St" }, auth)
+    const second = two.body.customer.addresses[1]
+    const made = await call("POST", `/store/customers/me/addresses/${second.id}/default`, undefined, auth)
+    assert.equal(made.status, 200)
+    assert.deepEqual(made.body.customer.addresses.map((a: Json) => a.address1), ["2 Second St", "1 First St"])
+    assert.equal((await call("POST", "/store/customers/me/addresses/addr_missing/default", undefined, auth)).status, 404)
+    assert.equal((await call("POST", `/store/customers/me/addresses/${second.id}/default`)).status, 401)
+  })
+})
+
+describe("delivery instructions", () => {
+  test("a courier note is saved on the cart, copied to the order, and can be cleared", async () => {
+    const cart = await newCart()
+    await call("POST", `/store/carts/${cart.id}/items`, { variantId: "var_m", quantity: 1 })
+    const long = await call("PATCH", `/store/carts/${cart.id}`, { deliveryInstructions: "x".repeat(301) })
+    assert.equal(long.status, 400)
+    const set = await call("PATCH", `/store/carts/${cart.id}`, { deliveryInstructions: "  Leave with the lobby concierge  " })
+    assert.equal(set.body.cart.deliveryInstructions, "Leave with the lobby concierge")
+    const cleared = await call("PATCH", `/store/carts/${cart.id}`, { deliveryInstructions: "" })
+    assert.equal(cleared.body.cart.deliveryInstructions, null)
+
+    await call("PATCH", `/store/carts/${cart.id}`, { email: "note@example.com", shippingAddress: address, deliveryInstructions: "Ring twice" })
+    await call("POST", `/store/carts/${cart.id}/shipping`, { optionId: "so_std" })
+    const placed = await call("POST", `/store/carts/${cart.id}/complete`)
+    assert.equal(placed.status, 201)
+    assert.equal(placed.body.order.deliveryInstructions, "Ring twice")
+  })
+})

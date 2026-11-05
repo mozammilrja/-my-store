@@ -10,6 +10,7 @@ import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
+import { StoreSelect } from "@/components/store/store-select"
 
 export function ReturnsView({
   customer,
@@ -221,15 +222,15 @@ export function ReturnsView({
               <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-outline mb-3">
                 <span className="material-symbols-outlined text-[24px]">published_with_changes</span>
               </div>
-              <h3 className="font-headline-sm font-semibold text-on-surface">No active returns in progress</h3>
-              <p className="font-body-sm text-on-surface-variant max-w-sm mt-1 mb-4">
+              <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface">No active returns in progress</h3>
+              <p className="font-body-sm text-body-sm text-on-surface-variant max-w-sm mt-1 mb-4">
                 All previous exchange requests have been settled or completed.
               </p>
               {eligibleOrders.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setModalOpen(true)}
-                  className="h-10 px-5 bg-primary text-on-primary rounded font-label-sm uppercase font-semibold"
+                  className="h-10 px-5 bg-primary text-on-primary rounded font-label-sm text-label-sm uppercase font-semibold"
                 >
                   Initiate Return on Eligible Order
                 </button>
@@ -452,7 +453,7 @@ export function ReturnsView({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter">
           {eligibleOrders.length === 0 ? (
             <div className="col-span-2 bg-surface-container-lowest rounded-xl p-12 text-center flex flex-col items-center border border-dashed border-outline-variant">
-              <p className="font-body-sm text-on-surface-variant">No orders currently within the return window.</p>
+              <p className="font-body-sm text-body-sm text-on-surface-variant">No orders currently within the return window.</p>
             </div>
           ) : (
             eligibleOrders.map((o) => (
@@ -467,7 +468,7 @@ export function ReturnsView({
                   <h4 className="font-headline-sm text-base font-semibold text-on-surface mt-0.5">
                     {o.items?.[0]?.productTitle ?? "Atelier Order"}
                   </h4>
-                  <p className="font-label-md font-bold text-primary mt-1">{formatMoney(o.total, o.currency)}</p>
+                  <p className="font-label-md text-label-md font-bold text-primary mt-1">{formatMoney(o.total, o.currency)}</p>
                 </div>
                 <button
                   type="button"
@@ -475,7 +476,7 @@ export function ReturnsView({
                     setSelectedOrderId(o.id)
                     setModalOpen(true)
                   }}
-                  className="h-10 px-4 bg-primary text-on-primary hover:bg-inverse-surface rounded font-label-sm uppercase font-semibold"
+                  className="h-10 px-4 bg-primary text-on-primary hover:bg-inverse-surface rounded font-label-sm text-label-sm uppercase font-semibold"
                 >
                   Initiate Return
                 </button>
@@ -500,20 +501,19 @@ export function ReturnsView({
           <form onSubmit={handleReturnSubmit} className="p-space-lg overflow-y-auto flex-1 flex flex-col gap-space-lg">
             {/* Step 1: Select Order */}
             <div>
-              <label className="font-label-caps text-label-caps text-on-surface uppercase block mb-2 font-semibold">
+              <label htmlFor="return-order" className="font-label-caps text-label-caps text-on-surface uppercase block mb-2 font-semibold">
                 1. Select Order &amp; Item to Return
               </label>
-              <select
+              <StoreSelect
+                id="return-order"
+                className="px-3 rounded-lg bg-surface-container"
                 value={selectedOrderId}
-                onChange={(e) => setSelectedOrderId(e.target.value)}
-                className="w-full h-11 px-3 bg-surface-container text-on-surface rounded-lg font-body-sm focus:outline-none focus:ring-1 focus:ring-primary border border-surface-container-high"
-              >
-                {orders.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    #EVR-{o.displayId} &mdash; {o.items?.[0]?.productTitle ?? "Atelier Order"} ({formatMoney(o.total, o.currency)})
-                  </option>
-                ))}
-              </select>
+                onValueChange={setSelectedOrderId}
+                options={orders.map((o) => ({
+                  value: o.id,
+                  label: `#EVR-${o.displayId} \u2014 ${o.items?.[0]?.productTitle ?? "Atelier Order"} (${formatMoney(o.total, o.currency)})`,
+                }))}
+              />
             </div>
 
             {/* Step 2: Request Type */}
@@ -538,7 +538,7 @@ export function ReturnsView({
                     className="accent-primary"
                   />
                   <div>
-                    <span className="font-label-md font-semibold text-on-surface block">Return &amp; Refund</span>
+                    <span className="font-label-md text-label-md font-semibold text-on-surface block">Return &amp; Refund</span>
                     <span className="text-xs text-on-surface-variant">Original payment source</span>
                   </div>
                 </label>
@@ -559,7 +559,7 @@ export function ReturnsView({
                     className="accent-primary"
                   />
                   <div>
-                    <span className="font-label-md font-semibold text-on-surface block">Size / Color Exchange</span>
+                    <span className="font-label-md text-label-md font-semibold text-on-surface block">Size / Color Exchange</span>
                     <span className="text-xs text-on-surface-variant">Priority replacement</span>
                   </div>
                 </label>
@@ -568,22 +568,22 @@ export function ReturnsView({
 
             {/* Step 3: Return Reason */}
             <div>
-              <label className="font-label-caps text-label-caps text-on-surface uppercase block mb-2 font-semibold">
+              <label htmlFor="return-reason" className="font-label-caps text-label-caps text-on-surface uppercase block mb-2 font-semibold">
                 3. Primary Reason for Return
               </label>
-              <select
+              <StoreSelect
+                id="return-reason"
+                className="px-3 rounded-lg bg-surface-container"
                 value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="w-full h-11 px-3 bg-surface-container text-on-surface rounded-lg font-body-sm focus:outline-none focus:ring-1 focus:ring-primary border border-surface-container-high"
-              >
-                <option value="Size is too large">Size is too large</option>
-                <option value="Size is too small">Size is too small</option>
-                <option value="Fabric texture / color differs from expectations">
-                  Fabric texture / color differs from expectations
-                </option>
-                <option value="Received defective or flawed garment">Received defective or flawed garment</option>
-                <option value="Other styling preference">Other styling preference</option>
-              </select>
+                onValueChange={setReason}
+                options={[
+                  "Size is too large",
+                  "Size is too small",
+                  "Fabric texture / color differs from expectations",
+                  "Received defective or flawed garment",
+                  "Other styling preference",
+                ].map((r) => ({ value: r, label: r }))}
+              />
             </div>
 
             {/* Step 4: Pickup Address */}
@@ -593,7 +593,7 @@ export function ReturnsView({
               </label>
               <div className="p-4 rounded-xl bg-surface-container-low flex items-center justify-between border border-surface-container-high">
                 <div>
-                  <p className="font-label-md font-semibold text-on-surface">
+                  <p className="font-label-md text-label-md font-semibold text-on-surface">
                     {defaultAddress
                       ? `${defaultAddress.firstName} ${defaultAddress.lastName} (Primary Atelier Residence)`
                       : customer.email}
@@ -619,14 +619,14 @@ export function ReturnsView({
                 type="button"
                 variant="outline"
                 onClick={() => setModalOpen(false)}
-                className="h-10 px-5 rounded uppercase font-label-sm"
+                className="h-10 px-5 rounded uppercase font-label-sm text-label-sm"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={isPending}
-                className="h-10 px-6 bg-primary text-on-primary hover:bg-inverse-surface rounded uppercase font-label-sm font-semibold"
+                className="h-10 px-6 bg-primary text-on-primary hover:bg-inverse-surface rounded uppercase font-label-sm text-label-sm font-semibold"
               >
                 {isPending ? "Scheduling..." : "Confirm & Schedule Pickup"}
               </Button>

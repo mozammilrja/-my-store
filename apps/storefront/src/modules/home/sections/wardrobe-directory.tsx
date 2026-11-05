@@ -95,7 +95,7 @@ export function WardrobeDirectory() {
                       <span className="group-hover:text-on-surface transition-colors">
                         {item.name}
                       </span>
-                      <span className="font-label-caps text-[10px] text-outline">
+                      <span className="font-label-caps uppercase text-[10px] text-outline">
                         {item.count}
                       </span>
                     </LocalizedClientLink>

@@ -1,4 +1,4 @@
-import type { InvoiceDoc, OrderDoc, RegionDoc } from "../db/schema.js"
+import { db, type InvoiceDoc, type OrderDoc, type RegionDoc } from "../db/schema.js"
 
 type Line = InvoiceDoc["items"][number]
 
@@ -33,12 +33,13 @@ export function buildInvoiceLines(order: Pick<OrderDoc, "items" | "totals" | "sh
       hsn: GOODS_HSN,
       quantity: i.quantity,
       unitPrice: i.unitPrice,
+      discount: share,
       net: gross - share,
     }
   })
   const delivery =
     shippingTotal > 0
-      ? [{ name: `Delivery: ${order.shippingOption.name}`, sku: "DELIVERY", hsn: COURIER_HSN, quantity: 1, unitPrice: shippingTotal, net: shippingTotal }]
+      ? [{ name: `Delivery: ${order.shippingOption.name}`, sku: "DELIVERY", hsn: COURIER_HSN, quantity: 1, unitPrice: shippingTotal, discount: 0, net: shippingTotal }]
       : []
 
   const raw = [...goods, ...delivery].map((l) => {
@@ -61,6 +62,7 @@ export function buildInvoiceLines(order: Pick<OrderDoc, "items" | "totals" | "sh
       hsn: l.hsn,
       quantity: l.quantity,
       unitPrice: l.unitPrice,
+      discount: l.discount,
       taxableValue: l.taxable,
       gstRate: rate,
       cgst,
@@ -76,5 +78,38 @@ export function buildInvoiceLines(order: Pick<OrderDoc, "items" | "totals" | "sh
     sgstTotal: items.reduce((s, l) => s + l.sgst, 0),
     igstTotal: 0,
     grandTotal: order.totals.total,
+  }
+}
+
+/**
+ * The warehouse an order ships from, for the invoice's dispatch block: the
+ * hub its stock was taken from (the order's outbound inventory movements),
+ * else the default active warehouse, else any active one. Null when the
+ * store has no warehouses at all.
+ */
+export async function dispatchWarehouse(orderId: string) {
+  const movement = await db.inventoryMovements().findOne(
+    { referenceType: "order", referenceId: orderId, type: "outbound" },
+    { sort: { createdAt: 1 } }
+  )
+  const allocated = movement ? await db.warehouses().findOne({ code: movement.hubId }) : null
+  const warehouse =
+    allocated ??
+    (await db.warehouses().findOne({ status: "active", isDefault: true })) ??
+    (await db.warehouses().findOne({ status: "active" }, { sort: { code: 1 } }))
+  if (!warehouse) return null
+  return {
+    code: warehouse.code,
+    name: warehouse.name,
+    address: warehouse.address,
+    city: warehouse.city,
+    state: warehouse.state,
+    pincode: warehouse.pincode,
+    gstin: warehouse.gstin || null,
+    lat: typeof warehouse.lat === "number" ? warehouse.lat : null,
+    lng: typeof warehouse.lng === "number" ? warehouse.lng : null,
+    isDefault: !!warehouse.isDefault,
+    /** How it was chosen: the hub the order's stock came from, or the store's fallback. */
+    source: allocated ? ("allocated" as const) : ("default" as const),
   }
 }

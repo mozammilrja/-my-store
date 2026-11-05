@@ -6,6 +6,7 @@ import { deleteAddress, saveAddress, type AddressActionResult } from "@lib/data/
 import { fieldErrorsFrom, savedAddressSchema, type FieldErrors } from "@lib/validation/checkout-schemas"
 import { useActionState, useEffect, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
+import { StoreSelect } from "@/components/store/store-select"
 
 type Country = { code: string; name: string }
 type Saved = Address & { id: string }
@@ -266,13 +267,18 @@ export function AddressBook({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-space-md pt-1">
         <Field name="countryCode" error={errors.countryCode} label="Country" required prefix={prefix}>
           {(p) => (
-            <select {...p} name="countryCode" autoComplete="country" defaultValue={editingAddress?.countryCode ?? "in"} className={fieldClass("countryCode")}>
-              {countries.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <StoreSelect
+              {...p}
+              name="countryCode"
+              autoComplete="country"
+              required
+              defaultValue={editingAddress?.countryCode ?? "in"}
+              onValueChange={() => {
+                if (errors.countryCode) setErrors(({ countryCode: _gone, ...rest }) => rest)
+              }}
+              className={fieldClass("countryCode")}
+              options={countries.map((c) => ({ value: c.code, label: c.name }))}
+            />
           )}
         </Field>
 
@@ -327,14 +333,14 @@ export function AddressBook({
           type="button"
           variant="outline"
           onClick={closeForm}
-          className="h-11 px-5 rounded-lg uppercase font-label-sm font-semibold cursor-pointer"
+          className="h-11 px-5 rounded-lg uppercase font-label-sm text-label-sm font-semibold cursor-pointer"
         >
           Cancel
         </Button>
         <Button
           type="submit"
           disabled={pending}
-          className="h-11 px-6 bg-primary text-on-primary hover:bg-inverse-surface rounded-lg uppercase font-label-sm font-semibold shadow-xs cursor-pointer"
+          className="h-11 px-6 bg-primary text-on-primary hover:bg-inverse-surface rounded-lg uppercase font-label-sm text-label-sm font-semibold shadow-xs cursor-pointer"
         >
           {pending ? "Saving..." : editingAddress ? "Update Address" : "Save Address"}
         </Button>

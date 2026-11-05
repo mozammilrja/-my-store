@@ -210,7 +210,7 @@ export function ModernHeritageWardrobe() {
                   <span className="font-label-sm text-label-sm text-on-surface font-semibold">
                     {prod.price}
                   </span>
-                  <span className={`font-label-caps text-[10px] ${prod.noteClass}`}>
+                  <span className={`font-label-caps uppercase text-[10px] ${prod.noteClass}`}>
                     {prod.note}
                   </span>
                 </div>

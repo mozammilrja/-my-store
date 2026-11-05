@@ -30,7 +30,8 @@ test.describe("concierge page", () => {
     await page.goto(PAGE)
     await page.getByRole("button", { name: "Select Modality" }).nth(1).click()
     await expect(page.getByTestId("concierge-selected")).toHaveText("Doorstep Try-At-Home Trial")
-    await expect(page.locator("#cn-location")).toHaveValue("Doorstep In-Home")
+    // #cn-location is the styled select trigger; it shows the chosen option label.
+    await expect(page.locator("#cn-location")).toHaveText("Doorstep In-Home (Private Address)")
   })
 
   test("requesting a stylist names them in the booking", async ({ page }) => {

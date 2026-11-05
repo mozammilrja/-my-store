@@ -85,8 +85,8 @@ export function AuthForms() {
           className="object-cover"
         />
         <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/30 to-black/5 p-10 text-white">
-          <span className="font-label-caps uppercase tracking-[0.2em] text-white/70">Everwear</span>
-          <p className="mt-2 font-headline-lg font-light leading-tight">
+          <span className="font-label-caps text-label-caps uppercase tracking-[0.2em] text-white/70">Everwear</span>
+          <p className="mt-2 font-headline-lg text-headline-lg font-light leading-tight">
             Everyday style.
             <br />
             Your way.
@@ -136,7 +136,7 @@ export function AuthForms() {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <h1 className="font-headline-lg text-foreground">
+          <h1 className="font-headline-lg text-headline-lg text-foreground">
             {registering ? "Create your account" : "Welcome back"}
           </h1>
           <p className="text-sm text-muted-foreground">

@@ -31,7 +31,7 @@ export function Announcement({
             {deliveryText}
           </span>
           <span className="hidden sm:inline mx-2 opacity-30">|</span>
-          <span className="hidden sm:inline font-label-caps text-label-caps bg-surface/10 px-2 py-0.5 rounded text-surface-bright">
+          <span className="hidden sm:inline font-label-caps uppercase text-label-caps bg-surface/10 px-2 py-0.5 rounded text-surface-bright">
             Code: EVERSPRING
           </span>
         </div>

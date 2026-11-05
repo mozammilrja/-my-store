@@ -14,6 +14,16 @@ const warehouseSchema = z.object({
   pincode: z.string().trim().min(4).max(10),
   address: z.string().trim().min(5).max(250),
   leadDispatcher: z.string().trim().max(100).optional(),
+  /** GSTIN: 2-digit state code, 10-character PAN, entity number, Z, check character. */
+  gstin: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, "Enter a valid 15-character GSTIN")
+    .nullable()
+    .optional(),
+  lat: z.number().min(-90).max(90).nullable().optional(),
+  lng: z.number().min(-180).max(180).nullable().optional(),
   status: z.enum(["active", "inactive"]).default("active"),
   isDefault: z.boolean().default(false),
 })

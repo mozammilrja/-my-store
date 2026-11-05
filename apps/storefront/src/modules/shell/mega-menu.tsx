@@ -1102,7 +1102,9 @@ export function MegaMenu({
     <nav className="relative w-full bg-surface-container-lowest border-b border-border/60 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
       <div className="w-full px-margin-mobile md:px-margin flex items-center justify-between relative">
         {/* Navigation Items with Myntra-style Hover Dropdowns */}
-        <div className="flex items-center gap-1 sm:gap-2">
+        {/* Scrolls sideways when the departments outgrow a laptop screen. The
+            dropdowns position against the <nav>, so the scroller doesn't clip them. */}
+        <div className="flex min-w-0 items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
           {DEPARTMENTS_DATA.map((dept) => (
             <div
               key={dept.id}

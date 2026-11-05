@@ -94,7 +94,7 @@ export default function OrderTrackingPage() {
 
           {searched && (
             <div className="mt-4 p-5 rounded-lg bg-surface-container-low border border-border/80 flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-primary font-semibold font-label-sm">
+              <div className="flex items-center gap-2 text-primary font-semibold font-label-sm text-label-sm">
                 <PackageCheckIcon className="size-5 shrink-0" aria-hidden />
                 <span>Status for #{orderId}: Prepared for Dispatch</span>
               </div>
@@ -126,7 +126,7 @@ export default function OrderTrackingPage() {
             className="p-4 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors flex flex-col gap-1 border border-border/40"
           >
             <Icon name="schedule" size={22} className="text-primary" />
-            <span className="font-label-sm font-semibold text-on-surface mt-1">Shipping &amp; Transit Times</span>
+            <span className="font-label-sm text-label-sm font-semibold text-on-surface mt-1">Shipping &amp; Transit Times</span>
             <span className="font-body-sm text-xs text-on-surface-variant">Review metro &amp; standard shipping delivery windows.</span>
           </LocalizedClientLink>
 
@@ -135,7 +135,7 @@ export default function OrderTrackingPage() {
             className="p-4 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors flex flex-col gap-1 border border-border/40"
           >
             <Icon name="assignment_return" size={22} className="text-primary" />
-            <span className="font-label-sm font-semibold text-on-surface mt-1">Returns &amp; Exchanges</span>
+            <span className="font-label-sm text-label-sm font-semibold text-on-surface mt-1">Returns &amp; Exchanges</span>
             <span className="font-body-sm text-xs text-on-surface-variant">Initiate a 14-day doorstep exchange or return.</span>
           </LocalizedClientLink>
 
@@ -144,7 +144,7 @@ export default function OrderTrackingPage() {
             className="p-4 rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors flex flex-col gap-1 border border-border/40"
           >
             <Icon name="support_agent" size={22} className="text-primary" />
-            <span className="font-label-sm font-semibold text-on-surface mt-1">Live Concierge Desk</span>
+            <span className="font-label-sm text-label-sm font-semibold text-on-surface mt-1">Live Concierge Desk</span>
             <span className="font-body-sm text-xs text-on-surface-variant">Connect directly with our dedicated customer team.</span>
           </LocalizedClientLink>
         </div>

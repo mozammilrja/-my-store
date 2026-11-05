@@ -24,6 +24,7 @@ import { fulfillmentFor, mapShiprocketStatus, shouldAdvance } from "./status.js"
 import { recordTransition, SYSTEM } from "../state/machines.js"
 import { moveReturnIfAllowed } from "../returns/returns.js"
 import { announce, notifyCustomer } from "../notify/index.js"
+import { postDeliveredSales } from "../marketplace/ledger.js"
 
 /*
  * Shipments end to end. With Shiprocket configured every AWB, label, pickup
@@ -108,6 +109,7 @@ async function syncOrder(shipment: ShipmentDoc) {
   if (overall === "delivered" && order.paymentStatus === "paid" && order.status === "pending") set.status = "completed"
   await db.orders().updateOne({ _id: order._id }, { $set: set })
   await announce("shipment status", () => announceShipment(order, shipment))
+  if (shipment.status === "delivered") await announce("seller sales", () => postDeliveredSales(shipment))
   if (set.status === "completed") await recordTransition({ machine: "order", entityId: order._id, orderId: order._id, from: "pending", to: "completed", actor: SYSTEM, reason: "Delivered and paid" })
 }
 

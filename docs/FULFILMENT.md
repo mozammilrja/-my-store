@@ -280,7 +280,6 @@ Each later phase builds on the models here:
   (`/warehouse/rto/:awb`), for courier parcels too.
 - **Phase 4 (done):** returns and exchanges; see [RETURNS.md](./RETURNS.md).
 - **Phase 5 (done):** notifications; see [NOTIFICATIONS.md](./NOTIFICATIONS.md).
-- **Phase 6:** seller marketplace (`apps/seller`): KYC, seller-fulfilled
-  orders, commissions and settlements.
+- **Phase 6 (done):** seller marketplace and `apps/seller`; see [MARKETPLACE.md](./MARKETPLACE.md).
 - **Phase 7:** a direct Delhivery adapter behind the same shipping interface,
   logistics analytics dashboards, and admin UI for all of the above.

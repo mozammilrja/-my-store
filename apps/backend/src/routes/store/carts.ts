@@ -353,11 +353,13 @@ cartRoutes.get("/orders/:id/invoice", async (req, res) => {
   const ownsByAccount = !!req.actorId && order.customerId === req.actorId
   const ownsByCart = req.get("x-cart-id") === order.cartId
   if (!ownsByAccount && !ownsByCart) throw forbidden("You can't view this invoice")
-  const invoice = await db.invoices().findOne({ orderId: order._id })
+  // The store's own invoice first; marketplace sellers' invoices for their items alongside.
+  const all = await db.invoices().find({ orderId: order._id }, { sort: { issuedAt: 1 } }).toArray()
+  const invoice = all.find((i) => !i.sellerId) ?? all[0]
   if (!invoice) throw notFound("Invoice")
-  const { _id, issuedAt, ...rest } = invoice
+  const shape = ({ _id, issuedAt, ...rest }: (typeof all)[number]) => ({ id: _id, ...rest, issuedAt: issuedAt.toISOString() })
   const dispatchFrom = await dispatchWarehouse(order._id)
-  res.json({ invoice: { id: _id, ...rest, issuedAt: issuedAt.toISOString(), dispatchFrom } })
+  res.json({ invoice: { ...shape(invoice), dispatchFrom }, sellerInvoices: all.filter((i) => i._id !== invoice._id).map(shape) })
 })
 
 /**

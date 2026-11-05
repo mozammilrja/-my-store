@@ -74,6 +74,27 @@ export async function usesWarehouses(order: OrderDoc, session: ClientSession) {
  * the order as before.
  */
 export async function allocate(order: OrderDoc, wants: Want[], opts: AllocateOptions, session: ClientSession): Promise<FulfilmentDoc[]> {
+  // Marketplace: lines a seller ships from their own location go only to that seller's warehouse;
+  // everything else (the store's products, platform-fulfilled sellers) only to the store's warehouses.
+  const owners = await shippedBy(order, wants, session)
+  const groups = new Map<string | null, Want[]>()
+  for (const w of wants) groups.set(owners.get(w.itemId) ?? null, [...(groups.get(owners.get(w.itemId) ?? null) ?? []), w])
+  const out: FulfilmentDoc[] = []
+  for (const [sellerId, group] of groups) out.push(...(await allocateGroup(order, group, opts, session, sellerId)))
+  return out
+}
+
+/** For each line, the seller who ships it from their own warehouse, or null when the store's warehouses do. */
+async function shippedBy(order: OrderDoc, wants: Want[], session: ClientSession) {
+  const productIds = [...new Set(wants.map((w) => order.items.find((i) => i._id === w.itemId)!.productId))]
+  const products = await db.products().find({ _id: { $in: productIds }, sellerId: { $type: "string" } }, { session, projection: { sellerId: 1 } }).toArray()
+  const sellers = products.length ? await db.sellers().find({ _id: { $in: products.map((p) => p.sellerId!) }, fulfilmentModel: "seller" }, { session, projection: { _id: 1 } }).toArray() : []
+  const selfShip = new Set(sellers.map((s) => s._id))
+  const owner = new Map(products.map((p) => [p._id, selfShip.has(p.sellerId!) ? p.sellerId! : null]))
+  return new Map(wants.map((w) => [w.itemId, owner.get(order.items.find((i) => i._id === w.itemId)!.productId) ?? null]))
+}
+
+async function allocateGroup(order: OrderDoc, wants: Want[], opts: AllocateOptions, session: ClientSession, sellerId: string | null): Promise<FulfilmentDoc[]> {
   const lines = await classify(order, wants, session)
   const tracked = lines.filter((l) => l.tracked)
   if (!tracked.length) return []
@@ -81,10 +102,15 @@ export async function allocate(order: OrderDoc, wants: Want[], opts: AllocateOpt
   const pincode = order.shippingAddress.postalCode.replace(/\s/g, "")
   let candidates = await db
     .warehouses()
-    .find(opts.warehouseId ? { _id: opts.warehouseId, status: "active" } : { status: "active", acceptsOrders: { $ne: false }, _id: { $nin: opts.exclude ?? [] } }, { session })
+    .find(
+      opts.warehouseId
+        ? { _id: opts.warehouseId, status: "active", sellerId: sellerId ?? { $in: [null] } }
+        : { status: "active", acceptsOrders: { $ne: false }, _id: { $nin: opts.exclude ?? [] }, sellerId: sellerId ?? { $in: [null] } },
+      { session }
+    )
     .toArray()
   if (!opts.warehouseId) candidates = candidates.filter((w) => serves(w, pincode))
-  if (!candidates.length) throw conflict(`No warehouse delivers to PIN code ${pincode}.`, "unserviceable")
+  if (!candidates.length) throw conflict(sellerId ? "This seller isn't taking orders right now." : `No warehouse delivers to PIN code ${pincode}.`, sellerId ? "seller_unavailable" : "unserviceable")
   candidates.sort((a, b) => proximity(b.pincode, pincode) - proximity(a.pincode, pincode) || (a.priority ?? 100) - (b.priority ?? 100) || a.code.localeCompare(b.code))
 
   const levels = await db

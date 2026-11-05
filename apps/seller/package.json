@@ -1,0 +1,35 @@
+{
+  "name": "@dtc/seller",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Everwear seller hub: onboarding and KYC, listings, stock, orders, returns, payouts and performance.",
+  "scripts": {
+    "dev": "vite --port 7301 --strictPort",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview --port 7301 --strictPort",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.105.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.64.0",
+    "react": "^19.0.5",
+    "react-dom": "^19.0.5",
+    "react-router": "^7.18.5",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.11.0",
+    "@playwright/test": "^1.56.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.0.5",
+    "@types/react-dom": "^19.0.5",
+    "@vitejs/plugin-react": "^4.7.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.5"
+  }
+}

@@ -117,3 +117,39 @@ export async function dispatchWarehouse(orderId: string) {
     source: allocated ? ("allocated" as const) : ("default" as const),
   }
 }
+
+/**
+ * Splits an order's invoice by issuer. A marketplace seller invoices the
+ * customer for their own items (their name and GSTIN); the store invoices its
+ * own items and the delivery charge. Discount and, for tax-exclusive prices,
+ * tax are shared by line value, and the store's part takes the rounding, so
+ * the invoices add up to exactly what the order charged.
+ */
+export async function invoiceParts(order: OrderDoc, region: Pick<RegionDoc, "taxRate" | "taxInclusive">) {
+  const products = await db.products().find({ _id: { $in: order.items.map((i) => i.productId) }, sellerId: { $type: "string" } }, { projection: { sellerId: 1 } }).toArray()
+  const sellerOf = new Map(products.map((p) => [p._id, p.sellerId!]))
+  if (!order.items.some((i) => sellerOf.has(i.productId))) return [{ sellerId: null as string | null, ...buildInvoiceLines(order, region) }]
+
+  const bySeller = new Map<string, OrderDoc["items"]>()
+  for (const i of order.items) if (sellerOf.has(i.productId)) bySeller.set(sellerOf.get(i.productId)!, [...(bySeller.get(sellerOf.get(i.productId)!) ?? []), i])
+  const { itemSubtotal, discountTotal, taxTotal } = order.totals
+  const parts: ({ sellerId: string | null } & ReturnType<typeof buildInvoiceLines>)[] = []
+  let discountLeft = discountTotal
+  let taxLeft = taxTotal
+  for (const [sellerId, items] of bySeller) {
+    const gross = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+    const discount = itemSubtotal ? Math.round((discountTotal * gross) / itemSubtotal) : 0
+    const tax = region.taxInclusive ? 0 : Math.round(((gross - discount) * region.taxRate) / 100)
+    discountLeft -= discount
+    taxLeft -= tax
+    const total = gross - discount + tax
+    parts.push({ sellerId, ...buildInvoiceLines({ items, shippingOption: order.shippingOption, totals: { itemSubtotal: gross, discountTotal: discount, shippingTotal: 0, taxTotal: tax, total } }, region) })
+  }
+  const own = order.items.filter((i) => !sellerOf.has(i.productId))
+  if (own.length || order.totals.shippingTotal > 0) {
+    const gross = own.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+    const total = gross - discountLeft + order.totals.shippingTotal + (region.taxInclusive ? 0 : taxLeft)
+    parts.push({ sellerId: null, ...buildInvoiceLines({ items: own, shippingOption: order.shippingOption, totals: { itemSubtotal: gross, discountTotal: discountLeft, shippingTotal: order.totals.shippingTotal, taxTotal: taxLeft, total } }, region) })
+  }
+  return parts
+}

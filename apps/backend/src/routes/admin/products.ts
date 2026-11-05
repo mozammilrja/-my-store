@@ -276,7 +276,7 @@ const sniff = (b: Buffer) => {
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } })
 
 /** Reads the posted image into memory and turns multer's own errors into ours. */
-const readUpload: RequestHandler = (req, res, next) =>
+export const readUpload: RequestHandler = (req, res, next) =>
   upload.single("file")(req, res, (err: unknown) => {
     if (err instanceof MulterError) {
       next(err.code === "LIMIT_FILE_SIZE" ? badRequest("Images must be 5 MB or smaller", "too_large") : badRequest("Attach an image in the 'file' field"))
@@ -286,8 +286,13 @@ const readUpload: RequestHandler = (req, res, next) =>
   })
 
 adminProductRoutes.post("/uploads", readUpload, async (req, res) => {
-  if (!req.file) throw badRequest("Attach an image in the 'file' field")
-  const bytes = req.file.buffer
+  res.status(201).json(await storeProductImage(req.file))
+})
+
+/** Saves an uploaded product image (PNG, JPEG or WebP, sniffed from its bytes) under a content-hashed name. */
+export async function storeProductImage(file: Express.Multer.File | undefined) {
+  if (!file) throw badRequest("Attach an image in the 'file' field")
+  const bytes = file.buffer
   const ext = sniff(bytes)
   if (!ext) throw badRequest("Only PNG, JPEG or WebP images are allowed", "unsupported_type")
   const name = `${createHash("sha256").update(bytes).digest("hex").slice(0, 16)}${ext}`
@@ -295,5 +300,5 @@ adminProductRoutes.post("/uploads", readUpload, async (req, res) => {
   await mkdir(dir, { recursive: true })
   await writeFile(join(dir, name), bytes)
   const path = `/uploads/products/${name}`
-  res.status(201).json({ path, url: assetUrl(path) })
-})
+  return { path, url: assetUrl(path) }
+}

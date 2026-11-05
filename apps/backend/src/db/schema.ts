@@ -93,6 +93,10 @@ export type ProductDoc = {
   material?: string
   originCountry?: string
   weight?: number
+  /** Marketplace seller who lists it; absent for the store's own products. */
+  sellerId?: string | null
+  /** A seller's listing is published only after the store approves it. */
+  review?: { status: "draft" | "pending" | "approved" | "rejected"; note?: string; submittedAt?: Date; reviewedAt?: Date; reviewedBy?: string }
   createdAt: Date
   updatedAt: Date
 }
@@ -156,6 +160,8 @@ export type SettingsDoc = {
   allowSplitFulfilment?: boolean
   /** Own delivery fleet rules; defaults in lib/fleet/settings.ts. */
   fleet?: Partial<FleetSettings>
+  /** Marketplace fees and statutory deductions; defaults in lib/marketplace/settings.ts. */
+  marketplace?: Partial<MarketplaceSettings>
   /**
    * Provider-side templates per notification event: DLT-registered MSG91
    * flow ids and approved WhatsApp templates. A channel whose provider needs
@@ -483,6 +489,9 @@ export type InvoiceDoc = {
   grandTotal: number
   currency: string
   status: "issued" | "paid" | "canceled"
+  /** Issued in a marketplace seller's name for their items (absent: the store's own invoice). */
+  sellerId?: string
+  issuer?: { legalName: string; gstin: string | null; address: string; state: string }
   issuedAt: Date
 }
 
@@ -527,6 +536,8 @@ export type WarehouseDoc = {
   acceptsOrders?: boolean
   /** Shiprocket pickup location nickname for parcels leaving this building; falls back to SHIPROCKET_PICKUP_LOCATION. */
   shiprocketPickupLocation?: string
+  /** A seller's own dispatch location (seller-fulfilled orders ship from here). Absent for the store's warehouses. */
+  sellerId?: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -601,7 +612,7 @@ export type StockLedgerDoc = {
 }
 
 /** Who did something, for ledgers and status history. */
-export type ActorRef = { type: "system" | "admin" | "warehouse" | "customer" | "courier" | "rider"; id: string; name?: string }
+export type ActorRef = { type: "system" | "admin" | "warehouse" | "customer" | "courier" | "rider" | "seller"; id: string; name?: string }
 
 export const FULFILMENT_STATUSES = [
   "assigned",
@@ -982,6 +993,119 @@ export type PushSubscriptionDoc = {
   createdAt: Date
 }
 
+/* ---------- Marketplace sellers ---------- */
+
+export type MarketplaceSettings = {
+  /** Commission on the item's sale price (incl. GST), percent. Per-seller override on the seller. */
+  commissionPct: number
+  /** Fee per unit when the store stores and ships the seller's stock, minor units. */
+  fulfilmentFeePerUnit: number
+  /** GST charged on the store's fees, percent. */
+  feeGstPct: number
+  /** TCS under GST section 52, percent of net taxable value. */
+  tcsPct: number
+  /** TDS under Income Tax section 194-O, percent of gross sale. */
+  tdsPct: number
+  /** Hours a seller has to accept an order before it counts as late. */
+  acceptSlaHours: number
+  /** Hours from acceptance to handover before dispatch counts as late. */
+  dispatchSlaHours: number
+}
+
+export const SELLER_STATUSES = ["draft", "submitted", "approved", "suspended", "rejected"] as const
+
+export type SellerDoc = {
+  _id: string
+  /** Short public code, e.g. SEL-0007. */
+  code: string
+  displayName: string
+  email: string
+  phone: string
+  passwordHash: string
+  /** draft: filling in KYC; submitted: waiting for review; approved: may list and sell. */
+  status: (typeof SELLER_STATUSES)[number]
+  statusReason?: string
+  businessType?: "individual" | "proprietorship" | "partnership" | "llp" | "company"
+  legalName?: string
+  pan?: string
+  gstin?: string | null
+  registeredAddress?: { line1: string; city: string; state: string; postalCode: string }
+  /** Bank account for settlements; the number is stored encrypted, only the last four shown. */
+  bank?: { accountName: string; ifsc: string; last4: string; sealed: string }
+  /** Each KYC item, checked by the store. */
+  verified: { pan: boolean; gstin: boolean; bank: boolean }
+  /** seller: ships from their own location; platform: the store stores and ships their stock. */
+  fulfilmentModel: "seller" | "platform"
+  pickupAddress?: { line1: string; city: string; state: string; postalCode: string; phone: string }
+  /** Seller-fulfilled: their location as a warehouse (created on approval). */
+  warehouseId?: string | null
+  commissionPct?: number | null
+  approvedAt?: Date
+  approvedBy?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export const SELLER_LEDGER_KINDS = ["sale", "commission", "commission_gst", "fulfilment_fee", "fulfilment_fee_gst", "tcs", "tds"] as const
+
+/**
+ * Immutable money lines between the store and a seller: a sale is a credit,
+ * fees and statutory deductions are debits (negative), a refund reverses
+ * them. Settled in batches once payable.
+ */
+export type SellerLedgerDoc = {
+  _id: string
+  /** Unique per order line, kind and cause, so a repeated event posts nothing. */
+  key: string
+  sellerId: string
+  orderId: string
+  displayId: number
+  itemId: string
+  kind: (typeof SELLER_LEDGER_KINDS)[number]
+  /** Reversal of an earlier line (a refund). */
+  reversal: boolean
+  amount: number
+  currency: string
+  quantity: number
+  /** pending: inside the return window or unpaid; settled: in a settlement. */
+  status: "pending" | "settled"
+  /** From when it may be paid out (delivery + return window). */
+  payableFrom: Date
+  settlementId?: string | null
+  note?: string
+  createdAt: Date
+}
+
+export type SellerSettlementDoc = {
+  _id: string
+  code: string
+  sellerId: string
+  periodEnd: Date
+  entryIds: string[]
+  totals: Record<(typeof SELLER_LEDGER_KINDS)[number], number>
+  net: number
+  currency: string
+  status: "pending" | "paid"
+  /** Bank transfer reference (UTR) recorded by finance when paid. */
+  payout?: { utr: string; paidAt: Date; by: string }
+  createdAt: Date
+}
+
+/** Advance shipping notice: stock a platform-fulfilled seller is sending to a store warehouse. */
+export type InboundShipmentDoc = {
+  _id: string
+  code: string
+  sellerId: string
+  warehouseId: string
+  lines: { variantId: string; productId: string; sku: string; title: string; expected: number; received: number }[]
+  carrier?: string
+  awb?: string
+  status: "created" | "in_transit" | "receiving" | "closed"
+  createdAt: Date
+  updatedAt: Date
+  closedAt?: Date
+}
+
 export type InventoryReservationDoc = {
   _id: string
   cartId: string
@@ -1278,6 +1402,10 @@ export const db = {
   returns: (): Collection<ReturnDoc> => getDb().collection("returns"),
   notificationDeliveries: (): Collection<NotificationDeliveryDoc> => getDb().collection("notification_deliveries"),
   pushSubscriptions: (): Collection<PushSubscriptionDoc> => getDb().collection("push_subscriptions"),
+  sellers: (): Collection<SellerDoc> => getDb().collection("sellers"),
+  sellerLedger: (): Collection<SellerLedgerDoc> => getDb().collection("seller_ledger"),
+  sellerSettlements: (): Collection<SellerSettlementDoc> => getDb().collection("seller_settlements"),
+  inboundShipments: (): Collection<InboundShipmentDoc> => getDb().collection("inbound_shipments"),
 }
 
 /**
@@ -1478,6 +1606,23 @@ export async function ensureIndexes() {
     db.pushSubscriptions().createIndex({ token: 1 }, { unique: true, partialFilterExpression: { token: { $type: "string" } } }),
     db.pushSubscriptions().createIndex({ ownerType: 1, ownerId: 1 }),
     db.notifications().createIndex({ "metadata.key": 1 }, { unique: true, partialFilterExpression: { "metadata.key": { $type: "string" } }, name: "feed_event_key" }),
+  ])
+  await Promise.all([
+    db.sellers().createIndex({ email: 1 }, { unique: true }),
+    db.sellers().createIndex({ phone: 1 }, { unique: true }),
+    db.sellers().createIndex({ code: 1 }, { unique: true }),
+    db.sellers().createIndex({ gstin: 1 }, { unique: true, partialFilterExpression: { gstin: { $type: "string" } } }),
+    db.sellers().createIndex({ status: 1 }),
+    db.products().createIndex({ sellerId: 1, "review.status": 1 }),
+    db.warehouses().createIndex({ sellerId: 1 }, { sparse: true }),
+    db.sellerLedger().createIndex({ key: 1 }, { unique: true }),
+    db.sellerLedger().createIndex({ sellerId: 1, status: 1, payableFrom: 1 }),
+    db.sellerLedger().createIndex({ orderId: 1 }),
+    db.sellerSettlements().createIndex({ code: 1 }, { unique: true }),
+    db.sellerSettlements().createIndex({ sellerId: 1, createdAt: -1 }),
+    db.inboundShipments().createIndex({ code: 1 }, { unique: true }),
+    db.inboundShipments().createIndex({ sellerId: 1, createdAt: -1 }),
+    db.invoices().createIndex({ orderId: 1, sellerId: 1 }),
   ])
   await migrateEmbeddedReturns()
 

@@ -7,6 +7,7 @@ import { refundOrder } from "../payments/refunds.js"
 import { cancelShipment, createReturnShipment } from "../shipping/service.js"
 import { recordTransition } from "../state/machines.js"
 import { announceReturn, moveReturn } from "./returns.js"
+import { reverseReturnedSales } from "../marketplace/ledger.js"
 
 /*
  * What the store decides about a return: approve or reject the request,
@@ -61,7 +62,10 @@ export async function refundReturn(ret: ReturnDoc, actor: Admin, input: { amount
   const resolution = { action: "refund" as const, at: new Date(), by: actor.id, refundId: refund._id, amount, ...(input.note ? { note: input.note } : {}) }
   const done = refund.status === "processed"
   const next = await moveReturn(ret, done ? "refunded" : "refund_pending", actor, `Refund ${refund._id} (${refund.status})`, { resolution })
-  if (done) await markReturnedIfComplete(ret.orderId)
+  if (done) {
+    await markReturnedIfComplete(ret.orderId)
+    await reverseReturnedSales(next)
+  }
   return { ret: next, refund }
 }
 
@@ -84,8 +88,9 @@ export async function settleReturnRefund(refundId: string) {
   if (!refund || !ret) return
   const gateway = { type: "system" as const, id: "razorpay" }
   if (refund.status === "processed") {
-    await moveReturn(ret, "refunded", gateway, `Refund ${refund._id} processed`)
+    const next = await moveReturn(ret, "refunded", gateway, `Refund ${refund._id} processed`)
     await markReturnedIfComplete(ret.orderId)
+    await reverseReturnedSales(next)
   } else if (refund.status === "failed") {
     // Back to be resolved again; the failed refund stays on record.
     await moveReturn(ret, "inspected", gateway, `Refund ${refund._id} failed: ${refund.failureReason ?? "refused"}`, { resolution: null })

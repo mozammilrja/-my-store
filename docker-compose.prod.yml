@@ -50,6 +50,7 @@ services:
       ADMIN_CORS: ${ADMIN_CORS:-https://admin.everwear.com}
       WAREHOUSE_CORS: ${WAREHOUSE_CORS:-https://warehouse.everwear.com}
       RIDER_CORS: ${RIDER_CORS:-https://rider.everwear.com}
+      SELLER_CORS: ${SELLER_CORS:-https://sellers.everwear.com}
       STOREFRONT_URL: ${STOREFRONT_URL:-https://everwear.com/in}
       RIDER_APP_URL: ${RIDER_APP_URL:-https://rider.everwear.com}
       WAREHOUSE_APP_URL: ${WAREHOUSE_APP_URL:-https://warehouse.everwear.com}
@@ -222,6 +223,31 @@ services:
       start_period: 5s
 
   # ----------------------------------------------------------------------------
+  # 4d. Seller hub (@dtc/seller)
+  # ----------------------------------------------------------------------------
+  seller:
+    build:
+      context: .
+      dockerfile: apps/seller/Dockerfile
+      args:
+        VITE_API_URL: ${API_PUBLIC_URL:-https://api.everwear.com}
+    container_name: everwear-seller
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - everwear-internal
+    ports:
+      - "127.0.0.1:7301:7301"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7301/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ----------------------------------------------------------------------------
   # 5. Production Edge Reverse Proxy (Nginx + SSL Termination)
   # ----------------------------------------------------------------------------
   reverse-proxy:
@@ -234,6 +260,7 @@ services:
       - admin
       - warehouse
       - rider
+      - seller
     ports:
       - "80:80"
       - "443:443"

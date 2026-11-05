@@ -26,6 +26,7 @@ import { currentReturn, REASON_TEXT } from "../../lib/returns/returns.js"
 import { skuOf } from "../../lib/inventory/stock.js"
 import { zoneFor } from "../../lib/fleet/tasks.js"
 import { findRto, receiveRto } from "../../lib/fleet/rto.js"
+import { receiveInbound } from "../../lib/marketplace/inbound.js"
 import { adminLoginMaxAttempts } from "../../env.js"
 
 /*
@@ -445,6 +446,23 @@ warehouseRoutes.post("/returns/:id/inspect", async (req, res) => {
   if (!ret) throw notFound("Return")
   const done = await inspectReturn(ret._id, body.warehouseId, body.lines, actorOf(req))
   res.json({ status: done.status, inspection: done.inspection })
+})
+
+/* ---------- Stock from marketplace sellers ---------- */
+
+/** An advance shipping notice from a seller, by its scanned or typed code. */
+warehouseRoutes.get("/inbound/:code", async (req, res) => {
+  can(req, "stock")
+  const asn = await db.inboundShipments().findOne({ code: String(req.params.code).toUpperCase(), warehouseId: { $in: req.warehouseUser!.warehouseIds } })
+  if (!asn) throw notFound("Inbound shipment")
+  const seller = await db.sellers().findOne({ _id: asn.sellerId }, { projection: { displayName: 1, code: 1 } })
+  res.json({ shipment: asn, seller })
+})
+
+warehouseRoutes.post("/inbound/:code/receive", async (req, res) => {
+  can(req, "stock")
+  const body = z.object({ counts: z.array(z.object({ variantId: z.string(), quantity: z.number().int().positive().max(100_000) })).max(200), close: z.boolean().default(false) }).parse(req.body)
+  res.json({ shipment: await receiveInbound(String(req.params.code), req.warehouseUser!.warehouseIds, body.counts, actorOf(req), body.close) })
 })
 
 /* ---------- Push notifications on this device ---------- */

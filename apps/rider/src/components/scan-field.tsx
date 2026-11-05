@@ -1,4 +1,4 @@
-import { Camera, ScanLine, X } from "lucide-react"
+import { Camera, Loader2, ScanLine, X } from "lucide-react"
 import { useEffect, useId, useRef, useState, type FormEvent } from "react"
 import { Button, cn, Dialog } from "./ui"
 
@@ -34,22 +34,41 @@ export function ScanField({ label, placeholder = "Scan or type, then Enter", onS
   const [camera, setCamera] = useState(false)
   const canUseCamera = !!detectorCtor() && typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia
 
-  const submit = async (code: string) => {
-    const trimmed = code.trim()
-    if (!trimmed || busy) return
+  // Scanners fire codes back to back: each one is queued and handled in order,
+  // never dropped because the previous one is still being processed.
+  const queue = useRef<string[]>([])
+  const running = useRef(false)
+  const drain = async () => {
+    if (running.current) return
+    running.current = true
     setBusy(true)
     try {
-      await onScan(trimmed)
+      while (queue.current.length) {
+        const next = queue.current.shift()!
+        try {
+          await onScan(next)
+        } catch {
+          // onScan reports its own errors; the next scan still runs.
+        }
+      }
     } finally {
+      running.current = false
       setBusy(false)
-      setValue("")
       requestAnimationFrame(() => input.current?.focus())
     }
+  }
+  const submit = (code: string) => {
+    const trimmed = code.trim()
+    if (!trimmed) return
+    queue.current.push(trimmed)
+    // Cleared now, so the next scan can be typed in while this one is handled.
+    setValue("")
+    void drain()
   }
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    void submit(value)
+    submit(value)
   }
 
   return (
@@ -60,6 +79,7 @@ export function ScanField({ label, placeholder = "Scan or type, then Enter", onS
       <div className="flex gap-2">
         <div className="relative flex-1">
           <ScanLine className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-ink-3" aria-hidden />
+          {busy ? <Loader2 className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-ink-3" aria-label="Processing scan" /> : null}
           <input
             id={id}
             ref={input}
@@ -75,7 +95,7 @@ export function ScanField({ label, placeholder = "Scan or type, then Enter", onS
             className="h-12 w-full rounded-control border border-line-strong bg-panel pr-3 pl-10 font-mono text-base text-ink placeholder:font-sans placeholder:text-ink-3 focus:border-accent focus:ring-2 focus:ring-accent/25 focus:outline-none disabled:opacity-50"
           />
         </div>
-        <Button type="submit" size="lg" busy={busy} disabled={disabled || !value.trim()}>
+        <Button type="submit" size="lg" disabled={disabled}>
           Enter
         </Button>
         {canUseCamera ? (
@@ -90,7 +110,7 @@ export function ScanField({ label, placeholder = "Scan or type, then Enter", onS
             formats={formats}
             onResult={(code) => {
               setCamera(false)
-              void submit(code)
+              submit(code)
             }}
             onCancel={() => setCamera(false)}
           />

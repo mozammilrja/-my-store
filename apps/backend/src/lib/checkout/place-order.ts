@@ -3,7 +3,7 @@ import { withTransaction } from "../../db/client.js"
 import { db, type CartDoc, type LineItem, type OrderDoc, type ProductDoc } from "../../db/schema.js"
 import { badRequest, conflict, notFound } from "../errors.js"
 import { newId } from "../ids.js"
-import { buildInvoiceLines } from "../invoice.js"
+import { invoiceParts } from "../invoice.js"
 import { computeTotals, promotionUsable } from "../totals.js"
 import { allocate } from "../fulfilment/allocate.js"
 import { recordTransition, SYSTEM } from "../state/machines.js"
@@ -191,23 +191,39 @@ export async function placeOrder(cartId: string, payment: OrderPayment, actorId?
         { session }
       )
     }
-    await db.invoices().insertOne(
-      {
-        _id: newId("inv"),
-        invoiceNumber: `INV-${now.getFullYear()}-${doc.displayId}`,
-        orderId: doc._id,
-        displayId: doc.displayId,
-        customerName: `${doc.shippingAddress.firstName} ${doc.shippingAddress.lastName}`,
-        ...(doc.buyerGstin ? { customerGstin: doc.buyerGstin.gstin, customerLegalName: doc.buyerGstin.legalName } : {}),
-        shippingAddress: doc.shippingAddress,
-        billingAddress: doc.billingAddress,
-        ...buildInvoiceLines(doc, region),
-        currency: doc.currency,
-        status: online ? "paid" : "issued",
-        issuedAt: now,
-      },
-      { session }
-    )
+    // One invoice per issuer: each marketplace seller for their items, the store for its own and delivery.
+    for (const part of await invoiceParts(doc, region)) {
+      const seller = part.sellerId ? await db.sellers().findOne({ _id: part.sellerId }, { session }) : null
+      const { sellerId, ...lines } = part
+      await db.invoices().insertOne(
+        {
+          _id: newId("inv"),
+          invoiceNumber: seller ? `${seller.code}/INV-${now.getFullYear()}-${doc.displayId}` : `INV-${now.getFullYear()}-${doc.displayId}`,
+          orderId: doc._id,
+          displayId: doc.displayId,
+          customerName: `${doc.shippingAddress.firstName} ${doc.shippingAddress.lastName}`,
+          ...(doc.buyerGstin ? { customerGstin: doc.buyerGstin.gstin, customerLegalName: doc.buyerGstin.legalName } : {}),
+          shippingAddress: doc.shippingAddress,
+          billingAddress: doc.billingAddress,
+          ...lines,
+          currency: doc.currency,
+          status: online ? "paid" : "issued",
+          ...(seller && sellerId
+            ? {
+                sellerId,
+                issuer: {
+                  legalName: seller.legalName ?? seller.displayName,
+                  gstin: seller.gstin ?? null,
+                  address: seller.registeredAddress ? `${seller.registeredAddress.line1}, ${seller.registeredAddress.city} ${seller.registeredAddress.postalCode}` : "",
+                  state: seller.registeredAddress?.state ?? "",
+                },
+              }
+            : {}),
+          issuedAt: now,
+        },
+        { session }
+      )
+    }
     await db.outboxEvents().insertOne(
       {
         _id: newId("outbox"),

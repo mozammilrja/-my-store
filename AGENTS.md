@@ -2,7 +2,7 @@
 
 ## Overview
 
-Everwear: an online clothing store for India (one region, prices in INR). A Turborepo monorepo (npm workspaces) with five apps:
+Everwear: an online clothing store for India (one region, prices in INR). A Turborepo monorepo (npm workspaces) with six apps:
 
 | App | Package | What it is | Dev URL |
 | --- | --- | --- | --- |
@@ -11,6 +11,7 @@ Everwear: an online clothing store for India (one region, prices in INR). A Turb
 | `apps/admin` | `@dtc/admin` | Store admin: dashboard, orders, products, customers, each list with a detail page. React 19, Vite 8, React Router, TanStack Query + Table, shadcn/ui + ReUI. | http://localhost:7001 |
 | `apps/warehouse` | `@dtc/warehouse` | Warehouse floor app: incoming orders, picking, inspection, packing, labels, manifests, stock and returns. Scanner-first and mobile-first. React 19, Vite 6, React Router, TanStack Query, Tailwind 4. Talks to the API's `/warehouse` routes with its own staff token. | http://localhost:7101 |
 | `apps/rider` | `@dtc/rider` | Delivery partner app for our own fleet: offers, hub pickup by AWB, route, doorstep OTP with cash and proof photo, failed attempts, cash handover, earnings, profile and documents. Phone-first. Same stack as the warehouse app. Talks to the API's `/rider` routes. | http://localhost:7201 |
+| `apps/seller` | `@dtc/seller` | Seller Hub for marketplace sellers: onboarding and KYC, listings, stock and shipping notices, orders (seller-fulfilled), returns, payments, performance. Same stack as the warehouse app. Talks to the API's `/seller` routes. | http://localhost:7301 |
 
 The project started from the Medusa DTC starter and has since moved off Medusa. Medusa and PostgreSQL are no longer part of the running stack; the only remaining link is the one-off `migrate:medusa` script that copies data out of an old Medusa database. Ignore Medusa docs, skills and the `@medusajs/*` package `AGENTS.md` files unless you are working on that script.
 
@@ -46,6 +47,7 @@ Architecture, design tokens and known issues: [`docs/PROJECT.md`](./docs/PROJECT
 | Warehouse app screens | `apps/warehouse/src/routes/` (orders, fulfilment work screen, dispatch, stock, returns); API client `src/lib/api.ts`, types `src/lib/types.ts` |
 | Warehouse app scanning and printing | `apps/warehouse/src/components/scan-field.tsx` (keyboard-wedge scanners, camera through the Barcode Detection API), `src/lib/code128.ts` (pick slip and parcel barcodes) |
 | Warehouse browser tests | `apps/warehouse/e2e/` (`api-server.ts` runs the real API on `everwear_e2e_warehouse` with the courier stand-in) |
+| Marketplace sellers: KYC, listings, seller warehouses, ledger, settlements, ASN | `apps/backend/src/lib/marketplace/`; seller API `src/routes/seller/`, admin API `src/routes/admin/marketplace.ts`; design in [`docs/MARKETPLACE.md`](./docs/MARKETPLACE.md) |
 | Notifications: email, SMS, WhatsApp, push | `apps/backend/src/lib/notify/` (`index.ts` recipients, queue and worker; `templates.ts` wording and template variables; `providers/` one file per channel); admin API `src/routes/admin/notifications.ts`; design in [`docs/NOTIFICATIONS.md`](./docs/NOTIFICATIONS.md) |
 | Returns and exchanges: rules, refunds, replacement orders | `apps/backend/src/lib/returns/` (`returns.ts` rules and lifecycle, `resolve.ts` decisions, `inspect.ts` warehouse grading); design in [`docs/RETURNS.md`](./docs/RETURNS.md) |
 | Own delivery fleet: zones, riders, dispatch, OTP delivery, cash, RTO | `apps/backend/src/lib/fleet/`; rider API `src/routes/rider/`, admin API `src/routes/admin/fleet.ts`; design in [`docs/FLEET.md`](./docs/FLEET.md) |
@@ -203,6 +205,7 @@ The checkout and account e2e tests create real orders and customers in the local
 
 - Changing a warehouse-managed variant's stock any way other than `lib/inventory/stock.ts#moveStock`. The product's `stock` must equal the sum of `available` in `stock_levels`, and every move needs a ledger row.
 - Exposing a delivery's address, phone or OTP beyond `riderView` in `routes/rider/index.ts`, or serving proof photos from `/uploads`. They live in `PRIVATE_UPLOADS_DIR` and go to admins only.
+- Writing seller money anywhere but `seller_ledger` through `lib/marketplace/ledger.ts` (keyed lines; never edited, only reversed), or showing a seller's bank number beyond its last four digits outside the audited finance endpoint.
 - Calling a messaging provider directly from a route. Use `notifyCustomer`/`notifyWarehouse`/`notifyRider` with a stable key (it de-duplicates and retries), and wrap the call in `announce()` so a notification failure can't fail the business action.
 - Writing `order.returnRequest` directly. Returns live in the `returns` collection; the order field is a mirror written by `lib/returns/returns.ts#mirror`.
 - Setting a fulfilment or return status with a plain `$set`. Go through the state machine helpers so the move is checked and recorded.

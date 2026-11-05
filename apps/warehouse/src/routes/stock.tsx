@@ -29,6 +29,7 @@ export function Stock() {
         <h1 className="text-xl font-semibold">Stock</h1>
         {can("stock") ? <Button onClick={() => setOperation(true)}>Stock movement</Button> : null}
       </div>
+      {can("stock") ? <InboundPanel /> : null}
       <div className="flex flex-wrap items-end gap-2">
         <ScanField className="min-w-0 flex-1" label="Find a SKU (scan or type the start of it)" onScan={setSku} />
         {sku ? (
@@ -294,5 +295,77 @@ function OperationForm({ onDone }: { onDone: () => void }) {
         </>
       ) : null}
     </form>
+  )
+}
+
+type Inbound = { _id: string; code: string; status: "created" | "in_transit" | "receiving" | "closed"; carrier?: string; awb?: string; lines: { variantId: string; sku: string; title: string; expected: number; received: number }[] }
+
+/** Stock a marketplace seller sent in: scan their ASN, count each line; only what's counted becomes stock. */
+function InboundPanel() {
+  const feedback = useFeedback()
+  const client = useQueryClient()
+  const [asn, setAsn] = useState<{ shipment: Inbound; seller: { displayName: string; code: string } | null } | null>(null)
+  const [counts, setCounts] = useState<Record<string, string>>({})
+  const find = async (code: string) => {
+    try {
+      setAsn(await api(`/inbound/${encodeURIComponent(code)}`))
+      setCounts({})
+    } catch (e) {
+      feedback.bad(errorMessage(e))
+    }
+  }
+  const receive = useMutation({
+    mutationFn: (close: boolean) =>
+      api<{ shipment: Inbound }>(`/inbound/${asn!.shipment.code}/receive`, {
+        body: { close, counts: Object.entries(counts).filter(([, v]) => Number(v) > 0).map(([variantId, v]) => ({ variantId, quantity: Number(v) })) },
+      }),
+    onSuccess: (d, close) => {
+      feedback.ok(close || d.shipment.status === "closed" ? `${d.shipment.code} received and closed` : `${d.shipment.code}: counts recorded`)
+      setAsn((x) => (x ? { ...x, shipment: d.shipment } : x))
+      setCounts({})
+      void client.invalidateQueries({ queryKey: ["stock"] })
+    },
+    onError: (e) => feedback.bad(errorMessage(e)),
+  })
+  return (
+    <details className="rounded-panel border border-line bg-panel">
+      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Seller stock arriving (ASN)</summary>
+      <div className="space-y-4 border-t border-line p-4">
+        <ScanField label="Scan or type the ASN code on the seller's paperwork" placeholder="ASN-SEL-0001-…" onScan={find} autoFocus={false} />
+        {asn ? (
+          <div className="space-y-3">
+            <p className="text-sm text-ink-2">
+              <span className="font-mono font-semibold">{asn.shipment.code}</span> from {asn.seller?.displayName ?? "a seller"} · {asn.shipment.status.replace("_", " ")}
+              {asn.shipment.awb ? ` · ${asn.shipment.carrier} ${asn.shipment.awb}` : ""}
+            </p>
+            <ul className="divide-y divide-line text-sm">
+              {asn.shipment.lines.map((l) => (
+                <li key={l.variantId} className="flex flex-wrap items-center justify-between gap-3 py-2">
+                  <span>
+                    <span className="font-mono text-xs font-semibold">{l.sku}</span> · {l.title}
+                    <span className="block text-xs text-ink-3">
+                      {l.received} of {l.expected} received
+                    </span>
+                  </span>
+                  {asn.shipment.status !== "closed" && l.received < l.expected ? (
+                    <Input aria-label={`Count of ${l.sku}`} type="number" min={0} max={l.expected - l.received} className="w-24" value={counts[l.variantId] ?? ""} onChange={(e) => setCounts((c) => ({ ...c, [l.variantId]: e.target.value }))} />
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            {asn.shipment.status !== "closed" ? (
+              <div className="flex flex-wrap gap-2">
+                <Button busy={receive.isPending} disabled={!Object.values(counts).some((v) => Number(v) > 0)} onClick={() => receive.mutate(false)}>
+                  Receive counted units
+                </Button>
+                <Button variant="secondary" busy={receive.isPending} onClick={() => receive.mutate(true)}>
+                  Close (nothing more coming)
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </details>
   )
 }

@@ -52,9 +52,9 @@ export function Layout() {
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-panel/95 px-4 backdrop-blur">
         <img src="/favicon.svg" alt="" className="size-7 md:hidden" />
         {me.warehouses.length > 1 ? (
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex min-w-0 items-center gap-2 text-sm">
             <span className="sr-only">Warehouse</span>
-            <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className="h-9 w-auto font-medium">
+            <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} className="h-9 w-auto min-w-0 max-w-full font-medium">
               {me.warehouses.map((w) => (
                 <option key={w._id} value={w._id}>
                   {w.code} · {w.city}
@@ -63,11 +63,11 @@ export function Layout() {
             </Select>
           </label>
         ) : (
-          <p className="text-sm font-semibold">
+          <p className="min-w-0 truncate text-sm font-semibold">
             {current?.code} <span className="font-normal text-ink-3">· {current?.city}</span>
           </p>
         )}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           <PushButton />
           <button onClick={toggleTheme} className="grid size-10 place-items-center rounded-control text-ink-2 hover:bg-panel-muted" aria-label="Switch light or dark theme">
             <Moon className="size-4" aria-hidden />

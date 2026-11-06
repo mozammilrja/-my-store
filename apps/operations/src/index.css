@@ -458,3 +458,23 @@
     color: black;
   }
 }
+
+/* Phones: iOS Safari zooms the whole page into any text field set below
+   16px when it gets focus, and doesn't zoom back. Fields keep at least 16px
+   below the sm breakpoint; from 640px up every design keeps its own size. */
+@media (max-width: 639.98px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* Phones: primary buttons, text fields and select triggers are at least
+   44px tall, a fingertip. min-height leaves every h-* class alone, so from
+   640px up nothing changes. */
+@media (max-width: 639.98px) {
+  .tap-target {
+    min-height: 44px;
+  }
+}

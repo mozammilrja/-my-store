@@ -105,11 +105,11 @@ function Onboarding() {
             </div>
             <div>
               <Label htmlFor="pan">PAN</Label>
-              <Input id="pan" required value={f.pan} onChange={(e) => setF((x) => ({ ...x, pan: e.target.value.toUpperCase() }))} className="font-mono uppercase" placeholder="ABCPE1234F" />
+              <Input id="pan" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" required value={f.pan} onChange={(e) => setF((x) => ({ ...x, pan: e.target.value.toUpperCase() }))} className="font-mono uppercase" placeholder="ABCPE1234F" />
             </div>
             <div>
               <Label htmlFor="gstin">GSTIN (optional)</Label>
-              <Input id="gstin" value={f.gstin} onChange={(e) => setF((x) => ({ ...x, gstin: e.target.value.toUpperCase() }))} className="font-mono uppercase" placeholder="29ABCPE1234F1Z5" />
+              <Input id="gstin" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" value={f.gstin} onChange={(e) => setF((x) => ({ ...x, gstin: e.target.value.toUpperCase() }))} className="font-mono uppercase" placeholder="29ABCPE1234F1Z5" />
             </div>
             <div className="sm:col-span-2">
               <Label htmlFor="r1">Registered address</Label>
@@ -143,7 +143,7 @@ function Onboarding() {
             </div>
             <div>
               <Label htmlFor="ifsc">IFSC</Label>
-              <Input id="ifsc" required={!s.bank} value={f.ifsc} onChange={(e) => setF((x) => ({ ...x, ifsc: e.target.value.toUpperCase() }))} className="font-mono uppercase" placeholder="HDFC0001234" />
+              <Input id="ifsc" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" required={!s.bank} value={f.ifsc} onChange={(e) => setF((x) => ({ ...x, ifsc: e.target.value.toUpperCase() }))} className="font-mono uppercase" placeholder="HDFC0001234" />
             </div>
           </fieldset>
           <p className="mt-2 text-xs text-ink-3">Stored encrypted. Only the last four digits are shown back to you.</p>

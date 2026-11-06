@@ -482,6 +482,7 @@ export function ProfileForm({
                   <input
                     disabled={!isEditing}
                     name="firstName"
+                    autoComplete="given-name"
                     defaultValue={customer.firstName ?? ""}
                     className={`h-11 px-3.5 font-body-md text-body-md rounded border transition-all ${
                       isEditing
@@ -498,6 +499,7 @@ export function ProfileForm({
                   <input
                     disabled={!isEditing}
                     name="lastName"
+                    autoComplete="family-name"
                     defaultValue={customer.lastName ?? ""}
                     className={`h-11 px-3.5 font-body-md text-body-md rounded border transition-all ${
                       isEditing
@@ -526,6 +528,7 @@ export function ProfileForm({
                   <input
                     disabled
                     type="email"
+                    autoComplete="email"
                     defaultValue={customer.email}
                     className="w-full h-11 pl-11 pr-3.5 bg-surface-container-low text-on-surface font-body-md text-body-md rounded border border-transparent opacity-80 cursor-not-allowed"
                   />
@@ -548,6 +551,7 @@ export function ProfileForm({
                   <input
                     disabled={!isEditing}
                     name="phone"
+                    autoComplete="tel"
                     type="tel"
                     defaultValue={customer.phone ?? "98765 43210"}
                     className={`w-full h-11 pl-12 pr-3.5 font-body-md text-body-md rounded border transition-all ${

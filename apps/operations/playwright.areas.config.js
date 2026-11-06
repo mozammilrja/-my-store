@@ -31,7 +31,7 @@ export default defineConfig({
   projects: [
     {
       name: "warehouse",
-      testMatch: /warehouse\.spec\.ts/,
+      testMatch: /warehouse(-responsive)?\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], channel: "chrome", baseURL: `http://localhost:${AREAS.warehouse.web}` },
     },
     {
@@ -48,7 +48,7 @@ export default defineConfig({
     },
     {
       name: "seller",
-      testMatch: /seller\.spec\.ts/,
+      testMatch: /seller(-responsive)?\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], channel: "chrome", baseURL: `http://localhost:${AREAS.seller.web}` },
     },
   ].filter((p) => only.includes(p.name)),

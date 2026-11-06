@@ -9,6 +9,8 @@ import { HomeRedirect, PortalSpinner, RequireArea } from './portal/RequireArea';
 import { LoginPage } from './portal/LoginPage';
 import { ForgotPasswordPage, ResetPasswordPage } from './portal/AuthPages';
 import { MODULE_ROUTES } from './routes';
+import { InstallBanner, registerServiceWorker } from './portal/pwa';
+import { NetworkBanner } from './areas/shared/network';
 import './index.css';
 
 /*
@@ -60,8 +62,17 @@ const lazyPage = (Component) => (
 );
 
 function Root() {
-  return <Outlet />;
+  return (
+    <>
+      <NetworkBanner />
+      <Outlet />
+      <InstallBanner />
+    </>
+  );
 }
+
+// Offline start, cached static files and push (public/sw.js).
+registerServiceWorker();
 
 const router = createBrowserRouter([
   {

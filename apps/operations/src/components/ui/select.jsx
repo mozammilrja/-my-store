@@ -235,7 +235,7 @@ export const Select = React.forwardRef(({
         onClick={() => (isOpen ? setIsOpen(false) : open())}
         onKeyDown={onKeyDown}
         className={cn(
-          "flex h-9 w-full select-none items-center justify-between gap-2 rounded-lg border border-subtle bg-surface-container-lowest px-3 text-left text-body font-medium text-primary shadow-xs transition-colors hover:border-strong hover:bg-surface-subtle focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+          "tap-target flex h-9 w-full select-none items-center justify-between gap-2 rounded-lg border border-subtle bg-surface-container-lowest px-3 text-left text-body font-medium text-primary shadow-xs transition-colors hover:border-strong hover:bg-surface-subtle focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
           isOpen && "border-primary ring-1 ring-ring",
           !selectedItem && "text-faint",
           className

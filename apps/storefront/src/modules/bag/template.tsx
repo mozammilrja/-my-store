@@ -120,7 +120,7 @@ export function BagTemplate({
             </div>
             <LocalizedClientLink
               href="/account"
-              className="font-label-sm text-label-sm font-semibold text-primary underline underline-offset-4 shrink-0 uppercase"
+              className="font-label-sm text-label-sm font-semibold text-primary underline underline-offset-4 shrink-0 uppercase max-md:inline-flex max-md:min-h-10 max-md:items-center"
             >
               Sign In
             </LocalizedClientLink>
@@ -207,7 +207,7 @@ export function BagTemplate({
                   type="button"
                   onClick={handleClearBag}
                   disabled={isPending}
-                  className="font-label-sm text-label-sm text-on-surface-variant hover:text-error transition-colors flex items-center gap-space-xs cursor-pointer disabled:opacity-50"
+                  className="font-label-sm text-label-sm text-on-surface-variant hover:text-error transition-colors flex items-center gap-space-xs cursor-pointer disabled:opacity-50 max-md:min-h-10"
                 >
                   <span className="material-symbols-outlined text-[16px]">delete_sweep</span>
                   <span>Clear Bag</span>

@@ -40,6 +40,7 @@ export function NewsletterForm({
           className={inputClassName}
           placeholder={placeholder}
           type="email"
+          autoComplete="email"
           required
           aria-label="Email address"
           value={email}

@@ -1,6 +1,16 @@
 import { expect, test } from "@playwright/test"
 
 const COUNTRY = "in"
+const API = process.env.E2E_API_URL ?? "http://localhost:9100"
+// Any product with every size in stock: these tests place real orders, so a fixed product sells out.
+let PRODUCT = "heavyweight-fleece-hooded-sweatshirt"
+
+test.beforeAll(async ({ request }) => {
+  const res = await request.get(`${API}/store/products?country=${COUNTRY}&limit=50`)
+  const { products } = (await res.json()) as { products: { handle: string; variants?: { inStock?: boolean; available?: number | null }[] }[] }
+  const inStock = products.find((p) => (p.variants ?? []).length && (p.variants ?? []).every((v) => v.inStock && (v.available ?? 0) > 2))
+  if (inStock) PRODUCT = inStock.handle
+})
 
 /**
  * Guest checkout with the manual (system default) payment provider, the only
@@ -9,7 +19,7 @@ const COUNTRY = "in"
 test("guest checkout reaches order confirmation", async ({ page }) => {
   test.setTimeout(180_000)
 
-  await page.goto(`/${COUNTRY}/products/heavyweight-fleece-hooded-sweatshirt`, { waitUntil: "domcontentloaded" })
+  await page.goto(`/${COUNTRY}/products/${PRODUCT}`, { waitUntil: "domcontentloaded" })
   await page.getByTestId("add-product-button").click()
   await expect(page.getByTestId("nav-cart-count").first()).not.toHaveText("0")
 
@@ -70,7 +80,7 @@ test("guest checkout reaches order confirmation", async ({ page }) => {
 })
 
 test("continuing without an address shows what to fix and stays on the address page", async ({ page }) => {
-  await page.goto(`/${COUNTRY}/products/heavyweight-fleece-hooded-sweatshirt`, { waitUntil: "domcontentloaded" })
+  await page.goto(`/${COUNTRY}/products/${PRODUCT}`, { waitUntil: "domcontentloaded" })
   await page.getByTestId("add-product-button").click()
   await expect(page.getByTestId("nav-cart-count").first()).not.toHaveText("0")
 
@@ -82,7 +92,7 @@ test("continuing without an address shows what to fix and stays on the address p
 
 test("a failed online payment offers recovery, and pay on delivery completes the order", async ({ page }) => {
   test.setTimeout(180_000)
-  await page.goto(`/${COUNTRY}/products/heavyweight-fleece-hooded-sweatshirt`, { waitUntil: "domcontentloaded" })
+  await page.goto(`/${COUNTRY}/products/${PRODUCT}`, { waitUntil: "domcontentloaded" })
   await page.getByTestId("add-product-button").click()
   await expect(page.getByTestId("nav-cart-count").first()).not.toHaveText("0")
 

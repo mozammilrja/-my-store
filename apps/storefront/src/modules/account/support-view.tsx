@@ -347,7 +347,7 @@ export function SupportView() {
       {/* New Support Ticket Modal (with ZOD Validation) */}
       {showInquiryModal && (
         <div className="fixed inset-0 bg-inverse-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest w-full max-w-lg rounded-xl shadow-[0_20px_40px_-15px_rgba(24,24,27,0.2)] p-space-lg border border-surface-container-high/80">
+          <div className="bg-surface-container-lowest w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-xl shadow-[0_20px_40px_-15px_rgba(24,24,27,0.2)] p-space-lg border border-surface-container-high/80">
             <div className="flex items-center justify-between pb-space-md mb-space-md border-b border-surface-container-high">
               <div>
                 <h3 className="font-headline-sm text-headline-sm text-on-surface font-semibold">

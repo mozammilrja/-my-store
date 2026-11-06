@@ -242,7 +242,7 @@ function Inbounds({ stock }: { stock: StockRow[] }) {
           </div>
           <div>
             <Label htmlFor="sa">AWB</Label>
-            <Input id="sa" required pattern="[A-Za-z0-9-]{4,40}" value={awb} onChange={(e) => setAwb(e.target.value)} className="font-mono" />
+            <Input id="sa" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" required pattern="[A-Za-z0-9-]{4,40}" value={awb} onChange={(e) => setAwb(e.target.value)} className="font-mono" />
           </div>
           <div className="flex justify-end">
             <Button type="submit" busy={sent.isPending}>

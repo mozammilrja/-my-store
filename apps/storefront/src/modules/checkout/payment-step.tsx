@@ -340,7 +340,7 @@ export function PaymentStep({
                 </div>
                 <LocalizedClientLink
                   href="/checkout?step=review"
-                  className="self-start sm:self-center font-label-caps text-label-caps uppercase tracking-wider text-on-surface hover:text-primary underline underline-offset-4 decoration-outline-variant transition-colors whitespace-nowrap"
+                  className="self-start sm:self-center font-label-caps text-label-caps uppercase tracking-wider text-on-surface hover:text-primary underline underline-offset-4 decoration-outline-variant transition-colors whitespace-nowrap max-md:inline-flex max-md:min-h-10 max-md:items-center"
                 >
                   Change
                 </LocalizedClientLink>

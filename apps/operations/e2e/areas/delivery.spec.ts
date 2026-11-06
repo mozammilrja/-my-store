@@ -82,7 +82,7 @@ test("parcels are collected at the hub by AWB; a wrong AWB is refused", async ({
   expect(view.rider?.firstName).toBe("Ravi")
 })
 
-test("delivering: wrong OTP refused, then the customer's OTP and the cash", async ({ page }) => {
+test("delivering: wrong OTP refused, then the customer's OTP and the cash, sent through a dropped connection", async ({ page, context }) => {
   const { orders } = await state()
   const first = orders[0]!
   await signIn(page)
@@ -97,8 +97,17 @@ test("delivering: wrong OTP refused, then the customer's OTP and the cash", asyn
   await page.getByRole("button", { name: "Confirm delivery" }).click()
   await expect(toast(page, "doesn't match")).toBeVisible()
   await page.getByLabel("Delivery OTP from the customer").fill(otp!)
+  // The signal drops at the door: the confirmation waits instead of failing.
+  await context.setOffline(true)
+  await expect(page.getByRole("status").filter({ hasText: "What you do now is kept" })).toBeVisible()
   await page.getByRole("button", { name: "Confirm delivery" }).click()
+  await expect(page.getByText("No connection. The delivery will be sent as soon as you're back online")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Waiting for network" })).toBeVisible()
+  expect((await customerView(first.id)).otp, "nothing reached the server yet").toBe(otp)
+  // Back online: it goes by itself, once.
+  await context.setOffline(false)
   await expect(toast(page, `${first.awb} delivered`)).toBeVisible()
+  await expect(page.getByRole("status").filter({ hasText: "Back online" })).toBeVisible()
   expect((await customerView(first.id)).otp).toBeNull()
 })
 

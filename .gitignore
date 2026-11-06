@@ -72,3 +72,5 @@ apps/operations/e2e/.state*.json
 apps/operations/e2e/areas/.state*.json
 apps/operations/test-results/
 apps/operations/uploads/
+apps/operations/dist-pwa/
+apps/storefront/.next-pwa/

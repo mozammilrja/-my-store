@@ -16,10 +16,12 @@
     "test:e2e:typography": "playwright test --project=typography",
     "test:e2e:ops": "node e2e/ops/run.mjs",
     "test:e2e:areas": "playwright test -c playwright.areas.config.js",
-    "test:e2e:portal": "playwright test -c playwright.portal.config.js"
+    "test:e2e:portal": "playwright test -c playwright.portal.config.js",
+    "test:e2e:pwa": "playwright test -c playwright.pwa.config.js"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.105.0",
+    "barcode-detector": "^3.2.3",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

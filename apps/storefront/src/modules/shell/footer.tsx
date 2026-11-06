@@ -74,22 +74,22 @@ export function Footer() {
             <h6 className="font-label-caps text-label-caps uppercase text-on-surface tracking-wider font-semibold mb-1">
               Online Store
             </h6>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/store">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/store">
               Men&apos;s Wardrobe
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/store">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/store">
               Women&apos;s Collection
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/store">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/store">
               Kids Edition
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/store">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/store">
               Home Decor &amp; Living
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/store">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/store">
               Beauty &amp; Fragrance
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-secondary hover:text-secondary-fixed-dim transition-colors font-medium" href="/store?sale=true">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-secondary hover:text-secondary-fixed-dim transition-colors font-medium max-md:py-1" href="/store?sale=true">
               Archive Sale (Up to 50%)
             </LocalizedClientLink>
           </div>
@@ -98,19 +98,19 @@ export function Footer() {
             <h6 className="font-label-caps text-label-caps uppercase text-on-surface tracking-wider font-semibold mb-1">
               Customer Concierge
             </h6>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/contact">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/contact">
               Help Center &amp; FAQs
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/shipping">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/shipping">
               Track Consignment
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/returns">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/returns">
               Initiate Return / Exchange
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/shipping">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/shipping">
               Shipping &amp; Delivery Terms
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/returns">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/returns">
               Cancellations Policy
             </LocalizedClientLink>
           </div>
@@ -119,19 +119,19 @@ export function Footer() {
             <h6 className="font-label-caps text-label-caps uppercase text-on-surface tracking-wider font-semibold mb-1">
               The Brand
             </h6>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/contact">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/contact">
               Our Editorial Philosophy
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/contact">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/contact">
               Sustainable Craftsmanship
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/contact">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/contact">
               Careers at AVELIQ
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/contact">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/contact">
               Press &amp; Publications
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/contact">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/contact">
               Physical Flagships
             </LocalizedClientLink>
           </div>
@@ -140,16 +140,16 @@ export function Footer() {
             <h6 className="font-label-caps text-label-caps uppercase text-on-surface tracking-wider font-semibold mb-1">
               AVELIQ Privilege
             </h6>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/account">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/account">
               Privilege Club Tiering
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/account">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/account">
               Digital Gift Cards
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/contact">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/contact">
               Book Personal Stylist
             </LocalizedClientLink>
-            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors" href="/contact">
+            <LocalizedClientLink className="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-colors max-md:py-1" href="/contact">
               Corporate Wardrobe Solutions
             </LocalizedClientLink>
           </div>
@@ -169,6 +169,7 @@ export function Footer() {
                 className="min-w-0 flex-1 bg-surface-container-low border border-border px-3 py-2 text-body-sm text-on-surface placeholder:text-muted-foreground rounded focus:outline-none focus:border-primary font-body-sm"
                 placeholder="Enter your personal email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

@@ -36,9 +36,10 @@ const buttonVariants = cva(
           "h-auto p-0 text-label-lg text-accent underline-offset-4 hover:text-accent-hover hover:underline",
       },
       size: {
-        default: "h-9 px-3.5 text-label-lg",
+        // tap-target: at least 44px tall on phones (index.css); unchanged from sm up.
+        default: "tap-target h-9 px-3.5 text-label-lg",
         sm: "h-8 px-3 text-label",
-        lg: "h-10 px-5 text-label-lg",
+        lg: "tap-target h-10 px-5 text-label-lg",
         icon: "h-9 w-9 p-0",
         iconSm: "h-8 w-8 p-0",
         iconXs: "h-7 w-7 p-0",
@@ -55,7 +56,8 @@ export const Button = React.forwardRef(
   ({ className, variant, size, type = "button", ...props }, ref) => (
     <button
       type={type}
-      className={cn(buttonVariants({ variant, size }), className)}
+      // A link-styled button sits inline in text: no tap-target height.
+      className={cn(buttonVariants({ variant, size }).replace(variant === "link" ? "tap-target " : "\0", ""), className)}
       ref={ref}
       {...props}
     />

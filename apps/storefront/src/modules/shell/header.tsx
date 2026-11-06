@@ -48,7 +48,7 @@ export async function Header({ countryCode }: { countryCode: string }) {
                 href="/"
                 aria-label="EVERWEAR home"
                 data-testid="nav-store-link"
-                className="flex items-center"
+                className="flex items-center min-h-11"
               >
                 <Wordmark showMark />
               </LocalizedClientLink>

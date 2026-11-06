@@ -5,9 +5,12 @@ import { Button, cn, Dialog } from "./ui"
 /*
  * The scanner input. Handheld and ring scanners type the code and press
  * Enter, so this is a text field that submits on Enter and keeps focus for
- * the next scan. On devices whose browser has the Barcode Detection API
- * (Chrome on Android, ChromeOS, macOS) a camera button scans with the
- * device camera; elsewhere the button isn't shown.
+ * the next scan. A camera button scans with the device camera wherever the
+ * browser can open it: with the built-in Barcode Detection API (Chrome on
+ * Android, ChromeOS, macOS), or else with the same API from the
+ * `barcode-detector` polyfill (ZXing compiled to WebAssembly, served from
+ * this app, loaded only when the camera is first opened). That is how
+ * iPhones and iPads scan.
  */
 
 type Props = {
@@ -24,7 +27,16 @@ type Props = {
 type Detector = { detect: (source: CanvasImageSource) => Promise<{ rawValue: string }[]> }
 type DetectorCtor = new (opts: { formats: string[] }) => Detector
 
-const detectorCtor = () => (typeof window !== "undefined" ? ((window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector ?? null) : null)
+const nativeDetector = () => (typeof window !== "undefined" ? ((window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector ?? null) : null)
+
+/** The browser's own detector, or the WebAssembly one, fetched on first use. */
+async function loadDetector(): Promise<DetectorCtor> {
+  const native = nativeDetector()
+  if (native) return native
+  const [{ BarcodeDetector, setZXingModuleOverrides }, { default: wasmUrl }] = await Promise.all([import("barcode-detector/ponyfill"), import("zxing-wasm/reader/zxing_reader.wasm?url")])
+  setZXingModuleOverrides({ locateFile: (path: string, prefix: string) => (path.endsWith(".wasm") ? wasmUrl : prefix + path) })
+  return BarcodeDetector as unknown as DetectorCtor
+}
 
 export function ScanField({ label, placeholder = "Scan or type, then Enter", onScan, disabled, autoFocus = true, formats = ["code_128", "qr_code"], className }: Props) {
   const id = useId()
@@ -32,7 +44,8 @@ export function ScanField({ label, placeholder = "Scan or type, then Enter", onS
   const [value, setValue] = useState("")
   const [busy, setBusy] = useState(false)
   const [camera, setCamera] = useState(false)
-  const canUseCamera = !!detectorCtor() && typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia
+  // Any browser that can open the camera (a secure page: https or localhost).
+  const canUseCamera = typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia
 
   // Scanners fire codes back to back: each one is queued and handled in order,
   // never dropped because the previous one is still being processed.
@@ -133,11 +146,11 @@ function CameraScanner({ formats, onResult, onCancel }: { formats: string[]; onR
     let stream: MediaStream | null = null
     let stopped = false
     let timer = 0
-    const Ctor = detectorCtor()
-    if (!Ctor) return
-    const detector = new Ctor({ formats: formatKey.split(",") })
     ;(async () => {
       try {
+        const Ctor = await loadDetector()
+        if (stopped) return
+        const detector = new Ctor({ formats: formatKey.split(",") })
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
         if (stopped || !video.current) return
         video.current.srcObject = stream
@@ -154,7 +167,14 @@ function CameraScanner({ formats, onResult, onCancel }: { formats: string[]; onR
         }
         void tick()
       } catch (e) {
-        setError((e as Error).name === "NotAllowedError" ? "Camera access was refused. Allow it in the browser's site settings, or use the scanner." : "The camera couldn't be started.")
+        const name = (e as Error).name
+        setError(
+          name === "NotAllowedError"
+            ? "Camera access was refused. Allow it in the browser's site settings, or type the code."
+            : name === "NotFoundError"
+              ? "This device has no camera we can use. Type the code, or use a scanner."
+              : "The camera couldn't be started. Type the code, or use a scanner."
+        )
       }
     })()
     return () => {

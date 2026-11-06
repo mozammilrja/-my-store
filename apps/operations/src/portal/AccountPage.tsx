@@ -37,7 +37,7 @@ export function AccountPage() {
     <div className="min-h-dvh bg-canvas text-ink">
       <header className="sticky top-0 z-30 border-b border-line bg-panel/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
-          <Link to={principal.home ?? "/"} className="flex h-10 items-center gap-2 rounded-control px-2 text-sm text-ink-2 hover:bg-panel-muted">
+          <Link to={principal.home ?? "/"} className="flex h-11 items-center gap-2 rounded-control px-2 text-sm text-ink-2 hover:bg-panel-muted sm:h-10">
             <ArrowLeft className="size-4" aria-hidden /> Back
           </Link>
           <p className="flex-1 text-sm font-semibold">Account &amp; security</p>
@@ -126,7 +126,7 @@ function ChangePassword() {
         autoComplete={auto}
         value={f[k]}
         onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))}
-        className="h-10 w-full rounded-control border border-line-strong bg-panel px-3 text-sm text-ink"
+        className="h-11 w-full rounded-control border border-line-strong bg-panel px-3 text-base text-ink sm:h-10 sm:text-sm"
       />
     </div>
   )
@@ -142,7 +142,7 @@ function ChangePassword() {
         {field("currentPassword", "Current password", "current-password")}
         {field("newPassword", "New password (12 characters or more)", "new-password")}
         {field("confirm", "Type the new password again", "new-password")}
-        <button type="submit" disabled={change.isPending} className="h-10 rounded-control bg-accent px-4 text-sm font-medium text-area-on-accent hover:bg-accent-hover disabled:opacity-60">
+        <button type="submit" disabled={change.isPending} className="h-11 rounded-control bg-accent px-4 sm:h-10 text-sm font-medium text-area-on-accent hover:bg-accent-hover disabled:opacity-60">
           {change.isPending ? "Saving" : "Change password"}
         </button>
       </form>
@@ -167,7 +167,7 @@ function Sessions() {
       title="Signed-in devices"
       action={
         rows.length > 1 ? (
-          <button type="button" onClick={() => others.mutate()} disabled={others.isPending} className="flex h-9 items-center gap-1.5 rounded-control border border-line px-3 text-sm text-ink-2 hover:bg-panel-muted">
+          <button type="button" onClick={() => others.mutate()} disabled={others.isPending} className="flex h-11 items-center gap-1.5 rounded-control border sm:h-9 border-line px-3 text-sm text-ink-2 hover:bg-panel-muted">
             <LogOut className="size-4" aria-hidden /> Sign out other devices
           </button>
         ) : null
@@ -192,7 +192,7 @@ function Sessions() {
                 </p>
               </div>
               {s.current ? null : (
-                <button type="button" onClick={() => revoke.mutate(s.id)} className="h-9 rounded-control px-3 text-sm text-bad hover:bg-bad-bg" aria-label={`Sign out ${device(s.userAgent)} signed in ${when(s.createdAt)}`}>
+                <button type="button" onClick={() => revoke.mutate(s.id)} className="h-11 rounded-control px-3 text-sm text-bad sm:h-9 hover:bg-bad-bg" aria-label={`Sign out ${device(s.userAgent)} signed in ${when(s.createdAt)}`}>
                   Sign out
                 </button>
               )}

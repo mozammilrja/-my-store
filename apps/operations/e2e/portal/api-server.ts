@@ -16,7 +16,7 @@ const stub = createNotifyStub()
 const { smtpPort } = await stub.start()
 Object.assign(process.env, {
   NODE_ENV: "test",
-  MONGODB_DB: "everwear_e2e_portal",
+  MONGODB_DB: process.env.E2E_DB ?? "everwear_e2e_portal",
   ADMIN_CORS: WEB,
   OPS_CORS: WEB,
   STORE_CORS: "",

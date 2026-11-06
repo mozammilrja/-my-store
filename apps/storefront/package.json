@@ -14,7 +14,8 @@
     "build": "next build",
     "start": "next start -p 8001",
     "lint": "eslint .",
-    "analyze": "ANALYZE=true next build"
+    "analyze": "ANALYZE=true next build",
+    "test:e2e:pwa": "playwright test -c playwright.pwa.config.ts"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

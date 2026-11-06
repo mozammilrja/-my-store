@@ -3,8 +3,10 @@ import { ArrowLeft, Navigation, Phone } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { Link, useNavigate, useParams } from "react-router"
 import { useFeedback } from "@/areas/shared/feedback"
+import { shrinkPhoto } from "@/areas/shared/image"
+import { useOnline } from "@/areas/shared/network"
 import { Button, Dialog, Input, Label, Notice, Panel, Select, Spinner, Textarea, formatTime } from "@/areas/shared/ui"
-import { api, errorMessage } from "@/areas/delivery/lib/api"
+import { api, ApiError, errorMessage } from "@/areas/delivery/lib/api"
 import { currentPosition, money, REASON_LABEL, useSession } from "@/areas/delivery/lib/session"
 import type { FailReason, Task } from "@/areas/delivery/lib/types"
 import { StatusChip } from "./today"
@@ -81,6 +83,36 @@ export function TaskScreen() {
   )
 }
 
+/**
+ * What happened to a tap that hasn't gone through. Offline, the request waits
+ * and goes out by itself on reconnect. If it failed in flight, the delivery is
+ * re-read, because the server may have recorded it before the reply was lost;
+ * the form keeps what was typed so "try again" needs no re-entry.
+ */
+function SendState({ m, what }: { m: { isPaused: boolean; isError: boolean; error: unknown; reset: () => void; mutate: () => void }; what: string }) {
+  const online = useOnline()
+  if (m.isPaused)
+    return (
+      <Notice tone="warn">
+        No connection. {what} will be sent as soon as you're back online; keep this screen open.
+      </Notice>
+    )
+  if (m.isError && m.error instanceof ApiError && m.error.status === 0)
+    return (
+      <Notice tone="warn">
+        {what} didn't reach the server. Nothing was lost.{" "}
+        {online ? (
+          <button type="button" className="font-semibold underline" onClick={() => m.mutate()}>
+            Try again
+          </button>
+        ) : (
+          "It can be sent once you're back online."
+        )}
+      </Notice>
+    )
+  return null
+}
+
 function useRefresh() {
   const client = useQueryClient()
   return () => {
@@ -99,7 +131,10 @@ function Actions({ t }: { t: Task }) {
       feedback.ok("Out for delivery. The customer can now see their OTP.")
       refresh()
     },
-    onError: (e) => feedback.bad(errorMessage(e)),
+    onError: (e) => {
+      feedback.bad(errorMessage(e))
+      refresh()
+    },
   })
   switch (t.status) {
     case "assigned":
@@ -107,9 +142,12 @@ function Actions({ t }: { t: Task }) {
     case "picked_up":
     case "attempt_failed":
       return (
-        <Button size="lg" className="w-full" busy={start.isPending} onClick={() => start.mutate()}>
-          {t.status === "attempt_failed" ? "Try delivering again" : "Start delivery"}
-        </Button>
+        <div className="space-y-3">
+          <SendState m={start} what="Starting the delivery" />
+          <Button size="lg" className="w-full" busy={start.isPending} onClick={() => start.mutate()}>
+            {t.status === "attempt_failed" ? "Try delivering again" : "Start delivery"}
+          </Button>
+        </div>
       )
     case "out_for_delivery":
       return <Doorstep t={t} />
@@ -144,7 +182,7 @@ function Doorstep({ t }: { t: Task }) {
         form.set("lat", String(at.lat))
         form.set("lng", String(at.lng))
       }
-      if (photo) form.set("photo", photo)
+      if (photo) form.set("photo", await shrinkPhoto(photo))
       return api(`/tasks/${t._id}/deliver`, { form })
     },
     onSuccess: () => {
@@ -152,7 +190,11 @@ function Doorstep({ t }: { t: Task }) {
       refresh()
       navigate("/delivery")
     },
-    onError: (e) => feedback.bad(errorMessage(e)),
+    onError: (e) => {
+      feedback.bad(errorMessage(e))
+      // It may have been recorded before the reply was lost: show the real state.
+      refresh()
+    },
   })
   const resend = useMutation({
     mutationFn: () => api(`/tasks/${t._id}/otp`, { body: {} }),
@@ -200,8 +242,9 @@ function Doorstep({ t }: { t: Task }) {
             <Label htmlFor="photo">Photo of the handover (optional)</Label>
             <input id="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} className="block w-full text-sm text-ink-2 file:mr-3 file:h-10 file:rounded-control file:border file:border-line file:bg-panel file:px-3 file:text-sm file:font-medium" />
           </div>
+          <SendState m={deliver} what="The delivery" />
           <Button type="submit" size="lg" className="w-full" busy={deliver.isPending} disabled={otp.length !== 6 || (!!t.cod && !cashConfirmed)}>
-            Confirm delivery
+            {deliver.isPaused ? "Waiting for network" : "Confirm delivery"}
           </Button>
         </form>
         <div className="mt-4 grid grid-cols-2 gap-2">
@@ -236,7 +279,10 @@ function FailForm({ t, reasons, onDone }: { t: Task; reasons: FailReason[]; onDo
       refresh()
       onDone()
     },
-    onError: (e) => feedback.bad(errorMessage(e)),
+    onError: (e) => {
+      feedback.bad(errorMessage(e))
+      refresh()
+    },
   })
   return (
     <form
@@ -266,6 +312,7 @@ function FailForm({ t, reasons, onDone }: { t: Task; reasons: FailReason[]; onDo
           <Input id="when" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
         </div>
       ) : null}
+      <SendState m={fail} what="The attempt" />
       <div className="flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onDone}>
           Back

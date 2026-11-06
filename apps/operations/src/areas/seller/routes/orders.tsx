@@ -35,7 +35,7 @@ export function Orders() {
       </div>
       <div role="tablist" aria-label="Stage" className="flex flex-wrap gap-2">
         {STAGES.map((s) => (
-          <button key={s.key} role="tab" aria-selected={s.key === stage.key} onClick={() => setParams({ stage: s.key }, { replace: true })} className={cn("h-9 rounded-control px-3 text-sm font-medium", s.key === stage.key ? "bg-accent text-area-on-accent" : "bg-panel-muted text-ink-2")}>
+          <button key={s.key} role="tab" aria-selected={s.key === stage.key} onClick={() => setParams({ stage: s.key }, { replace: true })} className={cn("h-11 rounded-control px-3 text-sm font-medium sm:h-9", s.key === stage.key ? "bg-accent text-area-on-accent" : "bg-panel-muted text-ink-2")}>
             {s.label} ({all.filter((o) => s.statuses.includes(o.status)).length})
           </button>
         ))}
@@ -234,7 +234,7 @@ export function OrderDetail() {
               </div>
               <div>
                 <Label htmlFor="ma">AWB</Label>
-                <Input id="ma" required minLength={4} value={manual.awb} onChange={(e) => setManual((m) => ({ ...m, awb: e.target.value }))} className="font-mono" />
+                <Input id="ma" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" required minLength={4} value={manual.awb} onChange={(e) => setManual((m) => ({ ...m, awb: e.target.value }))} className="font-mono" />
               </div>
               <Button type="submit" variant="secondary" busy={act.isPending}>
                 Record AWB

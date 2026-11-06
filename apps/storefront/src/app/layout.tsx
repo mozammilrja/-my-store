@@ -1,3 +1,5 @@
+import { InstallPrompt } from "@/components/pwa/install-prompt"
+import { PwaRegister } from "@/components/pwa/pwa-register"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { getSiteMedia } from "@lib/data/site-media"
@@ -37,12 +39,19 @@ export const metadata: Metadata = {
       { url: "/brand/favicon-16.png", sizes: "16x16", type: "image/png" },
       { url: "/brand/favicon-32.png", sizes: "32x32", type: "image/png" },
     ],
-    apple: [{ url: "/brand/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
+  // Installed from Safari's Share menu: full screen, with the name under the icon.
+  appleWebApp: { capable: true, title: STORE_NAME, statusBarStyle: "default" },
+  formatDetection: { telephone: false },
 }
 
 export const viewport: Viewport = {
   themeColor: "#ffffff",
+  width: "device-width",
+  initialScale: 1,
+  // Lets fixed bars use env(safe-area-inset-*) on phones with a notch or home indicator.
+  viewportFit: "cover",
 }
 
 export default async function RootLayout(props: { children: React.ReactNode }) {
@@ -64,6 +73,8 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
           </TooltipProvider>
         </SiteMediaProvider>
         <Toaster position="bottom-right" />
+        <PwaRegister />
+        <InstallPrompt />
       </body>
     </html>
   )

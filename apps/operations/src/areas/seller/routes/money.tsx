@@ -116,7 +116,7 @@ export function Reports() {
         <h1 className="text-xl font-semibold">Performance</h1>
         <div role="tablist" aria-label="Period" className="flex rounded-control border border-line p-0.5">
           {(Object.keys(PERIODS) as (keyof typeof PERIODS)[]).map((k) => (
-            <button key={k} role="tab" aria-selected={days === k} onClick={() => setDays(k)} className={cn("h-8 rounded-control px-3 text-sm font-medium", days === k ? "bg-accent text-area-on-accent" : "text-ink-2")}>
+            <button key={k} role="tab" aria-selected={days === k} onClick={() => setDays(k)} className={cn("h-11 rounded-control px-3 text-sm font-medium sm:h-8", days === k ? "bg-accent text-area-on-accent" : "text-ink-2")}>
               Last {k} days
             </button>
           ))}

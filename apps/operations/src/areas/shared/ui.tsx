@@ -15,7 +15,8 @@ export function Button({ variant = "primary", size = "md", busy, className, chil
       aria-busy={busy || undefined}
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-control font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-        size === "lg" ? "h-12 px-5 text-base" : "h-10 px-4 text-sm",
+        // Phones get a 44px touch target; from sm up the original 40px.
+        size === "lg" ? "h-12 px-5 text-base" : "h-11 px-4 text-sm sm:h-10",
         variant === "primary" && "bg-accent text-area-on-accent hover:bg-accent-hover",
         variant === "secondary" && "border border-line bg-panel text-ink hover:bg-panel-muted",
         variant === "danger" && "bg-bad text-white hover:opacity-90 dark:text-canvas",
@@ -51,12 +52,13 @@ export function Label({ children, htmlFor }: { children: ReactNode; htmlFor: str
   )
 }
 
-const control = "w-full rounded-control border border-line bg-panel px-3 text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25"
+// 16px text below sm: iOS Safari zooms the page into any field with smaller text.
+const control = "w-full rounded-control border border-line bg-panel px-3 text-base text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25 sm:text-sm"
 
-export const Input = ({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) => <input {...rest} className={cn(control, "h-10", className)} />
+export const Input = ({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) => <input {...rest} className={cn(control, "h-11 sm:h-10", className)} />
 export const Textarea = ({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...rest} className={cn(control, "min-h-20 py-2", className)} />
 export const Select = ({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) => (
-  <select {...rest} className={cn(control, "h-10", className)}>
+  <select {...rest} className={cn(control, "h-11 sm:h-10", className)}>
     {children}
   </select>
 )
@@ -99,7 +101,7 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
       ref={ref}
       onClose={onClose}
       aria-label={title}
-      className="m-auto w-[calc(100vw-2rem)] max-w-lg rounded-panel border border-line bg-panel p-0 text-ink shadow-xl backdrop:bg-black/50"
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-lg overflow-y-auto overscroll-contain rounded-panel border border-line bg-panel p-0 text-ink shadow-xl backdrop:bg-black/50"
     >
       <div className="border-b border-line px-4 py-3 font-semibold">{title}</div>
       <div className="p-4">{open ? children : null}</div>

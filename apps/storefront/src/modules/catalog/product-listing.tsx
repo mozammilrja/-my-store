@@ -139,7 +139,7 @@ export async function ProductListing({
           {/* Sort Menu */}
           <nav aria-label="Sort products" data-testid="sort-by-container" className="self-end md:self-auto">
             <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-label-sm">
-              <li aria-hidden className="font-label-caps text-[10px] text-muted-foreground uppercase tracking-widest mr-1">
+              <li aria-hidden className="font-label-caps text-[10px] max-md:text-[11px] text-muted-foreground uppercase tracking-widest mr-1">
                 Sort:
               </li>
               {SORTS.map((s) => (
@@ -148,7 +148,8 @@ export async function ProductListing({
                     href={href({ sort: s.value })}
                     aria-current={s.value === listing.sort ? "true" : undefined}
                     className={cn(
-                      "transition-colors",
+                      // Phones: a taller hit area for thumbs, same look.
+                      "transition-colors max-md:inline-flex max-md:min-h-8 max-md:items-center",
                       s.value === listing.sort
                         ? "text-foreground font-bold underline decoration-2 underline-offset-4"
                         : "text-muted-foreground hover:text-foreground"

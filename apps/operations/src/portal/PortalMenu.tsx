@@ -1,7 +1,8 @@
-import { Check, ChevronDown, KeyRound, LayoutGrid, LogOut } from "lucide-react"
+import { Check, ChevronDown, Download, KeyRound, LayoutGrid, LogOut, Share } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router"
 import { AREA_HOME } from "./destinations"
+import { useInstall } from "./pwa"
 import { AREA_LABEL, ROLE_LABEL, usePortal, type Area } from "./session"
 
 const initialsOf = (name: string) =>
@@ -25,6 +26,8 @@ export function PortalMenu({ compact = false }: { compact?: boolean }) {
   const location = useLocation()
   const navigate = useNavigate()
   const current = location.pathname.split("/")[1] as Area
+  const { mode: installMode, install } = useInstall()
+  const [iosHelp, setIosHelp] = useState(false)
 
   useEffect(() => setOpen(false), [location.pathname])
   useEffect(() => {
@@ -85,7 +88,7 @@ export function PortalMenu({ compact = false }: { compact?: boolean }) {
                   role="menuitem"
                   to={AREA_HOME[a]}
                   aria-current={a === current ? "page" : undefined}
-                  className="flex h-9 items-center justify-between rounded-control px-2.5 text-sm hover:bg-panel-muted aria-[current=page]:font-semibold aria-[current=page]:text-accent"
+                  className="flex h-11 md:h-9 items-center justify-between rounded-control px-2.5 text-sm hover:bg-panel-muted aria-[current=page]:font-semibold aria-[current=page]:text-accent"
                 >
                   {AREA_LABEL[a]}
                   {a === current ? <Check className="size-4" aria-hidden /> : null}
@@ -95,7 +98,27 @@ export function PortalMenu({ compact = false }: { compact?: boolean }) {
           ) : null}
 
           <div className="pt-1.5">
-            <Link role="menuitem" to="/account" className="flex h-9 items-center gap-2 rounded-control px-2.5 text-sm hover:bg-panel-muted">
+            {installMode ? (
+              <button
+                role="menuitem"
+                type="button"
+                onClick={async () => {
+                  if (installMode === "prompt") {
+                    setOpen(false)
+                    await install()
+                  } else setIosHelp((v) => !v)
+                }}
+                className="flex h-11 md:h-9 w-full items-center gap-2 rounded-control px-2.5 text-left text-sm hover:bg-panel-muted"
+              >
+                <Download className="size-4 text-ink-3" aria-hidden /> Install app
+              </button>
+            ) : null}
+            {iosHelp ? (
+              <p className="px-2.5 pb-2 text-xs text-ink-2">
+                In Safari, tap <Share className="inline size-3.5 align-text-bottom" aria-label="Share" /> Share, then <strong>Add to Home Screen</strong>.
+              </p>
+            ) : null}
+            <Link role="menuitem" to="/account" className="flex h-11 md:h-9 items-center gap-2 rounded-control px-2.5 text-sm hover:bg-panel-muted">
               <KeyRound className="size-4 text-ink-3" aria-hidden /> Account &amp; security
             </Link>
             <button
@@ -106,7 +129,7 @@ export function PortalMenu({ compact = false }: { compact?: boolean }) {
                 await signOut()
                 navigate("/login", { replace: true })
               }}
-              className="flex h-9 w-full items-center gap-2 rounded-control px-2.5 text-left text-sm text-bad hover:bg-bad-bg"
+              className="flex h-11 md:h-9 w-full items-center gap-2 rounded-control px-2.5 text-left text-sm text-bad hover:bg-bad-bg"
             >
               <LogOut className="size-4" aria-hidden /> Sign out
             </button>

@@ -164,9 +164,10 @@ export async function OrderHeader() {
     >
       <div className="h-20 max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex items-center justify-between gap-gutter">
         <div className="flex items-center gap-space-lg flex-shrink-0">
-          <LocalizedClientLink className="flex flex-col group" href="/">
-            <span className="font-headline-lg text-headline-lg tracking-[0.2em] font-light text-primary uppercase">EVERWEAR</span>
-            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-[0.18em] -mt-1">
+          <LocalizedClientLink className="flex flex-col group min-h-11 justify-center" href="/">
+            {/* Phones: a smaller wordmark without the tagline, so the bag and account icons stay on screen. */}
+            <span className="font-headline-lg text-headline-lg tracking-[0.2em] font-light text-primary uppercase max-sm:text-xl max-sm:tracking-[0.12em]">EVERWEAR</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-[0.18em] -mt-1 max-sm:hidden">
               Everyday style. Your way.
             </span>
           </LocalizedClientLink>
@@ -180,7 +181,7 @@ export async function OrderHeader() {
           />
         </div>
         <div className="flex items-center gap-space-xs flex-shrink-0">
-          <LocalizedClientLink aria-label="Search" className="lg:hidden p-2 text-on-surface-variant hover:text-on-surface transition-colors flex items-center justify-center" href="/search">
+          <LocalizedClientLink aria-label="Search" className="lg:hidden p-2 min-h-11 min-w-11 text-on-surface-variant hover:text-on-surface transition-colors flex items-center justify-center" href="/search">
             <MIcon name="search" className="text-[22px]" />
           </LocalizedClientLink>
           <HeaderIcons initialBag={await bagCount()} />

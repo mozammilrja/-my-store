@@ -127,7 +127,7 @@ export function LineItem({
                 onClick={() => run("remove", async () => ensureOk(await deleteLineItem(item.id)))}
                 disabled={!!pending}
                 aria-label="Remove item"
-                className="text-on-surface-variant hover:text-error transition-colors p-1 cursor-pointer disabled:opacity-40"
+                className="text-on-surface-variant hover:text-error transition-colors p-1 max-md:p-2.5 max-md:-m-1.5 cursor-pointer disabled:opacity-40"
                 data-testid="product-delete-button"
                 title="Remove item"
               >
@@ -187,7 +187,7 @@ export function LineItem({
                   type="button"
                   onClick={() => setQuantity(overStock ? Math.max(available!, 1) : item.quantity - 1)}
                   disabled={item.quantity <= 1 || soldOut || !!pending}
-                  className="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer"
+                  className="w-8 h-8 max-md:w-10 max-md:h-10 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer"
                   aria-label="Decrease quantity"
                 >
                   <span className="material-symbols-outlined text-[16px]">remove</span>
@@ -202,7 +202,7 @@ export function LineItem({
                   type="button"
                   onClick={() => setQuantity(item.quantity + 1)}
                   disabled={item.quantity >= maxQuantity || !!pending}
-                  className="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer"
+                  className="w-8 h-8 max-md:w-10 max-md:h-10 flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors disabled:opacity-40 cursor-pointer"
                   aria-label="Increase quantity"
                 >
                   <span className="material-symbols-outlined text-[16px]">add</span>
@@ -214,7 +214,7 @@ export function LineItem({
                 type="button"
                 onClick={handleSaveToWishlist}
                 disabled={!!pending}
-                className="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors underline underline-offset-4 cursor-pointer disabled:opacity-50"
+                className="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors underline underline-offset-4 cursor-pointer disabled:opacity-50 max-md:min-h-10"
               >
                 Save to Wishlist
               </button>

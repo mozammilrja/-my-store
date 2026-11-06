@@ -501,7 +501,7 @@ function LabelStep({ f, ownFleet, onPrintPackage }: { f: Fulfilment; ownFleet: O
               </div>
               <div>
                 <Label htmlFor="awb">AWB</Label>
-                <Input id="awb" required minLength={4} value={awb} onChange={(e) => setAwb(e.target.value)} className="font-mono" />
+                <Input id="awb" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" required minLength={4} value={awb} onChange={(e) => setAwb(e.target.value)} className="font-mono" />
               </div>
             </div>
             <Button type="submit" size="lg" busy={act.isPending}>

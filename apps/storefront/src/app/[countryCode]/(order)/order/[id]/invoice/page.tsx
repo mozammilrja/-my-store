@@ -11,7 +11,6 @@ import { PrintButton } from "@modules/order/print-button"
 import {
   MIcon,
   StitchPage,
-  TrackingFooter,
   TrackingHeader,
 } from "@modules/stitch/shell"
 import { Metadata } from "next"
@@ -1013,7 +1012,6 @@ export default async function InvoicePage(props: {
           </div>
         </div>
       </main>
-      <TrackingFooter />
     </StitchPage>
   )
 }

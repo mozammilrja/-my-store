@@ -9,7 +9,7 @@ import { type CheckoutRegion, type CheckoutStep, isMethod } from "@modules/check
 import { DeliveryStep } from "@modules/checkout/delivery-step"
 import { PaymentStep } from "@modules/checkout/payment-step"
 import { ReviewStep } from "@modules/checkout/review-step"
-import { CheckoutFooter, CheckoutHeader, StitchPage } from "@modules/stitch/shell"
+import { CheckoutHeader, StitchPage } from "@modules/stitch/shell"
 import { Metadata } from "next"
 import { redirect } from "next/navigation"
 
@@ -119,7 +119,6 @@ export default async function Checkout(props: {
     <StitchPage>
       <CheckoutHeader />
       {body}
-      <CheckoutFooter />
     </StitchPage>
   )
 }

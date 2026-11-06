@@ -2,7 +2,7 @@ import type { Product } from "@lib/api/types"
 import { retrieveOrder } from "@lib/data/account"
 import { getProduct, getRegion, getStorePolicies } from "@lib/data/catalog"
 import OrderConfirmedTemplate from "@modules/order/confirmed/template"
-import { OrderFooter, OrderHeader, StitchPage } from "@modules/stitch/shell"
+import { OrderHeader, StitchPage } from "@modules/stitch/shell"
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 
@@ -36,7 +36,6 @@ export default async function OrderConfirmed(props: { params: Promise<{ countryC
       <main className="w-full bg-surface min-h-[calc(100vh-20rem)]">
         <OrderConfirmedTemplate order={order} products={products} policies={policies} region={region} />
       </main>
-      <OrderFooter />
     </StitchPage>
   )
 }

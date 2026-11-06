@@ -1,21 +1,17 @@
 "use client"
 
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { toast } from "sonner"
-import { useState } from "react"
+import { NewsletterForm } from "@modules/stitch/newsletter-form"
 import { Icon } from "@/components/ui/icon"
 
+/**
+ * The one storefront footer: every page, from the home page to checkout,
+ * order confirmation, tracking and the invoice (main, checkout and order
+ * layouts render it). Hidden when printing, so an invoice prints clean.
+ */
 export function Footer() {
-  const [email, setEmail] = useState("")
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email) return
-    toast.success("Thank you for joining The Weekly Editorial!")
-    setEmail("")
-  }
   return (
-    <footer className="w-full bg-surface-container-low pt-space-xl pb-12 mt-space-xl border-t border-surface-container">
+    <footer className="w-full bg-surface-container-low pt-space-xl pb-12 mt-space-xl border-t border-surface-container print:hidden">
       <div className="w-full px-margin-mobile md:px-margin">
         {/* Top Feature Badges */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-space-lg pb-space-xl border-b border-surface-container">
@@ -164,23 +160,14 @@ export function Footer() {
                 Curated styling insights, new designer arrivals, and private invitation previews delivered to your inbox.
               </p>
             </div>
-            <form onSubmit={handleSubmit} className="flex gap-2">
-              <input
-                className="min-w-0 flex-1 bg-surface-container-low border border-border px-3 py-2 text-body-sm text-on-surface placeholder:text-muted-foreground rounded focus:outline-none focus:border-primary font-body-sm"
-                placeholder="Enter your personal email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <button
-                type="submit"
-                className="px-4 py-2 bg-primary text-on-primary font-label-sm text-label-sm uppercase tracking-wide rounded hover:bg-neutral-800 transition-colors shrink-0 font-semibold cursor-pointer"
-              >
-                Join
-              </button>
-            </form>
+            <NewsletterForm
+              source="footer"
+              className="flex gap-2"
+              inputClassName="min-w-0 flex-1 bg-surface-container-low border border-border px-3 py-2 text-body-sm text-on-surface placeholder:text-muted-foreground rounded focus:outline-none focus:border-primary font-body-sm"
+              buttonClassName="px-4 py-2 bg-primary text-on-primary font-label-sm text-label-sm uppercase tracking-wide rounded hover:bg-neutral-800 transition-colors shrink-0 font-semibold cursor-pointer"
+              placeholder="Enter your personal email"
+              label="Join"
+            />
             <span className="font-label-caps uppercase text-[10px] text-on-surface-variant">
               By subscribing, you agree to our Privacy Policy and consent to receive marketing communication.
             </span>

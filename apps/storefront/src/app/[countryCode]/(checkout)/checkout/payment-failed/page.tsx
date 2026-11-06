@@ -5,7 +5,7 @@ import { formatMoney } from "@lib/money"
 import { getSeller } from "@lib/data/seller"
 import { RecoveryMethods, type RecoveryMethod } from "@modules/checkout/recovery-methods"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { CheckoutFooter, CheckoutHeader, MIcon, StitchPage } from "@modules/stitch/shell"
+import { CheckoutHeader, MIcon, StitchPage } from "@modules/stitch/shell"
 import { Metadata } from "next"
 import Image from "next/image"
 import { redirect } from "next/navigation"
@@ -363,7 +363,6 @@ export default async function PaymentFailed(props: {
           </section>
         </div>
       </main>
-      <CheckoutFooter />
     </StitchPage>
   )
 }

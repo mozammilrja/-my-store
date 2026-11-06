@@ -1,4 +1,4 @@
-import { OrderFooter, OrderHeader, StitchPage } from "@modules/stitch/shell"
+import { OrderHeader, StitchPage } from "@modules/stitch/shell"
 
 const bar = "rounded-lg bg-surface-container animate-pulse"
 
@@ -30,7 +30,6 @@ export default function Loading() {
           </div>
         </div>
       </main>
-      <OrderFooter />
     </StitchPage>
   )
 }

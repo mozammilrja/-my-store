@@ -10,7 +10,7 @@ import { DoorstepControls } from "@modules/order/track/doorstep-controls"
 import { OwnFleetCard } from "@modules/order/track/own-fleet-card"
 import { RouteMapLazy } from "@modules/order/track/route-map-lazy"
 import { buildTracking, carrierName, longDay, scanTime, shipmentStatusLabel, type TrackNode } from "@modules/order/track/tracking"
-import { MIcon, StitchPage, TrackingFooter, TrackingHeader } from "@modules/stitch/shell"
+import { MIcon, StitchPage, TrackingHeader } from "@modules/stitch/shell"
 import { Metadata } from "next"
 import Image from "next/image"
 import { notFound } from "next/navigation"
@@ -548,7 +548,6 @@ export default async function TrackOrder(props: { params: Promise<{ countryCode:
           </div>
         </div>
       </main>
-      <TrackingFooter />
     </StitchPage>
   )
 }

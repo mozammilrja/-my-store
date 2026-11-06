@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { StatusPage } from "@/components/store/status-page"
 import { Wordmark } from "@/components/store/wordmark"
+import { Footer } from "@modules/shell/footer"
 import { Metadata } from "next"
 import Link from "next/link"
 
@@ -28,6 +29,7 @@ export default function NotFound() {
           </Button>
         }
       />
+      <Footer />
     </>
   )
 }

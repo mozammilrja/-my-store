@@ -1,5 +1,6 @@
 import { getBaseURL } from "@lib/util/env"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { Footer } from "@modules/shell/footer"
 import { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -7,9 +8,9 @@ export const metadata: Metadata = {
 }
 
 /**
- * Checkout pages are migrated from the Stitch page exports, which define their
- * own headers and footers (checkout, and the minimal secure header for bank
- * authentication). Each page renders its own (see @modules/stitch/shell).
+ * Checkout pages render their own headers (checkout, and the minimal secure
+ * header for bank authentication; see @modules/stitch/shell). The footer is
+ * the store's one footer, the same as on every other page.
  */
 export default function CheckoutLayout(props: { children: React.ReactNode }) {
   return (
@@ -24,6 +25,7 @@ export default function CheckoutLayout(props: { children: React.ReactNode }) {
         </LocalizedClientLink>
       </span>
       {props.children}
+      <Footer />
     </div>
   )
 }

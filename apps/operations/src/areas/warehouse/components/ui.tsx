@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { Badge } from "@/components/ui"
 import { cn } from "@/areas/shared/ui"
 import { code128Widths } from "@/areas/warehouse/lib/code128"
 import type { FulfilmentStatus } from "@/areas/warehouse/lib/types"
@@ -22,24 +23,27 @@ export const STATUS_LABEL: Record<FulfilmentStatus, string> = {
   cancelled: "Cancelled",
 }
 
-const TONE: Record<FulfilmentStatus, string> = {
-  assigned: "bg-status-info-bg text-info",
-  picking_pending: "bg-status-warning-bg text-warning",
-  picking: "bg-status-warning-bg text-warning",
-  picked: "bg-status-warning-bg text-warning",
-  qc_passed: "bg-accent-soft text-accent",
-  packed: "bg-accent-soft text-accent",
-  label_generated: "bg-accent-soft text-accent",
-  ready_to_dispatch: "bg-status-success-bg text-success",
-  manifested: "bg-status-success-bg text-success",
-  handed_over: "bg-status-success-bg text-success",
-  dispatched: "bg-surface-container text-secondary",
-  rejected: "bg-status-danger-bg text-danger",
-  cancelled: "bg-status-danger-bg text-danger",
+/** The admin's Badge variants for each floor stage. */
+const TONE: Record<FulfilmentStatus, "info" | "warning" | "vip" | "success" | "secondary" | "destructive"> = {
+  assigned: "info",
+  picking_pending: "warning",
+  picking: "warning",
+  picked: "warning",
+  qc_passed: "vip",
+  packed: "vip",
+  label_generated: "vip",
+  ready_to_dispatch: "success",
+  manifested: "success",
+  handed_over: "success",
+  dispatched: "secondary",
+  rejected: "destructive",
+  cancelled: "destructive",
 }
 
 export const StatusBadge = ({ status }: { status: FulfilmentStatus }) => (
-  <span className={cn("inline-flex h-6 items-center rounded-full px-2.5 text-meta font-medium whitespace-nowrap", TONE[status])}>{STATUS_LABEL[status]}</span>
+  <Badge variant={TONE[status]} className="whitespace-nowrap">
+    {STATUS_LABEL[status]}
+  </Badge>
 )
 
 /** Code 128 barcode as crisp SVG bars, with the human-readable text below. */

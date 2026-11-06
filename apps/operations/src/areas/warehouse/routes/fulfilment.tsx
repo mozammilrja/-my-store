@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, ExternalLink, Printer } from "lucide-react"
 import { useState, type FormEvent, type ReactNode } from "react"
@@ -101,36 +102,36 @@ function Lines({ f }: { f: Fulfilment }) {
   const showPick = ["picking", "picked", "qc_passed"].includes(f.status) || f.lines.some((l) => l.short > 0)
   return (
     <div className="-mx-4 overflow-x-auto">
-      <table className="w-full min-w-[34rem] text-body">
-        <thead className="text-left text-meta text-muted">
-          <tr>
-            <th className="px-4 pb-2 font-medium">Item</th>
-            <th className="px-2 pb-2 font-medium">SKU</th>
-            <th className="px-2 pb-2 font-medium">Bin</th>
-            <th className="px-2 pb-2 text-right font-medium">Qty</th>
-            {showPick ? <th className="px-4 pb-2 text-right font-medium">Picked</th> : null}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-subtle">
+      <Table className="w-full min-w-[34rem] text-body">
+        <TableHeader className="text-left text-meta text-muted">
+          <TableRow>
+            <TableHead className="px-4 pb-2 font-medium">Item</TableHead>
+            <TableHead className="px-2 pb-2 font-medium">SKU</TableHead>
+            <TableHead className="px-2 pb-2 font-medium">Bin</TableHead>
+            <TableHead className="px-2 pb-2 text-right font-medium">Qty</TableHead>
+            {showPick ? <TableHead className="px-4 pb-2 text-right font-medium">Picked</TableHead> : null}
+          </TableRow>
+        </TableHeader>
+        <TableBody className="divide-y divide-subtle">
           {f.lines.map((l, i) => (
-            <tr key={`${l.itemId}-${i}`}>
-              <td className="px-4 py-2.5">
+            <TableRow key={`${l.itemId}-${i}`}>
+              <TableCell className="px-4 py-2.5">
                 <p className="font-medium">{l.productTitle}</p>
                 <p className="text-meta text-muted">{Object.entries(l.options).map(([k, v]) => `${k}: ${v}`).join(" · ") || l.variantTitle}</p>
                 {l.short > 0 ? <p className="mt-1 text-meta font-medium text-danger">Short by {l.short}: none left on the shelf. Ask an admin to move this order.</p> : null}
-              </td>
-              <td className="px-2 py-2.5 font-mono text-meta">{l.sku}</td>
-              <td className="px-2 py-2.5 font-mono text-meta">{l.binCode ?? "–"}</td>
-              <td className="px-2 py-2.5 text-right tabular-nums">{l.quantity}</td>
+              </TableCell>
+              <TableCell className="px-2 py-2.5 font-mono text-meta">{l.sku}</TableCell>
+              <TableCell className="px-2 py-2.5 font-mono text-meta">{l.binCode ?? "–"}</TableCell>
+              <TableCell className="px-2 py-2.5 text-right tabular-nums">{l.quantity}</TableCell>
               {showPick ? (
-                <td className={cn("px-4 py-2.5 text-right font-semibold tabular-nums", l.picked >= l.quantity - l.short ? "text-success" : "text-secondary")}>
+                <TableCell className={cn("px-4 py-2.5 text-right font-semibold tabular-nums", l.picked >= l.quantity - l.short ? "text-success" : "text-secondary")}>
                   {l.picked}/{l.quantity - l.short}
-                </td>
+                </TableCell>
               ) : null}
-            </tr>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   )
 }

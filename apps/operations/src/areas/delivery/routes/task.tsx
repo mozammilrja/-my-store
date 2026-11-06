@@ -234,7 +234,7 @@ function Doorstep({ t }: { t: Task }) {
               required
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              className="h-14 text-center font-mono text-2xl tracking-[0.5em]"
+              className="h-14 text-center font-mono !text-2xl tracking-[0.5em]"
             />
             <p className="mt-1 text-meta text-muted">The customer sees it on their order page in the Everwear app or website.</p>
           </div>

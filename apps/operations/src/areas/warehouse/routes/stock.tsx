@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
 import { useFeedback } from "@/areas/shared/feedback"
@@ -46,39 +47,39 @@ export function Stock() {
         <Empty title={sku ? `No stock of ${sku} here` : "No stock recorded at this warehouse yet"}>{can("stock") ? "Receive goods with Stock movement." : null}</Empty>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-subtle bg-surface-container-lowest">
-          <table className="w-full min-w-[44rem] text-body">
-            <thead className="border-b border-subtle text-left text-meta text-muted">
-              <tr>
-                <th className="px-4 py-2 font-medium">Item</th>
-                <th className="px-2 py-2 font-medium">Bin</th>
+          <Table className="w-full min-w-[44rem] text-body">
+            <TableHeader className="border-b border-subtle text-left text-meta text-muted">
+              <TableRow>
+                <TableHead className="px-4 py-2 font-medium">Item</TableHead>
+                <TableHead className="px-2 py-2 font-medium">Bin</TableHead>
                 {BUCKETS.map((b) => (
-                  <th key={b} className="px-2 py-2 text-right font-medium capitalize">
+                  <TableHead key={b} className="px-2 py-2 text-right font-medium capitalize">
                     {b === "quarantine" ? "Returns" : b}
-                  </th>
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-subtle">
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-subtle">
               {levels.data.stock.map((s) => (
-                <tr key={s._id} className="cursor-pointer hover:bg-surface-subtle" onClick={() => setSelected(s)}>
-                  <td className="px-4 py-2.5">
+                <TableRow key={s._id} className="cursor-pointer hover:bg-surface-subtle" onClick={() => setSelected(s)}>
+                  <TableCell className="px-4 py-2.5">
                     <button className="text-left" onClick={() => setSelected(s)}>
                       <span className="block font-mono text-meta font-semibold">{s.sku}</span>
                       <span className="text-secondary">
                         {s.productTitle} · {s.variantTitle}
                       </span>
                     </button>
-                  </td>
-                  <td className="px-2 py-2.5 font-mono text-meta">{s.binCode ?? "–"}</td>
+                  </TableCell>
+                  <TableCell className="px-2 py-2.5 font-mono text-meta">{s.binCode ?? "–"}</TableCell>
                   {BUCKETS.map((b) => (
-                    <td key={b} className={cn("px-2 py-2.5 text-right tabular-nums", b === "available" && "font-semibold", b === "damaged" && s.damaged > 0 && "text-danger")}>
+                    <TableCell key={b} className={cn("px-2 py-2.5 text-right tabular-nums", b === "available" && "font-semibold", b === "damaged" && s.damaged > 0 && "text-danger")}>
                       {s[b]}
-                    </td>
+                    </TableCell>
                   ))}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
       <Dialog open={!!selected} onClose={() => setSelected(null)} title={selected ? `${selected.sku} at this warehouse` : ""}>

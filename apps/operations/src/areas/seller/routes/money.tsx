@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { cn, Empty, Notice, PAGE, PageTitle, Panel, Spinner } from "@/areas/shared/ui"
@@ -70,32 +71,32 @@ export function Payments() {
           <Empty title="No entries yet">Entries appear when your items are delivered.</Empty>
         ) : (
           <div className="-mx-4 overflow-x-auto">
-            <table className="w-full min-w-[40rem] text-body">
-              <thead className="text-left text-meta text-muted">
-                <tr>
-                  <th className="px-4 pb-2 font-medium">Date</th>
-                  <th className="px-2 pb-2 font-medium">Order</th>
-                  <th className="px-2 pb-2 font-medium">Entry</th>
-                  <th className="px-2 pb-2 text-right font-medium">Amount</th>
-                  <th className="px-4 pb-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-subtle">
+            <Table className="w-full min-w-[40rem] text-body">
+              <TableHeader className="text-left text-meta text-muted">
+                <TableRow>
+                  <TableHead className="px-4 pb-2 font-medium">Date</TableHead>
+                  <TableHead className="px-2 pb-2 font-medium">Order</TableHead>
+                  <TableHead className="px-2 pb-2 font-medium">Entry</TableHead>
+                  <TableHead className="px-2 pb-2 text-right font-medium">Amount</TableHead>
+                  <TableHead className="px-4 pb-2 font-medium">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-subtle">
                 {ledger.data.entries.map((e) => (
-                  <tr key={e._id}>
-                    <td className="px-4 py-2 whitespace-nowrap">{day(e.createdAt)}</td>
-                    <td className="px-2 py-2">#{e.displayId}</td>
-                    <td className="px-2 py-2">
+                  <TableRow key={e._id}>
+                    <TableCell className="px-4 py-2 whitespace-nowrap">{day(e.createdAt)}</TableCell>
+                    <TableCell className="px-2 py-2">#{e.displayId}</TableCell>
+                    <TableCell className="px-2 py-2">
                       {KIND[e.kind] ?? e.kind}
                       {e.reversal ? " (refund)" : ""}
                       {e.note ? <span className="block text-meta text-muted">{e.note}</span> : null}
-                    </td>
-                    <td className={cn("px-2 py-2 text-right tabular-nums", e.amount < 0 ? "text-danger" : "text-success")}>{money(e.amount)}</td>
-                    <td className="px-4 py-2 text-meta text-muted">{e.status === "settled" ? "Settled" : `Payable from ${day(e.payableFrom)}`}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className={cn("px-2 py-2 text-right tabular-nums", e.amount < 0 ? "text-danger" : "text-success")}>{money(e.amount)}</TableCell>
+                    <TableCell className="px-4 py-2 text-meta text-muted">{e.status === "settled" ? "Settled" : `Payable from ${day(e.payableFrom)}`}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </Panel>

@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { useFeedback } from "@/areas/shared/feedback"
@@ -22,31 +23,31 @@ export function Sales() {
         <Empty title="No sales yet" />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-subtle bg-surface-container-lowest">
-          <table className="w-full min-w-[40rem] text-body">
-            <thead className="border-b border-subtle text-left text-meta text-muted">
-              <tr>
-                <th className="px-4 py-2 font-medium">Order</th>
-                <th className="px-2 py-2 font-medium">Items</th>
-                <th className="px-2 py-2 font-medium">Status</th>
-                <th className="px-4 py-2 text-right font-medium">Value</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-subtle">
+          <Table className="w-full min-w-[40rem] text-body">
+            <TableHeader className="border-b border-subtle text-left text-meta text-muted">
+              <TableRow>
+                <TableHead className="px-4 py-2 font-medium">Order</TableHead>
+                <TableHead className="px-2 py-2 font-medium">Items</TableHead>
+                <TableHead className="px-2 py-2 font-medium">Status</TableHead>
+                <TableHead className="px-4 py-2 text-right font-medium">Value</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-subtle">
               {sales.data.sales.map((s) => (
-                <tr key={s.orderId}>
-                  <td className="px-4 py-2.5">
+                <TableRow key={s.orderId}>
+                  <TableCell className="px-4 py-2.5">
                     #{s.displayId}
                     <span className="block text-meta text-muted">
                       {day(s.createdAt)} · {s.city}
                     </span>
-                  </td>
-                  <td className="px-2 py-2.5">{s.items.map((i) => `${i.quantity} × ${i.productTitle} (${i.variantTitle})`).join(", ")}</td>
-                  <td className="px-2 py-2.5 capitalize">{s.status === "canceled" ? "cancelled" : s.fulfillmentStatus}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{money(s.items.reduce((n, i) => n + i.unitPrice * i.quantity, 0))}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="px-2 py-2.5">{s.items.map((i) => `${i.quantity} × ${i.productTitle} (${i.variantTitle})`).join(", ")}</TableCell>
+                  <TableCell className="px-2 py-2.5 capitalize">{s.status === "canceled" ? "cancelled" : s.fulfillmentStatus}</TableCell>
+                  <TableCell className="px-4 py-2.5 text-right tabular-nums">{money(s.items.reduce((n, i) => n + i.unitPrice * i.quantity, 0))}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

@@ -33,8 +33,21 @@ declare module "@/components/ui" {
   export const Skeleton: Any
   export const SkeletonCard: Any
   export const SkeletonStatsCard: Any
+  export const Alert: Any
+  export const Input: Any
+  export const Textarea: Any
+  export const Select: Any
 }
 declare module "@/components/layout/BrandMark" {
   import type { ComponentType } from "react"
   export const BrandMark: ComponentType<{ src: string; label: string; align?: string; className?: string; "aria-hidden"?: string | boolean }>
+}
+declare module "@/components/ui/dialog" {
+  import type { ComponentType, ReactNode } from "react"
+  type Any = ComponentType<Record<string, unknown> & { children?: ReactNode; className?: string }>
+  export const Dialog: Any
+  export const DialogContent: Any
+  export const DialogHeader: Any
+  export const DialogBody: Any
+  export const DialogTitle: Any
 }

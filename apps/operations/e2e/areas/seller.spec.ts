@@ -94,7 +94,9 @@ test("a new listing with a photo goes to review", async ({ page }) => {
   await page.getByRole("link", { name: "New listing" }).click()
   await page.getByLabel("Title").fill("Ajrakh Cotton Saree")
   await page.getByLabel("Description").fill("Hand block printed with natural dyes.")
-  await page.getByLabel("Category").selectOption({ label: "Sarees" })
+  // The admin's select: open it, then pick the category.
+  await page.getByLabel("Category").click()
+  await page.getByRole("option", { name: "Sarees" }).click()
   // A real 1x1 PNG, uploaded through the API.
   await page.locator("input[type=file]").setInputFiles({ name: "saree.png", mimeType: "image/png", buffer: Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5f0000000049454e44ae426082", "hex") })
   await expect(page.getByRole("img", { name: "Photo 1" })).toBeVisible()

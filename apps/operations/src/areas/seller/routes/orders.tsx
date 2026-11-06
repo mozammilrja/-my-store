@@ -3,7 +3,7 @@ import { ArrowLeft, Printer } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { Link, useParams, useSearchParams } from "react-router"
 import { useFeedback } from "@/areas/shared/feedback"
-import { Button, cn, Dialog, Empty, formatTime, Input, Label, Notice, PAGE, PageTitle, Panel, Spinner, Textarea } from "@/areas/shared/ui"
+import { Button, cn, Dialog, Empty, formatTime, Input, Label, Notice, PAGE, PageTitle, Panel, Select, Spinner, Textarea } from "@/areas/shared/ui"
 import { api, errorMessage } from "@/areas/seller/lib/api"
 import { useSession } from "@/areas/seller/lib/session"
 import type { FulfilmentStatus, SellerOrder } from "@/areas/seller/lib/types"
@@ -96,13 +96,13 @@ function Handover({ ready }: { ready: SellerOrder[] }) {
       >
         <div>
           <Label htmlFor="hc">Courier</Label>
-          <select id="hc" value={carrier} onChange={(e) => setCarrier(e.target.value)} className="h-10 rounded-lg border border-subtle bg-surface-container-lowest px-3">
+          <Select id="hc" value={carrier} onChange={(e) => setCarrier(e.target.value)} className="w-auto">
             {carriers.map((c) => (
               <option key={c} value={c}>
                 {c} ({ready.filter((o) => o.carrier === c).length})
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className="min-w-48 flex-1">
           <Label htmlFor="hn">Pickup person's name</Label>

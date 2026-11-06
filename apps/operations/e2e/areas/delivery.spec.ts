@@ -116,7 +116,9 @@ test("a failed attempt is recorded with its reason", async ({ page }) => {
   await signIn(page)
   await page.getByRole("link", { name: /7 Old Madras Road/ }).click()
   await page.getByRole("button", { name: "Couldn't deliver" }).click()
-  await page.getByLabel("Reason").selectOption("customer_unavailable")
+  // The admin's select: open it, then pick the reason.
+  await page.getByLabel("Reason").click()
+  await page.getByRole("option", { name: "Customer not available" }).click()
   await page.getByLabel("Note (optional)").fill("No answer at the gate, called twice")
   await page.getByRole("button", { name: "Record attempt" }).click()
   await expect(toast(page, "Attempt recorded")).toBeVisible()

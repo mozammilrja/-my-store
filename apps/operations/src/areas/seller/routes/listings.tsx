@@ -1,18 +1,19 @@
+import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, ImagePlus, Plus, X } from "lucide-react"
 import { useMemo, useState, type FormEvent } from "react"
 import { Link, useNavigate, useParams } from "react-router"
 import { useFeedback } from "@/areas/shared/feedback"
-import { Button, cn, Empty, Input, Label, Notice, PAGE, PageTitle, Panel, Select, Spinner, Textarea } from "@/areas/shared/ui"
+import { Button, Empty, Input, Label, Notice, PAGE, PageTitle, Panel, Select, Spinner, Textarea } from "@/areas/shared/ui"
 import { api, errorMessage } from "@/areas/seller/lib/api"
 import { money, useSession } from "@/areas/seller/lib/session"
 import type { Listing } from "@/areas/seller/lib/types"
 
-const REVIEW: Record<Listing["review"]["status"], { label: string; tone: string }> = {
-  draft: { label: "Draft", tone: "bg-surface-container text-secondary" },
-  pending: { label: "In review", tone: "bg-status-info-bg text-info" },
-  approved: { label: "Live", tone: "bg-status-success-bg text-success" },
-  rejected: { label: "Needs changes", tone: "bg-status-danger-bg text-danger" },
+const REVIEW: Record<Listing["review"]["status"], { label: string; tone: "secondary" | "info" | "success" | "destructive" }> = {
+  draft: { label: "Draft", tone: "secondary" },
+  pending: { label: "In review", tone: "info" },
+  approved: { label: "Live", tone: "success" },
+  rejected: { label: "Needs changes", tone: "destructive" },
 }
 
 export function Listings() {
@@ -43,7 +44,7 @@ export function Listings() {
                     {l.variants.length} variant{l.variants.length === 1 ? "" : "s"} · from {money(Math.min(...l.variants.map((v) => v.price)))} · {l.variants.reduce((n, v) => n + v.stock, 0)} in stock
                   </span>
                 </span>
-                <span className={cn("inline-flex h-6 items-center rounded-full px-2.5 text-meta font-medium", REVIEW[l.review.status].tone)}>{REVIEW[l.review.status].label}</span>
+                <Badge variant={REVIEW[l.review.status].tone} className="shrink-0 whitespace-nowrap">{REVIEW[l.review.status].label}</Badge>
               </Link>
             </li>
           ))}
@@ -243,35 +244,35 @@ function Editor({ listing, categories }: { listing: Listing | null; categories: 
           </div>
         </fieldset>
         <div className="-mx-4 overflow-x-auto">
-          <table className="w-full min-w-[36rem] text-body">
-            <thead className="text-left text-meta text-muted">
-              <tr>
-                <th className="px-4 pb-2 font-medium">Variant</th>
-                <th className="px-2 pb-2 font-medium">SKU</th>
-                <th className="px-2 pb-2 font-medium">Price (₹)</th>
-                <th className="px-4 pb-2 font-medium">MRP (₹, optional)</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="w-full min-w-[36rem] text-body">
+            <TableHeader className="text-left text-meta text-muted">
+              <TableRow>
+                <TableHead className="px-4 pb-2 font-medium">Variant</TableHead>
+                <TableHead className="px-2 pb-2 font-medium">SKU</TableHead>
+                <TableHead className="px-2 pb-2 font-medium">Price (₹)</TableHead>
+                <TableHead className="px-4 pb-2 font-medium">MRP (₹, optional)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {variants.map((o) => {
                 const k = keyOf(o)
                 return (
-                  <tr key={k}>
-                    <td className="px-4 py-1.5 font-medium">{k}</td>
-                    <td className="px-2 py-1.5">
+                  <TableRow key={k}>
+                    <TableCell className="px-4 py-1.5 font-medium">{k}</TableCell>
+                    <TableCell className="px-2 py-1.5">
                       <Input aria-label={`SKU for ${k}`} required disabled={live} pattern="[A-Za-z0-9-]{3,40}" value={row(k).sku} onChange={(e) => setRow(k, { sku: e.target.value.toUpperCase() })} className="font-mono" />
-                    </td>
-                    <td className="px-2 py-1.5">
+                    </TableCell>
+                    <TableCell className="px-2 py-1.5">
                       <Input aria-label={`Price for ${k}`} required type="number" min={1} step="0.01" value={row(k).price} onChange={(e) => setRow(k, { price: e.target.value })} />
-                    </td>
-                    <td className="px-4 py-1.5">
+                    </TableCell>
+                    <TableCell className="px-4 py-1.5">
                       <Input aria-label={`MRP for ${k}`} type="number" min={1} step="0.01" value={row(k).compareAt} onChange={(e) => setRow(k, { compareAt: e.target.value })} />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
         <p className="mt-2 text-meta text-muted">SKUs are printed on your labels and scanned at packing; each must be unique on Everwear. Stock is added on the Stock page.</p>
       </Panel>

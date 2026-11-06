@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
 import { useFeedback } from "@/areas/shared/feedback"
@@ -24,27 +25,27 @@ export function Stock() {
         <Empty title="No items yet">Add listings first.</Empty>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-subtle bg-surface-container-lowest">
-          <table className="w-full min-w-[40rem] text-body">
-            <thead className="border-b border-subtle text-left text-meta text-muted">
-              <tr>
-                <th className="px-4 py-2 font-medium">Item</th>
-                <th className="px-2 py-2 text-right font-medium">Available</th>
-                <th className="px-2 py-2 text-right font-medium">On orders</th>
-                <th className="px-2 py-2 text-right font-medium">Damaged</th>
-                <th className="px-4 py-2 font-medium">{selfShip ? "" : "Where"}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-subtle">
+          <Table className="w-full min-w-[40rem] text-body">
+            <TableHeader className="border-b border-subtle text-left text-meta text-muted">
+              <TableRow>
+                <TableHead className="px-4 py-2 font-medium">Item</TableHead>
+                <TableHead className="px-2 py-2 text-right font-medium">Available</TableHead>
+                <TableHead className="px-2 py-2 text-right font-medium">On orders</TableHead>
+                <TableHead className="px-2 py-2 text-right font-medium">Damaged</TableHead>
+                <TableHead className="px-4 py-2 font-medium">{selfShip ? "" : "Where"}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-subtle">
               {stock.data.stock.map((s) => (
-                <tr key={s.variantId}>
-                  <td className="px-4 py-2.5">
+                <TableRow key={s.variantId}>
+                  <TableCell className="px-4 py-2.5">
                     <span className="block font-mono text-meta font-semibold">{s.sku}</span>
                     {s.productTitle} · {s.variantTitle}
-                  </td>
-                  <td className="px-2 py-2.5 text-right font-semibold tabular-nums">{s.available}</td>
-                  <td className="px-2 py-2.5 text-right tabular-nums">{s.reserved}</td>
-                  <td className="px-2 py-2.5 text-right tabular-nums">{s.damaged}</td>
-                  <td className="px-4 py-2.5 text-right">
+                  </TableCell>
+                  <TableCell className="px-2 py-2.5 text-right font-semibold tabular-nums">{s.available}</TableCell>
+                  <TableCell className="px-2 py-2.5 text-right tabular-nums">{s.reserved}</TableCell>
+                  <TableCell className="px-2 py-2.5 text-right tabular-nums">{s.damaged}</TableCell>
+                  <TableCell className="px-4 py-2.5 text-right">
                     {selfShip ? (
                       <Button size="md" variant="secondary" onClick={() => setMoving(s)}>
                         Update
@@ -52,11 +53,11 @@ export function Stock() {
                     ) : (
                       <span className="text-meta text-muted">{s.warehouses.map((w) => `${w.code}: ${w.available}`).join(", ") || "Not received yet"}</span>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
       {selfShip ? null : <Inbounds stock={stock.data?.stock ?? []} />}

@@ -37,12 +37,12 @@ export function AuthScreen() {
 
   return (
     <main className="grid min-h-dvh place-items-center px-4 py-8">
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-panel border border-line bg-panel p-6">
+      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-xl border border-subtle bg-surface-container-lowest p-6">
         <div className="flex items-center gap-3">
           <img src="/favicon.svg" alt="" className="size-9" />
           <div>
             <h1 className="text-lg font-semibold">Everwear Rider</h1>
-            <p className="text-sm text-ink-3">{mode === "login" ? "Sign in to start your shift" : "Join our delivery fleet"}</p>
+            <p className="text-body text-muted">{mode === "login" ? "Sign in to start your shift" : "Join our delivery fleet"}</p>
           </div>
         </div>
         {error ? <Notice>{error}</Notice> : null}
@@ -65,7 +65,7 @@ export function AuthScreen() {
         <div>
           <Label htmlFor="password">Password</Label>
           <Input id="password" type="password" required minLength={mode === "register" ? 10 : 1} autoComplete={mode === "login" ? "current-password" : "new-password"} value={form.password} onChange={set("password")} />
-          {mode === "register" ? <p className="mt-1 text-xs text-ink-3">At least 10 characters.</p> : null}
+          {mode === "register" ? <p className="mt-1 text-meta text-muted">At least 10 characters.</p> : null}
         </div>
         {mode === "register" ? (
           <div className="grid grid-cols-2 gap-3">
@@ -89,7 +89,7 @@ export function AuthScreen() {
         <Button type="submit" size="lg" className="w-full" busy={busy}>
           {mode === "login" ? "Sign in" : "Create account"}
         </Button>
-        <p className="text-center text-sm text-ink-3">
+        <p className="text-center text-body text-muted">
           {mode === "login" ? "New rider? " : "Already registered? "}
           <button type="button" className="font-medium text-accent underline" onClick={() => (mode === "login" ? setMode("register") : navigate("/login"))}>
             {mode === "login" ? "Create an account" : "Sign in"}

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
 import { useFeedback } from "@/areas/shared/feedback"
-import { Button, Dialog, Empty, Input, Label, Notice, Panel, Select, Spinner, Textarea, formatTime } from "@/areas/shared/ui"
+import { Button, Dialog, Empty, formatTime, Input, Label, Notice, PAGE, PageTitle, Panel, Select, Spinner, Textarea } from "@/areas/shared/ui"
 import { api, errorMessage } from "@/areas/seller/lib/api"
 import { useSession } from "@/areas/seller/lib/session"
 import type { Inbound, StockRow } from "@/areas/seller/lib/types"
@@ -11,10 +11,10 @@ export function Stock() {
   const stock = useQuery({ queryKey: ["stock"], queryFn: () => api<{ stock: StockRow[] }>("/stock") })
   const [moving, setMoving] = useState<StockRow | null>(null)
   return (
-    <div className="space-y-5">
+    <div className={PAGE}>
       <div>
-        <h1 className="text-xl font-semibold">{selfShip ? "Stock" : "Stock and sending stock"}</h1>
-        <p className="text-sm text-ink-3">{selfShip ? "What's on your shelf for Everwear orders. Record goods in, counts and damage here." : "Your stock in Everwear warehouses. Send more with a shipping notice; only what the warehouse counts is added."}</p>
+        <PageTitle kicker="Seller Hub">{selfShip ? "Stock" : "Stock and sending stock"}</PageTitle>
+        <p className="text-body text-secondary">{selfShip ? "What's on your shelf for Everwear orders. Record goods in, counts and damage here." : "Your stock in Everwear warehouses. Send more with a shipping notice; only what the warehouse counts is added."}</p>
       </div>
       {stock.isPending ? (
         <Spinner />
@@ -23,9 +23,9 @@ export function Stock() {
       ) : stock.data.stock.length === 0 ? (
         <Empty title="No items yet">Add listings first.</Empty>
       ) : (
-        <div className="overflow-x-auto rounded-panel border border-line bg-panel">
-          <table className="w-full min-w-[40rem] text-sm">
-            <thead className="border-b border-line text-left text-xs text-ink-3">
+        <div className="overflow-x-auto rounded-xl border border-subtle bg-surface-container-lowest">
+          <table className="w-full min-w-[40rem] text-body">
+            <thead className="border-b border-subtle text-left text-meta text-muted">
               <tr>
                 <th className="px-4 py-2 font-medium">Item</th>
                 <th className="px-2 py-2 text-right font-medium">Available</th>
@@ -34,11 +34,11 @@ export function Stock() {
                 <th className="px-4 py-2 font-medium">{selfShip ? "" : "Where"}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-line">
+            <tbody className="divide-y divide-subtle">
               {stock.data.stock.map((s) => (
                 <tr key={s.variantId}>
                   <td className="px-4 py-2.5">
-                    <span className="block font-mono text-xs font-semibold">{s.sku}</span>
+                    <span className="block font-mono text-meta font-semibold">{s.sku}</span>
                     {s.productTitle} · {s.variantTitle}
                   </td>
                   <td className="px-2 py-2.5 text-right font-semibold tabular-nums">{s.available}</td>
@@ -50,7 +50,7 @@ export function Stock() {
                         Update
                       </Button>
                     ) : (
-                      <span className="text-xs text-ink-3">{s.warehouses.map((w) => `${w.code}: ${w.available}`).join(", ") || "Not received yet"}</span>
+                      <span className="text-meta text-muted">{s.warehouses.map((w) => `${w.code}: ${w.available}`).join(", ") || "Not received yet"}</span>
                     )}
                   </td>
                 </tr>
@@ -162,19 +162,19 @@ function Inbounds({ stock }: { stock: StockRow[] }) {
   return (
     <Panel title="Shipping notices" action={<Button onClick={() => setOpen(true)}>Send stock</Button>}>
       {list.data?.shipments.length ? (
-        <ul className="divide-y divide-line text-sm">
+        <ul className="divide-y divide-subtle text-body">
           {list.data.shipments.map((s) => (
             <li key={s._id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
               <span>
                 <span className="font-mono font-semibold">{s.code}</span> · {s.status.replace("_", " ")} · {formatTime(s.createdAt)}
-                <span className="block text-xs text-ink-3">{s.lines.map((l) => `${l.sku}: ${l.received}/${l.expected}`).join(", ")}</span>
+                <span className="block text-meta text-muted">{s.lines.map((l) => `${l.sku}: ${l.received}/${l.expected}`).join(", ")}</span>
               </span>
               {s.status === "created" ? (
                 <Button variant="secondary" onClick={() => setShip(s)}>
                   Mark as sent
                 </Button>
               ) : s.awb ? (
-                <span className="text-xs text-ink-3">
+                <span className="text-meta text-muted">
                   {s.carrier} {s.awb}
                 </span>
               ) : null}
@@ -182,7 +182,7 @@ function Inbounds({ stock }: { stock: StockRow[] }) {
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-ink-3">No shipping notices yet.</p>
+        <p className="text-body text-secondary">No shipping notices yet.</p>
       )}
       <Dialog open={open} onClose={() => setOpen(false)} title="Send stock to Everwear">
         <form
@@ -203,16 +203,16 @@ function Inbounds({ stock }: { stock: StockRow[] }) {
               ))}
             </Select>
             {wh ? (
-              <p className="mt-1 text-xs text-ink-3">
+              <p className="mt-1 text-meta text-muted">
                 Ship to: {wh.name}, {wh.address}, {wh.city} {wh.pincode}
               </p>
             ) : null}
           </div>
           <ul className="max-h-64 space-y-2 overflow-y-auto">
             {stock.map((s) => (
-              <li key={s.variantId} className="flex items-center justify-between gap-3 text-sm">
+              <li key={s.variantId} className="flex items-center justify-between gap-3 text-body">
                 <span>
-                  <span className="font-mono text-xs">{s.sku}</span> · {s.productTitle} · {s.variantTitle}
+                  <span className="font-mono text-meta">{s.sku}</span> · {s.productTitle} · {s.variantTitle}
                 </span>
                 <Input aria-label={`Units of ${s.sku}`} type="number" min={0} className="w-24" value={qty[s.variantId] ?? ""} onChange={(e) => setQty((x) => ({ ...x, [s.variantId]: e.target.value }))} />
               </li>

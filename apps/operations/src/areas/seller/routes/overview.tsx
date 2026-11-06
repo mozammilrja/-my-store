@@ -3,7 +3,7 @@ import { BadgeCheck, Clock3 } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { Link } from "react-router"
 import { useFeedback } from "@/areas/shared/feedback"
-import { Button, Input, Label, Notice, Panel, Select, Spinner } from "@/areas/shared/ui"
+import { Button, Input, Label, Notice, PAGE, PageTitle, Panel, Select, Spinner } from "@/areas/shared/ui"
 import { api, errorMessage } from "@/areas/seller/lib/api"
 import { money, useSession } from "@/areas/seller/lib/session"
 import type { Balance, Listing, Performance, Seller, SellerOrder } from "@/areas/seller/lib/types"
@@ -66,23 +66,23 @@ function Onboarding() {
     save.mutate()
   }
   const Check = ({ ok, label }: { ok: boolean; label: string }) => (
-    <li className="flex items-center gap-2 text-sm">
-      {ok ? <BadgeCheck className="size-4 text-ok" aria-hidden /> : <Clock3 className="size-4 text-warn" aria-hidden />}
+    <li className="flex items-center gap-2 text-body">
+      {ok ? <BadgeCheck className="size-4 text-success" aria-hidden /> : <Clock3 className="size-4 text-warning" aria-hidden />}
       {label} {ok ? "verified" : s.status === "submitted" ? "being checked" : "to verify"}
     </li>
   )
 
   return (
-    <div className="space-y-5">
+    <div className={PAGE}>
       <div>
-        <h1 className="text-xl font-semibold">Set up your seller account</h1>
-        <p className="text-sm text-ink-3">We need your business, tax and bank details before you can sell. Each one is checked by our team.</p>
+        <PageTitle kicker="Seller Hub">Set up your seller account</PageTitle>
+        <p className="text-body text-secondary">We need your business, tax and bank details before you can sell. Each one is checked by our team.</p>
       </div>
       {s.status === "submitted" ? <Notice tone="info">Thanks. Your details are with us for review. You can prepare listings meanwhile; they go live once you're approved.</Notice> : null}
       <Panel title="Verification">
         <ul className="space-y-1.5">
           <Check ok={s.verified.pan} label="PAN" />
-          {s.gstin ? <Check ok={s.verified.gstin} label="GSTIN" /> : <li className="text-sm text-ink-3">No GSTIN given. Most sellers of taxable goods online need one.</li>}
+          {s.gstin ? <Check ok={s.verified.gstin} label="GSTIN" /> : <li className="text-body text-muted">No GSTIN given. Most sellers of taxable goods online need one.</li>}
           <Check ok={s.verified.bank} label="Bank account" />
         </ul>
       </Panel>
@@ -146,7 +146,7 @@ function Onboarding() {
               <Input id="ifsc" autoCapitalize="characters" autoCorrect="off" spellCheck={false} autoComplete="off" required={!s.bank} value={f.ifsc} onChange={(e) => setF((x) => ({ ...x, ifsc: e.target.value.toUpperCase() }))} className="font-mono uppercase" placeholder="HDFC0001234" />
             </div>
           </fieldset>
-          <p className="mt-2 text-xs text-ink-3">Stored encrypted. Only the last four digits are shown back to you.</p>
+          <p className="mt-2 text-meta text-muted">Stored encrypted. Only the last four digits are shown back to you.</p>
         </Panel>
         {s.fulfilmentModel === "seller" ? (
           <Panel title="Pickup address (where couriers collect your parcels)">
@@ -196,17 +196,17 @@ function Onboarding() {
 function Tile({ label, value, note, to }: { label: string; value: string; note?: string; to?: string }) {
   const inner = (
     <>
-      <p className="text-sm text-ink-3">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {note ? <p className="mt-1 text-xs text-ink-3">{note}</p> : null}
+      <p className="text-label text-muted">{label}</p>
+      <p className="mt-1.5 text-kpi tabular-nums text-primary">{value}</p>
+      {note ? <p className="mt-1 text-micro text-muted">{note}</p> : null}
     </>
   )
   return to ? (
-    <Link to={to} className="rounded-panel border border-line bg-panel p-4 hover:bg-panel-muted">
+    <Link to={to} className="min-h-[7.5rem] rounded-xl border border-subtle bg-surface-container-lowest p-space-md shadow-xs transition-colors hover:border-strong hover:bg-surface-subtle">
       {inner}
     </Link>
   ) : (
-    <div className="rounded-panel border border-line bg-panel p-4">{inner}</div>
+    <div className="min-h-[7.5rem] rounded-xl border border-subtle bg-surface-container-lowest p-space-md shadow-xs">{inner}</div>
   )
 }
 
@@ -221,10 +221,10 @@ function Dashboard() {
   const p = perf.data
   const todo = (st: string[]) => orders.data?.orders.filter((o) => st.includes(o.status)).length ?? 0
   return (
-    <div className="space-y-5">
+    <div className={PAGE}>
       <div>
-        <h1 className="text-xl font-semibold">{me.seller.displayName}</h1>
-        <p className="text-sm text-ink-3">
+        <PageTitle kicker="Seller Hub">{me.seller.displayName}</PageTitle>
+        <p className="text-body text-secondary">
           Commission {me.terms.commissionPct}% + {me.terms.feeGstPct}% GST{me.terms.fulfilmentFeePerUnit ? ` · fulfilment ${money(me.terms.fulfilmentFeePerUnit)} per unit` : ""} · TCS {me.terms.tcsPct}% · TDS {me.terms.tdsPct}%
         </p>
       </div>
@@ -243,7 +243,7 @@ function Dashboard() {
         <Tile label="Waiting" value={money(balance.data?.waiting ?? 0)} note="Inside the return window or unpaid" to="/seller/payments" />
       </div>
       <Panel title="Listings">
-        <p className="text-sm text-ink-2">
+        <p className="text-body text-secondary">
           {listings.data?.listings.filter((l) => l.review.status === "approved").length ?? 0} live · {listings.data?.listings.filter((l) => l.review.status === "pending").length ?? 0} in review ·{" "}
           {listings.data?.listings.filter((l) => l.review.status === "rejected").length ?? 0} need changes ·{" "}
           <Link to="/seller/listings" className="font-medium text-accent underline">

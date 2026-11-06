@@ -44,9 +44,9 @@ export function CashScreen() {
       {header}
       <div className="grid items-start gap-space-lg lg:grid-cols-3">
       <Panel>
-        <p className="text-sm text-ink-3">Cash in hand</p>
-        <p className="text-3xl font-semibold tabular-nums">{money(c.inHand)}</p>
-        <p className="mt-1 text-sm text-ink-2">
+        <p className="text-label text-muted">Cash in hand</p>
+        <p className="mt-1.5 text-kpi tabular-nums text-primary">{money(c.inHand)}</p>
+        <p className="mt-1 text-meta text-muted">
           From {c.parcels.length} delivered parcel{c.parcels.length === 1 ? "" : "s"}
         </p>
         <Button size="lg" className="mt-4 w-full" disabled={!c.inHand} onClick={() => setOpen(true)}>
@@ -55,7 +55,7 @@ export function CashScreen() {
       </Panel>
       {c.parcels.length ? (
         <Panel title="Collected">
-          <ul className="divide-y divide-line text-sm">
+          <ul className="divide-y divide-subtle text-body">
             {c.parcels.map((p) => (
               <li key={p.code} className="flex justify-between py-2">
                 <span className="font-mono">{p.code}</span>
@@ -67,18 +67,18 @@ export function CashScreen() {
       ) : null}
       <Panel title="Handovers">
         {c.remittances.length === 0 ? (
-          <p className="text-sm text-ink-3">None yet.</p>
+          <p className="text-body text-secondary">None yet.</p>
         ) : (
-          <ul className="divide-y divide-line text-sm">
+          <ul className="divide-y divide-subtle text-body">
             {c.remittances.map((r) => (
               <li key={r._id} className="py-2">
                 <div className="flex justify-between gap-2">
                   <span className="font-mono">{r.code}</span>
-                  <span className={cn("font-medium", r.status === "reconciled" ? "text-ok" : r.status === "mismatch" ? "text-bad" : "text-ink-2")}>
+                  <span className={cn("font-medium", r.status === "reconciled" ? "text-success" : r.status === "mismatch" ? "text-danger" : "text-secondary")}>
                     {r.status === "reconciled" ? "Counted, matches" : r.status === "mismatch" ? "Doesn't match" : "Waiting for count"}
                   </span>
                 </div>
-                <p className="text-xs text-ink-3">
+                <p className="text-meta text-muted">
                   {formatTime(r.submittedAt)} · due {money(r.expected)} · you handed {money(r.declared)}
                   {r.counted !== undefined ? <> · counted {money(r.counted)}</> : null}
                   {r.note ? <> · {r.note}</> : null}
@@ -96,7 +96,7 @@ export function CashScreen() {
             remit.mutate()
           }}
         >
-          <p className="text-sm text-ink-2">You collected {money(c.inHand)}. Count the cash you're handing over and enter it.</p>
+          <p className="text-body text-secondary">You collected {money(c.inHand)}. Count the cash you're handing over and enter it.</p>
           <div>
             <Label htmlFor="declared">Amount handed over (₹)</Label>
             <Input id="declared" type="number" inputMode="decimal" min={0} step="0.01" required value={declared} onChange={(e) => setDeclared(e.target.value)} />

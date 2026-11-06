@@ -56,7 +56,8 @@ test("going online brings the waiting parcels as offers; accepted ones show the 
     await expect(toast(page, "Accepted")).toBeVisible()
   }
   await expect(offers).toHaveCount(0)
-  await expect(page.getByText("12 CMH Road, Indiranagar")).toBeVisible()
+  // In the route table (the route panel lists the same stop).
+  await expect(page.getByRole("link", { name: /12 CMH Road, Indiranagar/ })).toBeVisible()
   await expect(page.getByRole("heading", { name: /Collect from the hub \(2\)/ })).toBeVisible()
 })
 

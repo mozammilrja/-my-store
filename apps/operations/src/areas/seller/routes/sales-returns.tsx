@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { useFeedback } from "@/areas/shared/feedback"
-import { Button, Dialog, Empty, Input, Label, Notice, Spinner } from "@/areas/shared/ui"
+import { Button, Dialog, Empty, Input, Label, Notice, PAGE, PageTitle, Spinner } from "@/areas/shared/ui"
 import { api, errorMessage } from "@/areas/seller/lib/api"
 import { day, money, useSession } from "@/areas/seller/lib/session"
 import type { Sale, SellerReturn } from "@/areas/seller/lib/types"
@@ -9,10 +9,10 @@ import type { Sale, SellerReturn } from "@/areas/seller/lib/types"
 export function Sales() {
   const sales = useQuery({ queryKey: ["sales"], queryFn: () => api<{ sales: Sale[] }>("/sales") })
   return (
-    <div className="space-y-5">
+    <div className={PAGE}>
       <div>
-        <h1 className="text-xl font-semibold">Sales</h1>
-        <p className="text-sm text-ink-3">Orders with your items, newest first. On orders with other sellers' items, you see only yours.</p>
+        <PageTitle kicker="Seller Hub">Sales</PageTitle>
+        <p className="text-body text-secondary">Orders with your items, newest first. On orders with other sellers' items, you see only yours.</p>
       </div>
       {sales.isPending ? (
         <Spinner />
@@ -21,9 +21,9 @@ export function Sales() {
       ) : sales.data.sales.length === 0 ? (
         <Empty title="No sales yet" />
       ) : (
-        <div className="overflow-x-auto rounded-panel border border-line bg-panel">
-          <table className="w-full min-w-[40rem] text-sm">
-            <thead className="border-b border-line text-left text-xs text-ink-3">
+        <div className="overflow-x-auto rounded-xl border border-subtle bg-surface-container-lowest">
+          <table className="w-full min-w-[40rem] text-body">
+            <thead className="border-b border-subtle text-left text-meta text-muted">
               <tr>
                 <th className="px-4 py-2 font-medium">Order</th>
                 <th className="px-2 py-2 font-medium">Items</th>
@@ -31,12 +31,12 @@ export function Sales() {
                 <th className="px-4 py-2 text-right font-medium">Value</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-line">
+            <tbody className="divide-y divide-subtle">
               {sales.data.sales.map((s) => (
                 <tr key={s.orderId}>
                   <td className="px-4 py-2.5">
                     #{s.displayId}
-                    <span className="block text-xs text-ink-3">
+                    <span className="block text-meta text-muted">
                       {day(s.createdAt)} · {s.city}
                     </span>
                   </td>
@@ -58,10 +58,10 @@ export function Returns() {
   const returns = useQuery({ queryKey: ["returns"], queryFn: () => api<{ returns: SellerReturn[] }>("/returns") })
   const [inspecting, setInspecting] = useState<SellerReturn | null>(null)
   return (
-    <div className="space-y-5">
+    <div className={PAGE}>
       <div>
-        <h1 className="text-xl font-semibold">Returns</h1>
-        <p className="text-sm text-ink-3">{selfShip ? "Returned items come back to your pickup address. Grade each unit when it arrives; sellable units go back into your stock." : "Returned items go to an Everwear warehouse, which inspects them."}</p>
+        <PageTitle kicker="Seller Hub">Returns</PageTitle>
+        <p className="text-body text-secondary">{selfShip ? "Returned items come back to your pickup address. Grade each unit when it arrives; sellable units go back into your stock." : "Returned items go to an Everwear warehouse, which inspects them."}</p>
       </div>
       {returns.isPending ? (
         <Spinner />
@@ -70,15 +70,15 @@ export function Returns() {
       ) : returns.data.returns.length === 0 ? (
         <Empty title="No returns" />
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-panel border border-line bg-panel">
+        <ul className="divide-y divide-subtle overflow-hidden rounded-xl border border-subtle bg-surface-container-lowest">
           {returns.data.returns.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <span>
-                <span className="font-mono text-sm font-semibold">{r.code}</span> · order #{r.displayId} · {r.type === "exchange" ? "exchange" : "return"} · {r.status.replace(/_/g, " ")}
-                <span className="block text-sm text-ink-2">
+                <span className="font-mono text-body font-semibold">{r.code}</span> · order #{r.displayId} · {r.type === "exchange" ? "exchange" : "return"} · {r.status.replace(/_/g, " ")}
+                <span className="block text-body text-secondary">
                   {r.items.map((i) => `${i.quantity} × ${i.productTitle} (${i.variantTitle}): ${i.reason}${i.note ? `, ${i.note}` : ""}`).join("; ")}
                 </span>
-                <span className="text-xs text-ink-3">Requested {day(r.requestedAt)}</span>
+                <span className="text-meta text-muted">Requested {day(r.requestedAt)}</span>
               </span>
               {selfShip && ["approved", "pickup_scheduled", "in_transit", "received"].includes(r.status) ? (
                 <Button variant="secondary" onClick={() => setInspecting(r)}>
@@ -128,7 +128,7 @@ function Inspect({ r, onDone }: { r: SellerReturn; onDone: () => void }) {
     >
       {r.items.map((i) => (
         <div key={i.itemId} className="flex items-end justify-between gap-3">
-          <span className="text-sm">
+          <span className="text-body">
             {i.productTitle} · {i.variantTitle} · {i.quantity} returned
           </span>
           <div className="w-28">
@@ -137,7 +137,7 @@ function Inspect({ r, onDone }: { r: SellerReturn; onDone: () => void }) {
           </div>
         </div>
       ))}
-      <p className="text-xs text-ink-3">Units not sellable are booked as damaged.</p>
+      <p className="text-meta text-muted">Units not sellable are booked as damaged.</p>
       <div className="flex justify-end">
         <Button type="submit" busy={run.isPending}>
           Record

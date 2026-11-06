@@ -65,8 +65,8 @@ function SignInAgain({ error }: { error: string }) {
   const portal = usePortal()
   return (
     <div className="mx-auto mt-24 max-w-sm space-y-3 px-4 text-center">
-      <p className="text-ink">{error}</p>
-      <button className="text-sm font-medium text-accent underline" onClick={() => void portal.signOut()}>
+      <p className="text-primary">{error}</p>
+      <button className="text-body font-medium text-accent underline" onClick={() => void portal.signOut()}>
         Sign in again
       </button>
     </div>

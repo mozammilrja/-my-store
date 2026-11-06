@@ -3,7 +3,7 @@ import { ArrowLeft, Printer } from "lucide-react"
 import { useState, type FormEvent } from "react"
 import { Link, useParams, useSearchParams } from "react-router"
 import { useFeedback } from "@/areas/shared/feedback"
-import { Button, cn, Dialog, Empty, formatTime, Input, Label, Notice, Panel, Spinner, Textarea } from "@/areas/shared/ui"
+import { Button, cn, Dialog, Empty, formatTime, Input, Label, Notice, PAGE, PageTitle, Panel, Spinner, Textarea } from "@/areas/shared/ui"
 import { api, errorMessage } from "@/areas/seller/lib/api"
 import { useSession } from "@/areas/seller/lib/session"
 import type { FulfilmentStatus, SellerOrder } from "@/areas/seller/lib/types"
@@ -26,16 +26,16 @@ export function Orders() {
   const shown = all.filter((o) => stage.statuses.includes(o.status))
   const ready = all.filter((o) => o.status === "ready_to_dispatch")
   return (
-    <div className="space-y-5">
+    <div className={PAGE}>
       <div>
-        <h1 className="text-xl font-semibold">Orders</h1>
-        <p className="text-sm text-ink-3">
+        <PageTitle kicker="Seller Hub">Orders</PageTitle>
+        <p className="text-body text-secondary">
           Accept within {me.terms.acceptSlaHours} hours; hand over to the courier within {me.terms.dispatchSlaHours} hours of accepting.
         </p>
       </div>
       <div role="tablist" aria-label="Stage" className="flex flex-wrap gap-2">
         {STAGES.map((s) => (
-          <button key={s.key} role="tab" aria-selected={s.key === stage.key} onClick={() => setParams({ stage: s.key }, { replace: true })} className={cn("h-11 rounded-control px-3 text-sm font-medium sm:h-9", s.key === stage.key ? "bg-accent text-area-on-accent" : "bg-panel-muted text-ink-2")}>
+          <button key={s.key} role="tab" aria-selected={s.key === stage.key} onClick={() => setParams({ stage: s.key }, { replace: true })} className={cn("h-11 rounded-lg px-3 text-body font-medium sm:h-9", s.key === stage.key ? "bg-accent text-on-accent" : "bg-surface-subtle text-secondary")}>
             {s.label} ({all.filter((o) => s.statuses.includes(o.status)).length})
           </button>
         ))}
@@ -48,19 +48,19 @@ export function Orders() {
       ) : shown.length === 0 ? (
         <Empty title={`Nothing ${stage.label.toLowerCase()}`}>New orders appear here.</Empty>
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-panel border border-line bg-panel">
+        <ul className="divide-y divide-subtle overflow-hidden rounded-xl border border-subtle bg-surface-container-lowest">
           {shown.map((o) => (
             <li key={o._id}>
-              <Link to={`/seller/orders/${o._id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 hover:bg-panel-muted">
+              <Link to={`/seller/orders/${o._id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 hover:bg-surface-subtle">
                 <span className="min-w-0">
-                  <span className="font-mono text-sm font-semibold">{o.code}</span>
-                  <span className="block truncate text-sm text-ink-2">{o.lines.map((l) => `${l.quantity} × ${l.productTitle} (${l.variantTitle})`).join(", ")}</span>
-                  <span className="text-xs text-ink-3">
+                  <span className="font-mono text-body font-semibold">{o.code}</span>
+                  <span className="block truncate text-body text-secondary">{o.lines.map((l) => `${l.quantity} × ${l.productTitle} (${l.variantTitle})`).join(", ")}</span>
+                  <span className="text-meta text-muted">
                     {formatTime(o.createdAt)} · to {o.destination.city} {o.destination.postalCode}
                     {o.paymentMethod === "cod" ? " · cash on delivery" : ""}
                   </span>
                 </span>
-                {o.awb ? <span className="text-xs text-ink-3">{o.carrier} {o.awb}</span> : null}
+                {o.awb ? <span className="text-meta text-muted">{o.carrier} {o.awb}</span> : null}
               </Link>
             </li>
           ))}
@@ -96,7 +96,7 @@ function Handover({ ready }: { ready: SellerOrder[] }) {
       >
         <div>
           <Label htmlFor="hc">Courier</Label>
-          <select id="hc" value={carrier} onChange={(e) => setCarrier(e.target.value)} className="h-10 rounded-control border border-line bg-panel px-3">
+          <select id="hc" value={carrier} onChange={(e) => setCarrier(e.target.value)} className="h-10 rounded-lg border border-subtle bg-surface-container-lowest px-3">
             {carriers.map((c) => (
               <option key={c} value={c}>
                 {c} ({ready.filter((o) => o.carrier === c).length})
@@ -155,21 +155,21 @@ export function OrderDetail() {
   }
 
   return (
-    <div className="space-y-5">
-      <Link to="/seller/orders" className="inline-flex items-center gap-1 text-sm text-ink-2">
+    <div className={PAGE}>
+      <Link to="/seller/orders" className="inline-flex items-center gap-1 text-body text-secondary">
         <ArrowLeft className="size-4" aria-hidden /> Orders
       </Link>
       <div>
-        <h1 className="font-mono text-xl font-semibold">{o.code}</h1>
-        <p className="text-sm text-ink-3">
+        <PageTitle kicker="Seller Hub" mono>{o.code}</PageTitle>
+        <p className="text-body text-secondary">
           Order #{o.displayId} · {o.status.replace(/_/g, " ")} · {o.paymentMethod === "cod" ? "cash on delivery (the courier collects)" : "prepaid"}
         </p>
       </div>
       <Panel title="Items">
-        <ul className="space-y-1 text-sm">
+        <ul className="space-y-1 text-body">
           {o.lines.map((l) => (
             <li key={l.itemId}>
-              {l.quantity} × {l.productTitle} · {l.variantTitle} <span className="font-mono text-xs text-ink-3">{l.sku}</span>
+              {l.quantity} × {l.productTitle} · {l.variantTitle} <span className="font-mono text-meta text-muted">{l.sku}</span>
             </li>
           ))}
         </ul>
@@ -191,7 +191,7 @@ export function OrderDetail() {
       {["picking_pending", "picking", "picked", "qc_passed"].includes(o.status) ? (
         <Panel title="Pack the order">
           <form className="space-y-3" onSubmit={pack}>
-            <p className="text-sm text-ink-2">Check each item matches the size and colour above, pack it, then weigh and measure the box.</p>
+            <p className="text-body text-secondary">Check each item matches the size and colour above, pack it, then weigh and measure the box.</p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {(
                 [
@@ -227,7 +227,7 @@ export function OrderDetail() {
                 act.mutate({ path: "/ship", body: { manual }, ok: "AWB recorded" })
               }}
             >
-              <p className="text-sm text-ink-3 sm:col-span-3">Or, if you booked it on a courier's own website, enter the AWB:</p>
+              <p className="text-body text-muted sm:col-span-3">Or, if you booked it on a courier's own website, enter the AWB:</p>
               <div>
                 <Label htmlFor="mc">Courier</Label>
                 <Input id="mc" required minLength={2} value={manual.carrier} onChange={(e) => setManual((m) => ({ ...m, carrier: e.target.value }))} />
@@ -246,7 +246,7 @@ export function OrderDetail() {
 
       {shipTo ? (
         <Panel title="Ship to" action={<Button variant="secondary" onClick={print}><Printer className="size-4" aria-hidden /> Print address label</Button>}>
-          <address className="text-sm not-italic">
+          <address className="text-body not-italic">
             {shipTo.name}
             <br />
             {shipTo.address1}
@@ -255,11 +255,11 @@ export function OrderDetail() {
             {shipTo.city}, {shipTo.state} {shipTo.postalCode}
           </address>
           {label?.labelUrl ? (
-            <a href={label.labelUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-medium text-accent underline">
+            <a href={label.labelUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block text-body font-medium text-accent underline">
               Courier label (PDF)
             </a>
           ) : null}
-          {o.awb ? <p className="mt-2 text-sm text-ink-2">{o.carrier} · AWB <span className="font-mono">{o.awb}</span></p> : null}
+          {o.awb ? <p className="mt-2 text-body text-secondary">{o.carrier} · AWB <span className="font-mono">{o.awb}</span></p> : null}
         </Panel>
       ) : null}
 
@@ -268,10 +268,10 @@ export function OrderDetail() {
       {o.status === "rejected" || o.status === "cancelled" ? <Notice tone="warn">{o.status === "rejected" ? "Declined" : "Cancelled"}: {o.cancelReason}</Notice> : null}
 
       <Panel title="History">
-        <ol className="space-y-1.5 text-sm">
+        <ol className="space-y-1.5 text-body">
           {history.map((e) => (
             <li key={e._id}>
-              <span className="text-ink-3 tabular-nums">{formatTime(e.at)}</span> · {e.to.replace(/_/g, " ")}
+              <span className="text-muted tabular-nums">{formatTime(e.at)}</span> · {e.to.replace(/_/g, " ")}
               {e.reason ? ` · ${e.reason}` : ""}
             </li>
           ))}
@@ -288,7 +288,7 @@ export function OrderDetail() {
         >
           <Label htmlFor="dr">Why</Label>
           <Textarea id="dr" required minLength={3} value={reason} onChange={(e) => setReason(e.target.value)} />
-          <p className="text-xs text-ink-3">Declined orders count against your fulfilment rate.</p>
+          <p className="text-meta text-muted">Declined orders count against your fulfilment rate.</p>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setDeclining(false)}>
               Back
@@ -302,16 +302,16 @@ export function OrderDetail() {
 
       {printing && shipTo ? (
         <div className="print-area print-only w-[100mm] space-y-2 p-4 font-sans">
-          <p className="text-xs">From: {me.seller.displayName} · Order #{o.displayId} · {o.code}</p>
+          <p className="text-meta">From: {me.seller.displayName} · Order #{o.displayId} · {o.code}</p>
           <p className="text-base font-bold">{shipTo.name}</p>
-          <p className="text-sm">
+          <p className="text-body">
             {shipTo.address1}
             {shipTo.address2 ? `, ${shipTo.address2}` : ""}
           </p>
-          <p className="text-sm font-semibold">
+          <p className="text-body font-semibold">
             {shipTo.city}, {shipTo.state} {shipTo.postalCode}
           </p>
-          {o.awb ? <p className="font-mono text-sm">{o.carrier} AWB {o.awb}</p> : null}
+          {o.awb ? <p className="font-mono text-body">{o.carrier} AWB {o.awb}</p> : null}
         </div>
       ) : null}
     </div>

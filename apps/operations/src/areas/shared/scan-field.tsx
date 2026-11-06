@@ -86,13 +86,13 @@ export function ScanField({ label, placeholder = "Scan or type, then Enter", onS
 
   return (
     <form onSubmit={onSubmit} className={cn("w-full", className)}>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-ink-2">
+      <label htmlFor={id} className="mb-1.5 block text-body font-medium text-secondary">
         {label}
       </label>
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <ScanLine className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-ink-3" aria-hidden />
-          {busy ? <Loader2 className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-ink-3" aria-label="Processing scan" /> : null}
+          <ScanLine className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted" aria-hidden />
+          {busy ? <Loader2 className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-muted" aria-label="Processing scan" /> : null}
           <input
             id={id}
             ref={input}
@@ -105,7 +105,7 @@ export function ScanField({ label, placeholder = "Scan or type, then Enter", onS
             spellCheck={false}
             enterKeyHint="go"
             placeholder={placeholder}
-            className="h-12 w-full rounded-control border border-line-strong bg-panel pr-3 pl-10 font-mono text-base text-ink placeholder:font-sans placeholder:text-ink-3 focus:border-accent focus:ring-2 focus:ring-accent/25 focus:outline-none disabled:opacity-50"
+            className="h-12 w-full rounded-lg border border-strong bg-surface-container-lowest pr-3 pl-10 font-mono text-base text-primary placeholder:font-sans placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent/25 focus:outline-none disabled:opacity-50"
           />
         </div>
         <Button type="submit" size="lg" disabled={disabled}>
@@ -186,7 +186,7 @@ function CameraScanner({ formats, onResult, onCancel }: { formats: string[]; onR
 
   return (
     <div className="space-y-3">
-      {error ? <p className="text-sm text-bad">{error}</p> : <video ref={video} muted playsInline className="aspect-[4/3] w-full rounded-control bg-black object-cover" />}
+      {error ? <p className="text-body text-danger">{error}</p> : <video ref={video} muted playsInline className="aspect-[4/3] w-full rounded-lg bg-black object-cover" />}
       <Button variant="secondary" className="w-full" onClick={onCancel}>
         <X className="size-4" aria-hidden /> Cancel
       </Button>

@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Link } from "react-router"
 import { useFeedback } from "@/areas/shared/feedback"
 import { ScanField } from "@/areas/shared/scan-field"
-import { Button, cn, Dialog, Empty, formatTime, Input, Label, Notice, Panel, Spinner } from "@/areas/warehouse/components/ui"
+import { Button, cn, Dialog, Empty, formatTime, Input, Label, Notice, PAGE, PageTitle, Panel, Spinner } from "@/areas/warehouse/components/ui"
 import { api, errorMessage } from "@/areas/warehouse/lib/api"
 import { useSession } from "@/areas/warehouse/lib/session"
 import type { Fulfilment, Manifest } from "@/areas/warehouse/lib/types"
@@ -48,8 +48,8 @@ export function Dispatch() {
   if (!can("dispatch")) return <Notice tone="info">Dispatch is done by dispatchers and supervisors.</Notice>
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Dispatch</h1>
+    <div className={PAGE}>
+      <PageTitle kicker="Warehouse">Dispatch</PageTitle>
 
       <Panel title="Ready to dispatch">
         {ready.isPending ? (
@@ -61,10 +61,10 @@ export function Dispatch() {
         ) : (
           <ul className="space-y-3">
             {[...byCarrier].map(([carrier, list]) => (
-              <li key={carrier} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-line px-4 py-3">
+              <li key={carrier} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-subtle px-4 py-3">
                 <div>
                   <p className="font-medium">{carrier || "Courier"}</p>
-                  <p className="text-sm text-ink-3">
+                  <p className="text-body text-secondary">
                     {list.length} parcel{list.length === 1 ? "" : "s"} · {list.map((f) => f.awb).join(", ")}
                   </p>
                 </div>
@@ -83,13 +83,13 @@ export function Dispatch() {
 
       {closed.length ? (
         <Panel title="Recently closed">
-          <ul className="divide-y divide-line text-sm">
+          <ul className="divide-y divide-subtle text-body">
             {closed.map((m) => (
               <li key={m._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span>
                   <span className="font-mono font-medium">{m.code}</span> · {m.carrier} · {m.awbs.length} parcel(s) · {m.courierExecutive}
                 </span>
-                <span className="text-ink-3">{formatTime(m.closedAt)}</span>
+                <span className="text-muted">{formatTime(m.closedAt)}</span>
               </li>
             ))}
           </ul>
@@ -131,7 +131,7 @@ function OpenManifest({ m, onChange }: { m: Manifest; onChange: () => void }) {
       }
       action={
         m.manifestUrls[0] ? (
-          <a href={m.manifestUrls[0]} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-accent">
+          <a href={m.manifestUrls[0]} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-body font-medium text-accent">
             <ExternalLink className="size-4" aria-hidden /> Courier manifest
           </a>
         ) : null
@@ -143,9 +143,9 @@ function OpenManifest({ m, onChange }: { m: Manifest; onChange: () => void }) {
           {m.awbs.map((awb) => {
             const done = m.scannedAwbs.includes(awb)
             return (
-              <li key={awb} className={cn("flex justify-between rounded-control border px-3 py-2 font-mono text-sm", done ? "border-ok/40 bg-ok-bg text-ok" : "border-line")}>
+              <li key={awb} className={cn("flex justify-between rounded-lg border px-3 py-2 font-mono text-body", done ? "border-status-success/40 bg-status-success-bg text-success" : "border-subtle")}>
                 {awb}
-                <span className="font-sans text-xs">{done ? "Handed over" : "Waiting"}</span>
+                <span className="font-sans text-meta">{done ? "Handed over" : "Waiting"}</span>
               </li>
             )
           })}
@@ -181,7 +181,7 @@ function OpenManifest({ m, onChange }: { m: Manifest; onChange: () => void }) {
           </div>
         </form>
       </Dialog>
-      <p className="mt-3 text-xs text-ink-3">
+      <p className="mt-3 text-meta text-muted">
         Parcels on a manifest can't be cancelled from the admin until they're taken off it. Need to check a parcel? <Link to="/warehouse?stage=dispatch" className="underline">See the dispatch queue</Link>.
       </p>
     </Panel>

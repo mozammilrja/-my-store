@@ -41,8 +41,8 @@ export function NetworkBanner() {
       aria-live="polite"
       className={
         online
-          ? "fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-2 border-b border-ok/30 bg-ok-bg px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-sm font-medium text-ok"
-          : "fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-2 border-b border-warn/30 bg-warn-bg px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-sm font-medium text-warn"
+          ? "fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-2 border-b border-status-success/30 bg-status-success-bg px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-body font-medium text-success"
+          : "fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-2 border-b border-status-warning/30 bg-status-warning-bg px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-body font-medium text-warning"
       }
     >
       {online ? <RefreshCw className="size-4" aria-hidden /> : <CloudOff className="size-4" aria-hidden />}

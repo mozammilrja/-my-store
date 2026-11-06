@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
 import { useFeedback } from "@/areas/shared/feedback"
 import { ScanField } from "@/areas/shared/scan-field"
-import { Button, cn, Dialog, Empty, formatTime, Input, Label, Notice, Select, Spinner, Textarea } from "@/areas/warehouse/components/ui"
+import { Button, cn, Dialog, Empty, formatTime, Input, Label, Notice, PAGE, PageTitle, Select, Spinner, Textarea } from "@/areas/warehouse/components/ui"
 import { api, errorMessage } from "@/areas/warehouse/lib/api"
 import { useSession } from "@/areas/warehouse/lib/session"
 import type { CatalogItem, LedgerEntry, StockLevel } from "@/areas/warehouse/lib/types"
@@ -24,9 +24,9 @@ export function Stock() {
   const levels = useQuery({ queryKey: ["stock", warehouseId, sku], queryFn: () => api<{ stock: StockLevel[] }>("/stock", { query: { warehouseId, sku, limit: 100 } }) })
 
   return (
-    <div className="space-y-5">
+    <div className={PAGE}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Stock</h1>
+        <PageTitle kicker="Warehouse">Stock</PageTitle>
         {can("stock") ? <Button onClick={() => setOperation(true)}>Stock movement</Button> : null}
       </div>
       {can("stock") ? <InboundPanel /> : null}
@@ -45,9 +45,9 @@ export function Stock() {
       ) : levels.data.stock.length === 0 ? (
         <Empty title={sku ? `No stock of ${sku} here` : "No stock recorded at this warehouse yet"}>{can("stock") ? "Receive goods with Stock movement." : null}</Empty>
       ) : (
-        <div className="overflow-x-auto rounded-panel border border-line bg-panel">
-          <table className="w-full min-w-[44rem] text-sm">
-            <thead className="border-b border-line text-left text-xs text-ink-3">
+        <div className="overflow-x-auto rounded-xl border border-subtle bg-surface-container-lowest">
+          <table className="w-full min-w-[44rem] text-body">
+            <thead className="border-b border-subtle text-left text-meta text-muted">
               <tr>
                 <th className="px-4 py-2 font-medium">Item</th>
                 <th className="px-2 py-2 font-medium">Bin</th>
@@ -58,20 +58,20 @@ export function Stock() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-line">
+            <tbody className="divide-y divide-subtle">
               {levels.data.stock.map((s) => (
-                <tr key={s._id} className="cursor-pointer hover:bg-panel-muted" onClick={() => setSelected(s)}>
+                <tr key={s._id} className="cursor-pointer hover:bg-surface-subtle" onClick={() => setSelected(s)}>
                   <td className="px-4 py-2.5">
                     <button className="text-left" onClick={() => setSelected(s)}>
-                      <span className="block font-mono text-xs font-semibold">{s.sku}</span>
-                      <span className="text-ink-2">
+                      <span className="block font-mono text-meta font-semibold">{s.sku}</span>
+                      <span className="text-secondary">
                         {s.productTitle} · {s.variantTitle}
                       </span>
                     </button>
                   </td>
-                  <td className="px-2 py-2.5 font-mono text-xs">{s.binCode ?? "–"}</td>
+                  <td className="px-2 py-2.5 font-mono text-meta">{s.binCode ?? "–"}</td>
                   {BUCKETS.map((b) => (
-                    <td key={b} className={cn("px-2 py-2.5 text-right tabular-nums", b === "available" && "font-semibold", b === "damaged" && s.damaged > 0 && "text-bad")}>
+                    <td key={b} className={cn("px-2 py-2.5 text-right tabular-nums", b === "available" && "font-semibold", b === "damaged" && s.damaged > 0 && "text-danger")}>
                       {s[b]}
                     </td>
                   ))}
@@ -108,7 +108,7 @@ function LevelDetail({ level, onDone }: { level: StockLevel; onDone: () => void 
   })
   return (
     <div className="space-y-4">
-      <p className="text-sm text-ink-2">
+      <p className="text-body text-secondary">
         {level.productTitle} · {level.variantTitle}. Received {level.receivedTotal}, dispatched {level.dispatchedTotal} in total.
       </p>
       {can("stock") ? (
@@ -129,13 +129,13 @@ function LevelDetail({ level, onDone }: { level: StockLevel; onDone: () => void 
         </form>
       ) : null}
       <div>
-        <h3 className="mb-2 text-sm font-semibold">Recent movements</h3>
+        <h3 className="mb-2 text-body font-semibold">Recent movements</h3>
         {ledger.isPending ? (
           <Spinner />
         ) : ledger.isError ? (
           <Notice>{errorMessage(ledger.error)}</Notice>
         ) : (
-          <ul tabIndex={0} aria-label="Recent stock movements" className="max-h-72 divide-y divide-line overflow-y-auto text-sm">
+          <ul tabIndex={0} aria-label="Recent stock movements" className="max-h-72 divide-y divide-subtle overflow-y-auto text-body">
             {ledger.data.entries.map((e) => (
               <li key={e._id} className="py-2">
                 <div className="flex justify-between gap-2">
@@ -144,7 +144,7 @@ function LevelDetail({ level, onDone }: { level: StockLevel; onDone: () => void 
                     {e.quantity} · {e.from} → {e.to}
                   </span>
                 </div>
-                <p className="text-xs text-ink-3">
+                <p className="text-meta text-muted">
                   {formatTime(e.createdAt)} · {e.actor.name ?? e.actor.type}
                   {e.note ? ` · ${e.note}` : ""} · available after: {e.after.available}
                 </p>
@@ -231,7 +231,7 @@ function OperationForm({ onDone }: { onDone: () => void }) {
         </Select>
       </div>
       {item ? (
-        <div className="flex items-center justify-between rounded-control border border-line px-3 py-2 text-sm">
+        <div className="flex items-center justify-between rounded-lg border border-subtle px-3 py-2 text-body">
           <span>
             <span className="font-mono font-semibold">{item.sku}</span> · {item.productTitle} ({item.variantTitle})
           </span>
@@ -328,22 +328,22 @@ function InboundPanel() {
     onError: (e) => feedback.bad(errorMessage(e)),
   })
   return (
-    <details className="rounded-panel border border-line bg-panel">
-      <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Seller stock arriving (ASN)</summary>
-      <div className="space-y-4 border-t border-line p-4">
+    <details className="rounded-xl border border-subtle bg-surface-container-lowest">
+      <summary className="cursor-pointer px-4 py-3 text-body font-semibold">Seller stock arriving (ASN)</summary>
+      <div className="space-y-4 border-t border-subtle p-4">
         <ScanField label="Scan or type the ASN code on the seller's paperwork" placeholder="ASN-SEL-0001-…" onScan={find} autoFocus={false} />
         {asn ? (
           <div className="space-y-3">
-            <p className="text-sm text-ink-2">
+            <p className="text-body text-secondary">
               <span className="font-mono font-semibold">{asn.shipment.code}</span> from {asn.seller?.displayName ?? "a seller"} · {asn.shipment.status.replace("_", " ")}
               {asn.shipment.awb ? ` · ${asn.shipment.carrier} ${asn.shipment.awb}` : ""}
             </p>
-            <ul className="divide-y divide-line text-sm">
+            <ul className="divide-y divide-subtle text-body">
               {asn.shipment.lines.map((l) => (
                 <li key={l.variantId} className="flex flex-wrap items-center justify-between gap-3 py-2">
                   <span>
-                    <span className="font-mono text-xs font-semibold">{l.sku}</span> · {l.title}
-                    <span className="block text-xs text-ink-3">
+                    <span className="font-mono text-meta font-semibold">{l.sku}</span> · {l.title}
+                    <span className="block text-meta text-muted">
                       {l.received} of {l.expected} received
                     </span>
                   </span>

@@ -29,7 +29,7 @@ export function AreaShell({ client, children }: { client: QueryClient; children:
   return (
     <QueryClientProvider client={client}>
       <FeedbackProvider>
-        <div className="area-root min-h-dvh bg-canvas font-sans text-ink antialiased">
+        <div className="area-root min-h-dvh bg-surface-canvas font-sans text-primary antialiased">
           {children}
           <QuickSwitch />
         </div>

@@ -45,23 +45,23 @@ export function TaskScreen() {
       {s ? (
         <Panel>
           <p className="text-base font-semibold">{s.name}</p>
-          <address className="mt-1 text-sm not-italic text-ink-2">
+          <address className="mt-1 text-body not-italic text-secondary">
             {s.address1}
             {s.address2 ? <>, {s.address2}</> : null}
             <br />
             {s.city} {s.postalCode}
           </address>
-          {s.instructions ? <p className="mt-3 rounded-control bg-warn-bg px-3 py-2 text-sm text-warn">Note from the customer: {s.instructions}</p> : null}
+          {s.instructions ? <p className="mt-3 rounded-lg bg-status-warning-bg px-3 py-2 text-body text-warning">Note from the customer: {s.instructions}</p> : null}
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <a href={directions(s)} target="_blank" rel="noreferrer" className="inline-flex h-12 items-center justify-center gap-2 rounded-control border border-line text-sm font-medium hover:bg-panel-muted">
+            <a href={directions(s)} target="_blank" rel="noreferrer" className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-subtle text-body font-medium hover:bg-surface-subtle">
               <Navigation className="size-4" aria-hidden /> Navigate
             </a>
             {s.phone ? (
-              <a href={`tel:+91${s.phone}`} className="inline-flex h-12 items-center justify-center gap-2 rounded-control border border-line text-sm font-medium hover:bg-panel-muted">
+              <a href={`tel:+91${s.phone}`} className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-subtle text-body font-medium hover:bg-surface-subtle">
                 <Phone className="size-4" aria-hidden /> Call customer
               </a>
             ) : (
-              <p className="flex items-center justify-center text-center text-xs text-ink-3">You can call once you're out for delivery.</p>
+              <p className="flex items-center justify-center text-center text-meta text-muted">You can call once you're out for delivery.</p>
             )}
           </div>
         </Panel>
@@ -78,10 +78,10 @@ export function TaskScreen() {
 
       {t.attempts.length ? (
         <Panel title="Earlier attempts">
-          <ul className="space-y-2 text-sm">
+          <ul className="space-y-2 text-body">
             {t.attempts.map((a, i) => (
               <li key={i}>
-                <span className="text-ink-3">{formatTime(a.at)}</span> · {REASON_LABEL[a.reason]}
+                <span className="text-muted">{formatTime(a.at)}</span> · {REASON_LABEL[a.reason]}
                 {a.note ? <> · {a.note}</> : null}
                 {a.rescheduledFor ? <> · rescheduled for {formatTime(a.rescheduledFor)}</> : null}
               </li>
@@ -236,14 +236,14 @@ function Doorstep({ t }: { t: Task }) {
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
               className="h-14 text-center font-mono text-2xl tracking-[0.5em]"
             />
-            <p className="mt-1 text-xs text-ink-3">The customer sees it on their order page in the Everwear app or website.</p>
+            <p className="mt-1 text-meta text-muted">The customer sees it on their order page in the Everwear app or website.</p>
           </div>
           <div>
             <Label htmlFor="receiver">Received by</Label>
             <Input id="receiver" required minLength={2} value={receiver} onChange={(e) => setReceiver(e.target.value)} />
           </div>
           {t.cod ? (
-            <label className="flex items-start gap-3 rounded-control border border-warn/40 bg-warn-bg p-3 text-sm text-warn">
+            <label className="flex items-start gap-3 rounded-lg border border-status-warning/40 bg-status-warning-bg p-3 text-body text-warning">
               <input type="checkbox" required checked={cashConfirmed} onChange={(e) => setCashConfirmed(e.target.checked)} className="mt-0.5 size-5 accent-[rgb(var(--accent))]" />
               <span>
                 I collected <strong>{money(t.cod.due)}</strong> in cash. (The amount can't be changed at the door.)
@@ -252,7 +252,7 @@ function Doorstep({ t }: { t: Task }) {
           ) : null}
           <div>
             <Label htmlFor="photo">Photo of the handover (optional)</Label>
-            <input id="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} className="block w-full text-sm text-ink-2 file:mr-3 file:h-10 file:rounded-control file:border file:border-line file:bg-panel file:px-3 file:text-sm file:font-medium" />
+            <input id="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} className="block w-full text-body text-secondary file:mr-3 file:h-10 file:rounded-lg file:border file:border-subtle file:bg-surface-container-lowest file:px-3 file:text-body file:font-medium" />
           </div>
           <SendState m={deliver} what="The delivery" />
           <Button type="submit" size="lg" className="w-full" busy={deliver.isPending} disabled={otp.length !== 6 || (!!t.cod && !cashConfirmed)}>

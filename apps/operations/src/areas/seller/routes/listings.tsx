@@ -3,25 +3,25 @@ import { ArrowLeft, ImagePlus, Plus, X } from "lucide-react"
 import { useMemo, useState, type FormEvent } from "react"
 import { Link, useNavigate, useParams } from "react-router"
 import { useFeedback } from "@/areas/shared/feedback"
-import { Button, cn, Empty, Input, Label, Notice, Panel, Select, Spinner, Textarea } from "@/areas/shared/ui"
+import { Button, cn, Empty, Input, Label, Notice, PAGE, PageTitle, Panel, Select, Spinner, Textarea } from "@/areas/shared/ui"
 import { api, errorMessage } from "@/areas/seller/lib/api"
 import { money, useSession } from "@/areas/seller/lib/session"
 import type { Listing } from "@/areas/seller/lib/types"
 
 const REVIEW: Record<Listing["review"]["status"], { label: string; tone: string }> = {
-  draft: { label: "Draft", tone: "bg-panel-strong text-ink-2" },
-  pending: { label: "In review", tone: "bg-info-bg text-area-info" },
-  approved: { label: "Live", tone: "bg-ok-bg text-ok" },
-  rejected: { label: "Needs changes", tone: "bg-bad-bg text-bad" },
+  draft: { label: "Draft", tone: "bg-surface-container text-secondary" },
+  pending: { label: "In review", tone: "bg-status-info-bg text-info" },
+  approved: { label: "Live", tone: "bg-status-success-bg text-success" },
+  rejected: { label: "Needs changes", tone: "bg-status-danger-bg text-danger" },
 }
 
 export function Listings() {
   const listings = useQuery({ queryKey: ["listings"], queryFn: () => api<{ listings: Listing[] }>("/listings") })
   return (
-    <div className="space-y-5">
+    <div className={PAGE}>
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Listings</h1>
-        <Link to="/seller/listings/new" className="inline-flex h-10 items-center gap-2 rounded-control bg-accent px-4 text-sm font-medium text-area-on-accent hover:bg-accent-hover">
+        <PageTitle kicker="Seller Hub">Listings</PageTitle>
+        <Link to="/seller/listings/new" className="inline-flex h-10 items-center gap-2 rounded-lg bg-accent px-4 text-body font-medium text-on-accent hover:bg-accent-hover">
           <Plus className="size-4" aria-hidden /> New listing
         </Link>
       </div>
@@ -32,18 +32,18 @@ export function Listings() {
       ) : listings.data.listings.length === 0 ? (
         <Empty title="No listings yet">Add your first product. It goes live once our team approves it.</Empty>
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-panel border border-line bg-panel">
+        <ul className="divide-y divide-subtle overflow-hidden rounded-xl border border-subtle bg-surface-container-lowest">
           {listings.data.listings.map((l) => (
             <li key={l.id}>
-              <Link to={`/seller/listings/${l.id}`} className="flex items-center gap-4 px-4 py-3 hover:bg-panel-muted">
-                <span className="size-14 shrink-0 overflow-hidden rounded-control bg-panel-strong">{l.images[0] ? <img src={l.images[0].url} alt="" className="size-full object-cover" /> : null}</span>
+              <Link to={`/seller/listings/${l.id}`} className="flex items-center gap-4 px-4 py-3 hover:bg-surface-subtle">
+                <span className="size-14 shrink-0 overflow-hidden rounded-lg bg-surface-container">{l.images[0] ? <img src={l.images[0].url} alt="" className="size-full object-cover" /> : null}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{l.title}</span>
-                  <span className="text-xs text-ink-3">
+                  <span className="text-meta text-muted">
                     {l.variants.length} variant{l.variants.length === 1 ? "" : "s"} · from {money(Math.min(...l.variants.map((v) => v.price)))} · {l.variants.reduce((n, v) => n + v.stock, 0)} in stock
                   </span>
                 </span>
-                <span className={cn("inline-flex h-6 items-center rounded-full px-2.5 text-xs font-medium", REVIEW[l.review.status].tone)}>{REVIEW[l.review.status].label}</span>
+                <span className={cn("inline-flex h-6 items-center rounded-full px-2.5 text-meta font-medium", REVIEW[l.review.status].tone)}>{REVIEW[l.review.status].label}</span>
               </Link>
             </li>
           ))}
@@ -163,11 +163,11 @@ function Editor({ listing, categories }: { listing: Listing | null; categories: 
   const setRow = (k: string, patch: Partial<Draft["rows"][string]>) => setD((x) => ({ ...x, rows: { ...x.rows, [k]: { ...row(k), ...patch } } }))
 
   return (
-    <form onSubmit={onSave} className="space-y-5">
-      <Link to="/seller/listings" className="inline-flex items-center gap-1 text-sm text-ink-2">
+    <form onSubmit={onSave} className={PAGE}>
+      <Link to="/seller/listings" className="inline-flex items-center gap-1 text-body text-secondary">
         <ArrowLeft className="size-4" aria-hidden /> Listings
       </Link>
-      <h1 className="text-xl font-semibold">{listing ? listing.title : "New listing"}</h1>
+      <PageTitle kicker="Seller Hub">{listing ? listing.title : "New listing"}</PageTitle>
       {listing?.review.status === "rejected" ? <Notice>Our team asked for changes: {listing.review.note}</Notice> : null}
       {listing?.review.status === "pending" ? <Notice tone="info">In review. You can still make changes.</Notice> : null}
       {live ? <Notice tone="info">This listing is live. You can change prices here; for other changes, contact seller support.</Notice> : null}
@@ -209,7 +209,7 @@ function Editor({ listing, categories }: { listing: Listing | null; categories: 
       <Panel title="Photos">
         <ul className="flex flex-wrap gap-3">
           {d.images.map((img, i) => (
-            <li key={img.path} className="relative size-24 overflow-hidden rounded-control border border-line">
+            <li key={img.path} className="relative size-24 overflow-hidden rounded-lg border border-subtle">
               <img src={img.url} alt={`Photo ${i + 1}`} className="size-full object-cover" />
               {!live ? (
                 <button type="button" onClick={() => setD((x) => ({ ...x, images: x.images.filter((_, j) => j !== i) }))} className="absolute top-1 right-1 grid size-6 place-items-center rounded-full bg-black/60 text-white" aria-label={`Remove photo ${i + 1}`}>
@@ -220,7 +220,7 @@ function Editor({ listing, categories }: { listing: Listing | null; categories: 
           ))}
           {!live ? (
             <li>
-              <label className="grid size-24 cursor-pointer place-items-center rounded-control border border-dashed border-line-strong text-ink-3 hover:bg-panel-muted">
+              <label className="grid size-24 cursor-pointer place-items-center rounded-lg border border-dashed border-strong text-muted hover:bg-surface-subtle">
                 <ImagePlus className="size-6" aria-hidden />
                 <span className="sr-only">Add photos</span>
                 <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" disabled={uploading} onChange={(e) => void upload(e.target.files)} />
@@ -228,7 +228,7 @@ function Editor({ listing, categories }: { listing: Listing | null; categories: 
             </li>
           ) : null}
         </ul>
-        <p className="mt-2 text-xs text-ink-3">JPEG, PNG or WebP, up to 5 MB each. The first photo is the main one.</p>
+        <p className="mt-2 text-meta text-muted">JPEG, PNG or WebP, up to 5 MB each. The first photo is the main one.</p>
       </Panel>
 
       <Panel title="Sizes, colours and prices">
@@ -243,8 +243,8 @@ function Editor({ listing, categories }: { listing: Listing | null; categories: 
           </div>
         </fieldset>
         <div className="-mx-4 overflow-x-auto">
-          <table className="w-full min-w-[36rem] text-sm">
-            <thead className="text-left text-xs text-ink-3">
+          <table className="w-full min-w-[36rem] text-body">
+            <thead className="text-left text-meta text-muted">
               <tr>
                 <th className="px-4 pb-2 font-medium">Variant</th>
                 <th className="px-2 pb-2 font-medium">SKU</th>
@@ -273,7 +273,7 @@ function Editor({ listing, categories }: { listing: Listing | null; categories: 
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-xs text-ink-3">SKUs are printed on your labels and scanned at packing; each must be unique on Everwear. Stock is added on the Stock page.</p>
+        <p className="mt-2 text-meta text-muted">SKUs are printed on your labels and scanned at packing; each must be unique on Everwear. Stock is added on the Stock page.</p>
       </Panel>
 
       <div className="flex flex-wrap gap-2">
@@ -286,7 +286,7 @@ function Editor({ listing, categories }: { listing: Listing | null; categories: 
           </Button>
         ) : null}
       </div>
-      {!approved && listing ? <p className="text-xs text-ink-3">You can submit listings for review once your seller account is approved.</p> : null}
+      {!approved && listing ? <p className="text-meta text-muted">You can submit listings for review once your seller account is approved.</p> : null}
     </form>
   )
 }

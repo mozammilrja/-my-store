@@ -126,7 +126,7 @@ export function WorkspaceShell({ area, nav, headerStart, headerActions, sidebarF
         )}
       >
         {strip}
-        <div className={cn("w-full px-4 py-space-lg md:px-space-xl md:py-space-xl", mobileNav === "bottom" && "pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-space-xl")}>
+        <div className={cn("w-full px-4 py-space-lg text-body md:px-space-xl md:py-space-xl", mobileNav === "bottom" && "pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-space-xl")}>
           <Breadcrumbs className="mb-space-md" />
           {children}
         </div>

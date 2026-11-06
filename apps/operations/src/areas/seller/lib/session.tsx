@@ -30,7 +30,7 @@ export function SessionProvider({ children, fallback }: { children: ReactNode; f
     return me.isError ? (
       <div className="mx-auto mt-24 max-w-sm space-y-3 px-4 text-center">
         <p>{(me.error as Error).message}</p>
-        <button className="text-sm font-medium text-accent underline" onClick={() => void portal.signOut()}>
+        <button className="text-body font-medium text-accent underline" onClick={() => void portal.signOut()}>
           Sign in again
         </button>
       </div>

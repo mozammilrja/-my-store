@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query"
 import { useState, type FormEvent } from "react"
 import { useFeedback } from "@/areas/shared/feedback"
 import { ScanField } from "@/areas/shared/scan-field"
-import { Button, Input, Label, Notice, Panel, Textarea } from "@/areas/warehouse/components/ui"
+import { Button, Input, Label, Notice, PAGE, PageTitle, Panel, Textarea } from "@/areas/warehouse/components/ui"
 import { api, errorMessage } from "@/areas/warehouse/lib/api"
 import { useSession } from "@/areas/warehouse/lib/session"
 import type { ReturnLookup, RtoParcel } from "@/areas/warehouse/lib/types"
@@ -40,8 +40,8 @@ export function Returns() {
   if (!can("qc")) return <Notice tone="info">Returns are inspected by inspectors, packers and supervisors.</Notice>
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Returns</h1>
+    <div className={PAGE}>
+      <PageTitle kicker="Warehouse">Returns</PageTitle>
       <ScanField label="Scan the return parcel's AWB, or type the order number" placeholder="AWB or 1042" onScan={lookup} />
       {found ? <Inspect key={found.orderId} r={found} onDone={() => setFound(null)} /> : null}
       {rto ? <RtoInspect key={rto.awb} p={rto} onDone={() => setRto(null)} /> : null}
@@ -79,7 +79,7 @@ function Inspect({ r, onDone }: { r: ReturnLookup; onDone: () => void }) {
 
   return (
     <Panel title={`${r.code} · ${r.type === "exchange" ? "Exchange" : "Return"} · order #${r.displayId}${r.awb ? ` · ${r.awb}` : ""}`}>
-      <p className="mb-4 text-sm text-ink-2">
+      <p className="mb-4 text-body text-secondary">
         Customer's reason: “{r.reason}”. Return is <span className="font-medium">{r.status.replace(/_/g, " ")}</span>.
       </p>
       {!inspectable ? (
@@ -89,8 +89,8 @@ function Inspect({ r, onDone }: { r: ReturnLookup; onDone: () => void }) {
           {r.items.map((i) => {
             const g = grades[i.itemId]!
             return (
-              <fieldset key={i.itemId} className="space-y-3 rounded-control border border-line p-3">
-                <legend className="px-1 text-sm font-medium">
+              <fieldset key={i.itemId} className="space-y-3 rounded-lg border border-subtle p-3">
+                <legend className="px-1 text-body font-medium">
                   {i.productTitle} · {i.variantTitle} · {i.quantity} returned{i.reason ? ` · ${i.reason}` : ""}
                 </legend>
                 <div className="grid grid-cols-2 gap-3">
@@ -106,7 +106,7 @@ function Inspect({ r, onDone }: { r: ReturnLookup; onDone: () => void }) {
                     />
                   </div>
                   <div>
-                    <p className="mb-1.5 text-sm font-medium text-ink-2">Damaged</p>
+                    <p className="mb-1.5 text-body font-medium text-secondary">Damaged</p>
                     <p className="flex h-10 items-center text-lg font-semibold tabular-nums">{i.quantity - g.sellable}</p>
                   </div>
                 </div>
@@ -146,7 +146,7 @@ function RtoInspect({ p, onDone }: { p: RtoParcel; onDone: () => void }) {
   if (p.warehouseId !== warehouseId) return <Notice tone="warn">This parcel left from another warehouse; switch to it at the top to receive it.</Notice>
   return (
     <Panel title={`Undelivered · order #${p.displayId} · ${p.awb}`}>
-      <p className="mb-4 text-sm text-ink-2">Came back from {p.carrier} without being delivered. Open it and grade every unit.</p>
+      <p className="mb-4 text-body text-secondary">Came back from {p.carrier} without being delivered. Open it and grade every unit.</p>
       <form
         className="space-y-3"
         onSubmit={(e) => {
@@ -155,16 +155,16 @@ function RtoInspect({ p, onDone }: { p: RtoParcel; onDone: () => void }) {
         }}
       >
         {p.lines.map((l) => (
-          <div key={l.itemId} className="grid grid-cols-[1fr_6rem_5rem] items-end gap-3 rounded-control border border-line p-3">
-            <p className="text-sm">
-              <span className="font-medium">{l.productTitle}</span> · {l.variantTitle} <span className="font-mono text-xs text-ink-3">{l.sku}</span>
+          <div key={l.itemId} className="grid grid-cols-[1fr_6rem_5rem] items-end gap-3 rounded-lg border border-subtle p-3">
+            <p className="text-body">
+              <span className="font-medium">{l.productTitle}</span> · {l.variantTitle} <span className="font-mono text-meta text-muted">{l.sku}</span>
             </p>
             <div>
               <Label htmlFor={`rs-${l.itemId}`}>Sellable</Label>
               <Input id={`rs-${l.itemId}`} type="number" min={0} max={l.quantity} value={sellable[l.itemId]} onChange={(e) => setSellable((x) => ({ ...x, [l.itemId]: Math.max(0, Math.min(l.quantity, Number(e.target.value) || 0)) }))} />
             </div>
             <div>
-              <p className="mb-1.5 text-sm font-medium text-ink-2">Damaged</p>
+              <p className="mb-1.5 text-body font-medium text-secondary">Damaged</p>
               <p className="flex h-10 items-center font-semibold tabular-nums">{l.quantity - sellable[l.itemId]!}</p>
             </div>
           </div>

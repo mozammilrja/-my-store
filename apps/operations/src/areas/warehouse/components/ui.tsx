@@ -23,23 +23,23 @@ export const STATUS_LABEL: Record<FulfilmentStatus, string> = {
 }
 
 const TONE: Record<FulfilmentStatus, string> = {
-  assigned: "bg-info-bg text-area-info",
-  picking_pending: "bg-warn-bg text-warn",
-  picking: "bg-warn-bg text-warn",
-  picked: "bg-warn-bg text-warn",
+  assigned: "bg-status-info-bg text-info",
+  picking_pending: "bg-status-warning-bg text-warning",
+  picking: "bg-status-warning-bg text-warning",
+  picked: "bg-status-warning-bg text-warning",
   qc_passed: "bg-accent-soft text-accent",
   packed: "bg-accent-soft text-accent",
   label_generated: "bg-accent-soft text-accent",
-  ready_to_dispatch: "bg-ok-bg text-ok",
-  manifested: "bg-ok-bg text-ok",
-  handed_over: "bg-ok-bg text-ok",
-  dispatched: "bg-panel-strong text-ink-2",
-  rejected: "bg-bad-bg text-bad",
-  cancelled: "bg-bad-bg text-bad",
+  ready_to_dispatch: "bg-status-success-bg text-success",
+  manifested: "bg-status-success-bg text-success",
+  handed_over: "bg-status-success-bg text-success",
+  dispatched: "bg-surface-container text-secondary",
+  rejected: "bg-status-danger-bg text-danger",
+  cancelled: "bg-status-danger-bg text-danger",
 }
 
 export const StatusBadge = ({ status }: { status: FulfilmentStatus }) => (
-  <span className={cn("inline-flex h-6 items-center rounded-full px-2.5 text-xs font-medium whitespace-nowrap", TONE[status])}>{STATUS_LABEL[status]}</span>
+  <span className={cn("inline-flex h-6 items-center rounded-full px-2.5 text-meta font-medium whitespace-nowrap", TONE[status])}>{STATUS_LABEL[status]}</span>
 )
 
 /** Code 128 barcode as crisp SVG bars, with the human-readable text below. */
@@ -58,7 +58,7 @@ export function Barcode({ value, height = 56, module = 2, className }: { value: 
       <svg role="img" aria-label={`Barcode ${value}`} width={total * module} height={height} viewBox={`0 0 ${total} ${height / module}`} shapeRendering="crispEdges" className="bg-white fill-black">
         {bars}
       </svg>
-      <figcaption className="mt-1 font-mono text-sm tracking-wider">{value}</figcaption>
+      <figcaption className="mt-1 font-mono text-body tracking-wider">{value}</figcaption>
     </figure>
   )
 }

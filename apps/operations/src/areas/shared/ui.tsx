@@ -29,7 +29,7 @@ export function Button({ variant = "primary", size = "md", busy, className, chil
         // The admin's button (components/ui/button.jsx): same radius, fills and focus ring.
         "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface-container-lowest disabled:cursor-not-allowed disabled:opacity-50",
         // Phones get a 44px touch target; from sm up the original 40px.
-        size === "lg" ? "h-12 px-5 text-base" : "h-11 px-4 text-sm sm:h-10",
+        size === "lg" ? "h-12 px-5 text-base" : "h-11 px-4 text-body sm:h-10",
         variant === "primary" && "bg-primary-container text-on-accent shadow-xs hover:bg-primary-container-hover",
         variant === "secondary" && "border border-subtle bg-surface-container-lowest text-primary shadow-xs hover:border-strong hover:bg-surface-subtle",
         variant === "danger" && "bg-status-danger-solid text-on-accent shadow-xs hover:bg-status-danger-solid/90",
@@ -53,7 +53,8 @@ export function Panel({ title, action, children, className }: { title?: ReactNod
           {action}
         </header>
       ) : null}
-      <div className="p-space-md">{children}</div>
+      {/* An empty state inside a card drops its own frame: one border, not two. */}
+      <div className="p-space-md [&>.area-empty]:border-0 [&>.area-empty]:bg-transparent [&>.area-empty]:p-6">{children}</div>
     </section>
   )
 }
@@ -88,7 +89,7 @@ export const Spinner = ({ label = "Loading" }: { label?: string }) => (
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
     // The admin's EmptyState (components/shared/FeedbackAndOverlays.jsx).
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-strong bg-surface-subtle/60 p-10 text-center">
+    <div className="area-empty flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-strong bg-surface-subtle/60 p-10 text-center">
       <span className="flex size-11 items-center justify-center rounded-xl border border-subtle bg-surface-container-lowest text-faint">
         <Inbox className="size-5" aria-hidden />
       </span>
@@ -146,3 +147,20 @@ export const humanAge = (iso: string) => {
   if (m < 48 * 60) return `${Math.floor(m / 60)} h ${m % 60} min`
   return `${Math.floor(m / 1440)} d`
 }
+
+/**
+ * A page's title, as the admin's PageHeader draws it: the workspace as a
+ * small kicker, then the title. Description and actions sit beside it in the
+ * page's own markup.
+ */
+export function PageTitle({ kicker, mono, children }: { kicker: string; mono?: boolean; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="truncate text-caption uppercase tracking-wider text-faint">{kicker}</span>
+      <h1 className={cn("text-title font-semibold tracking-tight text-primary", mono && "font-mono")}>{children}</h1>
+    </div>
+  )
+}
+
+/** The admin's PageContainer rhythm for a page's top level. */
+export const PAGE = "flex w-full min-w-0 flex-col gap-space-lg pb-8"

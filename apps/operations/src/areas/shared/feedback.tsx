@@ -48,14 +48,14 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
             key={t.id}
             role={t.tone === "bad" ? "alert" : "status"}
             className={cn(
-              "pointer-events-auto flex w-full max-w-md items-start gap-2 rounded-panel border px-4 py-3 text-sm font-medium shadow-lg",
-              t.tone === "ok" ? "border-ok/30 bg-ok-bg text-ok" : "border-bad/30 bg-bad-bg text-bad"
+              "pointer-events-auto flex w-full max-w-md items-start gap-2 rounded-xl border px-4 py-3 text-body font-medium shadow-lg",
+              t.tone === "ok" ? "border-status-success/30 bg-status-success-bg text-success" : "border-status-danger/30 bg-status-danger-bg text-danger"
             )}
           >
             {t.tone === "ok" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden /> : <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden />}
             <span className="flex-1">{t.text}</span>
             {t.tone === "bad" ? (
-              <button className="text-xs underline" onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}>
+              <button className="text-meta underline" onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}>
                 Dismiss
               </button>
             ) : null}

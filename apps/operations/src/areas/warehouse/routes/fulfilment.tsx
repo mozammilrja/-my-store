@@ -4,7 +4,7 @@ import { useState, type FormEvent, type ReactNode } from "react"
 import { Link, useParams } from "react-router"
 import { useFeedback } from "@/areas/shared/feedback"
 import { ScanField } from "@/areas/shared/scan-field"
-import { Barcode, Button, cn, Dialog, formatTime, Input, Label, Notice, Panel, Select, Spinner, STATUS_LABEL, StatusBadge, Textarea } from "@/areas/warehouse/components/ui"
+import { Barcode, Button, cn, Dialog, formatTime, Input, Label, Notice, PAGE, PageTitle, Panel, Select, Spinner, STATUS_LABEL, StatusBadge, Textarea } from "@/areas/warehouse/components/ui"
 import { api, ApiError, errorMessage } from "@/areas/warehouse/lib/api"
 import { useSession } from "@/areas/warehouse/lib/session"
 import type { Fulfilment, FulfilmentLine, Label as CourierLabel, Permission, StatusEvent } from "@/areas/warehouse/lib/types"
@@ -51,19 +51,19 @@ export function FulfilmentWork() {
   }
 
   return (
-    <div className="space-y-5">
-      <Link to="/warehouse" className="inline-flex items-center gap-1 text-sm text-ink-2 hover:text-ink">
+    <div className={PAGE}>
+      <Link to="/warehouse" className="inline-flex items-center gap-1 text-body text-secondary hover:text-primary">
         <ArrowLeft className="size-4" aria-hidden /> Orders
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-mono text-xl font-semibold">{f.code}</h1>
+            <PageTitle kicker="Warehouse" mono>{f.code}</PageTitle>
             <StatusBadge status={f.status} />
-            {f.paymentMethod === "cod" ? <span className="rounded-full bg-warn-bg px-2 py-0.5 text-xs font-medium text-warn">Cash on delivery</span> : null}
+            {f.paymentMethod === "cod" ? <span className="rounded-full bg-status-warning-bg px-2 py-0.5 text-meta font-medium text-warning">Cash on delivery</span> : null}
           </div>
-          <p className="mt-1 text-sm text-ink-3">
+          <p className="mt-1 text-body text-muted">
             Order #{f.displayId} · {units(f)} unit{units(f) === 1 ? "" : "s"} · to {f.destination.city}, {f.destination.state} {f.destination.postalCode}
           </p>
         </div>
@@ -79,13 +79,13 @@ export function FulfilmentWork() {
       </Panel>
 
       <Panel title="History">
-        <ol className="space-y-2 text-sm">
+        <ol className="space-y-2 text-body">
           {history.map((e) => (
             <li key={e._id} className="flex flex-wrap gap-x-2">
-              <span className="text-ink-3 tabular-nums">{formatTime(e.at)}</span>
+              <span className="text-muted tabular-nums">{formatTime(e.at)}</span>
               <span className="font-medium">{STATUS_LABEL[e.to as keyof typeof STATUS_LABEL] ?? e.to}</span>
-              <span className="text-ink-3">by {e.actor.name ?? e.actor.type}</span>
-              {e.reason ? <span className="w-full text-ink-2 sm:w-auto">· {e.reason}</span> : null}
+              <span className="text-muted">by {e.actor.name ?? e.actor.type}</span>
+              {e.reason ? <span className="w-full text-secondary sm:w-auto">· {e.reason}</span> : null}
             </li>
           ))}
         </ol>
@@ -101,8 +101,8 @@ function Lines({ f }: { f: Fulfilment }) {
   const showPick = ["picking", "picked", "qc_passed"].includes(f.status) || f.lines.some((l) => l.short > 0)
   return (
     <div className="-mx-4 overflow-x-auto">
-      <table className="w-full min-w-[34rem] text-sm">
-        <thead className="text-left text-xs text-ink-3">
+      <table className="w-full min-w-[34rem] text-body">
+        <thead className="text-left text-meta text-muted">
           <tr>
             <th className="px-4 pb-2 font-medium">Item</th>
             <th className="px-2 pb-2 font-medium">SKU</th>
@@ -111,19 +111,19 @@ function Lines({ f }: { f: Fulfilment }) {
             {showPick ? <th className="px-4 pb-2 text-right font-medium">Picked</th> : null}
           </tr>
         </thead>
-        <tbody className="divide-y divide-line">
+        <tbody className="divide-y divide-subtle">
           {f.lines.map((l, i) => (
             <tr key={`${l.itemId}-${i}`}>
               <td className="px-4 py-2.5">
                 <p className="font-medium">{l.productTitle}</p>
-                <p className="text-xs text-ink-3">{Object.entries(l.options).map(([k, v]) => `${k}: ${v}`).join(" · ") || l.variantTitle}</p>
-                {l.short > 0 ? <p className="mt-1 text-xs font-medium text-bad">Short by {l.short}: none left on the shelf. Ask an admin to move this order.</p> : null}
+                <p className="text-meta text-muted">{Object.entries(l.options).map(([k, v]) => `${k}: ${v}`).join(" · ") || l.variantTitle}</p>
+                {l.short > 0 ? <p className="mt-1 text-meta font-medium text-danger">Short by {l.short}: none left on the shelf. Ask an admin to move this order.</p> : null}
               </td>
-              <td className="px-2 py-2.5 font-mono text-xs">{l.sku}</td>
-              <td className="px-2 py-2.5 font-mono text-xs">{l.binCode ?? "–"}</td>
+              <td className="px-2 py-2.5 font-mono text-meta">{l.sku}</td>
+              <td className="px-2 py-2.5 font-mono text-meta">{l.binCode ?? "–"}</td>
               <td className="px-2 py-2.5 text-right tabular-nums">{l.quantity}</td>
               {showPick ? (
-                <td className={cn("px-4 py-2.5 text-right font-semibold tabular-nums", l.picked >= l.quantity - l.short ? "text-ok" : "text-ink-2")}>
+                <td className={cn("px-4 py-2.5 text-right font-semibold tabular-nums", l.picked >= l.quantity - l.short ? "text-success" : "text-secondary")}>
                   {l.picked}/{l.quantity - l.short}
                 </td>
               ) : null}
@@ -182,7 +182,7 @@ function AcceptStep({ f }: { f: Fulfilment }) {
   const [reason, setReason] = useState("")
   return (
     <Panel title="New order for this warehouse">
-      <p className="mb-4 text-sm text-ink-2">Accept it to put it in the pick queue, or decline it if it can't ship from here. A declined order goes to the next warehouse that has the stock.</p>
+      <p className="mb-4 text-body text-secondary">Accept it to put it in the pick queue, or decline it if it can't ship from here. A declined order goes to the next warehouse that has the stock.</p>
       <div className="flex flex-wrap gap-2">
         <Button size="lg" busy={act.isPending} onClick={() => act.mutate({ path: "/accept", ok: `${f.code} accepted` })}>
           Accept order
@@ -223,7 +223,7 @@ function PickStep({ f }: { f: Fulfilment }) {
   if (f.status === "picking_pending") {
     return (
       <Panel title="Ready to pick">
-        <p className="mb-4 text-sm text-ink-2">Print the pick slip if you work from paper, then start. Each unit is scanned off the shelf.</p>
+        <p className="mb-4 text-body text-secondary">Print the pick slip if you work from paper, then start. Each unit is scanned off the shelf.</p>
         <Button size="lg" busy={act.isPending} onClick={() => act.mutate({ path: "/picking/start" })}>
           Start picking
         </Button>
@@ -269,7 +269,7 @@ function QcStep({ f }: { f: Fulfilment }) {
   }
   return (
     <Panel title="Quality check">
-      <p className="mb-4 text-sm text-ink-2">Check each unit: right item, size and colour, no stains, tears or missing tags.</p>
+      <p className="mb-4 text-body text-secondary">Check each unit: right item, size and colour, no stains, tears or missing tags.</p>
       <div className="flex flex-wrap gap-2">
         <Button size="lg" busy={act.isPending} onClick={() => act.mutate({ path: "/qc", body: { result: "passed" }, ok: "Passed inspection" })}>
           All units pass
@@ -281,9 +281,9 @@ function QcStep({ f }: { f: Fulfilment }) {
       <Dialog open={failing} onClose={() => setFailing(false)} title="Units that failed inspection">
         <form className="space-y-4" onSubmit={submitFail}>
           {f.lines.map((l: FulfilmentLine) => (
-            <fieldset key={l.itemId} className="space-y-2 rounded-control border border-line p-3">
-              <legend className="px-1 text-sm font-medium">
-                {l.productTitle} · {l.variantTitle} <span className="font-mono text-xs text-ink-3">{l.sku}</span>
+            <fieldset key={l.itemId} className="space-y-2 rounded-lg border border-subtle p-3">
+              <legend className="px-1 text-body font-medium">
+                {l.productTitle} · {l.variantTitle} <span className="font-mono text-meta text-muted">{l.sku}</span>
               </legend>
               <div className="grid grid-cols-[6rem_1fr] gap-2">
                 <div>
@@ -314,7 +314,7 @@ function QcStep({ f }: { f: Fulfilment }) {
             <Label htmlFor="qc-notes">Notes (optional)</Label>
             <Textarea id="qc-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
-          <p className="text-xs text-ink-3">Failed units are booked as damaged. A replacement is reserved from this warehouse's shelf where there is one.</p>
+          <p className="text-meta text-muted">Failed units are booked as damaged. A replacement is reserved from this warehouse's shelf where there is one.</p>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setFailing(false)}>
               Cancel
@@ -365,12 +365,12 @@ function PackStep({ f }: { f: Fulfilment }) {
   return (
     <Panel title="Packing station">
       <div className="space-y-5">
-        <ol className="flex gap-2 text-xs font-medium">
+        <ol className="flex gap-2 text-meta font-medium">
           {["Scan slip", "Scan units", "Weigh & measure"].map((s, i) => {
             const done = i === 0 ? slip : i === 1 ? complete : false
             const now = i === 0 ? !slip : i === 1 ? slip && !complete : slip && complete
             return (
-              <li key={s} className={cn("flex-1 rounded-control px-2 py-1.5 text-center", done ? "bg-ok-bg text-ok" : now ? "bg-accent-soft text-accent" : "bg-panel-muted text-ink-3")}>
+              <li key={s} className={cn("flex-1 rounded-lg px-2 py-1.5 text-center", done ? "bg-status-success-bg text-success" : now ? "bg-accent-soft text-accent" : "bg-surface-subtle text-muted")}>
                 {i + 1}. {s}
               </li>
             )
@@ -384,7 +384,7 @@ function PackStep({ f }: { f: Fulfilment }) {
             <ScanField label="Scan each unit into the box" onScan={scanUnit} />
             <ul className="grid gap-2 sm:grid-cols-2">
               {[...expected].map(([sku, n]) => (
-                <li key={sku} className={cn("flex justify-between rounded-control border px-3 py-2 font-mono text-sm", got(sku) === n ? "border-ok/40 bg-ok-bg text-ok" : "border-line")}>
+                <li key={sku} className={cn("flex justify-between rounded-lg border px-3 py-2 font-mono text-body", got(sku) === n ? "border-status-success/40 bg-status-success-bg text-success" : "border-subtle")}>
                   <span>{sku}</span>
                   <span className="tabular-nums">
                     {got(sku)}/{n}
@@ -455,7 +455,7 @@ function LabelStep({ f, ownFleet, onPrintPackage }: { f: Fulfilment; ownFleet: O
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-4">
           {f.package ? <Barcode value={f.package.code} height={48} /> : null}
-          <div className="space-y-2 text-sm text-ink-2">
+          <div className="space-y-2 text-body text-secondary">
             <p>
               {f.package?.weightKg} kg · {f.package?.lengthCm}×{f.package?.breadthCm}×{f.package?.heightCm} cm
             </p>
@@ -466,18 +466,18 @@ function LabelStep({ f, ownFleet, onPrintPackage }: { f: Fulfilment; ownFleet: O
         </div>
         {fleetOk && !manual ? (
           <fieldset className="grid gap-2 sm:grid-cols-2">
-            <legend className="mb-1.5 text-sm font-medium text-ink-2">Deliver with</legend>
+            <legend className="mb-1.5 text-body font-medium text-secondary">Deliver with</legend>
             {(
               [
                 ["fleet", "Everwear Fleet", `Our riders · ${ownFleet!.zone}`],
                 ["courier", "Courier", "Shiprocket, Delhivery or a courier's portal"],
               ] as const
             ).map(([value, title, hint]) => (
-              <label key={value} className={cn("flex cursor-pointer items-start gap-3 rounded-control border p-3", via === value ? "border-accent bg-accent-soft" : "border-line")}>
+              <label key={value} className={cn("flex cursor-pointer items-start gap-3 rounded-lg border p-3", via === value ? "border-accent bg-accent-soft" : "border-subtle")}>
                 <input type="radio" name="via" value={value} checked={via === value} onChange={() => setVia(value)} className="mt-1 accent-[rgb(var(--accent))]" />
                 <span>
-                  <span className="block text-sm font-medium">{title}</span>
-                  <span className="text-xs text-ink-3">{hint}</span>
+                  <span className="block text-body font-medium">{title}</span>
+                  <span className="text-meta text-muted">{hint}</span>
                 </span>
               </label>
             ))}
@@ -539,7 +539,7 @@ function VerifyStep({ f, label }: { f: Fulfilment; label: CourierLabel }) {
     <Panel title={label?.provider === "own_fleet" ? "Apply the Everwear Fleet label" : "Apply the courier label"}>
       {own ? <OwnFleetLabel l={own} /> : null}
       <div className="space-y-4">
-        <p className="text-sm text-ink-2">
+        <p className="text-body text-secondary">
           {f.carrier} · AWB <span className="font-mono font-semibold">{f.awb}</span>
         </p>
         {label?.provider === "own_fleet" ? (
@@ -547,7 +547,7 @@ function VerifyStep({ f, label }: { f: Fulfilment; label: CourierLabel }) {
             <Printer className="size-4" aria-hidden /> Print Everwear Fleet label
           </Button>
         ) : label?.labelUrl ? (
-          <a href={label.labelUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-control border border-line px-4 text-sm font-medium hover:bg-panel-muted">
+          <a href={label.labelUrl} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-lg border border-subtle px-4 text-body font-medium hover:bg-surface-subtle">
             <ExternalLink className="size-4" aria-hidden /> Open courier label (PDF)
           </a>
         ) : (
@@ -564,9 +564,9 @@ function VerifyStep({ f, label }: { f: Fulfilment; label: CourierLabel }) {
 function OwnFleetLabel({ l }: { l: OwnLabel }) {
   return (
     <div className="print-area print-only w-[100mm] space-y-2 p-4 font-sans">
-      <p className="text-sm font-bold">Everwear Fleet · from {l.warehouse}</p>
+      <p className="text-body font-bold">Everwear Fleet · from {l.warehouse}</p>
       <Barcode value={l.awb} height={70} />
-      <div className="border-t border-black pt-2 text-sm">
+      <div className="border-t border-black pt-2 text-body">
         <p className="font-bold">{l.to.name}</p>
         <p>{l.to.address1}</p>
         {l.to.address2 ? <p>{l.to.address2}</p> : null}
@@ -574,8 +574,8 @@ function OwnFleetLabel({ l }: { l: OwnLabel }) {
           {l.to.city} {l.to.postalCode}
         </p>
       </div>
-      <p className="border-t border-black pt-2 text-sm font-bold">{l.cod ? `COLLECT CASH ₹${(l.cod.amount / 100).toFixed(2)}` : "PREPAID · collect nothing"}</p>
-      <p className="text-xs">
+      <p className="border-t border-black pt-2 text-body font-bold">{l.cod ? `COLLECT CASH ₹${(l.cod.amount / 100).toFixed(2)}` : "PREPAID · collect nothing"}</p>
+      <p className="text-meta">
         Order #{l.orderNumber}
         {l.weightKg ? ` · ${l.weightKg} kg` : ""}
       </p>
@@ -589,13 +589,13 @@ function PickSlip({ f }: { f: Fulfilment }) {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold">Pick slip · {f.warehouseCode}</h1>
-          <p className="text-sm">
+          <p className="text-body">
             Order #{f.displayId} · {f.paymentMethod === "cod" ? "COD" : "Prepaid"} · to {f.destination.city} {f.destination.postalCode}
           </p>
         </div>
         <Barcode value={f.code} height={60} />
       </div>
-      <table className="mt-6 w-full border-collapse text-sm">
+      <table className="mt-6 w-full border-collapse text-body">
         <thead>
           <tr className="border-b-2 border-black text-left">
             <th className="py-1">Bin</th>
@@ -626,12 +626,12 @@ function PickSlip({ f }: { f: Fulfilment }) {
 function PackageLabel({ f }: { f: Fulfilment }) {
   return (
     <div className="print-area print-only w-[100mm] p-4 font-sans">
-      <p className="text-xs">Everwear · {f.warehouseCode}</p>
+      <p className="text-meta">Everwear · {f.warehouseCode}</p>
       <Barcode value={f.package!.code} height={70} />
-      <p className="mt-2 text-sm">
+      <p className="mt-2 text-body">
         {f.code} · {f.lines.reduce((n, l) => n + l.quantity, 0)} units · {f.package!.weightKg} kg
       </p>
-      <p className="text-sm font-semibold">
+      <p className="text-body font-semibold">
         {f.destination.city} {f.destination.postalCode}
       </p>
     </div>

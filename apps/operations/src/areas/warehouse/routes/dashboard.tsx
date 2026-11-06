@@ -3,7 +3,7 @@ import { ChevronRight, Clock } from "lucide-react"
 import { Link, useNavigate, useSearchParams } from "react-router"
 import { useFeedback } from "@/areas/shared/feedback"
 import { ScanField } from "@/areas/shared/scan-field"
-import { cn, Empty, humanAge, Notice, Spinner, StatusBadge } from "@/areas/warehouse/components/ui"
+import { cn, Empty, humanAge, Notice, PAGE, PageTitle, Spinner, StatusBadge } from "@/areas/warehouse/components/ui"
 import { api, errorMessage } from "@/areas/warehouse/lib/api"
 import { useSession } from "@/areas/warehouse/lib/session"
 import type { Fulfilment, FulfilmentStatus, Summary } from "@/areas/warehouse/lib/types"
@@ -47,11 +47,11 @@ export function Dashboard() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className={PAGE}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Orders</h1>
-          <p className="text-sm text-ink-3">
+          <PageTitle kicker="Warehouse">Orders</PageTitle>
+          <p className="text-body text-secondary">
             {summary.data ? (
               <>
                 {summary.data.dispatchedToday} dispatched today
@@ -77,12 +77,12 @@ export function Dashboard() {
             aria-selected={s.key === stage.key}
             onClick={() => setParams({ stage: s.key }, { replace: true })}
             className={cn(
-              "rounded-panel border px-3 py-3 text-left transition-colors",
-              s.key === stage.key ? "border-accent bg-accent-soft" : "border-line bg-panel hover:bg-panel-muted"
+              "rounded-xl border p-space-md text-left shadow-xs transition-colors",
+              s.key === stage.key ? "border-primary bg-primary-fixed" : "border-subtle bg-surface-container-lowest hover:border-strong hover:bg-surface-subtle"
             )}
           >
-            <span className={cn("block text-2xl font-semibold tabular-nums", s.key === stage.key ? "text-accent" : "text-ink")}>{summary.data ? count(s) : "–"}</span>
-            <span className="text-xs font-medium text-ink-2">{s.label}</span>
+            <span className={cn("block text-kpi tabular-nums", s.key === stage.key ? "text-accent" : "text-primary")}>{summary.data ? count(s) : "–"}</span>
+            <span className="text-label text-muted">{s.label}</span>
           </button>
         ))}
       </div>
@@ -95,25 +95,25 @@ export function Dashboard() {
         ) : queue.data.fulfilments.length === 0 ? (
           <Empty title={stage.empty}>New work appears here automatically.</Empty>
         ) : (
-          <ul className="divide-y divide-line overflow-hidden rounded-panel border border-line bg-panel">
+          <ul className="divide-y divide-subtle overflow-hidden rounded-xl border border-subtle bg-surface-container-lowest">
             {queue.data.fulfilments.map((f) => (
               <li key={f._id}>
-                <Link to={`/warehouse/fulfilments/${f._id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-panel-muted">
+                <Link to={`/warehouse/fulfilments/${f._id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-surface-subtle">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-sm font-semibold">{f.code}</span>
+                      <span className="font-mono text-body font-semibold">{f.code}</span>
                       <StatusBadge status={f.status} />
-                      {f.paymentMethod === "cod" ? <span className="rounded-full bg-warn-bg px-2 py-0.5 text-xs font-medium text-warn">COD</span> : null}
+                      {f.paymentMethod === "cod" ? <span className="rounded-full bg-status-warning-bg px-2 py-0.5 text-meta font-medium text-warning">COD</span> : null}
                     </div>
-                    <p className="mt-1 truncate text-sm text-ink-2">
+                    <p className="mt-1 truncate text-body text-secondary">
                       {f.lines.reduce((n, l) => n + l.quantity, 0)} unit{f.lines.reduce((n, l) => n + l.quantity, 0) === 1 ? "" : "s"} · {f.lines.map((l) => `${l.productTitle} (${l.variantTitle})`).join(", ")}
                     </p>
-                    <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-3">
+                    <p className="mt-0.5 flex items-center gap-1 text-meta text-muted">
                       <Clock className="size-3" aria-hidden /> {humanAge(f.createdAt)} · to {f.destination.city} {f.destination.postalCode}
                       {f.carrier ? <> · {f.carrier}</> : null}
                     </p>
                   </div>
-                  <ChevronRight className="size-4 shrink-0 text-ink-3" aria-hidden />
+                  <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
                 </Link>
               </li>
             ))}

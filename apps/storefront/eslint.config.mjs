@@ -21,6 +21,8 @@ export default defineConfig([
   },
   globalIgnores([
     ".next/**",
+    // Other build folders (NEXT_DIST_DIR): .next-prod, .next-pwa.
+    ".next-*/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

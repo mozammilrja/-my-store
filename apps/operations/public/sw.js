@@ -69,7 +69,7 @@ async function navigate(request) {
       storeShell(res.clone()).catch(() => {})
     }
     return res
-  } catch (e) {
+  } catch {
     const cache = await caches.open(SHELL)
     return (await cache.match("/")) || (await cache.match(OFFLINE)) || Response.error()
   }
@@ -118,7 +118,7 @@ self.addEventListener("push", (event) => {
   let data = {}
   try {
     data = event.data ? event.data.json() : {}
-  } catch (e) {
+  } catch {
     data = { title: "Everwear", body: event.data ? event.data.text() : "" }
   }
   event.waitUntil(

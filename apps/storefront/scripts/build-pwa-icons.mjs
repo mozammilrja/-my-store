@@ -6,7 +6,6 @@ const require = createRequire(new URL("../../../package.json", import.meta.url))
 const sharp = require("sharp")
 const root = new URL("../../", import.meta.url).pathname.replace(/\/$/, "")
 const mark = readFileSync(`${root}/storefront/public/brand/favicon.svg`, "utf8").replace(/<title>.*?<\/title>/, "")
-const VB = { w: 257.1, h: 310.02 }
 async function icon(out, size, bg, fg, markHeight) {
   const svg = mark.replace(/currentColor/g, fg)
   // The SVG carries padding around the letters: trim it, then fit the letters in the box.

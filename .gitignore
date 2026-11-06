@@ -74,3 +74,4 @@ apps/operations/test-results/
 apps/operations/uploads/
 apps/operations/dist-pwa/
 apps/storefront/.next-pwa/
+apps/storefront/.next-perf/

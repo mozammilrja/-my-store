@@ -62,6 +62,12 @@ type Facets = {
  * Every option is a real link built by `listingHref`, so the column works
  * without JavaScript, can be crawled, and writes the shareable `?f=` URL.
  */
+/*
+ * Refinement links don't prefetch: a listing shows ~40 of them, and Next
+ * fetched every one as it scrolled into view (a server render each) for
+ * clicks that mostly never happen. The listing's loading state covers the
+ * wait on the one that is clicked.
+ */
 export function CatalogFilterSidebar({
   path,
   listing,
@@ -136,6 +142,7 @@ export function CatalogFilterSidebar({
         <span className="text-[16px] font-bold uppercase text-foreground">Filters</span>
         {activeCount > 0 && (
           <LocalizedClientLink
+            prefetch={false}
             href={listingHref(path, listing, {
               categories: [],
               brands: [],
@@ -163,6 +170,7 @@ export function CatalogFilterSidebar({
           return (
             <li key={g}>
               <LocalizedClientLink
+                prefetch={false}
                 href={href({ categories: active ? nonGender : [...nonGender, g] })}
                 aria-current={active ? "true" : undefined}
                 className="flex items-center gap-3 text-[14px] font-bold text-foreground"
@@ -239,6 +247,7 @@ export function CatalogFilterSidebar({
               return (
                 <li key={tier.value}>
                   <LocalizedClientLink
+                    prefetch={false}
                     href={href({ discount: selected ? undefined : tier.value })}
                     aria-current={selected ? "true" : undefined}
                     data-testid="discount-refinement"
@@ -265,6 +274,7 @@ export function CatalogFilterSidebar({
               return (
                 <li key={tier.value}>
                   <LocalizedClientLink
+                    prefetch={false}
                     href={href({ rating: selected ? undefined : tier.value })}
                     aria-current={selected ? "true" : undefined}
                     data-testid="rating-refinement"
@@ -290,6 +300,7 @@ export function CatalogFilterSidebar({
           {facets.onSaleCount > 0 && (
             <li>
               <LocalizedClientLink
+                prefetch={false}
                 href={href({ sale: !listing.sale })}
                 aria-current={listing.sale ? "true" : undefined}
                 data-testid="sale-refinement"
@@ -303,6 +314,7 @@ export function CatalogFilterSidebar({
           )}
           <li>
             <LocalizedClientLink
+              prefetch={false}
               href={href({ inStock: !listing.inStock })}
               aria-current={listing.inStock ? "true" : undefined}
               data-testid="stock-refinement"
@@ -404,6 +416,7 @@ function FilterList({
         {shown.map((item) => (
           <li key={item.key}>
             <LocalizedClientLink
+              prefetch={false}
               href={item.href}
               aria-current={item.active ? "true" : undefined}
               data-testid={testId}

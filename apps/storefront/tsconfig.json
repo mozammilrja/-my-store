@@ -53,7 +53,9 @@
     ".next-pwa/types/**/*.ts",
     ".next-pwa/dev/types/**/*.ts",
     ".next-fork-build/types/**/*.ts",
-    ".next-fork-build/dev/types/**/*.ts"
+    ".next-fork-build/dev/types/**/*.ts",
+    ".next-perf/types/**/*.ts",
+    ".next-perf/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

@@ -3,7 +3,7 @@
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { memo, useEffect, useState } from "react"
 
 export type MenuSection = {
   title: string
@@ -1082,20 +1082,25 @@ export function MegaMenu({
   // navigated with the menu still open over the new page: nothing closed it
   // until the pointer happened to leave. Hover still opens it, but now a
   // click, Escape or a navigation closes it.
-  const [openDept, setOpenDept] = useState<string | null>(null)
+  const [openDept, setOpen] = useState<string | null>(null)
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set())
+  const setOpenDept = (id: string | null) => {
+    setOpen(id)
+    if (id && !opened.has(id)) setOpened((s) => new Set(s).add(id))
+  }
   const pathname = usePathname()
   // Close on navigation while rendering, not in an effect, so the new page
   // doesn't paint once with the menu open and then render again to close it.
   const [shownFor, setShownFor] = useState(pathname)
   if (shownFor !== pathname) {
     setShownFor(pathname)
-    setOpenDept(null)
+    setOpen(null)
   }
 
   useEffect(() => {
     if (!openDept) return
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpenDept(null)
+      if (e.key === "Escape") setOpen(null)
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
@@ -1128,76 +1133,11 @@ export function MegaMenu({
                 <span>{dept.label}</span>
               </LocalizedClientLink>
 
-              {/* Myntra-Style Mega Menu Dropdown */}
-              <div
-                className={cn(
-                  openDept === dept.id ? "block" : "hidden",
-                  "absolute top-full left-margin-mobile md:left-margin w-[1120px]",
-                  "max-w-[calc(100vw-2rem)] md:max-w-[calc(100vw-6rem)]",
-                  "bg-white shadow-[0_25px_60px_rgba(0,0,0,0.22)] z-50 border border-border/80 rounded-b-md overflow-hidden",
-                  "before:absolute before:-top-4 before:left-0 before:right-0 before:h-4 before:content-['']"
-                )}
-                style={{ backgroundColor: "#ffffff" }}
-              >
-                <div className="grid grid-cols-5">
-                  {dept.columns.map((col, cIdx) => (
-                    <div
-                      key={cIdx}
-                      className="flex flex-col gap-3 py-5 px-5 border-r border-border/40 last:border-r-0"
-                      style={{
-                        backgroundColor: cIdx === 1 || cIdx === 3 ? "#fbfbfb" : "#ffffff",
-                      }}
-                    >
-                      {col.map((section, sIdx) => (
-                        <div key={sIdx} className="flex flex-col">
-                          <LocalizedClientLink
-                            href={section.href || dept.href}
-                            className="font-label-caps text-[12px] font-bold uppercase tracking-tight mb-2 hover:underline block truncate"
-                            style={{ color: dept.accentColor || "#ee5f73" }}
-                          >
-                            {section.title}
-                          </LocalizedClientLink>
-
-                          {section.links.length > 0 && (
-                            <ul className="flex flex-col gap-1 text-[12px]">
-                              {section.links.map((link, lIdx) => (
-                                <li key={lIdx}>
-                                  <LocalizedClientLink
-                                    href={link.href}
-                                    className="text-foreground/85 hover:text-foreground hover:font-bold transition-colors py-0.5 block truncate leading-snug"
-                                  >
-                                    {link.label}
-                                  </LocalizedClientLink>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-
-                          {sIdx < col.length - 1 && (
-                            <div className="border-b border-border/40 my-2.5" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Sleek Merchandising Bottom Strip */}
-                <div className="bg-surface-container-low border-t border-border/50 px-6 py-2.5 flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: dept.accentColor || "#ee5f73" }} />
-                    <span className="font-semibold text-foreground">Everwear Guaranteed:</span> 100% Certified Authentic & Handcrafted Heritage Pieces
-                  </span>
-                  <LocalizedClientLink
-                    href={dept.href}
-                    className="font-bold hover:underline flex items-center gap-1 group/link"
-                    style={{ color: dept.accentColor || "#ee5f73" }}
-                  >
-                    <span>Explore all in {dept.label}</span>
-                    <span className="transition-transform group-hover/link:translate-x-0.5 font-bold">→</span>
-                  </LocalizedClientLink>
-                </div>
-              </div>
+              {/* A department's panel mounts the first time it opens and stays
+                  mounted (hidden) after, so the page doesn't render and hydrate
+                  every department's ~90 links up front, and opening or closing
+                  one doesn't render the others again. */}
+              {opened.has(dept.id) ? <DepartmentPanel dept={dept} open={openDept === dept.id} /> : null}
             </div>
           ))}
 
@@ -1230,3 +1170,78 @@ export function MegaMenu({
     </nav>
   )
 }
+
+/** One department's dropdown. Memoized: its props only change when it opens or closes. */
+const DepartmentPanel = memo(function DepartmentPanel({ dept, open }: { dept: NavDepartment; open: boolean }) {
+  return (
+    <div
+      className={cn(
+        open ? "block" : "hidden",
+        "absolute top-full left-margin-mobile md:left-margin w-[1120px]",
+        "max-w-[calc(100vw-2rem)] md:max-w-[calc(100vw-6rem)]",
+        "bg-white shadow-[0_25px_60px_rgba(0,0,0,0.22)] z-50 border border-border/80 rounded-b-md overflow-hidden",
+        "before:absolute before:-top-4 before:left-0 before:right-0 before:h-4 before:content-['']"
+      )}
+      style={{ backgroundColor: "#ffffff" }}
+    >
+      <div className="grid grid-cols-5">
+        {dept.columns.map((col, cIdx) => (
+          <div
+            key={cIdx}
+            className="flex flex-col gap-3 py-5 px-5 border-r border-border/40 last:border-r-0"
+            style={{
+              backgroundColor: cIdx === 1 || cIdx === 3 ? "#fbfbfb" : "#ffffff",
+            }}
+          >
+            {col.map((section, sIdx) => (
+              <div key={sIdx} className="flex flex-col">
+                <LocalizedClientLink
+                  href={section.href || dept.href}
+                  className="font-label-caps text-[12px] font-bold uppercase tracking-tight mb-2 hover:underline block truncate"
+                  style={{ color: dept.accentColor || "#ee5f73" }}
+                >
+                  {section.title}
+                </LocalizedClientLink>
+
+                {section.links.length > 0 && (
+                  <ul className="flex flex-col gap-1 text-[12px]">
+                    {section.links.map((link, lIdx) => (
+                      <li key={lIdx}>
+                        <LocalizedClientLink
+                          href={link.href}
+                          className="text-foreground/85 hover:text-foreground hover:font-bold transition-colors py-0.5 block truncate leading-snug"
+                        >
+                          {link.label}
+                        </LocalizedClientLink>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {sIdx < col.length - 1 && (
+                  <div className="border-b border-border/40 my-2.5" />
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Sleek Merchandising Bottom Strip */}
+      <div className="bg-surface-container-low border-t border-border/50 px-6 py-2.5 flex items-center justify-between text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: dept.accentColor || "#ee5f73" }} />
+          <span className="font-semibold text-foreground">Everwear Guaranteed:</span> 100% Certified Authentic & Handcrafted Heritage Pieces
+        </span>
+        <LocalizedClientLink
+          href={dept.href}
+          className="font-bold hover:underline flex items-center gap-1 group/link"
+          style={{ color: dept.accentColor || "#ee5f73" }}
+        >
+          <span>Explore all in {dept.label}</span>
+          <span className="transition-transform group-hover/link:translate-x-0.5 font-bold">→</span>
+        </LocalizedClientLink>
+      </div>
+    </div>
+  )
+})

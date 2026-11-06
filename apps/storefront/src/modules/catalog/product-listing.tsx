@@ -145,6 +145,7 @@ export async function ProductListing({
               {SORTS.map((s) => (
                 <li key={s.value}>
                   <LocalizedClientLink
+                    prefetch={false}
                     href={href({ sort: s.value })}
                     aria-current={s.value === listing.sort ? "true" : undefined}
                     className={cn(
@@ -195,6 +196,7 @@ export async function ProductListing({
             </span>
             {chips.map((chip) => (
               <LocalizedClientLink
+                prefetch={false}
                 key={chip.href + chip.label}
                 href={chip.href}
                 className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-surface-container-lowest px-2.5 font-label-sm text-xs text-foreground hover:border-foreground transition-colors shadow-2xs group"
@@ -205,6 +207,7 @@ export async function ProductListing({
               </LocalizedClientLink>
             ))}
             <LocalizedClientLink
+              prefetch={false}
               href={path}
               className="font-label-caps text-[11px] text-secondary hover:underline uppercase font-bold ml-1"
             >

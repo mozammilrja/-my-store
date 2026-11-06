@@ -1,20 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { IndianRupee, MapPin, MapPinOff, Moon, Route, UserRound, Wallet } from "lucide-react"
-import { NavLink, Outlet } from "react-router"
+import { IndianRupee, MapPin, MapPinOff, Route, UserRound, Wallet } from "lucide-react"
+import { Outlet } from "react-router"
 import { api, errorMessage } from "@/areas/delivery/lib/api"
-import { toggleTheme, useLocationSharing, useSession } from "@/areas/delivery/lib/session"
+import { useLocationSharing, useSession } from "@/areas/delivery/lib/session"
 import type { Rider, Task } from "@/areas/delivery/lib/types"
 import { useFeedback } from "@/areas/shared/feedback"
 import { cn } from "@/areas/shared/ui"
-import { Breadcrumbs } from "@/portal/Breadcrumbs"
-import { PortalMenu } from "@/portal/PortalMenu"
+import { WorkspaceShell, type WorkspaceNavItem } from "@/areas/shared/WorkspaceShell"
 
-const NAV = [
+const NAV: WorkspaceNavItem[] = [
   { to: "/delivery", label: "Today", icon: Route, end: true },
   { to: "/delivery/cash", label: "Cash", icon: Wallet },
   { to: "/delivery/earnings", label: "Earnings", icon: IndianRupee },
   { to: "/delivery/profile", label: "Profile", icon: UserRound },
-] as const
+]
 
 export function Layout() {
   const { me, refresh } = useSession()
@@ -38,31 +37,51 @@ export function Layout() {
   })
 
   return (
-    <div className="min-h-dvh pb-20">
-      <header className="sticky top-0 z-30 border-b border-line bg-panel/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-xl items-center gap-3 px-4">
-          <img src="/favicon.svg" alt="" className="size-7" />
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold">{r.name}</p>
-          <button onClick={toggleTheme} className="grid size-10 place-items-center rounded-control text-ink-2 hover:bg-panel-muted" aria-label="Switch light or dark theme">
-            <Moon className="size-4" aria-hidden />
-          </button>
-          {approved ? (
-            <button
-              role="switch"
-              aria-checked={r.online}
-              aria-label={r.online ? "Online. Go offline" : "Offline. Go online"}
-              disabled={availability.isPending}
-              onClick={() => availability.mutate(!r.online)}
-              className={cn("flex h-10 items-center gap-2 rounded-full border px-3 text-sm font-semibold transition-colors", r.online ? "border-ok/40 bg-ok-bg text-ok" : "border-line bg-panel-muted text-ink-2")}
-            >
-              <span className={cn("size-2.5 rounded-full", r.online ? "bg-ok" : "bg-ink-3")} aria-hidden />
-              {r.online ? "Online" : "Offline"}
-            </button>
-          ) : null}
-          <PortalMenu compact />
+    <WorkspaceShell
+      area="Delivery"
+      nav={NAV}
+      headerStart={
+        <div className="min-w-0 leading-tight">
+          <p className="truncate text-label font-semibold text-primary">{r.name}</p>
+          <p className="hidden truncate text-micro text-muted sm:block">{me.warehouse ? `${me.warehouse.name} · ${me.warehouse.city}` : "No hub assigned yet"}</p>
         </div>
-        {delivering ? (
-          <p className={cn("flex items-center justify-center gap-1.5 py-1 text-xs font-medium", location === "sharing" ? "bg-info-bg text-area-info" : "bg-warn-bg text-warn")}>
+      }
+      headerActions={
+        approved ? (
+          <button
+            role="switch"
+            aria-checked={r.online}
+            aria-label={r.online ? "Online. Go offline" : "Offline. Go online"}
+            disabled={availability.isPending}
+            onClick={() => availability.mutate(!r.online)}
+            className={cn(
+              "flex h-10 items-center gap-2 rounded-full border px-3 text-label font-semibold transition-colors sm:h-9",
+              r.online ? "border-status-success/30 bg-status-success-bg text-success" : "border-subtle bg-surface-subtle text-muted"
+            )}
+          >
+            <span className={cn("size-2.5 rounded-full", r.online ? "bg-status-success" : "bg-text-faint")} aria-hidden />
+            {r.online ? "Online" : "Offline"}
+          </button>
+        ) : null
+      }
+      sidebarFooter={
+        <div className="rounded-lg border border-subtle bg-surface-subtle px-3 py-2.5">
+          <p className="truncate text-label font-semibold text-primary">{r.name}</p>
+          <p className="truncate text-micro text-muted">
+            <span className="capitalize">{r.vehicle.type}</span>
+            {r.vehicle.registration ? ` · ${r.vehicle.registration}` : ""}
+          </p>
+          <p className="mt-1 truncate text-micro text-muted">{me.warehouse ? `Hub: ${me.warehouse.code}` : "No hub assigned yet"}</p>
+        </div>
+      }
+      strip={
+        delivering ? (
+          <p
+            className={cn(
+              "flex items-center justify-center gap-1.5 border-b px-4 py-1.5 text-label font-medium",
+              location === "sharing" ? "border-status-info/20 bg-status-info-bg text-info" : "border-status-warning/20 bg-status-warning-bg text-warning"
+            )}
+          >
             {location === "sharing" ? <MapPin className="size-3.5" aria-hidden /> : <MapPinOff className="size-3.5" aria-hidden />}
             {location === "sharing"
               ? "Sharing your location with your customers while you deliver"
@@ -70,32 +89,20 @@ export function Layout() {
                 ? "Location is blocked. Customers won't see where you are."
                 : "Waiting for your location…"}
           </p>
-        ) : null}
-      </header>
-
-      <main id="main" className="mx-auto max-w-xl px-4 py-5">
-        <Breadcrumbs className="mb-3" />
-        {r.status === "pending" ? (
-          <p className="mb-4 rounded-panel border border-area-info/30 bg-info-bg px-4 py-3 text-sm text-area-info">
-            Your account is waiting for approval. Add your documents in Profile; your hub verifies them and assigns your zone.
-          </p>
-        ) : r.status === "suspended" ? (
-          <p className="mb-4 rounded-panel border border-bad/30 bg-bad-bg px-4 py-3 text-sm text-bad">Your account is suspended{r.statusReason ? `: ${r.statusReason}` : ""}. Contact your hub.</p>
-        ) : null}
-        <Outlet />
-      </main>
-
-      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-panel pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid max-w-xl grid-cols-4">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={"end" in n} className={({ isActive }) => cn("flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium", isActive ? "text-accent" : "text-ink-3")}>
-              <n.icon className="size-5" aria-hidden />
-              {n.label}
-            </NavLink>
-          ))}
-        </div>
-      </nav>
-    </div>
+        ) : null
+      }
+    >
+      {r.status === "pending" ? (
+        <p className="mb-space-md rounded-xl border border-status-info/25 bg-status-info-bg px-4 py-3 text-body text-info">
+          Your account is waiting for approval. Add your documents in Profile; your hub verifies them and assigns your zone.
+        </p>
+      ) : r.status === "suspended" ? (
+        <p className="mb-space-md rounded-xl border border-status-danger/25 bg-status-danger-bg px-4 py-3 text-body text-danger">
+          Your account is suspended{r.statusReason ? `: ${r.statusReason}` : ""}. Contact your hub.
+        </p>
+      ) : null}
+      <Outlet />
+    </WorkspaceShell>
   )
 }
 

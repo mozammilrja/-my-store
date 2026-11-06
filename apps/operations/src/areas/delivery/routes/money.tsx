@@ -5,6 +5,7 @@ import { Button, cn, Dialog, Empty, formatTime, Input, Label, Notice, Panel, Spi
 import { api, errorMessage } from "@/areas/delivery/lib/api"
 import { money } from "@/areas/delivery/lib/session"
 import type { Cash, Earnings } from "@/areas/delivery/lib/types"
+import { ErrorState, PageContainer, PageHeader } from "@/components/ui"
 
 /** Cash collected on deliveries and not yet handed to the hub, and the handovers made. */
 export function CashScreen() {
@@ -22,12 +23,26 @@ export function CashScreen() {
     },
     onError: (e) => feedback.bad(errorMessage(e)),
   })
-  if (cash.isPending) return <Spinner />
-  if (cash.isError) return <Notice>{errorMessage(cash.error)}</Notice>
+  const header = <PageHeader kicker="Delivery" title="Cash" description="Cash on delivery you've collected, and your handovers to the hub." />
+  if (cash.isPending)
+    return (
+      <PageContainer>
+        {header}
+        <Spinner />
+      </PageContainer>
+    )
+  if (cash.isError)
+    return (
+      <PageContainer>
+        {header}
+        <ErrorState variant="page" error={cash.error} title="Your cash couldn't be loaded" onRetry={() => void cash.refetch()} />
+      </PageContainer>
+    )
   const c = cash.data
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Cash</h1>
+    <PageContainer>
+      {header}
+      <div className="grid items-start gap-space-lg lg:grid-cols-3">
       <Panel>
         <p className="text-sm text-ink-3">Cash in hand</p>
         <p className="text-3xl font-semibold tabular-nums">{money(c.inHand)}</p>
@@ -97,7 +112,8 @@ export function CashScreen() {
           </div>
         </form>
       </Dialog>
-    </div>
+      </div>
+    </PageContainer>
   )
 }
 
@@ -108,39 +124,45 @@ export function EarningsScreen() {
   const from = new Date(Date.now() - RANGES[range] * 86_400_000).toISOString()
   const earnings = useQuery({ queryKey: ["earnings", range], queryFn: () => api<Earnings>("/earnings", { query: { from } }) })
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Earnings</h1>
-        <div role="tablist" aria-label="Period" className="flex rounded-control border border-line p-0.5">
-          {(Object.keys(RANGES) as (keyof typeof RANGES)[]).map((r) => (
-            <button key={r} role="tab" aria-selected={range === r} onClick={() => setRange(r)} className={cn("h-8 rounded-control px-3 text-sm font-medium", range === r ? "bg-accent text-area-on-accent" : "text-ink-2")}>
-              Last {RANGES[r]} days
-            </button>
-          ))}
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        kicker="Delivery"
+        title="Earnings"
+        description="What you've earned, booked as each delivery and attempt happens."
+        actions={
+          <div role="tablist" aria-label="Period" className="flex rounded-lg border border-subtle bg-surface-container-lowest p-0.5 shadow-xs">
+            {(Object.keys(RANGES) as (keyof typeof RANGES)[]).map((r) => (
+              <button key={r} role="tab" aria-selected={range === r} onClick={() => setRange(r)} className={cn("h-11 rounded-md px-3 text-label font-medium sm:h-8", range === r ? "bg-primary-fixed text-on-primary-fixed" : "text-muted hover:text-primary")}>
+                Last {RANGES[r]} days
+              </button>
+            ))}
+          </div>
+        }
+      />
       {earnings.isPending ? (
         <Spinner />
       ) : earnings.isError ? (
-        <Notice>{errorMessage(earnings.error)}</Notice>
+        <ErrorState variant="page" error={earnings.error} title="Your earnings couldn't be loaded" onRetry={() => void earnings.refetch()} />
       ) : earnings.data.deliveries + earnings.data.failedAttempts === 0 ? (
         <Empty title="No earnings in this period">Earnings are booked as you deliver.</Empty>
       ) : (
-        <Panel>
-          <p className="text-sm text-ink-3">Earned</p>
-          <p className="text-3xl font-semibold tabular-nums">{money(earnings.data.amount)}</p>
-          <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-control bg-panel-muted p-3">
-              <dt className="text-ink-3">Delivered</dt>
-              <dd className="text-xl font-semibold tabular-nums">{earnings.data.deliveries}</dd>
+        <div className="grid gap-space-md sm:grid-cols-3">
+          <div className="flex min-h-[7.5rem] flex-col justify-center rounded-xl border border-subtle bg-surface-container-lowest p-space-md shadow-xs">
+            <p className="text-label text-muted">Earned</p>
+            <p className="text-kpi tabular-nums text-primary">{money(earnings.data.amount)}</p>
+          </div>
+          <dl className="contents">
+            <div className="flex min-h-[7.5rem] flex-col justify-center rounded-xl border border-subtle bg-surface-container-lowest p-space-md shadow-xs">
+              <dt className="text-label text-muted">Delivered</dt>
+              <dd className="text-kpi tabular-nums text-primary">{earnings.data.deliveries}</dd>
             </div>
-            <div className="rounded-control bg-panel-muted p-3">
-              <dt className="text-ink-3">Attempted</dt>
-              <dd className="text-xl font-semibold tabular-nums">{earnings.data.failedAttempts}</dd>
+            <div className="flex min-h-[7.5rem] flex-col justify-center rounded-xl border border-subtle bg-surface-container-lowest p-space-md shadow-xs">
+              <dt className="text-label text-muted">Attempted</dt>
+              <dd className="text-kpi tabular-nums text-primary">{earnings.data.failedAttempts}</dd>
             </div>
           </dl>
-        </Panel>
+        </div>
       )}
-    </div>
+    </PageContainer>
   )
 }

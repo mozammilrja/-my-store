@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query"
 import { BadgeCheck, Clock3, LogOut } from "lucide-react"
 import { useEffect, useState } from "react"
 import { disablePush, enablePush, PUSH_NOTE, pushState, type PushState } from "@/areas/delivery/lib/push"
+import { PageContainer, PageHeader } from "@/components/ui"
 import { useFeedback } from "@/areas/shared/feedback"
 import { Button, Input, Label, Panel, Select } from "@/areas/shared/ui"
 import { api, errorMessage } from "@/areas/delivery/lib/api"
@@ -38,8 +39,9 @@ export function Profile() {
   })
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Profile</h1>
+    <PageContainer>
+      <PageHeader kicker="Delivery" title="Profile" description="Your details, documents, shifts and notifications." />
+      <div className="grid items-start gap-space-lg lg:grid-cols-2">
       <Panel>
         <dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
           <dt className="text-ink-3">Name</dt>
@@ -143,11 +145,12 @@ export function Profile() {
       </Panel>
 
       <PushPanel />
+      </div>
 
-      <Button variant="secondary" className="w-full" onClick={signOut}>
+      <Button variant="secondary" className="w-full lg:w-auto lg:self-start" onClick={signOut}>
         <LogOut className="size-4" aria-hidden /> Sign out
       </Button>
-    </div>
+    </PageContainer>
   )
 }
 

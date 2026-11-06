@@ -8,30 +8,39 @@ import { useOnline } from "@/areas/shared/network"
 import { Button, Dialog, Input, Label, Notice, Panel, Select, Spinner, Textarea, formatTime } from "@/areas/shared/ui"
 import { api, ApiError, errorMessage } from "@/areas/delivery/lib/api"
 import { currentPosition, money, REASON_LABEL, useSession } from "@/areas/delivery/lib/session"
+import { directions } from "@/areas/delivery/lib/maps"
+import { ErrorState, PageContainer, PageHeader } from "@/components/ui"
 import type { FailReason, Task } from "@/areas/delivery/lib/types"
 import { StatusChip } from "./today"
-
-/** Directions in Google Maps: to the pin when the address has one, else to the address text. */
-const directions = (s: NonNullable<Task["stop"]>) =>
-  `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURIComponent(s.lat != null && s.lng != null ? `${s.lat},${s.lng}` : [s.address1, s.address2, s.city, s.postalCode, "India"].filter(Boolean).join(", "))}`
 
 export function TaskScreen() {
   const { id = "" } = useParams()
   const task = useQuery({ queryKey: ["task", id], queryFn: () => api<{ task: Task }>(`/tasks/${id}`) })
+  const back = (
+    <Link to="/delivery" className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-subtle bg-surface-container-lowest px-3 text-label font-medium text-primary shadow-xs hover:bg-surface-subtle sm:h-9">
+      <ArrowLeft className="size-4" aria-hidden /> Today
+    </Link>
+  )
   if (task.isPending) return <Spinner />
-  if (task.isError) return <Notice>{errorMessage(task.error)}</Notice>
+  if (task.isError)
+    return (
+      <PageContainer>
+        <PageHeader kicker="Delivery" title="Delivery" actions={back} />
+        <ErrorState variant="page" error={task.error} title="This delivery couldn't be loaded" onRetry={() => void task.refetch()} />
+      </PageContainer>
+    )
   const t = task.data.task
   const s = t.stop
 
   return (
-    <div className="space-y-4">
-      <Link to="/delivery" className="inline-flex items-center gap-1 text-sm text-ink-2">
-        <ArrowLeft className="size-4" aria-hidden /> Today
-      </Link>
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="font-mono text-lg font-semibold">{t.code}</h1>
-        <StatusChip status={t.status} />
-      </div>
+    <PageContainer>
+      <PageHeader kicker="Delivery" title={<span className="font-mono">{t.code}</span>} description={`Order #${t.displayId}`} actions={back}>
+        <div className="pt-1">
+          <StatusChip status={t.status} />
+        </div>
+      </PageHeader>
+      <div className="grid items-start gap-space-lg lg:grid-cols-3">
+      <div className="flex min-w-0 flex-col gap-space-lg lg:col-span-2">
 
       {s ? (
         <Panel>
@@ -58,13 +67,14 @@ export function TaskScreen() {
         </Panel>
       ) : null}
 
+      <Actions t={t} />
+      </div>
+      <div className="flex min-w-0 flex-col gap-space-lg">
       {t.cod ? (
         <Notice tone={t.cod.collected === null ? "warn" : "ok"}>{t.cod.collected === null ? `Collect ${money(t.cod.due)} in cash on delivery.` : `${money(t.cod.collected)} collected.`}</Notice>
       ) : (
         <Notice tone="info">Prepaid. Collect nothing.</Notice>
       )}
-
-      <Actions t={t} />
 
       {t.attempts.length ? (
         <Panel title="Earlier attempts">
@@ -79,7 +89,9 @@ export function TaskScreen() {
           </ul>
         </Panel>
       ) : null}
-    </div>
+      </div>
+      </div>
+    </PageContainer>
   )
 }
 

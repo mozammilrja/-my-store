@@ -47,7 +47,7 @@ export function pageLabel(pathname: string, adminModules: { path: string; label:
   if (known) return known.label
   // Detail pages: name the record kind.
   if (area === "warehouse" && page === "fulfilments") return sub ? "Order" : null
-  if (area === "delivery" && page === "tasks") return "Delivery"
+  if (area === "delivery" && page === "tasks") return "Parcel"
   if (area === "delivery" && page === "register") return "Join"
   if (area === "seller" && page === "register") return "Apply"
   return null

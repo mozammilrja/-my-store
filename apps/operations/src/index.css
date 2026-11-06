@@ -464,8 +464,10 @@
    below the sm breakpoint; from 640px up every design keeps its own size. */
 @media (max-width: 639.98px) {
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
-  select,
-  textarea {
+  /* :not([data-zoom-ok]) always matches; it lifts these above one class
+     (text-body), so a component's own size can't undo the rule. */
+  select:not([data-zoom-ok]),
+  textarea:not([data-zoom-ok]) {
     font-size: max(16px, 1em);
   }
 }

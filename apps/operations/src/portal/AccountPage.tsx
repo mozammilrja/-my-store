@@ -18,9 +18,9 @@ const device = (ua: string | null) => {
 
 function Panel({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="rounded-panel border border-line bg-panel">
-      <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
+    <section className="rounded-xl border border-subtle bg-surface-container-lowest">
+      <header className="flex items-center justify-between gap-3 border-b border-subtle px-5 py-3">
+        <h2 className="text-body font-semibold">{title}</h2>
         {action}
       </header>
       <div className="px-5 py-4">{children}</div>
@@ -34,37 +34,37 @@ export function AccountPage() {
   if (!principal) return null
   const a = principal.accounts
   return (
-    <div className="min-h-dvh bg-canvas text-ink">
-      <header className="sticky top-0 z-30 border-b border-line bg-panel/95 backdrop-blur">
+    <div className="min-h-dvh bg-surface-canvas text-primary">
+      <header className="sticky top-0 z-30 border-b border-subtle bg-surface-container-lowest/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
-          <Link to={principal.home ?? "/"} className="flex h-11 items-center gap-2 rounded-control px-2 text-sm text-ink-2 hover:bg-panel-muted sm:h-10">
+          <Link to={principal.home ?? "/"} className="flex h-11 items-center gap-2 rounded-lg px-2 text-body text-secondary hover:bg-surface-subtle sm:h-10">
             <ArrowLeft className="size-4" aria-hidden /> Back
           </Link>
-          <p className="flex-1 text-sm font-semibold">Account &amp; security</p>
+          <p className="flex-1 text-body font-semibold">Account &amp; security</p>
           <PortalMenu />
         </div>
       </header>
       <main id="main" className="mx-auto max-w-3xl space-y-5 px-4 py-6">
         <h1 className="sr-only">Account and security</h1>
         <Panel title="Profile">
-          <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[10rem_1fr]">
-            <dt className="text-ink-3">Name</dt>
+          <dl className="grid gap-x-6 gap-y-3 text-body sm:grid-cols-[10rem_1fr]">
+            <dt className="text-muted">Name</dt>
             <dd>{principal.name ?? "—"}</dd>
-            <dt className="text-ink-3">Email</dt>
+            <dt className="text-muted">Email</dt>
             <dd>{principal.email}</dd>
-            <dt className="text-ink-3">Roles</dt>
+            <dt className="text-muted">Roles</dt>
             <dd>{principal.roles.map((r) => ROLE_LABEL[r]).join(", ")}</dd>
-            <dt className="text-ink-3">Workspaces</dt>
+            <dt className="text-muted">Workspaces</dt>
             <dd>{principal.areas.map((x) => AREA_LABEL[x]).join(", ")}</dd>
             {a.admin ? (
               <>
-                <dt className="text-ink-3">Admin role</dt>
+                <dt className="text-muted">Admin role</dt>
                 <dd className="capitalize">{a.admin.role.replace(/_/g, " ")}</dd>
               </>
             ) : null}
             {a.warehouse ? (
               <>
-                <dt className="text-ink-3">Warehouse role</dt>
+                <dt className="text-muted">Warehouse role</dt>
                 <dd className="capitalize">
                   {a.warehouse.role}, {a.warehouse.warehouseIds.length} warehouse{a.warehouse.warehouseIds.length === 1 ? "" : "s"}
                 </dd>
@@ -72,20 +72,20 @@ export function AccountPage() {
             ) : null}
             {a.rider ? (
               <>
-                <dt className="text-ink-3">Rider account</dt>
+                <dt className="text-muted">Rider account</dt>
                 <dd className="capitalize">{a.rider.status}</dd>
               </>
             ) : null}
             {a.seller ? (
               <>
-                <dt className="text-ink-3">Seller account</dt>
+                <dt className="text-muted">Seller account</dt>
                 <dd>
-                  {a.seller.displayName} <span className="capitalize text-ink-3">({a.seller.status})</span>
+                  {a.seller.displayName} <span className="capitalize text-muted">({a.seller.status})</span>
                 </dd>
               </>
             ) : null}
           </dl>
-          <p className="mt-4 text-xs text-ink-3">Names and roles are managed by the store. Ask an owner or store admin to change them.</p>
+          <p className="mt-4 text-meta text-muted">Names and roles are managed by the store. Ask an owner or store admin to change them.</p>
         </Panel>
         <ChangePassword />
         <Sessions />
@@ -117,7 +117,7 @@ function ChangePassword() {
   }
   const field = (k: keyof typeof f, label: string, auto: string) => (
     <div>
-      <label htmlFor={`pw-${k}`} className="mb-1.5 block text-sm font-medium text-ink-2">
+      <label htmlFor={`pw-${k}`} className="mb-1.5 block text-body font-medium text-secondary">
         {label}
       </label>
       <input
@@ -126,23 +126,23 @@ function ChangePassword() {
         autoComplete={auto}
         value={f[k]}
         onChange={(e) => setF((x) => ({ ...x, [k]: e.target.value }))}
-        className="h-11 w-full rounded-control border border-line-strong bg-panel px-3 text-base text-ink sm:h-10 sm:text-sm"
+        className="h-11 w-full rounded-lg border border-strong bg-surface-container-lowest px-3 text-base text-primary sm:h-10 sm:text-body"
       />
     </div>
   )
   return (
     <Panel title="Password">
       <form onSubmit={submit} className="grid gap-4 sm:max-w-sm">
-        <p className="text-sm text-ink-2">One password for every Everwear operations account on {principal?.email}.</p>
+        <p className="text-body text-secondary">One password for every Everwear operations account on {principal?.email}.</p>
         {msg ? (
-          <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "rounded-control bg-ok-bg px-3 py-2 text-sm text-ok" : "rounded-control bg-bad-bg px-3 py-2 text-sm text-bad"}>
+          <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "rounded-lg bg-status-success-bg px-3 py-2 text-body text-success" : "rounded-lg bg-status-danger-bg px-3 py-2 text-body text-danger"}>
             {msg.text}
           </p>
         ) : null}
         {field("currentPassword", "Current password", "current-password")}
         {field("newPassword", "New password (12 characters or more)", "new-password")}
         {field("confirm", "Type the new password again", "new-password")}
-        <button type="submit" disabled={change.isPending} className="h-11 rounded-control bg-accent px-4 sm:h-10 text-sm font-medium text-area-on-accent hover:bg-accent-hover disabled:opacity-60">
+        <button type="submit" disabled={change.isPending} className="h-11 rounded-lg bg-accent px-4 sm:h-10 text-body font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60">
           {change.isPending ? "Saving" : "Change password"}
         </button>
       </form>
@@ -167,32 +167,32 @@ function Sessions() {
       title="Signed-in devices"
       action={
         rows.length > 1 ? (
-          <button type="button" onClick={() => others.mutate()} disabled={others.isPending} className="flex h-11 items-center gap-1.5 rounded-control border sm:h-9 border-line px-3 text-sm text-ink-2 hover:bg-panel-muted">
+          <button type="button" onClick={() => others.mutate()} disabled={others.isPending} className="flex h-11 items-center gap-1.5 rounded-lg border sm:h-9 border-subtle px-3 text-body text-secondary hover:bg-surface-subtle">
             <LogOut className="size-4" aria-hidden /> Sign out other devices
           </button>
         ) : null
       }
     >
       {sessions.isPending ? (
-        <p className="text-sm text-ink-3">Loading…</p>
+        <p className="text-body text-muted">Loading…</p>
       ) : sessions.isError ? (
-        <p className="text-sm text-bad">{(sessions.error as Error).message}</p>
+        <p className="text-body text-danger">{(sessions.error as Error).message}</p>
       ) : (
-        <ul className="divide-y divide-line">
+        <ul className="divide-y divide-subtle">
           {rows.map((s) => (
             <li key={s.id} className="flex items-center gap-3 py-3">
-              <Laptop className="size-5 shrink-0 text-ink-3" aria-hidden />
-              <div className="min-w-0 flex-1 text-sm">
+              <Laptop className="size-5 shrink-0 text-muted" aria-hidden />
+              <div className="min-w-0 flex-1 text-body">
                 <p className="font-medium">
-                  {device(s.userAgent)} {s.current ? <span className="ml-1 rounded-full bg-ok-bg px-2 py-0.5 text-xs text-ok">This device</span> : null}
+                  {device(s.userAgent)} {s.current ? <span className="ml-1 rounded-full bg-status-success-bg px-2 py-0.5 text-meta text-success">This device</span> : null}
                 </p>
-                <p className="text-xs text-ink-3">
+                <p className="text-meta text-muted">
                   Signed in {when(s.createdAt)} · last active {when(s.lastSeenAt)}
                   {s.ip ? ` · ${s.ip}` : ""}
                 </p>
               </div>
               {s.current ? null : (
-                <button type="button" onClick={() => revoke.mutate(s.id)} className="h-11 rounded-control px-3 text-sm text-bad sm:h-9 hover:bg-bad-bg" aria-label={`Sign out ${device(s.userAgent)} signed in ${when(s.createdAt)}`}>
+                <button type="button" onClick={() => revoke.mutate(s.id)} className="h-11 rounded-lg px-3 text-body text-danger sm:h-9 hover:bg-status-danger-bg" aria-label={`Sign out ${device(s.userAgent)} signed in ${when(s.createdAt)}`}>
                   Sign out
                 </button>
               )}

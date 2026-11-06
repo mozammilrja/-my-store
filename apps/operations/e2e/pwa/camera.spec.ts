@@ -13,7 +13,7 @@ test("the camera reads a pick slip with the bundled decoder", async ({ page }) =
   await page.getByLabel("Email").fill("supervisor@everwear.test")
   await page.getByLabel("Password", { exact: true }).fill("portal-password-1")
   await page.getByRole("button", { name: "Sign in" }).click()
-  await expect(page.getByRole("heading", { name: "Orders" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible()
 
   const wasm = page.waitForResponse((r) => r.url().endsWith(".wasm") && new URL(r.url()).host === new URL(page.url()).host)
   const scanned = page.waitForRequest((r) => r.url().includes("/warehouse/scan/fulfilment/"))

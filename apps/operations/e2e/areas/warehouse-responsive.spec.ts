@@ -20,7 +20,7 @@ for (const vp of WIDTHS) {
     await page.getByLabel("Email").fill("supervisor@everwear.test")
     await page.getByLabel("Password", { exact: true }).fill("floor-password-1")
     await page.getByRole("button", { name: "Sign in" }).click()
-    await expect(page.getByRole("heading", { name: "Orders" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible()
     for (const path of SCREENS) {
       await page.goto(path)
       await expect(page.getByRole("main").getByRole("heading").first()).toBeVisible()

@@ -115,21 +115,21 @@ export function InstallBanner() {
     <aside
       role="dialog"
       aria-labelledby="install-title"
-      className="fixed inset-x-3 bottom-20 z-[55] mx-auto max-w-md rounded-panel border border-line bg-panel p-4 text-ink shadow-xl md:bottom-6 md:left-auto md:right-6"
+      className="fixed inset-x-3 bottom-20 z-[55] mx-auto max-w-md rounded-xl border border-subtle bg-surface-container-lowest p-4 text-primary shadow-xl md:bottom-6 md:left-auto md:right-6"
     >
       <div className="flex items-start gap-3">
-        <img src="/icons/icon-192.png" alt="" className="size-11 shrink-0 rounded-control" />
-        <div className="min-w-0 flex-1 text-sm">
+        <img src="/icons/icon-192.png" alt="" className="size-11 shrink-0 rounded-lg" />
+        <div className="min-w-0 flex-1 text-body">
           <p id="install-title" className="font-semibold">Install the app on this phone</p>
           {mode === "prompt" ? (
-            <p className="mt-1 text-ink-2">Opens full screen from your home screen, starts faster and can show notifications.</p>
+            <p className="mt-1 text-secondary">Opens full screen from your home screen, starts faster and can show notifications.</p>
           ) : (
-            <p className="mt-1 text-ink-2">
+            <p className="mt-1 text-secondary">
               In Safari, tap <Share className="inline size-4 align-text-bottom" aria-label="Share" /> Share, then <strong>Add to Home Screen</strong>.
             </p>
           )}
         </div>
-        <button type="button" onClick={dismiss} aria-label="Not now" className="-mr-2 -mt-2 grid size-10 shrink-0 place-items-center rounded-control text-ink-3 hover:bg-panel-muted">
+        <button type="button" onClick={dismiss} aria-label="Not now" className="-mr-2 -mt-2 grid size-10 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-subtle">
           <X className="size-4" aria-hidden />
         </button>
       </div>
@@ -139,7 +139,7 @@ export function InstallBanner() {
           onClick={async () => {
             if (!(await install())) dismiss()
           }}
-          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-control bg-accent text-sm font-medium text-area-on-accent hover:bg-accent-hover"
+          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-accent text-body font-medium text-on-accent hover:bg-accent-hover"
         >
           <Download className="size-4" aria-hidden /> Install
         </button>

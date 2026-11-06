@@ -34,7 +34,7 @@ declare module "@/components/ui" {
   export const SkeletonCard: Any
   export const SkeletonStatsCard: Any
   export const Alert: Any
-  export const Input: Any
+  export const Input: import("react").ForwardRefExoticComponent<Record<string, unknown> & { className?: string } & import("react").RefAttributes<HTMLInputElement>>
   export const Textarea: Any
   export const Select: Any
 }

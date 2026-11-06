@@ -1,5 +1,6 @@
 import { Camera, Loader2, ScanLine, X } from "lucide-react"
-import { useEffect, useId, useRef, useState, type FormEvent } from "react"
+import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from "react"
+import { Input as AdminInput } from "@/components/ui"
 import { Button, cn, Dialog } from "./ui"
 
 /*
@@ -93,11 +94,11 @@ export function ScanField({ label, placeholder = "Scan or type, then Enter", onS
         <div className="relative flex-1">
           <ScanLine className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted" aria-hidden />
           {busy ? <Loader2 className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-muted" aria-label="Processing scan" /> : null}
-          <input
+          <AdminInput
             id={id}
             ref={input}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setValue(e.target.value)}
             disabled={disabled}
             autoFocus={autoFocus}
             autoComplete="off"
@@ -105,7 +106,8 @@ export function ScanField({ label, placeholder = "Scan or type, then Enter", onS
             spellCheck={false}
             enterKeyHint="go"
             placeholder={placeholder}
-            className="h-12 w-full rounded-lg border border-strong bg-surface-container-lowest pr-3 pl-10 font-mono text-base text-primary placeholder:font-sans placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent/25 focus:outline-none disabled:opacity-50"
+            // The admin's Input, as tall as the buttons beside it, with room for the scan icon.
+            className="h-10 pl-10 font-mono placeholder:font-sans"
           />
         </div>
         <Button type="submit" size="lg" disabled={disabled}>

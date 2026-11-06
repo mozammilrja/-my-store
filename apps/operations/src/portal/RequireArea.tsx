@@ -6,9 +6,9 @@ import { AREA_LABEL, usePortal, type Area } from "./session"
 
 export function PortalSpinner({ label = "Loading" }: { label?: string }) {
   return (
-    <div role="status" className="grid min-h-dvh place-items-center bg-canvas text-sm text-ink-3">
+    <div role="status" className="grid min-h-dvh place-items-center bg-surface-canvas text-body text-muted">
       <span className="flex items-center gap-2">
-        <span className="size-4 animate-spin rounded-full border-2 border-line border-t-accent" aria-hidden />
+        <span className="size-4 animate-spin rounded-full border-2 border-subtle border-t-accent" aria-hidden />
         {label}
       </span>
     </div>
@@ -26,9 +26,9 @@ export function RequireArea({ area, children }: { area: Area | "any"; children: 
   if (status === "loading") return <PortalSpinner label="Signing in" />
   if (status === "error")
     return (
-      <div className="mx-auto mt-24 max-w-sm space-y-3 px-4 text-center text-ink">
+      <div className="mx-auto mt-24 max-w-sm space-y-3 px-4 text-center text-primary">
         <p>{error?.message ?? "Can't reach the server."}</p>
-        <button className="text-sm font-medium text-accent underline" onClick={() => void refresh()}>
+        <button className="text-body font-medium text-accent underline" onClick={() => void refresh()}>
           Try again
         </button>
       </div>
@@ -41,17 +41,17 @@ export function RequireArea({ area, children }: { area: Area | "any"; children: 
 export function NotAllowed({ area }: { area: Area }) {
   const { principal } = usePortal()
   return (
-    <main className="grid min-h-dvh place-items-center bg-canvas px-4 text-ink">
-      <div className="w-full max-w-md space-y-4 rounded-panel border border-line bg-panel p-6">
-        <ShieldAlert className="size-8 text-warn" aria-hidden />
+    <main className="grid min-h-dvh place-items-center bg-surface-canvas px-4 text-primary">
+      <div className="w-full max-w-md space-y-4 rounded-xl border border-subtle bg-surface-container-lowest p-6">
+        <ShieldAlert className="size-8 text-warning" aria-hidden />
         <h1 className="text-lg font-semibold">{AREA_LABEL[area]} isn't part of your account</h1>
-        <p className="text-sm text-ink-2">
+        <p className="text-body text-secondary">
           {principal?.email} is signed in without a {AREA_LABEL[area].toLowerCase()} account. If you need access, ask an owner or store admin.
         </p>
         {principal?.areas.length ? (
           <div className="flex flex-wrap gap-2">
             {principal.areas.map((a) => (
-              <Link key={a} to={AREA_HOME[a]} className="inline-flex h-10 items-center rounded-control bg-accent px-4 text-sm font-medium text-area-on-accent hover:bg-accent-hover">
+              <Link key={a} to={AREA_HOME[a]} className="inline-flex h-10 items-center rounded-lg bg-accent px-4 text-body font-medium text-on-accent hover:bg-accent-hover">
                 Go to {AREA_LABEL[a]}
               </Link>
             ))}

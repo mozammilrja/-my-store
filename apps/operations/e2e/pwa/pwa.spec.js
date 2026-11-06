@@ -117,7 +117,7 @@ test.describe("on an Android phone", () => {
 
   test("the Install button opens the browser's own install dialog", async ({ page }) => {
     await signIn(page, "supervisor@everwear.test")
-    await expect(page.getByRole("heading", { name: "Orders" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Orders", exact: true })).toBeVisible()
     // Chrome fires this when the site qualifies; here it is fired by hand with a stand-in prompt.
     await page.evaluate(() => {
       const e = new Event("beforeinstallprompt", { cancelable: true })

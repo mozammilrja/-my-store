@@ -53,9 +53,9 @@ export function QuickSwitch() {
   }
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/40 px-4 pt-[12vh]" onMouseDown={() => setOpen(false)}>
-      <div role="dialog" aria-modal="true" aria-label="Go to a page" className="w-full max-w-lg overflow-hidden rounded-panel border border-line bg-panel text-ink shadow-xl" onMouseDown={(e) => e.stopPropagation()}>
-        <label className="flex items-center gap-2 border-b border-line px-4">
-          <Search className="size-4 text-ink-3" aria-hidden />
+      <div role="dialog" aria-modal="true" aria-label="Go to a page" className="w-full max-w-lg overflow-hidden rounded-xl border border-subtle bg-surface-container-lowest text-primary shadow-xl" onMouseDown={(e) => e.stopPropagation()}>
+        <label className="flex items-center gap-2 border-b border-subtle px-4">
+          <Search className="size-4 text-muted" aria-hidden />
           <span className="sr-only">Search pages</span>
           <input
             ref={input}
@@ -74,9 +74,9 @@ export function QuickSwitch() {
             aria-expanded="true"
             aria-controls="quick-switch-results"
             aria-activedescendant={results[active] ? `qs-${active}` : undefined}
-            className="h-12 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-3"
+            className="h-12 flex-1 bg-transparent text-body outline-none placeholder:text-muted"
           />
-          <kbd className="rounded border border-line px-1.5 text-[11px] text-ink-3">Esc</kbd>
+          <kbd className="rounded border border-subtle px-1.5 text-[11px] text-muted">Esc</kbd>
         </label>
         <ul id="quick-switch-results" role="listbox" className="max-h-80 overflow-y-auto p-1.5">
           {results.length ? (
@@ -88,14 +88,14 @@ export function QuickSwitch() {
                 aria-selected={i === active}
                 onMouseEnter={() => setActive(i)}
                 onClick={() => go(d)}
-                className="flex h-10 cursor-pointer items-center justify-between rounded-control px-3 text-sm aria-selected:bg-accent-soft aria-selected:text-accent"
+                className="flex h-10 cursor-pointer items-center justify-between rounded-lg px-3 text-body aria-selected:bg-accent-soft aria-selected:text-accent"
               >
                 <span>{d.label}</span>
-                <span className="text-xs text-ink-3">{AREA_LABEL[d.area]}</span>
+                <span className="text-meta text-muted">{AREA_LABEL[d.area]}</span>
               </li>
             ))
           ) : (
-            <li className="px-3 py-6 text-center text-sm text-ink-3">No page matches “{q}”.</li>
+            <li className="px-3 py-6 text-center text-body text-muted">No page matches “{q}”.</li>
           )}
         </ul>
       </div>

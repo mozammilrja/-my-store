@@ -38,6 +38,7 @@ export const AREA_PAGES: Record<Exclude<Area, "admin">, Destination[]> = {
 /** The label of the page at `pathname` within its area, for breadcrumbs. */
 export function pageLabel(pathname: string, adminModules: { path: string; label: string }[]): string | null {
   const [, area, page, sub] = pathname.split("/")
+  if (page === "account") return "Account & security"
   if (area === "admin") return adminModules.find((m) => m.path === page)?.label ?? null
   if (area === "account") return "Account & security"
   const pages = AREA_PAGES[area as Exclude<Area, "admin">]

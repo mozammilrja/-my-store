@@ -20,6 +20,7 @@ import { NotificationsModal } from './components/common/NotificationsModal';
 import { Toast } from './components/common/Toast';
 import { SkeletonPage } from './components/shared/Skeleton';
 import { MODULE_ROUTES } from './routes';
+import { AccountContent } from './portal/AccountPage';
 
 /** A module path ("products", "/order-management?q=x") as its URL in the portal. */
 export const adminPath = (path) => (path.startsWith('/admin/') ? path : `/admin/${path.replace(/^\//, '')}`);
@@ -233,6 +234,8 @@ export function App() {
             ))}
           </React.Fragment>
         ))}
+        {/* Account & security, inside the admin shell. */}
+        <Route path="account" element={<ErrorBoundary resetKey="account"><AccountContent /></ErrorBoundary>} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

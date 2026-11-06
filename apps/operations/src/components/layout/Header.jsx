@@ -204,7 +204,7 @@ export function Header({
                   role="menuitem"
                   onClick={() => {
                     setProfileOpen(false);
-                    navigate('/account');
+                    navigate('/admin/account');
                   }}
                   className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-meta text-primary transition-colors hover:bg-surface-subtle"
                   type="button"

@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router"
 import { Spinner } from "@/areas/shared/ui"
 import { AreaShell, makeAreaClient } from "@/areas/shared/AreaShell"
+import { AccountContent } from "@/portal/AccountPage"
 import { usePortal } from "@/portal/session"
 import { Layout } from "./components/layout"
 import { SessionProvider } from "./lib/session"
@@ -32,6 +33,7 @@ export default function SellerArea() {
             <Route path="returns" element={<Returns />} />
             <Route path="payments" element={<Payments />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="account" element={<AccountContent />} />
             <Route path="*" element={<Navigate to="/seller" replace />} />
           </Route>
         </Routes>

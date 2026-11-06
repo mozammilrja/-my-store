@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Download, KeyRound, LayoutGrid, LogOut, Share } from "lucide-react"
+import { Check, Download, KeyRound, LayoutGrid, LogOut, Share } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router"
 import { AREA_HOME } from "./destinations"
@@ -76,7 +76,6 @@ export function PortalMenu({ compact = false }: { compact?: boolean }) {
           {initialsOf(name)}
         </span>
         {compact ? null : <span className="hidden max-w-32 truncate font-medium text-primary lg:inline">{name}</span>}
-        <ChevronDown className="size-4 text-muted" aria-hidden />
       </button>
 
       {open ? (
@@ -134,7 +133,7 @@ export function PortalMenu({ compact = false }: { compact?: boolean }) {
                 In Safari, tap <Share className="inline size-3.5 align-text-bottom" aria-label="Share" /> Share, then <strong>Add to Home Screen</strong>.
               </p>
             ) : null}
-            <Link role="menuitem" to="/account" className="flex h-11 md:h-9 items-center gap-2 rounded-lg px-2.5 text-body hover:bg-surface-subtle">
+            <Link role="menuitem" to={AREA_HOME[current] ? `${AREA_HOME[current]}/account` : "/account"} className="flex h-11 md:h-9 items-center gap-2 rounded-lg px-2.5 text-body hover:bg-surface-subtle">
               <KeyRound className="size-4 text-muted" aria-hidden /> Account &amp; security
             </Link>
             <button

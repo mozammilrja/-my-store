@@ -10,6 +10,7 @@ import { LoginPage } from './portal/LoginPage';
 import { ForgotPasswordPage, ResetPasswordPage } from './portal/AuthPages';
 import { MODULE_ROUTES } from './routes';
 import { InstallBanner, registerServiceWorker } from './portal/pwa';
+import { usePageTitle } from './portal/title';
 import { NetworkBanner } from './areas/shared/network';
 import './index.css';
 
@@ -30,7 +31,7 @@ const DeliveryArea = lazy(() => import('./areas/delivery'));
 const SellerArea = lazy(() => import('./areas/seller'));
 const DeliveryRegister = lazy(() => import('./areas/delivery').then((m) => ({ default: m.DeliveryRegister })));
 const SellerRegister = lazy(() => import('./areas/seller').then((m) => ({ default: m.SellerRegister })));
-const AccountPage = lazy(() => import('./portal/AccountPage').then((m) => ({ default: m.AccountPage })));
+const AccountRedirect = lazy(() => import('./portal/AccountPage').then((m) => ({ default: m.AccountRedirect })));
 
 /**
  * The admin used to route on the hash (#/products), then at the site root
@@ -62,6 +63,7 @@ const lazyPage = (Component) => (
 );
 
 function Root() {
+  usePageTitle();
   return (
     <>
       <NetworkBanner />
@@ -84,7 +86,8 @@ const router = createBrowserRouter([
       { path: '/reset-password', element: <ResetPasswordPage /> },
       { path: '/delivery/register', element: lazyPage(DeliveryRegister) },
       { path: '/seller/register', element: lazyPage(SellerRegister) },
-      { path: '/account', element: <RequireArea area="any">{lazyPage(AccountPage)}</RequireArea> },
+      // The account page lives inside each workspace (/warehouse/account, ...); this opens the person's own.
+      { path: '/account', element: <RequireArea area="any">{lazyPage(AccountRedirect)}</RequireArea> },
       { path: '/admin/*', element: area('admin', AdminArea) },
       { path: '/warehouse/*', element: area('warehouse', WarehouseArea) },
       { path: '/delivery/*', element: area('delivery', DeliveryArea) },

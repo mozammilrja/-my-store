@@ -33,7 +33,9 @@ export function RequireArea({ area, children }: { area: Area | "any"; children: 
         </button>
       </div>
     )
-  if (status !== "signedIn" || !principal) return <Navigate to="/login" replace state={{ from: location, reason: endedBy === "expired" ? "expired" : undefined }} />
+  // A deliberate sign-out starts the next session at its dashboard; otherwise
+  // (opened signed out, or the session expired) sign-in returns to this page.
+  if (status !== "signedIn" || !principal) return <Navigate to="/login" replace state={endedBy === "user" ? undefined : { from: location, reason: endedBy === "expired" ? "expired" : undefined }} />
   if (area !== "any" && !principal.areas.includes(area)) return <NotAllowed area={area} />
   return <>{children}</>
 }
